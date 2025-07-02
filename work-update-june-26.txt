@@ -1,0 +1,38 @@
+Work Update – June 26
+======================
+
+1. Removed Duplicate Project
+   • Deleted the `Accountabuild2/` directory to avoid maintaining two separate React-Native projects.
+
+2. Consolidated Codebase
+   • Pointed the surviving React-Native project (`Accountabuild/`) to the shared `../src/` folder so all previously implemented screens (Login, Home, Chat, etc.) load.
+   • Modified `Accountabuild/index.js` to import `../src/App` and added:
+     – `import 'react-native-gesture-handler'`
+     – `enableScreens()` from `react-native-screens`.
+
+3. Metro Configuration
+   • Updated `Accountabuild/metro.config.js`:
+     – Added `watchFolders` for the repo root.
+     – Added `extraNodeModules` aliases for `src` and `@babel/runtime` so Metro resolves shared code and runtime helpers.
+
+4. Dependency Updates (package.json)
+   • Added `react-native-gesture-handler` to dependencies.
+   • Moved `@babel/runtime` to *dependencies* and bumped to ^7.25.0.
+   • Upgraded dev tooling to match React-Native 0.80.0:
+     – `@react-native/babel-preset`
+     – `@react-native/metro-config`
+     – `@react-native/eslint-config`
+   • Updated `@babel/core` and `@babel/preset-env` to ^7.25.0.
+   • Removed duplicate `@babel/runtime` from `devDependencies`.
+
+5. Native Linking
+   • Ran `npm install` inside `Accountabuild` after each change.
+   • Ran `npx pod-install ios` to install iOS pods (RNGestureHandler, RNScreens, etc.).
+
+6. Scripts & Commands
+   • Provided instructions to always run Metro and iOS build from inside the `Accountabuild/` directory, or use `--project-path Accountabuild/ios`.
+   • Restarted Metro with `--reset-cache`.
+
+7. Outstanding
+   • Metro now starts without Babel syntax errors.
+   • The next step is to reload the simulator; if further module-not-found errors appear, map or install those modules. 

@@ -1,0 +1,92 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String          @id @default(cuid())
+  email          String          @unique
+  password       String
+  username       String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  sentMessages   Message[]
+  memberships    Membership[]
+  goals          Goal[]
+  workoutRecords WorkoutRecord[]
+  pushTokens     PushToken[]
+  ownedGroups    Group[]
+}
+
+model Group {
+  id          String       @id @default(cuid())
+  name        String
+  description String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  adminId     String
+  admin       User         @relation(fields: [adminId], references: [id])
+  memberships Membership[]
+  messages    Message[]
+}
+
+model Membership {
+  id        String   @id @default(cuid())
+  userId    String
+  groupId   String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group     Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, groupId])
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  content   String
+  createdAt DateTime @default(now())
+  userId    String
+  groupId   String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group     Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+}
+
+model Goal {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  description String
+  target      Int
+  progress    Int      @default(0)
+  isCompleted Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model WorkoutRecord {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String // e.g., 'Running', 'Weightlifting'
+  startDate DateTime
+  endDate   DateTime
+  duration  Float // in minutes
+  calories  Float
+  sourceId  String   @unique // Unique ID from HealthKit
+}
+
+model PushToken {
+  id            String   @id @default(cuid())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  deviceToken   String   @unique // The raw token from the device (FCM, APNs)
+  endpointArn   String   @unique // The ARN for the device endpoint in SNS
+  deviceType    String // "ios" or "android"
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+} 
