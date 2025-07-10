@@ -186,8 +186,8 @@ MICRO-LEVEL CHECKLIST
 [✓] Integrate `react-native-health` and test sync
 [✓] Add image picker & upload flow
 [✓] Request and handle app permissions
-[ ] Write backend Jest tests
-[ ] Write frontend Jest tests
+[✓] Write backend Jest tests
+[✓] Write frontend Jest tests
 [ ] Configure GitHub Actions pipeline
 [ ] Deploy backend to AWS ECS / Heroku
 [ ] Deploy database to AWS RDS
