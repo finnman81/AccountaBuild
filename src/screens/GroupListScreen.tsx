@@ -1,97 +1,101 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, FlatList, StyleSheet, RefreshControl } from 'react-native';
-import { Button, Card, Title, Paragraph, ActivityIndicator, Text } from 'react-native-paper';
-import { useFocusEffect } from '@react-navigation/native';
-import { getMyGroups, Group } from '../api/groups';
-import { GroupListScreenProps } from '../navigation/types';
+import React, { useContext, useEffect, useMemo, useState } from 'react';
+import { FlatList, View } from 'react-native';
+import { Button, Card, Divider, List, Text, useTheme } from 'react-native-paper';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
 
-const GroupListScreen = ({ navigation }: GroupListScreenProps) => {
-  const [groups, setGroups] = useState<Group[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+import { RootStackParamList } from '../navigation/types';
+import { AuthContext } from '../store/AuthContext';
+import { subscribeMyGroups, UserGroupListItem } from '../services/groups';
 
-  const fetchGroups = async () => {
-    try {
-      const fetchedGroups = await getMyGroups();
-      setGroups(fetchedGroups);
-    } catch (error) {
-      console.error('Error fetching groups on screen:', error);
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
-    }
-  };
+type Props = NativeStackScreenProps<RootStackParamList, 'GroupList'>;
 
-  useFocusEffect(
-    useCallback(() => {
-      setIsLoading(true);
-      fetchGroups();
-    }, [])
-  );
+export default function GroupListScreen({ navigation }: Props) {
+  const theme = useTheme();
+  const { user, logout } = useContext(AuthContext);
+  const [groups, setGroups] = useState<UserGroupListItem[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
-  const onRefresh = () => {
-    setIsRefreshing(true);
-    fetchGroups();
-  };
+  const username = useMemo(() => {
+    const n = (user?.displayName || '').trim();
+    if (n) return n;
+    const email = (user?.email || '').trim();
+    return email ? email.split('@')[0] : 'User';
+  }, [user?.displayName, user?.email]);
 
-  if (isLoading) {
-    return <ActivityIndicator animating={true} style={styles.loader} />;
-  }
-  
-  const renderItem = ({ item }: { item: Group }) => (
-    <Card 
-      style={styles.card}
-      onPress={() => navigation.navigate('Chat', { groupId: item.id })}
-    >
-      <Card.Content>
-        <Title>{item.name}</Title>
-        <Paragraph>{item.description}</Paragraph>
-      </Card.Content>
-    </Card>
-  );
+  useEffect(() => {
+    if (!user) return;
+    return subscribeMyGroups(
+      user.uid,
+      (items) => {
+        setGroups(items);
+        setError(null);
+      },
+      () => setError('Failed to load groups.'),
+    );
+  }, [user]);
 
   return (
-    <View style={styles.container}>
-      <Button 
-        mode="contained" 
-        onPress={() => navigation.navigate('CreateGroup')} 
-        style={styles.button}
-      >
-        Create New Group
+    <View style={{ flex: 1, padding: 16, backgroundColor: theme.colors.background }}>
+      <View style={{ flexDirection: 'row', gap: 12 }}>
+        <Button mode="contained" onPress={() => navigation.navigate('CreateGroup')} style={{ flex: 1 }}>
+          Create
+        </Button>
+        <Button mode="outlined" onPress={() => navigation.navigate('JoinGroup')} style={{ flex: 1 }}>
+          Join
+        </Button>
+      </View>
+
+      <View style={{ height: 16 }} />
+
+      <Card>
+        <Card.Title title={username} subtitle={user?.email ?? undefined} />
+        <Card.Content>
+          {error ? <Text style={{ color: 'crimson' }}>{error}</Text> : null}
+          <View style={{ height: 12 }} />
+          <Button mode="contained" onPress={() => navigation.navigate('Profile')}>
+            Edit profile
+          </Button>
+        </Card.Content>
+      </Card>
+
+      <View style={{ height: 16 }} />
+
+      <Text variant="titleMedium" style={{ color: theme.colors.onBackground, marginBottom: 8 }}>
+        Your groups
+      </Text>
+
+      <Card>
+        <Card.Content style={{ paddingHorizontal: 0 }}>
+          {groups.length === 0 ? (
+            <View style={{ paddingHorizontal: 16, paddingVertical: 8 }}>
+              <Text variant="bodyMedium">No groups yet. Create one or join with a code.</Text>
+            </View>
+          ) : null}
+          <FlatList
+            data={groups}
+            keyExtractor={(g) => g.groupId}
+            ItemSeparatorComponent={() => <Divider />}
+            renderItem={({ item }) => (
+              <List.Item
+                title={item.name}
+                description={item.description ?? `Join code: ${item.joinCode}`}
+                onPress={() => navigation.navigate('GroupDetail', { groupId: item.groupId })}
+                titleStyle={{ color: theme.colors.onSurface }}
+                descriptionStyle={{ color: theme.colors.onSurfaceVariant }}
+                left={(props) => <List.Icon {...props} icon="account-group" color={theme.colors.onSurface} />}
+                right={(props) => <List.Icon {...props} icon="chevron-right" color={theme.colors.onSurfaceVariant} />}
+              />
+            )}
+          />
+        </Card.Content>
+      </Card>
+
+      <View style={{ height: 8 }} />
+      <Button mode="text" onPress={logout}>
+        Sign out
       </Button>
-      {groups.length === 0 ? (
-        <Text style={styles.emptyText}>You are not a member of any groups yet.</Text>
-      ) : (
-        <FlatList
-          data={groups}
-          renderItem={renderItem}
-          keyExtractor={(item) => item.id}
-          refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />}
-        />
-      )}
     </View>
   );
-};
+}
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  loader: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  card: {
-    margin: 10,
-  },
-  button: {
-    margin: 10,
-  },
-  emptyText: {
-    textAlign: 'center',
-    marginTop: 20,
-  },
-});
 
-export default GroupListScreen; 

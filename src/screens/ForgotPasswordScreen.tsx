@@ -5,35 +5,25 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import { RootStackParamList } from '../navigation/types';
 import { AuthContext } from '../store/AuthContext';
-import { createGroup } from '../services/groups';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'CreateGroup'>;
+type Props = NativeStackScreenProps<RootStackParamList, 'ForgotPassword'>;
 
-export default function CreateGroupScreen({ navigation }: Props) {
-  const { user } = useContext(AuthContext);
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
+export default function ForgotPasswordScreen({ navigation }: Props) {
+  const { resetPassword } = useContext(AuthContext);
+  const [email, setEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const onSubmit = async () => {
-    if (!user) return;
     setError(null);
+    setMessage(null);
     setIsSubmitting(true);
     try {
-      if (!name.trim()) {
-        setError('Group name is required.');
-        return;
-      }
-      const res = await createGroup({
-        uid: user.uid,
-        displayName: user.displayName ?? user.email ?? null,
-        name,
-        description,
-      });
-      navigation.replace('GroupDetail', { groupId: res.groupId });
+      await resetPassword(email);
+      setMessage('Password reset email sent. Check your inbox.');
     } catch (e) {
-      setError('Failed to create group.');
+      setError('Could not send reset email. Check the email address.');
     } finally {
       setIsSubmitting(false);
     }
@@ -46,16 +36,15 @@ export default function CreateGroupScreen({ navigation }: Props) {
     >
       <View style={{ flex: 1, padding: 16, justifyContent: 'center' }}>
         <Card>
-          <Card.Title title="Create a group" subtitle="Invite friends with a join code" />
+          <Card.Title title="Reset your password" />
           <Card.Content>
-            <TextInput label="Group name" value={name} onChangeText={setName} disabled={isSubmitting} />
-            <View style={{ height: 12 }} />
             <TextInput
-              label="Description (optional)"
-              value={description}
-              onChangeText={setDescription}
+              label="Email"
+              autoCapitalize="none"
+              keyboardType="email-address"
+              value={email}
+              onChangeText={setEmail}
               disabled={isSubmitting}
-              multiline
             />
             {error ? (
               <>
@@ -63,9 +52,19 @@ export default function CreateGroupScreen({ navigation }: Props) {
                 <Text style={{ color: 'crimson' }}>{error}</Text>
               </>
             ) : null}
+            {message ? (
+              <>
+                <View style={{ height: 12 }} />
+                <Text style={{ color: 'green' }}>{message}</Text>
+              </>
+            ) : null}
             <View style={{ height: 16 }} />
             <Button mode="contained" onPress={onSubmit} loading={isSubmitting} disabled={isSubmitting}>
-              Create group
+              Send reset email
+            </Button>
+            <View style={{ height: 12 }} />
+            <Button onPress={() => navigation.navigate('Login')} disabled={isSubmitting}>
+              Back to login
             </Button>
           </Card.Content>
         </Card>

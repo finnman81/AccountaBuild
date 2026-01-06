@@ -5,14 +5,15 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import { RootStackParamList } from '../navigation/types';
 import { AuthContext } from '../store/AuthContext';
-import { createGroup } from '../services/groups';
+import { addWeightLog } from '../services/logs';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'CreateGroup'>;
+type Props = NativeStackScreenProps<RootStackParamList, 'AddWeight'>;
 
-export default function CreateGroupScreen({ navigation }: Props) {
+export default function AddWeightScreen({ route, navigation }: Props) {
   const { user } = useContext(AuthContext);
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
+  const { groupId } = route.params;
+  const [weight, setWeight] = useState('');
+  const [note, setNote] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -21,39 +22,38 @@ export default function CreateGroupScreen({ navigation }: Props) {
     setError(null);
     setIsSubmitting(true);
     try {
-      if (!name.trim()) {
-        setError('Group name is required.');
+      const value = Number(weight);
+      if (!Number.isFinite(value) || value <= 0) {
+        setError('Enter a valid weight.');
         return;
       }
-      const res = await createGroup({
-        uid: user.uid,
-        displayName: user.displayName ?? user.email ?? null,
-        name,
-        description,
-      });
-      navigation.replace('GroupDetail', { groupId: res.groupId });
+      await addWeightLog({ groupId, uid: user.uid, weight: value, note });
+      navigation.goBack();
     } catch (e) {
-      setError('Failed to create group.');
+      setError('Failed to save weight.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={{ flex: 1, padding: 16, justifyContent: 'center' }}>
         <Card>
-          <Card.Title title="Create a group" subtitle="Invite friends with a join code" />
+          <Card.Title title="Log weight" subtitle="Quick daily weigh-in" />
           <Card.Content>
-            <TextInput label="Group name" value={name} onChangeText={setName} disabled={isSubmitting} />
+            <TextInput
+              label="Weight"
+              keyboardType="decimal-pad"
+              value={weight}
+              onChangeText={setWeight}
+              disabled={isSubmitting}
+            />
             <View style={{ height: 12 }} />
             <TextInput
-              label="Description (optional)"
-              value={description}
-              onChangeText={setDescription}
+              label="Note (optional)"
+              value={note}
+              onChangeText={setNote}
               disabled={isSubmitting}
               multiline
             />
@@ -65,7 +65,7 @@ export default function CreateGroupScreen({ navigation }: Props) {
             ) : null}
             <View style={{ height: 16 }} />
             <Button mode="contained" onPress={onSubmit} loading={isSubmitting} disabled={isSubmitting}>
-              Create group
+              Save
             </Button>
           </Card.Content>
         </Card>

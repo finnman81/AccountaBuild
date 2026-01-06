@@ -5,14 +5,13 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import { RootStackParamList } from '../navigation/types';
 import { AuthContext } from '../store/AuthContext';
-import { createGroup } from '../services/groups';
+import { joinGroupByCode } from '../services/groups';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'CreateGroup'>;
+type Props = NativeStackScreenProps<RootStackParamList, 'JoinGroup'>;
 
-export default function CreateGroupScreen({ navigation }: Props) {
+export default function JoinGroupScreen({ navigation }: Props) {
   const { user } = useContext(AuthContext);
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
+  const [joinCode, setJoinCode] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -21,19 +20,14 @@ export default function CreateGroupScreen({ navigation }: Props) {
     setError(null);
     setIsSubmitting(true);
     try {
-      if (!name.trim()) {
-        setError('Group name is required.');
-        return;
-      }
-      const res = await createGroup({
+      const res = await joinGroupByCode({
         uid: user.uid,
         displayName: user.displayName ?? user.email ?? null,
-        name,
-        description,
+        joinCode,
       });
       navigation.replace('GroupDetail', { groupId: res.groupId });
     } catch (e) {
-      setError('Failed to create group.');
+      setError('Invalid code or join failed.');
     } finally {
       setIsSubmitting(false);
     }
@@ -46,16 +40,14 @@ export default function CreateGroupScreen({ navigation }: Props) {
     >
       <View style={{ flex: 1, padding: 16, justifyContent: 'center' }}>
         <Card>
-          <Card.Title title="Create a group" subtitle="Invite friends with a join code" />
+          <Card.Title title="Join a group" subtitle="Ask a friend for the 6‑char code" />
           <Card.Content>
-            <TextInput label="Group name" value={name} onChangeText={setName} disabled={isSubmitting} />
-            <View style={{ height: 12 }} />
             <TextInput
-              label="Description (optional)"
-              value={description}
-              onChangeText={setDescription}
+              label="Join code"
+              autoCapitalize="characters"
+              value={joinCode}
+              onChangeText={setJoinCode}
               disabled={isSubmitting}
-              multiline
             />
             {error ? (
               <>
@@ -65,7 +57,7 @@ export default function CreateGroupScreen({ navigation }: Props) {
             ) : null}
             <View style={{ height: 16 }} />
             <Button mode="contained" onPress={onSubmit} loading={isSubmitting} disabled={isSubmitting}>
-              Create group
+              Join
             </Button>
           </Card.Content>
         </Card>

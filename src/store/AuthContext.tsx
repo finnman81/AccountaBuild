@@ -1,93 +1,100 @@
-import React, { createContext, useState, useEffect } from 'react';
-import * as Keychain from 'react-native-keychain';
-import { jwtDecode } from 'jwt-decode';
-import apiClient from '../api/client';
-import { initializeSocket, getSocket } from '../socket/socket';
+import React, { createContext, useEffect, useMemo, useState } from 'react';
+import {
+  User as FirebaseUser,
+  createUserWithEmailAndPassword,
+  onAuthStateChanged,
+  sendPasswordResetEmail,
+  signInWithEmailAndPassword,
+  signOut,
+  updateProfile,
+} from 'firebase/auth';
+import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 
-interface User {
-  id: string;
-  email: string;
-  username: string | null;
-}
+import { auth, db, isFirebaseConfigured } from '../firebase/firebase';
 
-interface AuthContextData {
-  token: string | null;
-  user: User | null;
-  isAuthenticated: boolean;
+export type AuthUser = {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+};
+
+type AuthContextValue = {
+  user: AuthUser | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (username: string, email: string, password: string) => Promise<void>;
-  logout: () => void;
+  register: (displayName: string, email: string, password: string) => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
+  logout: () => Promise<void>;
+};
+
+export const AuthContext = createContext<AuthContextValue>({} as AuthContextValue);
+
+function toAuthUser(user: FirebaseUser): AuthUser {
+  return { uid: user.uid, email: user.email, displayName: user.displayName };
 }
 
-export const AuthContext = createContext<AuthContextData>({} as AuthContextData);
-
-export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  const [token, setToken] = useState<string | null>(null);
-  const [user, setUser] = useState<User | null>(null);
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const setSession = async (sessionToken: string) => {
-    const decodedUser: User = jwtDecode(sessionToken);
-    setToken(sessionToken);
-    setUser(decodedUser);
-    apiClient.defaults.headers.common['Authorization'] = `Bearer ${sessionToken}`;
-    initializeSocket(sessionToken);
-    await Keychain.setGenericPassword('token', sessionToken);
-  };
-
   useEffect(() => {
-    const loadToken = async () => {
-      try {
-        const credentials = await Keychain.getGenericPassword();
-        if (credentials) {
-          await setSession(credentials.password);
-        }
-      } catch (error) {
-        console.error("Failed to load token from storage", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    loadToken();
+    if (!isFirebaseConfigured()) {
+      setIsLoading(false);
+      setUser(null);
+      return;
+    }
+
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      setUser(firebaseUser ? toAuthUser(firebaseUser) : null);
+      setIsLoading(false);
+    });
+
+    return unsubscribe;
   }, []);
 
-  const login = async (email: string, password: string) => {
-    try {
-      const response = await apiClient.post('/auth/login', { email, password });
-      await setSession(response.data.token);
-    } catch (error) {
-      console.error("Login failed", error);
-      throw error;
-    }
-  };
+  const value = useMemo<AuthContextValue>(
+    () => ({
+      user,
+      isLoading,
+      login: async (email: string, password: string) => {
+        await signInWithEmailAndPassword(auth, email.trim(), password);
+      },
+      register: async (displayName: string, email: string, password: string) => {
+        const credential = await createUserWithEmailAndPassword(
+          auth,
+          email.trim(),
+          password,
+        );
 
-  const register = async (username: string, email: string, password: string) => {
-    try {
-      const response = await apiClient.post('/auth/register', { username, email, password });
-      await setSession(response.data.token);
-    } catch (error) {
-      console.error("Registration failed", error);
-      throw error;
-    }
-  };
+        await updateProfile(credential.user, { displayName: displayName.trim() });
 
-  const logout = async () => {
-    try {
-      const socket = getSocket();
-      socket.disconnect();
-    } catch (error) {
-      console.log("Socket wasn't initialized, which is fine on logout.");
-    }
-    setToken(null);
-    setUser(null);
-    delete apiClient.defaults.headers.common['Authorization'];
-    await Keychain.resetGenericPassword();
-  };
-
-  return (
-    <AuthContext.Provider value={{ token, user, isAuthenticated: !!token, isLoading, login, register, logout }}>
-      {children}
-    </AuthContext.Provider>
+        // Create/update a basic user profile doc.
+        await setDoc(
+          doc(db, 'users', credential.user.uid),
+          {
+            email: credential.user.email,
+            displayName: displayName.trim(),
+            height: null,
+            age: null,
+            weightCurrent: null,
+            weightGoal: null,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true },
+        );
+      },
+      resetPassword: async (email: string) => {
+        await sendPasswordResetEmail(auth, email.trim());
+      },
+      logout: async () => {
+        await signOut(auth);
+      },
+    }),
+    [isLoading, user],
   );
-}; 
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+

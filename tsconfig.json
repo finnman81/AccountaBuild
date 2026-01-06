@@ -1,18 +1,6 @@
 {
+  "extends": "expo/tsconfig.base",
   "compilerOptions": {
-    "target": "es2020",
-    "module": "commonjs",
-    "jsx": "react-jsx",
-    "lib": ["es2020"],
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "outDir": "./dist",
-    "rootDir": "./src",
-    "moduleResolution": "node",
-    "resolveJsonModule": true
-  },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "**/*.spec.ts"]
-} 
+    "strict": true
+  }
+}
