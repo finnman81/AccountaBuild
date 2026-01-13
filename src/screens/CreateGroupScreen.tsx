@@ -6,6 +6,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
 import { AuthContext } from '../store/AuthContext';
 import { createGroup } from '../services/groups';
+import { friendlyNameFromDisplayName } from '../utils/formatters';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'CreateGroup'>;
 
@@ -27,7 +28,7 @@ export default function CreateGroupScreen({ navigation }: Props) {
       }
       const res = await createGroup({
         uid: user.uid,
-        displayName: user.displayName ?? user.email ?? null,
+        displayName: user.displayName ?? friendlyNameFromDisplayName(user.email ?? null, user.uid),
         name,
         description,
       });

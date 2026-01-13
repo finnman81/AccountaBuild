@@ -6,6 +6,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
 import { AuthContext } from '../store/AuthContext';
 import { joinGroupByCode } from '../services/groups';
+import { friendlyNameFromDisplayName } from '../utils/formatters';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'JoinGroup'>;
 
@@ -22,7 +23,7 @@ export default function JoinGroupScreen({ navigation }: Props) {
     try {
       const res = await joinGroupByCode({
         uid: user.uid,
-        displayName: user.displayName ?? user.email ?? null,
+        displayName: user.displayName ?? friendlyNameFromDisplayName(user.email ?? null, user.uid),
         joinCode,
       });
       navigation.replace('GroupDetail', { groupId: res.groupId });

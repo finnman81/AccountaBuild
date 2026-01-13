@@ -1,8 +1,9 @@
 import { Platform } from 'react-native';
 import { initializeApp, getApp, getApps } from 'firebase/app';
-import { getAuth, initializeAuth, inMemoryPersistence, setPersistence } from 'firebase/auth';
+import { getAuth, getReactNativePersistence, initializeAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type FirebaseConfig = {
   apiKey?: string;
@@ -39,12 +40,13 @@ export const firebaseApp = getApps().length ? getApp() : initializeApp(firebaseC
 
 // Firebase Auth persistence:
 // - Web: default browser persistence via getAuth().
-// - Native: use in-memory persistence for now (Expo managed, no native-only deps).
-//   This keeps us unblocked and cross-platform; we can swap to secure persistence later.
-export const auth = Platform.OS === 'web' ? getAuth(firebaseApp) : initializeAuth(firebaseApp);
-if (Platform.OS !== 'web') {
-  void setPersistence(auth, inMemoryPersistence);
-}
+// - Native: AsyncStorage-backed persistence (keeps users signed in across restarts).
+export const auth =
+  Platform.OS === 'web'
+    ? getAuth(firebaseApp)
+    : initializeAuth(firebaseApp, {
+        persistence: getReactNativePersistence(AsyncStorage),
+      });
 export const db = getFirestore(firebaseApp);
 export const storage = getStorage(firebaseApp);
 

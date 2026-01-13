@@ -8,6 +8,7 @@ import {
   query,
   serverTimestamp,
   setDoc,
+  updateDoc,
   where,
 } from 'firebase/firestore';
 
@@ -19,6 +20,9 @@ export type UserGroupListItem = {
   description: string | null;
   joinCode: string;
   role: 'admin' | 'member';
+  // Optional per-user “last seen” timestamps for badges.
+  chatLastSeenAt?: unknown;
+  photosLastSeenAt?: unknown;
 };
 
 function normalizeJoinCode(code: string) {
@@ -127,6 +131,8 @@ export async function createGroup(params: {
       joinCode,
       role: 'admin',
       joinedAt: serverTimestamp(),
+      chatLastSeenAt: serverTimestamp(),
+      photosLastSeenAt: serverTimestamp(),
     }),
   ]);
 
@@ -163,6 +169,8 @@ export async function joinGroupByCode(params: {
         joinCode: join.joinCode ?? code,
         role: 'member',
         joinedAt: serverTimestamp(),
+        chatLastSeenAt: serverTimestamp(),
+        photosLastSeenAt: serverTimestamp(),
       },
       { merge: true },
     ),
@@ -185,6 +193,42 @@ export function subscribeMyGroups(
     },
     onError,
   );
+}
+
+export function subscribeMyGroupMeta(
+  uid: string,
+  groupId: string,
+  onChange: (meta: UserGroupListItem | null) => void,
+  onError?: (err: unknown) => void,
+) {
+  return onSnapshot(
+    doc(db, 'users', uid, 'groups', groupId),
+    (snap) => onChange(snap.exists() ? (snap.data() as UserGroupListItem) : null),
+    onError,
+  );
+}
+
+export async function markGroupChatSeen(params: { uid: string; groupId: string }) {
+  await setDoc(
+    doc(db, 'users', params.uid, 'groups', params.groupId),
+    { chatLastSeenAt: serverTimestamp() },
+    { merge: true },
+  );
+}
+
+export async function markGroupPhotosSeen(params: { uid: string; groupId: string }) {
+  await setDoc(
+    doc(db, 'users', params.uid, 'groups', params.groupId),
+    { photosLastSeenAt: serverTimestamp() },
+    { merge: true },
+  );
+}
+
+export async function setGroupLogoUrl(params: { groupId: string; logoUrl: string | null }) {
+  await updateDoc(doc(db, 'groups', params.groupId), {
+    logoUrl: params.logoUrl ?? null,
+    updatedAt: serverTimestamp(),
+  });
 }
 
 

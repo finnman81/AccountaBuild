@@ -1,5 +1,6 @@
 import React, { useContext, useEffect, useMemo, useState } from 'react';
 import { FlatList, Image, View } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { Card, Text } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { collection, onSnapshot } from 'firebase/firestore';
@@ -8,6 +9,8 @@ import { RootStackParamList } from '../navigation/types';
 import { db } from '../firebase/firebase';
 import { AuthContext } from '../store/AuthContext';
 import { GroupLog, subscribeGroupPhotoLogs } from '../services/logs';
+import { markGroupPhotosSeen } from '../services/groups';
+import { friendlyNameFromDisplayName } from '../utils/formatters';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ViewPhotos'>;
 
@@ -35,11 +38,17 @@ export default function ViewPhotosScreen({ route }: Props) {
   }, [groupId]);
 
   const displayNameFor = (uid: string) => {
-    const n = (members[uid]?.displayName || '').trim();
-    return n || uid;
+    return friendlyNameFromDisplayName(members[uid]?.displayName ?? null, uid);
   };
 
   const data = useMemo(() => photos, [photos]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      if (!user) return;
+      void markGroupPhotosSeen({ uid: user.uid, groupId });
+    }, [groupId, user?.uid]),
+  );
 
   if (!user) {
     return (

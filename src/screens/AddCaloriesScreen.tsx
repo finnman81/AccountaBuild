@@ -1,11 +1,11 @@
 import React, { useContext, useState } from 'react';
 import { KeyboardAvoidingView, Platform, View } from 'react-native';
-import { Button, Card, Text, TextInput } from 'react-native-paper';
+import { Button, Card, Menu, Text, TextInput } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import { RootStackParamList } from '../navigation/types';
 import { AuthContext } from '../store/AuthContext';
-import { addCaloriesLog } from '../services/logs';
+import { addCaloriesLog, MealType } from '../services/logs';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'AddCalories'>;
 
@@ -13,9 +13,27 @@ export default function AddCaloriesScreen({ route, navigation }: Props) {
   const { user } = useContext(AuthContext);
   const { groupId } = route.params;
   const [calories, setCalories] = useState('');
+  const [meal, setMeal] = useState<MealType>('all');
+  const [mealMenuVisible, setMealMenuVisible] = useState(false);
   const [note, setNote] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const mealLabel = (m: MealType) => {
+    switch (m) {
+      case 'breakfast':
+        return 'Breakfast';
+      case 'lunch':
+        return 'Lunch';
+      case 'dinner':
+        return 'Dinner';
+      case 'snack':
+        return 'Snack';
+      case 'all':
+      default:
+        return 'All';
+    }
+  };
 
   const onSubmit = async () => {
     if (!user) return;
@@ -27,7 +45,7 @@ export default function AddCaloriesScreen({ route, navigation }: Props) {
         setError('Enter a valid calorie number.');
         return;
       }
-      await addCaloriesLog({ groupId, uid: user.uid, calories: value, note });
+      await addCaloriesLog({ groupId, uid: user.uid, calories: value, meal, note });
       navigation.goBack();
     } catch (e) {
       setError('Failed to save calories.');
@@ -49,6 +67,35 @@ export default function AddCaloriesScreen({ route, navigation }: Props) {
               onChangeText={setCalories}
               disabled={isSubmitting}
             />
+            <View style={{ height: 12 }} />
+            <Text variant="labelMedium">Meal</Text>
+            <View style={{ height: 8 }} />
+            <Menu
+              visible={mealMenuVisible}
+              onDismiss={() => setMealMenuVisible(false)}
+              anchor={
+                <Button
+                  mode="outlined"
+                  disabled={isSubmitting}
+                  onPress={() => setMealMenuVisible(true)}
+                  contentStyle={{ justifyContent: 'space-between' }}
+                  icon="chevron-down"
+                >
+                  {mealLabel(meal)}
+                </Button>
+              }
+            >
+              {(['breakfast', 'lunch', 'dinner', 'snack', 'all'] as MealType[]).map((m) => (
+                <Menu.Item
+                  key={m}
+                  title={mealLabel(m)}
+                  onPress={() => {
+                    setMeal(m);
+                    setMealMenuVisible(false);
+                  }}
+                />
+              ))}
+            </Menu>
             <View style={{ height: 12 }} />
             <TextInput
               label="Note (optional)"

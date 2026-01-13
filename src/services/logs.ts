@@ -13,6 +13,7 @@ import { db } from '../firebase/firebase';
 
 export type WorkoutType = 'weightLifting' | 'running' | 'jogging' | 'ruck' | 'swim';
 export type LogType = 'calories' | 'workout' | 'weight' | 'photo';
+export type MealType = 'all' | 'breakfast' | 'lunch' | 'dinner' | 'snack';
 
 export type GroupLog = {
   id: string;
@@ -35,6 +36,7 @@ export async function addCaloriesLog(params: {
   groupId: string;
   uid: string;
   calories: number;
+  meal: MealType;
   note?: string;
 }) {
   return addDoc(collection(db, 'groups', params.groupId, 'logs'), {
@@ -44,6 +46,7 @@ export async function addCaloriesLog(params: {
     ts: serverTimestamp(),
     payload: {
       calories: params.calories,
+      meal: params.meal,
       note: params.note?.trim() || null,
     },
   });

@@ -6,6 +6,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
 import { AuthContext } from '../store/AuthContext';
 import { subscribeMyGroups, UserGroupListItem } from '../services/groups';
+import { friendlyNameFromDisplayName } from '../utils/formatters';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'GroupList'>;
 
@@ -16,10 +17,7 @@ export default function GroupListScreen({ navigation }: Props) {
   const [error, setError] = useState<string | null>(null);
 
   const username = useMemo(() => {
-    const n = (user?.displayName || '').trim();
-    if (n) return n;
-    const email = (user?.email || '').trim();
-    return email ? email.split('@')[0] : 'User';
+    return friendlyNameFromDisplayName(user?.displayName ?? user?.email ?? null, user?.uid);
   }, [user?.displayName, user?.email]);
 
   useEffect(() => {
@@ -48,7 +46,7 @@ export default function GroupListScreen({ navigation }: Props) {
       <View style={{ height: 16 }} />
 
       <Card>
-        <Card.Title title={username} subtitle={user?.email ?? undefined} />
+        <Card.Title title={username} />
         <Card.Content>
           {error ? <Text style={{ color: 'crimson' }}>{error}</Text> : null}
           <View style={{ height: 12 }} />

@@ -1,8 +1,10 @@
 import React, { useContext, useState } from 'react';
-import { Image, View } from 'react-native';
+import { Image, KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 import { Button, Card, Text, TextInput } from 'react-native-paper';
 import * as ImagePicker from 'expo-image-picker';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useHeaderHeight } from '@react-navigation/elements';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { RootStackParamList } from '../navigation/types';
 import { AuthContext } from '../store/AuthContext';
@@ -14,6 +16,8 @@ type Props = NativeStackScreenProps<RootStackParamList, 'AddPhoto'>;
 export default function AddPhotoScreen({ route, navigation }: Props) {
   const { user } = useContext(AuthContext);
   const { groupId } = route.params;
+  const headerHeight = useHeaderHeight();
+  const insets = useSafeAreaInsets();
 
   const [uri, setUri] = useState<string | null>(null);
   const [caption, setCaption] = useState('');
@@ -73,52 +77,66 @@ export default function AddPhotoScreen({ route, navigation }: Props) {
   };
 
   return (
-    <View style={{ flex: 1, padding: 16, justifyContent: 'center' }}>
-      <Card>
-        <Card.Title title="Upload a photo" subtitle="Share with your group" />
-        <Card.Content>
-          <View style={{ flexDirection: 'row', gap: 12 }}>
-            <Button mode="contained" onPress={takePhoto} disabled={isSubmitting} style={{ flex: 1 }}>
-              Take photo
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={headerHeight}
+    >
+      <ScrollView
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{
+          flexGrow: 1,
+          padding: 16,
+          paddingBottom: 16 + insets.bottom,
+          justifyContent: 'center',
+        }}
+      >
+        <Card>
+          <Card.Title title="Upload a photo" subtitle="Share with your group" />
+          <Card.Content>
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <Button mode="contained" onPress={takePhoto} disabled={isSubmitting} style={{ flex: 1 }}>
+                Take photo
+              </Button>
+              <Button mode="outlined" onPress={choosePhoto} disabled={isSubmitting} style={{ flex: 1 }}>
+                Choose photo
+              </Button>
+            </View>
+
+            {uri ? (
+              <>
+                <View style={{ height: 12 }} />
+                <Image
+                  source={{ uri }}
+                  style={{ width: '100%', height: 240, borderRadius: 12, backgroundColor: '#eee' }}
+                  resizeMode="cover"
+                />
+                <View style={{ height: 12 }} />
+                <TextInput
+                  label="Description (optional)"
+                  value={caption}
+                  onChangeText={setCaption}
+                  disabled={isSubmitting}
+                  multiline
+                />
+              </>
+            ) : null}
+
+            {error ? (
+              <>
+                <View style={{ height: 12 }} />
+                <Text style={{ color: 'crimson' }}>{error}</Text>
+              </>
+            ) : null}
+
+            <View style={{ height: 16 }} />
+            <Button mode="contained" onPress={upload} disabled={!uri || isSubmitting} loading={isSubmitting}>
+              Upload
             </Button>
-            <Button mode="outlined" onPress={choosePhoto} disabled={isSubmitting} style={{ flex: 1 }}>
-              Choose photo
-            </Button>
-          </View>
-
-          {uri ? (
-            <>
-              <View style={{ height: 12 }} />
-              <Image
-                source={{ uri }}
-                style={{ width: '100%', height: 240, borderRadius: 12, backgroundColor: '#eee' }}
-                resizeMode="cover"
-              />
-              <View style={{ height: 12 }} />
-              <TextInput
-                label="Description (optional)"
-                value={caption}
-                onChangeText={setCaption}
-                disabled={isSubmitting}
-                multiline
-              />
-            </>
-          ) : null}
-
-          {error ? (
-            <>
-              <View style={{ height: 12 }} />
-              <Text style={{ color: 'crimson' }}>{error}</Text>
-            </>
-          ) : null}
-
-          <View style={{ height: 16 }} />
-          <Button mode="contained" onPress={upload} disabled={!uri || isSubmitting} loading={isSubmitting}>
-            Upload
-          </Button>
-        </Card.Content>
-      </Card>
-    </View>
+          </Card.Content>
+        </Card>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 

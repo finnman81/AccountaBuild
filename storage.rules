@@ -5,9 +5,26 @@ service firebase.storage {
       return request.auth != null;
     }
 
+    function isGroupCreator(groupId) {
+      return signedIn() &&
+        firestore.get(/databases/(default)/documents/groups/$(groupId)).data.createdBy == request.auth.uid;
+    }
+
     match /groups/{groupId}/photos/{uid}/{allPaths=**} {
       allow read: if signedIn();
       allow write: if signedIn() && request.auth.uid == uid;
+    }
+
+    // User profile avatars
+    match /users/{uid}/avatar/{allPaths=**} {
+      allow read: if signedIn();
+      allow write: if signedIn() && request.auth.uid == uid;
+    }
+
+    // Group logos (creator/admin controlled)
+    match /groups/{groupId}/logo/{allPaths=**} {
+      allow read: if signedIn();
+      allow write: if isGroupCreator(groupId);
     }
   }
 }

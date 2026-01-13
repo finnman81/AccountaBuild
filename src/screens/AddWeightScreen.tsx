@@ -43,7 +43,7 @@ export default function AddWeightScreen({ route, navigation }: Props) {
           <Card.Title title="Log weight" subtitle="Quick daily weigh-in" />
           <Card.Content>
             <TextInput
-              label="Weight"
+              label="Weight (lb)"
               keyboardType="decimal-pad"
               value={weight}
               onChangeText={setWeight}

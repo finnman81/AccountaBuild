@@ -1,0 +1,6 @@
+
+
+Nice to haves / next steps:
+1. emojis / reactions in chat (if possible, not sure how easy this is)
+2. Saved login for users (face unlock if possible too)
+4. Apple Health Sync

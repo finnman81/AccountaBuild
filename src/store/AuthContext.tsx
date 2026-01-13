@@ -11,6 +11,7 @@ import {
 import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 
 import { auth, db, isFirebaseConfigured } from '../firebase/firebase';
+import { syncMyMemberProfileToAllGroups } from '../services/profile';
 
 export type AuthUser = {
   uid: string;
@@ -36,6 +37,7 @@ function toAuthUser(user: FirebaseUser): AuthUser {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [didSyncMemberProfile, setDidSyncMemberProfile] = useState(false);
 
   useEffect(() => {
     if (!isFirebaseConfigured()) {
@@ -51,6 +53,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return unsubscribe;
   }, []);
+
+  // Best-effort: keep the user's public member profile synced into all groups.
+  // This is needed because Firestore rules only allow reading /users/{uid} for yourself,
+  // so other members rely on groups/{groupId}/members/{uid}.displayName, etc.
+  useEffect(() => {
+    if (!user?.uid) {
+      setDidSyncMemberProfile(false);
+      return;
+    }
+    if (didSyncMemberProfile) return;
+    setDidSyncMemberProfile(true);
+    void syncMyMemberProfileToAllGroups(user.uid);
+  }, [didSyncMemberProfile, user?.uid]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -83,6 +98,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           },
           { merge: true },
         );
+
+        // If they join groups later, the login-time sync will populate group member profiles.
       },
       resetPassword: async (email: string) => {
         await sendPasswordResetEmail(auth, email.trim());

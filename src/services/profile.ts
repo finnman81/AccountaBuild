@@ -6,6 +6,7 @@ export type UserProfile = {
   uid: string;
   email: string | null;
   displayName: string | null;
+  photoURL?: string | null;
   height: number | null;
   age: number | null;
   weightCurrent: number | null;
@@ -29,6 +30,7 @@ export function subscribeMyProfile(
         uid,
         email: data.email ?? null,
         displayName: data.displayName ?? null,
+        photoURL: data.photoURL ?? null,
         height: data.height ?? null,
         age: data.age ?? null,
         weightCurrent: data.weightCurrent ?? null,
@@ -42,6 +44,7 @@ export function subscribeMyProfile(
 export async function updateMyProfile(params: {
   uid: string;
   displayName?: string | null;
+  photoURL?: string | null;
   height?: number | null;
   age?: number | null;
   weightCurrent?: number | null;
@@ -51,6 +54,7 @@ export async function updateMyProfile(params: {
     doc(db, 'users', params.uid),
     {
       displayName: params.displayName ?? null,
+      photoURL: params.photoURL ?? null,
       height: params.height ?? null,
       age: params.age ?? null,
       weightCurrent: params.weightCurrent ?? null,
@@ -63,6 +67,7 @@ export async function updateMyProfile(params: {
 
 export type PublicMemberProfile = {
   displayName: string | null;
+  photoURL?: string | null;
   height: number | null;
   age: number | null;
   weightCurrent: number | null;
@@ -76,6 +81,7 @@ export async function syncMyMemberProfileToAllGroups(uid: string) {
 
   const publicProfile: PublicMemberProfile = {
     displayName: data.displayName ?? null,
+    photoURL: data.photoURL ?? null,
     height: data.height ?? null,
     age: data.age ?? null,
     weightCurrent: data.weightCurrent ?? null,
@@ -95,6 +101,7 @@ export async function syncMyMemberProfileToAllGroups(uid: string) {
         {
           uid,
           displayName: publicProfile.displayName,
+          photoURL: publicProfile.photoURL ?? null,
           height: publicProfile.height,
           age: publicProfile.age,
           weightCurrent: publicProfile.weightCurrent,
