@@ -4,6 +4,16 @@ This doc covers **how to ship AccountaBuild to Android via Google Play**, using 
 
 ---
 
+## IMPORTANT: run commands from the app folder
+
+This repo is a wrapper. Run all Expo/EAS commands from:
+
+- `AccountaBuild/`
+
+If you run commands from the repo root you may see errors like “Could not read package.json”.
+
+---
+
 ## What “deploy to Android” means (high level)
 
 To ship on Android you typically:
@@ -75,6 +85,20 @@ Typical profiles:
 - `production` has `"autoIncrement": true` ✅
 - `preview` does **not** currently set auto-increment ⚠️ (recommended so Play uploads don’t fail due to versionCode collisions)
 
+### 2.1) How versioning works in this repo (important)
+This project uses EAS “remote” app version sourcing:
+
+- `AccountaBuild/eas.json` → `"cli": { "appVersionSource": "remote" }`
+
+What that means in practice:
+
+- `expo.version` in `AccountaBuild/app.json` is the human-facing app version (e.g. `1.0.0`)
+- Android store uploads require a monotonically increasing `android.versionCode`
+- With `appVersionSource: "remote"`, the value that gets incremented is tracked by EAS (not just your local file)
+- `production` builds auto-increment versionCode today; `preview` builds do not
+
+**Recommendation**: add `"autoIncrement": true` to the `preview` build profile too, so internal/closed track uploads don’t get blocked by “versionCode already used”.
+
 ### 3) Build an Android App Bundle (`.aab`)
 Recommended:
 - `eas build -p android --profile production`
@@ -85,6 +109,9 @@ You can also build a `preview` artifact for testing.
 Options:
 - `eas submit -p android --profile production`
 - Or manually upload `.aab` in Play Console.
+
+> Note: `eas submit --profile ...` uses the **submit** profiles in `AccountaBuild/eas.json` (not the build profiles). Right now, only `submit.production` exists.  
+> If you want a separate submit profile for internal/preview, add `submit.preview` to `eas.json`, or just upload the `.aab` manually for test tracks.
 
 ### 5) Store listing and compliance
 You’ll need:
@@ -109,6 +136,12 @@ Once published, changing signing keys is difficult. Enable:
 ### Versioning is strict
 Every upload must increment:
 - `android.versionCode`
+
+If Play Console rejects an upload with “versionCode already used”:
+
+- Ensure you’re using the `production` profile (it auto-increments today), or
+- Add `"autoIncrement": true` to `preview`, then rebuild, or
+- Bump versionCode via your chosen versioning strategy (if you move off remote versioning later)
 
 ### OTA updates (EAS Update) vs binary updates
 - OTA updates can change JS/TS and assets
@@ -162,7 +195,9 @@ This plan assumes the current repo structure:
 ### Step 5 — Produce the first internal testing build
 - Run: `eas build -p android --profile preview`
   - Shortcut script (already in `AccountaBuild/package.json`): `npm run build:android:preview`
-- Upload: `eas submit -p android --profile preview`
+- Upload:
+  - **EAS Submit (current repo config)**: `eas submit -p android --profile production --latest`
+  - **Or** upload the `.aab` manually in Play Console (recommended for Internal/Closed tracks if you want more control)
 - Install via internal testing link; validate core flows.
 
 ### Step 6 — Move to closed testing for your broader testers
@@ -174,4 +209,15 @@ This plan assumes the current repo structure:
 - Upload: `eas submit -p android --profile production`
 - Complete store listing, Data Safety, and policy items.
 - Roll out staged to production.
+
+---
+
+## Google Play Console “first release” checklist (common blockers)
+
+- **App access**: if login is required, provide reviewer instructions / test account info
+- **Target API level**: Play enforces target SDK requirements over time (keep Expo SDK current)
+- **Data safety**: accurately declare Firebase data (auth identifiers, diagnostics, photos if stored, etc.)
+- **Content rating**: complete questionnaire
+- **Privacy policy**: required (link must be public)
+- **Release notes**: required for each rollout
 

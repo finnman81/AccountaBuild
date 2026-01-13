@@ -4,6 +4,16 @@ This doc covers **how to ship AccountaBuild to iOS via the Apple App Store**, us
 
 ---
 
+## IMPORTANT: run commands from the app folder
+
+This repo is a wrapper. Run all Expo/EAS commands from:
+
+- `AccountaBuild/`
+
+If you run commands from the repo root you may see errors like “Could not read package.json”.
+
+---
+
 ## What “deploy to iOS” means (high level)
 
 To ship on iOS you typically:
@@ -74,6 +84,8 @@ You should be able to run:
 
 This links the local Expo project to an Expo account/project used by EAS.
 
+> Note: this is usually a one-time setup step. If builds already work and `extra.eas.projectId` is present in `AccountaBuild/app.json`, you’re already linked.
+
 ### 3) Configure `eas.json` build profiles
 Typical profiles:
 
@@ -89,6 +101,20 @@ Key best-practice settings:
 **Current AccountaBuild state**:
 - `production` has `"autoIncrement": true` ✅
 - `preview` does **not** currently set auto-increment ⚠️ (recommended to add so repeated TestFlight uploads don’t fail due to build number collisions)
+
+### 3.1) How versioning works in this repo (important)
+This project uses EAS “remote” app version sourcing:
+
+- `AccountaBuild/eas.json` → `"cli": { "appVersionSource": "remote" }`
+
+What that means in practice:
+
+- `expo.version` in `AccountaBuild/app.json` is the human-facing app version (e.g. `1.0.0`)
+- iOS uploads require monotonically increasing build numbers (`ios.buildNumber`)
+- With `appVersionSource: "remote"`, build numbers are tracked by EAS (not just your local file)
+- `production` builds auto-increment build numbers today; `preview` builds do not
+
+**Recommendation**: add `"autoIncrement": true` to the `preview` build profile too, so you can upload multiple TestFlight builds without manually managing build numbers.
 
 ### 4) Credentials & signing
 For iOS, you need:
@@ -127,6 +153,12 @@ In App Store Connect:
   - Screenshots for required device sizes
 - Set pricing/availability.
 
+Common “first time” prerequisites that can block submission:
+
+- **Agreements, Tax, and Banking** must be completed for the team
+- **App Information** (category, age rating, app review contact info)
+- **App Review Information**: demo account / login instructions if the app requires auth
+
 ### 8) Compliance & privacy (must-do)
 You will need to answer:
 
@@ -159,6 +191,12 @@ After approval:
 - Each upload must increment:
   - `ios.buildNumber`
   - and usually `version` changes for releases
+
+If App Store Connect rejects an upload with “bundle version already used”:
+
+- Ensure you’re using the `production` profile (it auto-increments today), or
+- Add `"autoIncrement": true` to `preview`, then rebuild, or
+- Manually bump build numbers if you move off remote versioning later
 
 ### Permissions strings
 iOS requires human-readable usage descriptions for permissions (camera/photos). Missing or vague strings can block review.
@@ -218,7 +256,9 @@ This plan assumes the current repo structure:
 ### Step 5 — Produce the first TestFlight build (preview)
 - Run: `eas build -p ios --profile preview`
   - Shortcut script (already in `AccountaBuild/package.json`): `npm run build:ios:preview`
-- Upload: `eas submit -p ios --profile preview`
+- Upload:
+  - **EAS Submit (current repo config)**: `eas submit -p ios --profile production --latest`
+  - **Or** upload the `.ipa` via Transporter (Mac) / App Store Connect tooling
 - Add internal testers; validate end-to-end flows.
 
 ### Step 6 — Fix any App Review blockers
