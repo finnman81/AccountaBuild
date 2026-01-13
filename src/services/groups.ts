@@ -7,6 +7,7 @@ import {
   getDocs,
   onSnapshot,
   query,
+  increment,
   serverTimestamp,
   setDoc,
   updateDoc,
@@ -21,6 +22,10 @@ export type UserGroupListItem = {
   description: string | null;
   joinCode: string;
   role: 'admin' | 'member';
+  // Optional group metadata (from groups/{groupId})
+  logoUrl?: string | null;
+  memberCount?: number | null;
+  lastActivityAt?: unknown;
   // Optional per-user “last seen” timestamps for badges.
   chatLastSeenAt?: unknown;
   photosLastSeenAt?: unknown;
@@ -101,6 +106,8 @@ export async function createGroup(params: {
     description,
     joinCode: '__pending__',
     createdBy: params.uid,
+    memberCount: 1,
+    lastActivityAt: serverTimestamp(),
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
@@ -121,7 +128,6 @@ export async function createGroup(params: {
   await Promise.all([
     setDoc(doc(db, 'groups', groupId, 'members', params.uid), {
       uid: params.uid,
-      displayName: params.displayName ?? null,
       role: 'admin',
       joinedAt: serverTimestamp(),
     }),
@@ -162,9 +168,10 @@ export async function joinGroupByCode(params: {
   await Promise.all([
     setDoc(
       doc(db, 'groups', groupId, 'members', params.uid),
-      { uid: params.uid, displayName: params.displayName ?? null, role: 'member', joinedAt: serverTimestamp() },
+      { uid: params.uid, role: 'member', joinedAt: serverTimestamp() },
       { merge: true },
     ),
+    updateDoc(doc(db, 'groups', groupId), { memberCount: increment(1), lastActivityAt: serverTimestamp(), updatedAt: serverTimestamp() }),
     setDoc(
       doc(db, 'users', params.uid, 'groups', groupId),
       {
@@ -229,7 +236,28 @@ export function subscribeMyGroups(
               await deleteDoc(doc(db, 'users', uid, 'groups', g.groupId));
               return null;
             }
-            return g;
+            const data = groupSnap.data() as any;
+            // Backfill memberCount for older groups (so UI can show “X members”).
+            let memberCount: number | null =
+              typeof data?.memberCount === 'number' ? data.memberCount : null;
+            if (memberCount == null) {
+              try {
+                const ms = await getDocs(collection(db, 'groups', g.groupId, 'members'));
+                memberCount = ms.size;
+                await updateDoc(doc(db, 'groups', g.groupId), {
+                  memberCount,
+                  updatedAt: serverTimestamp(),
+                });
+              } catch {
+                // Ignore (permissions/network); UI will show placeholder until it can be computed.
+              }
+            }
+            return {
+              ...g,
+              logoUrl: data?.logoUrl ?? null,
+              memberCount,
+              lastActivityAt: data?.lastActivityAt ?? data?.updatedAt ?? null,
+            } as UserGroupListItem;
           }),
         );
 
@@ -277,6 +305,17 @@ export async function markGroupPhotosSeen(params: { uid: string; groupId: string
 export async function setGroupLogoUrl(params: { groupId: string; logoUrl: string | null }) {
   await updateDoc(doc(db, 'groups', params.groupId), {
     logoUrl: params.logoUrl ?? null,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function touchGroupActivity(groupId: string) {
+  await updateDoc(doc(db, 'groups', groupId), { lastActivityAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+
+export async function setGroupStreakRule(params: { groupId: string; streakRule: 'workout' | 'any' }) {
+  await updateDoc(doc(db, 'groups', params.groupId), {
+    streakRule: params.streakRule,
     updatedAt: serverTimestamp(),
   });
 }

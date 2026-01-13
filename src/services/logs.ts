@@ -10,6 +10,7 @@ import {
 } from 'firebase/firestore';
 
 import { db } from '../firebase/firebase';
+import { touchGroupActivity } from './groups';
 
 export type WorkoutType =
   | 'weightLifting'
@@ -51,7 +52,7 @@ export async function addCaloriesLog(params: {
   meal: MealType;
   note?: string;
 }) {
-  return addDoc(collection(db, 'groups', params.groupId, 'logs'), {
+  const res = await addDoc(collection(db, 'groups', params.groupId, 'logs'), {
     uid: params.uid,
     type: 'calories',
     date: todayYYYYMMDD(),
@@ -62,6 +63,8 @@ export async function addCaloriesLog(params: {
       note: params.note?.trim() || null,
     },
   });
+  await touchGroupActivity(params.groupId);
+  return res;
 }
 
 export async function addWorkoutLog(params: {
@@ -71,7 +74,7 @@ export async function addWorkoutLog(params: {
   durationMinutes: number;
   note?: string;
 }) {
-  return addDoc(collection(db, 'groups', params.groupId, 'logs'), {
+  const res = await addDoc(collection(db, 'groups', params.groupId, 'logs'), {
     uid: params.uid,
     type: 'workout',
     date: todayYYYYMMDD(),
@@ -82,6 +85,8 @@ export async function addWorkoutLog(params: {
       note: params.note?.trim() || null,
     },
   });
+  await touchGroupActivity(params.groupId);
+  return res;
 }
 
 export async function addWeightLog(params: {
@@ -90,7 +95,7 @@ export async function addWeightLog(params: {
   weight: number;
   note?: string;
 }) {
-  return addDoc(collection(db, 'groups', params.groupId, 'logs'), {
+  const res = await addDoc(collection(db, 'groups', params.groupId, 'logs'), {
     uid: params.uid,
     type: 'weight',
     date: todayYYYYMMDD(),
@@ -100,6 +105,8 @@ export async function addWeightLog(params: {
       note: params.note?.trim() || null,
     },
   });
+  await touchGroupActivity(params.groupId);
+  return res;
 }
 
 export async function addPhotoLog(params: {
@@ -108,7 +115,7 @@ export async function addPhotoLog(params: {
   url: string;
   caption?: string;
 }) {
-  return addDoc(collection(db, 'groups', params.groupId, 'logs'), {
+  const res = await addDoc(collection(db, 'groups', params.groupId, 'logs'), {
     uid: params.uid,
     type: 'photo',
     date: todayYYYYMMDD(),
@@ -118,6 +125,8 @@ export async function addPhotoLog(params: {
       caption: params.caption?.trim() || null,
     },
   });
+  await touchGroupActivity(params.groupId);
+  return res;
 }
 
 export function subscribeGroupLogs(

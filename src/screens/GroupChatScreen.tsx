@@ -13,6 +13,8 @@ import { AuthContext } from '../store/AuthContext';
 import { GroupMessage, sendGroupMessage, subscribeGroupMessages } from '../services/chat';
 import { markGroupChatSeen } from '../services/groups';
 import { friendlyNameFromDisplayName } from '../utils/formatters';
+import { subscribePublicUsers, type PublicUser } from '../services/publicUsers';
+import { subscribeMyCanSeeUids } from '../services/visibility';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'GroupChat'>;
 
@@ -24,7 +26,9 @@ export default function GroupChatScreen({ route }: Props) {
   const insets = useSafeAreaInsets();
 
   const [messages, setMessages] = useState<GroupMessage[]>([]);
-  const [members, setMembers] = useState<Record<string, { displayName?: string | null }>>({});
+  const [memberUids, setMemberUids] = useState<string[]>([]);
+  const [publicUsers, setPublicUsers] = useState<Record<string, PublicUser>>({});
+  const [canSee, setCanSee] = useState<Set<string>>(new Set());
   const [text, setText] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [composerH, setComposerH] = useState(0);
@@ -32,20 +36,27 @@ export default function GroupChatScreen({ route }: Props) {
   useEffect(() => subscribeGroupMessages(groupId, setMessages), [groupId]);
   useEffect(() => {
     return onSnapshot(collection(db, 'groups', groupId, 'members'), (snap) => {
-      const map: Record<string, { displayName?: string | null }> = {};
-      for (const d of snap.docs) {
-        const data = d.data() as any;
-        map[data.uid ?? d.id] = { displayName: data.displayName ?? null };
-      }
-      setMembers(map);
+      const uids = snap.docs.map((d) => String((d.data() as any)?.uid ?? d.id)).filter(Boolean);
+      setMemberUids(uids);
     });
   }, [groupId]);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    return subscribeMyCanSeeUids(user.uid, setCanSee);
+  }, [user?.uid]);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    const allowed = memberUids.filter((uid) => uid === user.uid || canSee.has(uid));
+    return subscribePublicUsers(allowed, setPublicUsers);
+  }, [canSee, memberUids, user?.uid]);
 
   // subscribeGroupMessages returns newest-first; use FlatList inverted to show newest at bottom.
   const data = useMemo(() => messages, [messages]);
 
   const displayNameFor = (uid: string) => {
-    return friendlyNameFromDisplayName(members[uid]?.displayName ?? null, uid);
+    return friendlyNameFromDisplayName(publicUsers[uid]?.displayName ?? null, uid);
   };
 
   useFocusEffect(

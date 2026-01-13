@@ -1,11 +1,13 @@
 import React, { useContext, useState } from 'react';
-import { KeyboardAvoidingView, Platform, View } from 'react-native';
-import { Button, Card, Menu, Text, TextInput } from 'react-native-paper';
+import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
+import { Button, Card, List, Modal, Portal, Text, TextInput, useTheme } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 
 import { RootStackParamList } from '../navigation/types';
 import { AuthContext } from '../store/AuthContext';
 import { addWorkoutLog, WorkoutType } from '../services/logs';
+import { db } from '../firebase/firebase';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'AddWorkout'>;
 
@@ -27,8 +29,9 @@ const workoutTypes: { label: string; value: WorkoutType }[] = [
 export default function AddWorkoutScreen({ route, navigation }: Props) {
   const { user } = useContext(AuthContext);
   const { groupId } = route.params;
+  const theme = useTheme();
   const [workoutType, setWorkoutType] = useState<WorkoutType>('weightLifting');
-  const [typeMenuVisible, setTypeMenuVisible] = useState(false);
+  const [typePickerVisible, setTypePickerVisible] = useState(false);
   const [durationMinutes, setDurationMinutes] = useState('');
   const [note, setNote] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -45,6 +48,19 @@ export default function AddWorkoutScreen({ route, navigation }: Props) {
         return;
       }
       await addWorkoutLog({ groupId, uid: user.uid, workoutType, durationMinutes: minutes, note });
+      // Persist user-level workout history for profile charts (cross-group).
+      const d = new Date();
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      const date = `${yyyy}-${mm}-${dd}`;
+      await addDoc(collection(db, 'users', user.uid, 'workouts'), {
+        uid: user.uid,
+        date,
+        workoutType,
+        durationMinutes: minutes,
+        ts: serverTimestamp(),
+      });
       navigation.goBack();
     } catch (e) {
       setError('Failed to save workout.');
@@ -56,37 +72,62 @@ export default function AddWorkoutScreen({ route, navigation }: Props) {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={{ flex: 1, padding: 16, justifyContent: 'center' }}>
+        <Portal>
+          <Modal
+            visible={typePickerVisible}
+            onDismiss={() => setTypePickerVisible(false)}
+            contentContainerStyle={{
+              margin: 16,
+              borderRadius: 16,
+              overflow: 'hidden',
+              backgroundColor: theme.colors.surface,
+              maxHeight: '70%',
+            }}
+          >
+            <Card>
+              <Card.Title title="Workout type" />
+              <Card.Content style={{ paddingHorizontal: 0, paddingTop: 6, paddingBottom: 0 }}>
+                <ScrollView
+                  style={{ maxHeight: 380 }}
+                  contentContainerStyle={{ paddingTop: 6, paddingBottom: 18 }}
+                  showsVerticalScrollIndicator
+                >
+                  {workoutTypes.map((w) => (
+                    <List.Item
+                      key={w.value}
+                      title={w.label}
+                      onPress={() => {
+                        setWorkoutType(w.value);
+                        setTypePickerVisible(false);
+                      }}
+                      right={(props) => (w.value === workoutType ? <List.Icon {...props} icon="check" /> : null)}
+                    />
+                  ))}
+                </ScrollView>
+              </Card.Content>
+              <Card.Actions style={{ justifyContent: 'flex-end' }}>
+                <Button mode="text" onPress={() => setTypePickerVisible(false)}>
+                  Close
+                </Button>
+              </Card.Actions>
+            </Card>
+          </Modal>
+        </Portal>
+
         <Card>
           <Card.Title title="Log workout" />
           <Card.Content>
             <Text variant="bodySmall">Workout type</Text>
             <View style={{ height: 8 }} />
-            <Menu
-              visible={typeMenuVisible}
-              onDismiss={() => setTypeMenuVisible(false)}
-              anchor={
-                <Button
-                  mode="outlined"
-                  disabled={isSubmitting}
-                  onPress={() => setTypeMenuVisible(true)}
-                  contentStyle={{ justifyContent: 'space-between' }}
-                  icon="chevron-down"
-                >
-                  {workoutTypes.find((w) => w.value === workoutType)?.label ?? 'Select'}
-                </Button>
-              }
+            <Button
+              mode="outlined"
+              disabled={isSubmitting}
+              onPress={() => setTypePickerVisible(true)}
+              contentStyle={{ justifyContent: 'space-between' }}
+              icon="chevron-down"
             >
-              {workoutTypes.map((w) => (
-                <Menu.Item
-                  key={w.value}
-                  title={w.label}
-                  onPress={() => {
-                    setWorkoutType(w.value);
-                    setTypeMenuVisible(false);
-                  }}
-                />
-              ))}
-            </Menu>
+              {workoutTypes.find((w) => w.value === workoutType)?.label ?? 'Select'}
+            </Button>
 
             <View style={{ height: 12 }} />
             <TextInput

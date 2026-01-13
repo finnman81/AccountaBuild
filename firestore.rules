@@ -15,11 +15,35 @@ service cloud.firestore {
         exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid));
     }
 
+    function isGroupAdmin(groupId) {
+      return isGroupMember(groupId) &&
+        get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.role == 'admin';
+    }
+
     match /users/{uid} {
       allow read, write: if signedIn() && request.auth.uid == uid;
       match /groups/{groupId} {
         allow read, write: if signedIn() && request.auth.uid == uid;
       }
+      match /weights/{entryId} {
+        allow read, write: if signedIn() && request.auth.uid == uid;
+      }
+      match /workouts/{entryId} {
+        allow read, write: if signedIn() && request.auth.uid == uid;
+      }
+    }
+
+    // Public user profiles, readable only if the viewer shares a group with the target user.
+    // The “shared group” check is implemented via a per-viewer visibility index written by the client.
+    match /publicUsers/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid ||
+        exists(/databases/$(database)/documents/visibility/$(request.auth.uid)/canSee/$(uid)));
+      allow write: if signedIn() && request.auth.uid == uid;
+    }
+
+    // Per-viewer visibility index: visibility/{viewerUid}/canSee/{targetUid}
+    match /visibility/{viewerUid}/canSee/{targetUid} {
+      allow read, write: if signedIn() && request.auth.uid == viewerUid;
     }
 
     // Join-code lookup table so non-members can join without reading all groups.
@@ -32,7 +56,18 @@ service cloud.firestore {
     match /groups/{groupId} {
       allow read: if isGroupMember(groupId);
       allow create: if signedIn();
-      allow update, delete: if signedIn() && request.auth.uid == resource.data.createdBy;
+      function isGroupMetaUpdate() {
+        // Allow members to update only these metadata fields.
+        return request.resource.data.diff(resource.data).changedKeys().hasOnly(['memberCount', 'lastActivityAt', 'updatedAt']);
+      }
+      function isGroupSettingsUpdate() {
+        // Allow admins to update lightweight settings.
+        return request.resource.data.diff(resource.data).changedKeys().hasOnly(['streakRule', 'updatedAt']);
+      }
+      allow update: if (signedIn() && request.auth.uid == resource.data.createdBy) ||
+        (isGroupMember(groupId) && isGroupMetaUpdate()) ||
+        (isGroupAdmin(groupId) && isGroupSettingsUpdate());
+      allow delete: if signedIn() && request.auth.uid == resource.data.createdBy;
 
       match /members/{uid} {
         allow read: if isGroupMember(groupId);

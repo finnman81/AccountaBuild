@@ -26,3 +26,29 @@ export function formatWeightLb(lb?: number | null) {
   return `${txt} lb`;
 }
 
+export function formatMinutesHM(totalMinutes: number) {
+  const m = Math.max(0, Math.round(totalMinutes));
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  const mm = m % 60;
+  return `${h}h ${mm}m`;
+}
+
+export function formatDeltaLb(delta?: number | null) {
+  if (delta == null || !Number.isFinite(delta)) return '—';
+  const rounded = Math.round(delta * 10) / 10;
+  const sign = rounded > 0 ? '+' : '';
+  return `${sign}${rounded} lb`;
+}
+
+export function formatTimeAgo(ms: number | null) {
+  if (!ms) return '—';
+  const s = Math.max(0, Math.floor((Date.now() - ms) / 1000));
+  if (s < 60) return `${s}s ago`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 48) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  return `${d}d ago`;
+}

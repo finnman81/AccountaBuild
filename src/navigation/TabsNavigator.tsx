@@ -1,0 +1,207 @@
+import React, { useMemo, useState } from 'react';
+import { TouchableOpacity, View } from 'react-native';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { Icon, useTheme } from 'react-native-paper';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useNavigation } from '@react-navigation/native';
+
+import type {
+  GroupsStackParamList,
+  HomeStackParamList,
+  ProfileStackParamList,
+  ProgressStackParamList,
+  RootStackParamList,
+  TabsParamList,
+} from './types';
+
+import GroupDetailScreen from '../screens/GroupDetailScreen';
+import GroupChartsScreen from '../screens/GroupChartsScreen';
+import GroupChatScreen from '../screens/GroupChatScreen';
+import ViewPhotosScreen from '../screens/ViewPhotosScreen';
+import SetGoalsScreen from '../screens/SetGoalsScreen';
+import GroupSettingsScreen from '../screens/GroupSettingsScreen';
+import GroupListScreen from '../screens/GroupListScreen';
+import CreateGroupScreen from '../screens/CreateGroupScreen';
+import JoinGroupScreen from '../screens/JoinGroupScreen';
+import ProfileScreen from '../screens/ProfileScreen';
+import ProgressScreen from '../screens/ProgressScreen';
+import HomeScreen from '../screens/HomeScreen';
+import LogActionSheet from '../components/ui/LogActionSheet';
+import { useActiveGroup } from '../store/ActiveGroupContext';
+
+const Tab = createBottomTabNavigator<TabsParamList>();
+const HomeStack = createNativeStackNavigator<HomeStackParamList>();
+const GroupsStack = createNativeStackNavigator<GroupsStackParamList>();
+const ProgressStack = createNativeStackNavigator<ProgressStackParamList>();
+const ProfileStack = createNativeStackNavigator<ProfileStackParamList>();
+
+function HomeStackNavigator() {
+  return (
+    <HomeStack.Navigator>
+      <HomeStack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
+      <HomeStack.Screen name="GroupDetail" component={GroupDetailScreen} options={{ title: 'Home' }} />
+      <HomeStack.Screen name="GroupCharts" component={GroupChartsScreen} options={{ title: 'Charts' }} />
+      <HomeStack.Screen name="GroupChat" component={GroupChatScreen} options={{ title: 'Chat' }} />
+      <HomeStack.Screen name="ViewPhotos" component={ViewPhotosScreen} options={{ title: 'Photos' }} />
+      <HomeStack.Screen name="SetGoals" component={SetGoalsScreen} options={{ title: 'Goals' }} />
+      <HomeStack.Screen name="GroupSettings" component={GroupSettingsScreen} options={{ title: 'Group settings' }} />
+    </HomeStack.Navigator>
+  );
+}
+
+function GroupsStackNavigator() {
+  return (
+    <GroupsStack.Navigator>
+      <GroupsStack.Screen name="GroupList" component={GroupListScreen} options={{ title: 'Groups' }} />
+      <GroupsStack.Screen name="CreateGroup" component={CreateGroupScreen} options={{ title: 'Create group' }} />
+      <GroupsStack.Screen name="JoinGroup" component={JoinGroupScreen} options={{ title: 'Join group' }} />
+    </GroupsStack.Navigator>
+  );
+}
+
+function ProgressStackNavigator() {
+  return (
+    <ProgressStack.Navigator>
+      <ProgressStack.Screen name="Progress" component={ProgressScreen} options={{ title: 'Progress' }} />
+    </ProgressStack.Navigator>
+  );
+}
+
+function ProfileStackNavigator() {
+  return (
+    <ProfileStack.Navigator>
+      <ProfileStack.Screen name="Profile" component={ProfileScreen} options={{ headerShown: false }} />
+    </ProfileStack.Navigator>
+  );
+}
+
+function LogPlaceholder() {
+  return <View />;
+}
+
+export default function TabsNavigator() {
+  const theme = useTheme();
+  const { activeGroupId } = useActiveGroup();
+  const rootNav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const [isLogOpen, setIsLogOpen] = useState(false);
+
+  const tabBarStyle = useMemo(
+    () => ({
+      backgroundColor: theme.colors.surface,
+      borderTopColor: theme.colors.outlineVariant,
+    }),
+    [theme.colors.outlineVariant, theme.colors.surface],
+  );
+
+  return (
+    <>
+      <Tab.Navigator
+        screenOptions={{
+          headerShown: false,
+          tabBarStyle,
+          tabBarActiveTintColor: theme.colors.primary,
+        }}
+      >
+        <Tab.Screen
+          name="HomeTab"
+          component={HomeStackNavigator}
+          options={{
+            title: 'Home',
+            tabBarIcon: ({ color, size }) => <Icon source="home-variant" color={color} size={size} />,
+          }}
+        />
+
+        <Tab.Screen
+          name="ProgressTab"
+          component={ProgressStackNavigator}
+          options={{
+            title: 'Progress',
+            tabBarIcon: ({ color, size }) => <Icon source="chart-line" color={color} size={size} />,
+          }}
+        />
+
+        <Tab.Screen
+          name="LogTab"
+          component={LogPlaceholder}
+          options={{
+            title: '',
+            tabBarIcon: ({ color, size }) => <Icon source="plus" color={color} size={size} />,
+            tabBarButton: (props) => (
+              <TouchableOpacity
+                {...props}
+                onPress={() => setIsLogOpen(true)}
+                style={{
+                  marginTop: -18,
+                  width: 64,
+                  height: 64,
+                  borderRadius: 999,
+                  backgroundColor: theme.colors.primary,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  shadowColor: '#000',
+                  shadowOpacity: 0.25,
+                  shadowRadius: 10,
+                  elevation: 10,
+                }}
+              >
+                <Icon source="plus" color={theme.colors.onPrimary} size={26} />
+              </TouchableOpacity>
+            ),
+          }}
+          listeners={{
+            tabPress: (e) => {
+              e.preventDefault();
+              setIsLogOpen(true);
+            },
+          }}
+        />
+
+        <Tab.Screen
+          name="GroupsTab"
+          component={GroupsStackNavigator}
+          options={{
+            title: 'Groups',
+            tabBarIcon: ({ color, size }) => <Icon source="account-group" color={color} size={size} />,
+          }}
+        />
+
+        <Tab.Screen
+          name="ProfileTab"
+          component={ProfileStackNavigator}
+          options={{
+            title: 'Profile',
+            tabBarIcon: ({ color, size }) => <Icon source="account" color={color} size={size} />,
+          }}
+        />
+      </Tab.Navigator>
+
+      <LogActionSheet
+        visible={isLogOpen}
+        onDismiss={() => setIsLogOpen(false)}
+        groupId={activeGroupId}
+        onGoToGroups={() => {
+          setIsLogOpen(false);
+          rootNav.navigate('MainTabs' as any, { screen: 'GroupsTab' } as any);
+        }}
+        onLogWorkout={(groupId) => {
+          setIsLogOpen(false);
+          rootNav.navigate('AddWorkout', { groupId });
+        }}
+        onLogCalories={(groupId) => {
+          setIsLogOpen(false);
+          rootNav.navigate('AddCalories', { groupId });
+        }}
+        onLogWeight={(groupId) => {
+          setIsLogOpen(false);
+          rootNav.navigate('AddWeight', { groupId });
+        }}
+        onAddPhoto={(groupId) => {
+          setIsLogOpen(false);
+          rootNav.navigate('AddPhoto', { groupId });
+        }}
+      />
+    </>
+  );
+}
+

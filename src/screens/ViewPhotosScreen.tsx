@@ -11,34 +11,43 @@ import { AuthContext } from '../store/AuthContext';
 import { GroupLog, subscribeGroupPhotoLogs } from '../services/logs';
 import { markGroupPhotosSeen } from '../services/groups';
 import { friendlyNameFromDisplayName } from '../utils/formatters';
+import EmptyState from '../components/state/EmptyState';
+import { subscribePublicUsers, type PublicUser } from '../services/publicUsers';
+import { subscribeMyCanSeeUids } from '../services/visibility';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ViewPhotos'>;
 
-type MemberDoc = { uid: string; displayName?: string | null };
-
-export default function ViewPhotosScreen({ route }: Props) {
+export default function ViewPhotosScreen({ route, navigation }: Props) {
   const { user } = useContext(AuthContext);
   const { groupId } = route.params;
 
   const [photos, setPhotos] = useState<GroupLog[]>([]);
-  const [members, setMembers] = useState<Record<string, MemberDoc>>({});
+  const [memberUids, setMemberUids] = useState<string[]>([]);
+  const [publicUsers, setPublicUsers] = useState<Record<string, PublicUser>>({});
+  const [canSee, setCanSee] = useState<Set<string>>(new Set());
 
   useEffect(() => subscribeGroupPhotoLogs(groupId, setPhotos, undefined, 50), [groupId]);
 
   useEffect(() => {
     return onSnapshot(collection(db, 'groups', groupId, 'members'), (snap) => {
-      const map: Record<string, MemberDoc> = {};
-      for (const d of snap.docs) {
-        const data = d.data() as any;
-        const uid = (data.uid ?? d.id) as string;
-        map[uid] = { uid, displayName: data.displayName ?? null };
-      }
-      setMembers(map);
+      const uids = snap.docs.map((d) => String((d.data() as any)?.uid ?? d.id)).filter(Boolean);
+      setMemberUids(uids);
     });
   }, [groupId]);
 
+  useEffect(() => {
+    if (!user?.uid) return;
+    return subscribeMyCanSeeUids(user.uid, setCanSee);
+  }, [user?.uid]);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    const allowed = memberUids.filter((uid) => uid === user.uid || canSee.has(uid));
+    return subscribePublicUsers(allowed, setPublicUsers);
+  }, [canSee, memberUids, user?.uid]);
+
   const displayNameFor = (uid: string) => {
-    return friendlyNameFromDisplayName(members[uid]?.displayName ?? null, uid);
+    return friendlyNameFromDisplayName(publicUsers[uid]?.displayName ?? null, uid);
   };
 
   const data = useMemo(() => photos, [photos]);
@@ -65,7 +74,14 @@ export default function ViewPhotosScreen({ route }: Props) {
         keyExtractor={(p) => p.id}
         ListEmptyComponent={
           <Card>
-            <Card.Title title="No photos yet" subtitle="Upload one to start the feed" />
+            <Card.Content>
+              <EmptyState
+                title="No photos yet"
+                message="Upload one to start the feed."
+                ctaLabel="Add progress photo"
+                onCta={() => navigation.navigate('AddPhoto', { groupId })}
+              />
+            </Card.Content>
           </Card>
         }
         renderItem={({ item }) => {

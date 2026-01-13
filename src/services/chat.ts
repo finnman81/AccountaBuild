@@ -9,6 +9,7 @@ import {
 } from 'firebase/firestore';
 
 import { db } from '../firebase/firebase';
+import { touchGroupActivity } from './groups';
 
 export type GroupMessage = {
   id: string;
@@ -27,6 +28,7 @@ export async function sendGroupMessage(params: { groupId: string; uid: string; t
     text: trimmed,
     createdAt: serverTimestamp(),
   });
+  await touchGroupActivity(params.groupId);
 }
 
 export function subscribeGroupMessages(

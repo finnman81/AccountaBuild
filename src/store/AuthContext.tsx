@@ -12,6 +12,7 @@ import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 
 import { auth, db, isFirebaseConfigured } from '../firebase/firebase';
 import { syncMyMemberProfileToAllGroups } from '../services/profile';
+import { syncMyVisibilityIndex } from '../services/visibility';
 
 export type AuthUser = {
   uid: string;
@@ -65,6 +66,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (didSyncMemberProfile) return;
     setDidSyncMemberProfile(true);
     void syncMyMemberProfileToAllGroups(user.uid);
+    void syncMyVisibilityIndex(user.uid);
   }, [didSyncMemberProfile, user?.uid]);
 
   const value = useMemo<AuthContextValue>(

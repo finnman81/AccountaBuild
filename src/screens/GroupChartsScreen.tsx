@@ -52,18 +52,14 @@ export default function GroupChartsScreen({ route }: Props) {
   const theme = useTheme();
   const { width: windowWidth } = useWindowDimensions();
   const [logs, setLogs] = useState<GroupLog[]>([]);
-  const [members, setMembers] = useState<Record<string, { displayName?: string | null }>>({});
+  const [memberUids, setMemberUids] = useState<string[]>([]);
   const [goals, setGoals] = useState<UserGoals[]>([]);
 
   useEffect(() => subscribeGroupLogs(groupId, setLogs, undefined, 500), [groupId]);
   useEffect(() => {
     return onSnapshot(collection(db, 'groups', groupId, 'members'), (snap) => {
-      const map: Record<string, { displayName?: string | null }> = {};
-      for (const d of snap.docs) {
-        const data = d.data() as any;
-        map[data.uid ?? d.id] = { displayName: data.displayName ?? null };
-      }
-      setMembers(map);
+      const uids = snap.docs.map((d) => String((d.data() as any)?.uid ?? d.id)).filter(Boolean);
+      setMemberUids(uids);
     });
   }, [groupId]);
   useEffect(() => {
@@ -71,7 +67,6 @@ export default function GroupChartsScreen({ route }: Props) {
   }, [groupId]);
 
   const compliance = useMemo(() => {
-    const memberUids = Object.keys(members);
     const total = memberUids.length || 1;
     const weekStart = weekStartSundayLocal();
 
@@ -145,7 +140,7 @@ export default function GroupChartsScreen({ route }: Props) {
       caloriesRatio: sumCaloriesGoal > 0 ? `${sumCaloriesDone}/${sumCaloriesGoal}` : '—',
       workoutRatio: sumWorkoutsGoal > 0 ? `${sumWorkoutsDone}/${sumWorkoutsGoal}` : '—',
     };
-  }, [logs, members, goals]);
+  }, [logs, memberUids, goals]);
 
   const bars = useMemo(
     () => [
