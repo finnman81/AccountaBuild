@@ -1,6 +1,6 @@
 import React, { useContext, useEffect, useMemo, useState } from 'react';
 import { Image, ScrollView, View } from 'react-native';
-import { Button, Card, Divider, List, Text, useTheme } from 'react-native-paper';
+import { Avatar, Button, Card, Dialog, Divider, List, Portal, Text, useTheme } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { collection, doc, limit, onSnapshot, orderBy, query, where } from 'firebase/firestore';
 import * as ImagePicker from 'expo-image-picker';
@@ -10,7 +10,7 @@ import { db } from '../firebase/firebase';
 import { AuthContext } from '../store/AuthContext';
 import { GroupLog, subscribeGroupLogs } from '../services/logs';
 import { subscribeGroupGoals, UserGoals } from '../services/goals';
-import { ensureJoinCodeMapping, setGroupLogoUrl, subscribeMyGroupMeta } from '../services/groups';
+import { deleteGroupAsCreator, ensureJoinCodeMapping, setGroupLogoUrl, subscribeMyGroupMeta } from '../services/groups';
 import { formatHeightInches, formatWeightLb, friendlyNameFromDisplayName } from '../utils/formatters';
 import { uploadGroupLogo } from '../services/photos';
 
@@ -28,6 +28,7 @@ type MemberDoc = {
   uid: string;
   role: 'admin' | 'member';
   displayName?: string | null;
+  photoURL?: string | null;
   height?: number | null;
   age?: number | null;
   weightCurrent?: number | null;
@@ -71,6 +72,8 @@ export default function GroupDetailScreen({ route, navigation }: Props) {
   const [showAllStats, setShowAllStats] = useState(false);
   const [showAllGoals, setShowAllGoals] = useState(false);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const [isDeletingGroup, setIsDeletingGroup] = useState(false);
+  const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
 
   useEffect(() => {
     const unsubGroup = onSnapshot(doc(db, 'groups', groupId), (snap) => {
@@ -135,6 +138,21 @@ export default function GroupDetailScreen({ route, navigation }: Props) {
 
   const isCreator = Boolean(user?.uid && group?.createdBy && user.uid === group.createdBy);
 
+  const onDeleteGroup = async () => {
+    if (!user) return;
+    setIsDeletingGroup(true);
+    try {
+      await deleteGroupAsCreator({ uid: user.uid, groupId });
+      setDeleteDialogVisible(false);
+      navigation.popToTop();
+    } catch {
+      // Keep UX simple for now; failures will leave group in place.
+      setDeleteDialogVisible(false);
+    } finally {
+      setIsDeletingGroup(false);
+    }
+  };
+
   // Backfill join code mapping for existing groups (so older groups can be joined).
   useEffect(() => {
     if (!group || !group.joinCode || !group.createdBy || myRole !== 'admin') return;
@@ -181,6 +199,29 @@ export default function GroupDetailScreen({ route, navigation }: Props) {
     return friendlyNameFromDisplayName(m?.displayName ?? null, uid);
   };
 
+  const photoUrlFor = (uid: string) => {
+    const m = memberMap[uid];
+    const u = (m?.photoURL ?? '').trim();
+    return u || null;
+  };
+
+  const initialsFor = (uid: string) => {
+    const name = displayNameFor(uid).trim();
+    if (!name) return 'U';
+    const parts = name.split(/\s+/).filter(Boolean);
+    const letters = (parts[0]?.[0] ?? 'U') + (parts[1]?.[0] ?? '');
+    return letters.toUpperCase();
+  };
+
+  const UserAvatar = ({ uid, size = 40 }: { uid: string; size?: number }) => {
+    const url = photoUrlFor(uid);
+    return url ? (
+      <Avatar.Image size={size} source={{ uri: url }} />
+    ) : (
+      <Avatar.Text size={size} label={initialsFor(uid)} />
+    );
+  };
+
   const friendlyWorkout = (t: unknown) => {
     switch (t) {
       case 'weightLifting':
@@ -193,6 +234,20 @@ export default function GroupDetailScreen({ route, navigation }: Props) {
         return 'Ruck';
       case 'swim':
         return 'Swim';
+      case 'bike':
+        return 'Bike';
+      case 'stairMaster':
+        return 'StairMaster';
+      case 'inclineWalk':
+        return 'Incline Walk';
+      case 'rowing':
+        return 'Rowing';
+      case 'elliptical':
+        return 'Elliptical';
+      case 'hiit':
+        return 'HIIT';
+      case 'yoga':
+        return 'Yoga';
       default:
         return 'Workout';
     }
@@ -510,6 +565,24 @@ export default function GroupDetailScreen({ route, navigation }: Props) {
 
   return (
     <ScrollView contentContainerStyle={{ padding: 16 }}>
+      <Portal>
+        <Dialog visible={deleteDialogVisible} onDismiss={() => setDeleteDialogVisible(false)}>
+          <Dialog.Title>Delete group?</Dialog.Title>
+          <Dialog.Content>
+            <Text>
+              This will delete the group and its join code. Members will no longer be able to access it.
+            </Text>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={() => setDeleteDialogVisible(false)} disabled={isDeletingGroup}>
+              Cancel
+            </Button>
+            <Button onPress={onDeleteGroup} loading={isDeletingGroup} disabled={isDeletingGroup}>
+              Delete
+            </Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
       <Card>
         <Card.Title
           title={group?.name ?? 'Group'}
@@ -534,6 +607,15 @@ export default function GroupDetailScreen({ route, navigation }: Props) {
               <View style={{ height: 12 }} />
               <Button mode="outlined" onPress={changeGroupLogo} loading={isUploadingLogo} disabled={isUploadingLogo}>
                 Set group logo
+              </Button>
+              <View style={{ height: 8 }} />
+              <Button
+                mode="outlined"
+                onPress={() => setDeleteDialogVisible(true)}
+                disabled={isUploadingLogo || isDeletingGroup}
+                textColor={theme.colors.secondary}
+              >
+                Delete group
               </Button>
             </>
           ) : null}
@@ -616,7 +698,7 @@ export default function GroupDetailScreen({ route, navigation }: Props) {
             key={l.id}
             title={formatLog(l).title}
             description={`${formatLog(l).subtitle} • ${formatLogDateTime(l)}${logNote(l) ? `\n${logNote(l)}` : ''}`}
-            left={(props) => <List.Icon {...props} icon="history" />}
+            left={() => <UserAvatar uid={l.uid} />}
           />
         ))}
         {logs.length > RECENT_LIMIT ? (
@@ -735,7 +817,7 @@ export default function GroupDetailScreen({ route, navigation }: Props) {
             ]
               .filter(Boolean)
               .join('\n')}
-            left={(props) => <List.Icon {...props} icon="account" />}
+            left={() => <UserAvatar uid={m.uid} size={36} />}
           />
         ))}
       </Card>

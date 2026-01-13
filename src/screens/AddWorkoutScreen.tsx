@@ -1,6 +1,6 @@
 import React, { useContext, useState } from 'react';
 import { KeyboardAvoidingView, Platform, View } from 'react-native';
-import { Button, Card, Text, TextInput } from 'react-native-paper';
+import { Button, Card, Menu, Text, TextInput } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import { RootStackParamList } from '../navigation/types';
@@ -15,12 +15,20 @@ const workoutTypes: { label: string; value: WorkoutType }[] = [
   { label: 'Jogging', value: 'jogging' },
   { label: 'Ruck', value: 'ruck' },
   { label: 'Swim', value: 'swim' },
+  { label: 'Bike', value: 'bike' },
+  { label: 'StairMaster', value: 'stairMaster' },
+  { label: 'Incline Walk', value: 'inclineWalk' },
+  { label: 'Rowing', value: 'rowing' },
+  { label: 'Elliptical', value: 'elliptical' },
+  { label: 'HIIT', value: 'hiit' },
+  { label: 'Yoga', value: 'yoga' },
 ];
 
 export default function AddWorkoutScreen({ route, navigation }: Props) {
   const { user } = useContext(AuthContext);
   const { groupId } = route.params;
   const [workoutType, setWorkoutType] = useState<WorkoutType>('weightLifting');
+  const [typeMenuVisible, setTypeMenuVisible] = useState(false);
   const [durationMinutes, setDurationMinutes] = useState('');
   const [note, setNote] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -53,18 +61,32 @@ export default function AddWorkoutScreen({ route, navigation }: Props) {
           <Card.Content>
             <Text variant="bodySmall">Workout type</Text>
             <View style={{ height: 8 }} />
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-              {workoutTypes.map((w) => (
+            <Menu
+              visible={typeMenuVisible}
+              onDismiss={() => setTypeMenuVisible(false)}
+              anchor={
                 <Button
-                  key={w.value}
-                  mode={workoutType === w.value ? 'contained' : 'outlined'}
-                  onPress={() => setWorkoutType(w.value)}
-                  compact
+                  mode="outlined"
+                  disabled={isSubmitting}
+                  onPress={() => setTypeMenuVisible(true)}
+                  contentStyle={{ justifyContent: 'space-between' }}
+                  icon="chevron-down"
                 >
-                  {w.label}
+                  {workoutTypes.find((w) => w.value === workoutType)?.label ?? 'Select'}
                 </Button>
+              }
+            >
+              {workoutTypes.map((w) => (
+                <Menu.Item
+                  key={w.value}
+                  title={w.label}
+                  onPress={() => {
+                    setWorkoutType(w.value);
+                    setTypeMenuVisible(false);
+                  }}
+                />
               ))}
-            </View>
+            </Menu>
 
             <View style={{ height: 12 }} />
             <TextInput

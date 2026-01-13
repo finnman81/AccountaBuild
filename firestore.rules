@@ -5,8 +5,13 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function groupExists(groupId) {
+      return exists(/databases/$(database)/documents/groups/$(groupId));
+    }
+
     function isGroupMember(groupId) {
       return signedIn() &&
+        groupExists(groupId) &&
         exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid));
     }
 
@@ -20,7 +25,8 @@ service cloud.firestore {
     // Join-code lookup table so non-members can join without reading all groups.
     match /joinCodes/{code} {
       allow read: if signedIn();
-      allow create, update, delete: if signedIn() && request.auth.uid == request.resource.data.createdBy;
+      allow create, update: if signedIn() && request.auth.uid == request.resource.data.createdBy;
+      allow delete: if signedIn() && request.auth.uid == resource.data.createdBy;
     }
 
     match /groups/{groupId} {
@@ -30,7 +36,7 @@ service cloud.firestore {
 
       match /members/{uid} {
         allow read: if isGroupMember(groupId);
-        allow create: if signedIn() && request.auth.uid == uid;
+        allow create: if signedIn() && request.auth.uid == uid && groupExists(groupId);
         allow update, delete: if signedIn() && request.auth.uid == uid;
       }
 

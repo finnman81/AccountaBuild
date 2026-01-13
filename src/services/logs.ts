@@ -11,7 +11,19 @@ import {
 
 import { db } from '../firebase/firebase';
 
-export type WorkoutType = 'weightLifting' | 'running' | 'jogging' | 'ruck' | 'swim';
+export type WorkoutType =
+  | 'weightLifting'
+  | 'running'
+  | 'jogging'
+  | 'ruck'
+  | 'swim'
+  | 'bike'
+  | 'stairMaster'
+  | 'inclineWalk'
+  | 'rowing'
+  | 'elliptical'
+  | 'hiit'
+  | 'yoga';
 export type LogType = 'calories' | 'workout' | 'weight' | 'photo';
 export type MealType = 'all' | 'breakfast' | 'lunch' | 'dinner' | 'snack';
 
