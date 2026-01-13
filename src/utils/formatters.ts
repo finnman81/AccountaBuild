@@ -36,7 +36,8 @@ export function formatMinutesHM(totalMinutes: number) {
 
 export function formatDeltaLb(delta?: number | null) {
   if (delta == null || !Number.isFinite(delta)) return '—';
-  const rounded = Math.round(delta * 10) / 10;
+  // Use symmetric rounding so -1.25 -> -1.3 (JS Math.round would yield -1.2).
+  const rounded = (delta >= 0 ? Math.round(delta * 10) : -Math.round(Math.abs(delta) * 10)) / 10;
   const sign = rounded > 0 ? '+' : '';
   return `${sign}${rounded} lb`;
 }
