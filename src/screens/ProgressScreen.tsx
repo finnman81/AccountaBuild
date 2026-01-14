@@ -351,10 +351,10 @@ export default function ProgressScreen({ navigation }: Props) {
                       labelColor={theme.colors.onSurface}
                     />
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6, paddingHorizontal: 4 }}>
-                      {weekDates.map((d) => {
+                      {weekDates.map((d, i) => {
                         const idx = parseYYYYMMDDLocal(d).getDay();
                         return (
-                          <Text key={d} variant="labelSmall" style={{ opacity: 0.75 }}>
+                          <Text key={`${d}-${i}`} variant="labelSmall" style={{ opacity: 0.75 }}>
                             {weekdayShort(idx)}
                           </Text>
                         );
@@ -384,9 +384,9 @@ export default function ProgressScreen({ navigation }: Props) {
             aggregates.history
               .slice()
               .reverse()
-              .map((h: any) => (
+              .map((h: any, i: number) => (
                 <List.Item
-                  key={h.date}
+                  key={`${h.date}-${i}`}
                   title={h.date}
                   description={[
                     `Avg % loss: ${h.avgPct == null ? '—' : `${h.avgPct}%`}`,

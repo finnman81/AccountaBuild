@@ -15,7 +15,7 @@ export function formatHeightInches(inches?: number | null) {
   const total = Math.round(inches);
   const ft = Math.floor(total / 12);
   const inch = Math.abs(total % 12);
-  return `${ft}'${inch}" (${total} in)`;
+  return `${ft}'${inch}"`;
 }
 
 export function formatWeightLb(lb?: number | null) {

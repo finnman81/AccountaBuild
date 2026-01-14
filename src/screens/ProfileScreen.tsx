@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Image, ScrollView, TouchableOpacity, View } from 'react-native';
+import { Animated, Image, ScrollView, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { Avatar, Button, Card, IconButton, Text, useTheme } from 'react-native-paper';
 import * as Haptics from 'expo-haptics';
 import { collection, doc, limit, onSnapshot, orderBy, query } from 'firebase/firestore';
@@ -36,6 +36,7 @@ function weekdayShort(idx: number) {
 
 export default function ProfileScreen() {
   const theme = useTheme();
+  const { width: windowWidth } = useWindowDimensions();
   const { user, logout } = useContext(AuthContext);
   const nav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { activeGroupId } = useActiveGroup();
@@ -142,23 +143,42 @@ export default function ProfileScreen() {
 
   const weekStreakCount = useMemo(() => weekStreak.reduce((a, b) => a + b, 0), [weekStreak]);
 
-  const recentWeightText = useMemo(() => {
-    if (weightEntries.length === 0) return '';
-    const last = weightEntries.slice(-6).map((e) => Math.round(e.weight));
-    return `Recent (lb): ${last.join(', ')}`;
+  // Weight chart should be "one point per day" (latest entry that day).
+  // Users can log weight multiple times in a day; plotting duplicates makes the chart/labels confusing.
+  const dailyWeightEntries = useMemo(() => {
+    const byDate: Record<string, { date: string; weight: number; tsMs: number | null }> = {};
+    for (const e of weightEntries) {
+      const prev = byDate[e.date];
+      // If the newest entry is still pending serverTimestamp, tsMs can be null.
+      // Treat null as "newest" so same-day updates show immediately.
+      const prevMs = prev?.tsMs ?? -1;
+      const nextMs = e.tsMs ?? Number.MAX_SAFE_INTEGER;
+      if (!prev || nextMs >= prevMs) byDate[e.date] = e;
+    }
+    return Object.values(byDate).sort((a, b) => a.date.localeCompare(b.date));
   }, [weightEntries]);
 
-  const weightSeries = useMemo(() => weightEntries.map((e) => e.weight), [weightEntries]);
-  const weightDates = useMemo(() => weightEntries.map((e) => e.date), [weightEntries]);
+  const recentWeightText = useMemo(() => {
+    if (dailyWeightEntries.length === 0) return '';
+    const last = dailyWeightEntries.slice(-6).map((e) => Math.round(e.weight));
+    return `Recent (lb): ${last.join(', ')}`;
+  }, [dailyWeightEntries]);
 
-  const weightYTicks = useMemo(() => {
+  const weightSeries = useMemo(() => dailyWeightEntries.map((e) => e.weight), [dailyWeightEntries]);
+  const weightDates = useMemo(() => dailyWeightEntries.map((e) => e.date), [dailyWeightEntries]);
+
+  // Default the weight chart to a 10 lb window, centered on current weight (rounded to nearest 5).
+  const weightAxis = useMemo(() => {
     const vals = weightSeries.filter((n) => Number.isFinite(n));
-    if (!vals.length) return { top: '—', mid: '—', bot: '—' };
-    const min = Math.min(...vals);
-    const max = Math.max(...vals);
-    const mid = (min + max) / 2;
-    const fmt = (n: number) => `${Math.round(n)} lb`;
-    return { top: fmt(max), mid: fmt(mid), bot: fmt(min) };
+    if (!vals.length) {
+      return { yMin: null as number | null, yMax: null as number | null, ticks: { top: '—', mid: '—', bot: '—' } };
+    }
+    const last = vals[vals.length - 1];
+    const center = Math.round(last / 5) * 5; // 189 -> 190
+    const yMin = center - 5;
+    const yMax = center + 5;
+    const fmt = (n: number) => `${Math.round(n)}`;
+    return { yMin, yMax, ticks: { top: fmt(yMax), mid: fmt(center), bot: fmt(yMin) } };
   }, [weightSeries]);
 
   const formatShortDate = (yyyyMMdd: string) => {
@@ -181,8 +201,8 @@ export default function ProfileScreen() {
   const name = String(profile?.displayName ?? user.displayName ?? user.email ?? 'You');
 
   const statItems = [
-    { key: 'weightCurrent', label: 'Current', value: profile?.weightCurrent == null ? '—' : formatWeightLb(profile.weightCurrent), focusField: 'weightCurrent' as const },
-    { key: 'weightGoal', label: 'Goal', value: profile?.weightGoal == null ? '—' : formatWeightLb(profile.weightGoal), focusField: 'weightGoal' as const },
+    { key: 'weightCurrent', label: 'Current weight', value: profile?.weightCurrent == null ? '—' : formatWeightLb(profile.weightCurrent), focusField: 'weightCurrent' as const },
+    { key: 'weightGoal', label: 'Goal weight', value: profile?.weightGoal == null ? '—' : formatWeightLb(profile.weightGoal), focusField: 'weightGoal' as const },
     { key: 'height', label: 'Height', value: profile?.height == null ? '—' : formatHeightInches(profile.height), focusField: 'height' as const },
     { key: 'age', label: 'Age', value: profile?.age == null ? '—' : String(profile.age), focusField: 'age' as const },
   ];
@@ -247,7 +267,7 @@ export default function ProfileScreen() {
             <View style={{ height: 12 }} />
             <Text variant="headlineSmall">{name}</Text>
             <Text variant="bodySmall" style={{ opacity: 0.75 }}>
-              {weekStreakCount}-day streak
+              🔥 {weekStreakCount}-day streak
             </Text>
           </View>
         </Card.Content>
@@ -293,37 +313,45 @@ export default function ProfileScreen() {
           <View style={{ height: 16 }} />
           <Text variant="titleMedium">Weight trend (lb)</Text>
           <Text variant="bodySmall" style={{ opacity: 0.75 }}>
-            {weightEntries.length ? `Last ${weightEntries.length} entries` : 'Start tracking to see your progress curve.'}
+            {dailyWeightEntries.length ? `Last ${dailyWeightEntries.length} days` : 'Start tracking to see your progress curve.'}
           </Text>
           <View style={{ height: 8 }} />
-          {weightEntries.length === 0 ? (
+          {dailyWeightEntries.length === 0 ? (
             <PlaceholderLineChart height={140} />
           ) : (
             <>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <View style={{ width: 64, justifyContent: 'space-between', height: 160, paddingVertical: 8 }}>
-                  <Text variant="labelSmall" style={{ opacity: 0.75, textAlign: 'right' }}>
-                    {weightYTicks.top}
+                <View style={{ width: 64, height: 160, paddingVertical: 8 }}>
+                  <Text variant="labelSmall" style={{ opacity: 0.6, textAlign: 'right' }}>
+                    lb
                   </Text>
-                  <Text variant="labelSmall" style={{ opacity: 0.75, textAlign: 'right' }}>
-                    {weightYTicks.mid}
-                  </Text>
-                  <Text variant="labelSmall" style={{ opacity: 0.75, textAlign: 'right' }}>
-                    {weightYTicks.bot}
-                  </Text>
+                  <View style={{ flex: 1, justifyContent: 'space-between', marginTop: 4 }}>
+                    <Text variant="labelSmall" style={{ opacity: 0.75, textAlign: 'right' }}>
+                      {weightAxis.ticks.top}
+                    </Text>
+                    <Text variant="labelSmall" style={{ opacity: 0.75, textAlign: 'right' }}>
+                      {weightAxis.ticks.mid}
+                    </Text>
+                    <Text variant="labelSmall" style={{ opacity: 0.75, textAlign: 'right' }}>
+                      {weightAxis.ticks.bot}
+                    </Text>
+                  </View>
                 </View>
-                <View style={{ flex: 1, overflow: 'hidden' }}>
+                <View style={{ flex: 1 }}>
                   <SimpleLineChart
                     values={weightSeries}
                     height={160}
+                    width={Math.max(240, windowWidth - 32 - 32 - 64)}
                     showPointLabels={weightSeries.length <= 7}
                     formatPointLabel={(v) => `${Math.round(v)}`}
                     labelColor={theme.colors.onSurface}
                     color={theme.colors.primary}
+                    yMin={weightAxis.yMin ?? undefined}
+                    yMax={weightAxis.yMax ?? undefined}
                   />
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6, paddingHorizontal: 4 }}>
-                    {weightDates.map((d) => (
-                      <Text key={d} variant="labelSmall" style={{ opacity: 0.75 }}>
+                    {weightDates.map((d, i) => (
+                      <Text key={`${d}-${i}`} variant="labelSmall" style={{ opacity: 0.75 }}>
                         {formatShortDate(d)}
                       </Text>
                     ))}

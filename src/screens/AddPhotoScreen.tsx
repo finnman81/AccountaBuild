@@ -10,6 +10,8 @@ import { RootStackParamList } from '../navigation/types';
 import { AuthContext } from '../store/AuthContext';
 import { uploadGroupPhoto } from '../services/photos';
 import { addPhotoLog } from '../services/logs';
+import LogDateField from '../components/ui/LogDateField';
+import { isFutureYYYYMMDD, isValidYYYYMMDD, todayYYYYMMDD } from '../utils/dates';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'AddPhoto'>;
 
@@ -19,6 +21,7 @@ export default function AddPhotoScreen({ route, navigation }: Props) {
   const headerHeight = useHeaderHeight();
   const insets = useSafeAreaInsets();
 
+  const [logDate, setLogDate] = useState(todayYYYYMMDD());
   const [uri, setUri] = useState<string | null>(null);
   const [caption, setCaption] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -66,8 +69,17 @@ export default function AddPhotoScreen({ route, navigation }: Props) {
     setError(null);
     setIsSubmitting(true);
     try {
+      const date = logDate.trim();
+      if (!isValidYYYYMMDD(date)) {
+        setError('Enter a valid log date (YYYY-MM-DD).');
+        return;
+      }
+      if (isFutureYYYYMMDD(date)) {
+        setError('Log date cannot be in the future.');
+        return;
+      }
       const url = await uploadGroupPhoto({ groupId, uid: user.uid, uri });
-      await addPhotoLog({ groupId, uid: user.uid, url, caption });
+      await addPhotoLog({ groupId, uid: user.uid, url, caption, date });
       navigation.goBack();
     } catch (e) {
       setError('Upload failed.');
@@ -94,6 +106,8 @@ export default function AddPhotoScreen({ route, navigation }: Props) {
         <Card>
           <Card.Title title="Upload a photo" subtitle="Share with your group" />
           <Card.Content>
+            <LogDateField value={logDate} onChange={setLogDate} disabled={isSubmitting} />
+            <View style={{ height: 12 }} />
             <View style={{ flexDirection: 'row', gap: 12 }}>
               <Button mode="contained" onPress={takePhoto} disabled={isSubmitting} style={{ flex: 1 }}>
                 Take photo

@@ -1,4 +1,4 @@
-import React, { useContext, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Platform, View } from 'react-native';
 import { Button, Card, Menu, Text, TextInput } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -6,18 +6,30 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
 import { AuthContext } from '../store/AuthContext';
 import { addCaloriesLog, MealType } from '../services/logs';
+import LogDateField from '../components/ui/LogDateField';
+import { isFutureYYYYMMDD, isValidYYYYMMDD, todayYYYYMMDD } from '../utils/dates';
+import { updateGroupLog } from '../services/logEdits';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'AddCalories'>;
 
 export default function AddCaloriesScreen({ route, navigation }: Props) {
   const { user } = useContext(AuthContext);
-  const { groupId } = route.params;
+  const { groupId, edit } = route.params;
+  const [logDate, setLogDate] = useState(todayYYYYMMDD());
   const [calories, setCalories] = useState('');
   const [meal, setMeal] = useState<MealType>('all');
   const [mealMenuVisible, setMealMenuVisible] = useState(false);
   const [note, setNote] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!edit) return;
+    setLogDate(edit.date);
+    setCalories(String(edit.calories));
+    setMeal(edit.meal);
+    setNote(String(edit.note ?? ''));
+  }, [edit?.logId]); // intentionally only on edit change
 
   const mealLabel = (m: MealType) => {
     switch (m) {
@@ -40,15 +52,33 @@ export default function AddCaloriesScreen({ route, navigation }: Props) {
     setError(null);
     setIsSubmitting(true);
     try {
+      const date = logDate.trim();
+      if (!isValidYYYYMMDD(date)) {
+        setError('Enter a valid log date (YYYY-MM-DD).');
+        return;
+      }
+      if (isFutureYYYYMMDD(date)) {
+        setError('Log date cannot be in the future.');
+        return;
+      }
       const value = Number(calories);
       if (!Number.isFinite(value) || value <= 0) {
         setError('Enter a valid calorie number.');
         return;
       }
-      await addCaloriesLog({ groupId, uid: user.uid, calories: value, meal, note });
+      if (edit?.logId) {
+        await updateGroupLog({
+          groupId,
+          logId: edit.logId,
+          date,
+          payload: { calories: value, meal, note: note.trim() || null },
+        });
+      } else {
+        await addCaloriesLog({ groupId, uid: user.uid, calories: value, meal, note, date });
+      }
       navigation.goBack();
     } catch (e) {
-      setError('Failed to save calories.');
+      setError(edit?.logId ? 'Failed to update calories.' : 'Failed to save calories.');
     } finally {
       setIsSubmitting(false);
     }
@@ -58,8 +88,10 @@ export default function AddCaloriesScreen({ route, navigation }: Props) {
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={{ flex: 1, padding: 16, justifyContent: 'center' }}>
         <Card>
-          <Card.Title title="Log calories" subtitle="Add entries anytime during the day" />
+          <Card.Title title={edit?.logId ? 'Edit calories' : 'Log calories'} subtitle="Add entries anytime during the day" />
           <Card.Content>
+            <LogDateField value={logDate} onChange={setLogDate} disabled={isSubmitting} />
+            <View style={{ height: 12 }} />
             <TextInput
               label="Calories"
               keyboardType="number-pad"
@@ -112,7 +144,7 @@ export default function AddCaloriesScreen({ route, navigation }: Props) {
             ) : null}
             <View style={{ height: 16 }} />
             <Button mode="contained" onPress={onSubmit} loading={isSubmitting} disabled={isSubmitting}>
-              Save
+              {edit?.logId ? 'Update' : 'Save'}
             </Button>
           </Card.Content>
         </Card>

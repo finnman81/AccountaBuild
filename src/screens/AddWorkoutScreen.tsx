@@ -1,4 +1,4 @@
-import React, { useContext, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 import { Button, Card, List, Modal, Portal, Text, TextInput, useTheme } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -8,6 +8,9 @@ import { RootStackParamList } from '../navigation/types';
 import { AuthContext } from '../store/AuthContext';
 import { addWorkoutLog, WorkoutType } from '../services/logs';
 import { db } from '../firebase/firebase';
+import LogDateField from '../components/ui/LogDateField';
+import { isFutureYYYYMMDD, isValidYYYYMMDD, todayYYYYMMDD } from '../utils/dates';
+import { updateGroupLog, upsertUserWorkoutHistoryFromGroupLog } from '../services/logEdits';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'AddWorkout'>;
 
@@ -28,8 +31,9 @@ const workoutTypes: { label: string; value: WorkoutType }[] = [
 
 export default function AddWorkoutScreen({ route, navigation }: Props) {
   const { user } = useContext(AuthContext);
-  const { groupId } = route.params;
+  const { groupId, edit } = route.params;
   const theme = useTheme();
+  const [logDate, setLogDate] = useState(todayYYYYMMDD());
   const [workoutType, setWorkoutType] = useState<WorkoutType>('weightLifting');
   const [typePickerVisible, setTypePickerVisible] = useState(false);
   const [durationMinutes, setDurationMinutes] = useState('');
@@ -37,33 +41,64 @@ export default function AddWorkoutScreen({ route, navigation }: Props) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (!edit) return;
+    setLogDate(edit.date);
+    setWorkoutType(edit.workoutType);
+    setDurationMinutes(String(edit.durationMinutes));
+    setNote(String(edit.note ?? ''));
+  }, [edit?.logId]); // intentionally only on edit change
+
   const onSubmit = async () => {
     if (!user) return;
     setError(null);
     setIsSubmitting(true);
     try {
+      const date = logDate.trim();
+      if (!isValidYYYYMMDD(date)) {
+        setError('Enter a valid log date (YYYY-MM-DD).');
+        return;
+      }
+      if (isFutureYYYYMMDD(date)) {
+        setError('Log date cannot be in the future.');
+        return;
+      }
       const minutes = Number(durationMinutes);
       if (!Number.isFinite(minutes) || minutes <= 0) {
         setError('Duration is required (minutes).');
         return;
       }
-      await addWorkoutLog({ groupId, uid: user.uid, workoutType, durationMinutes: minutes, note });
-      // Persist user-level workout history for profile charts (cross-group).
-      const d = new Date();
-      const yyyy = d.getFullYear();
-      const mm = String(d.getMonth() + 1).padStart(2, '0');
-      const dd = String(d.getDate()).padStart(2, '0');
-      const date = `${yyyy}-${mm}-${dd}`;
-      await addDoc(collection(db, 'users', user.uid, 'workouts'), {
-        uid: user.uid,
-        date,
-        workoutType,
-        durationMinutes: minutes,
-        ts: serverTimestamp(),
-      });
+      if (edit?.logId) {
+        await updateGroupLog({
+          groupId,
+          logId: edit.logId,
+          date,
+          payload: { workoutType, durationMinutes: minutes, note: note.trim() || null },
+        });
+        await upsertUserWorkoutHistoryFromGroupLog({
+          uid: user.uid,
+          groupId,
+          groupLogId: edit.logId,
+          date,
+          workoutType,
+          durationMinutes: minutes,
+        });
+      } else {
+        const res = await addWorkoutLog({ groupId, uid: user.uid, workoutType, durationMinutes: minutes, note, date });
+        // Persist user-level workout history for profile charts (cross-group).
+        await addDoc(collection(db, 'users', user.uid, 'workouts'), {
+          uid: user.uid,
+          groupId,
+          groupLogId: res.id,
+          date,
+          workoutType,
+          durationMinutes: minutes,
+          ts: serverTimestamp(),
+        });
+      }
       navigation.goBack();
     } catch (e) {
-      setError('Failed to save workout.');
+      setError(edit?.logId ? 'Failed to update workout.' : 'Failed to save workout.');
     } finally {
       setIsSubmitting(false);
     }
@@ -115,8 +150,10 @@ export default function AddWorkoutScreen({ route, navigation }: Props) {
         </Portal>
 
         <Card>
-          <Card.Title title="Log workout" />
+          <Card.Title title={edit?.logId ? 'Edit workout' : 'Log workout'} />
           <Card.Content>
+            <LogDateField value={logDate} onChange={setLogDate} disabled={isSubmitting} />
+            <View style={{ height: 12 }} />
             <Text variant="bodySmall">Workout type</Text>
             <View style={{ height: 8 }} />
             <Button
@@ -153,7 +190,7 @@ export default function AddWorkoutScreen({ route, navigation }: Props) {
             ) : null}
             <View style={{ height: 16 }} />
             <Button mode="contained" onPress={onSubmit} loading={isSubmitting} disabled={isSubmitting}>
-              Save
+              {edit?.logId ? 'Update' : 'Save'}
             </Button>
           </Card.Content>
         </Card>

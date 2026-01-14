@@ -28,19 +28,16 @@ function chunk<T>(arr: T[], size: number) {
 }
 
 export async function upsertMyPublicUser(uid: string, data: Partial<PublicUser>) {
-  await setDoc(
-    doc(db, 'publicUsers', uid),
-    {
-      displayName: data.displayName ?? null,
-      photoURL: data.photoURL ?? null,
-      height: data.height ?? null,
-      age: data.age ?? null,
-      weightCurrent: data.weightCurrent ?? null,
-      weightGoal: data.weightGoal ?? null,
-      updatedAt: serverTimestamp(),
-    },
-    { merge: true },
-  );
+  // Important: treat `undefined` as "no change". Only explicit `null` clears a field.
+  const patch: Record<string, unknown> = { updatedAt: serverTimestamp() };
+  if (data.displayName !== undefined) patch.displayName = data.displayName;
+  if (data.photoURL !== undefined) patch.photoURL = data.photoURL;
+  if (data.height !== undefined) patch.height = data.height;
+  if (data.age !== undefined) patch.age = data.age;
+  if (data.weightCurrent !== undefined) patch.weightCurrent = data.weightCurrent;
+  if (data.weightGoal !== undefined) patch.weightGoal = data.weightGoal;
+
+  await setDoc(doc(db, 'publicUsers', uid), patch, { merge: true });
 }
 
 export function subscribePublicUsers(uids: string[], onChange: (map: Record<string, PublicUser>) => void) {

@@ -1,5 +1,5 @@
 
 
 Nice to haves / next steps:
-1. emojis / reactions in chat (if possible, not sure how easy this is)
+1. emojis / reactions in chat (defer for now — moderate effort: message schema + UI + Firestore rules/transactions)
 2. Apple Health Sync

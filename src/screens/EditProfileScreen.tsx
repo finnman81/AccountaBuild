@@ -120,25 +120,54 @@ export default function EditProfileScreen({ route, navigation }: Props) {
     setSaved(null);
     setIsSaving(true);
     try {
-      const next = {
-        uid: user.uid,
-        displayName: displayName.trim() || null,
-        photoURL,
-        height: toNumberOrNull(height),
-        age: toNumberOrNull(age),
-        weightCurrent: toNumberOrNull(weightCurrent),
-        weightGoal: toNumberOrNull(weightGoal),
-      };
-      if (height.trim() && next.height == null) throw new Error('Height must be a number');
-      if (age.trim() && next.age == null) throw new Error('Age must be a number');
-      if (weightCurrent.trim() && next.weightCurrent == null) throw new Error('Current weight must be a number');
-      if (weightGoal.trim() && next.weightGoal == null) throw new Error('Goal weight must be a number');
+      // Important: treat empty fields as "no change" (undefined), not "wipe" (null).
+      // This prevents accidentally clearing profile stats when the form is partially filled.
+      const patch: Parameters<typeof updateMyProfile>[0] = { uid: user.uid };
 
-      if (auth.currentUser) {
-        await updateFirebaseProfile(auth.currentUser, { displayName: next.displayName ?? '', photoURL: next.photoURL ?? undefined });
+      const dn = displayName.trim();
+      if (dn) patch.displayName = dn;
+
+      // Only update photo if we have a URL. Clearing photos can be added later via explicit UI.
+      if (photoURL) patch.photoURL = photoURL;
+
+      const hText = height.trim();
+      if (hText) {
+        const n = toNumberOrNull(hText);
+        if (n == null) throw new Error('Height must be a number');
+        patch.height = n;
       }
 
-      await updateMyProfile(next);
+      const aText = age.trim();
+      if (aText) {
+        const n = toNumberOrNull(aText);
+        if (n == null) throw new Error('Age must be a number');
+        patch.age = n;
+      }
+
+      const wcText = weightCurrent.trim();
+      if (wcText) {
+        const n = toNumberOrNull(wcText);
+        if (n == null) throw new Error('Current weight must be a number');
+        patch.weightCurrent = n;
+      }
+
+      const wgText = weightGoal.trim();
+      if (wgText) {
+        const n = toNumberOrNull(wgText);
+        if (n == null) throw new Error('Goal weight must be a number');
+        patch.weightGoal = n;
+      }
+
+      if (auth.currentUser) {
+        const authPatch: { displayName?: string; photoURL?: string } = {};
+        if (patch.displayName !== undefined) authPatch.displayName = patch.displayName ?? '';
+        if (patch.photoURL !== undefined) authPatch.photoURL = patch.photoURL ?? undefined;
+        if (Object.keys(authPatch).length > 0) {
+          await updateFirebaseProfile(auth.currentUser, authPatch);
+        }
+      }
+
+      await updateMyProfile(patch);
       await syncMyMemberProfileToAllGroups(user.uid);
       setSaved('Saved.');
       navigation.goBack();

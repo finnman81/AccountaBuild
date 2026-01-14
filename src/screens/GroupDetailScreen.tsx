@@ -1,6 +1,6 @@
 import React, { useContext, useEffect, useMemo, useState } from 'react';
 import { Image, ScrollView, View } from 'react-native';
-import { Avatar, Button, Card, Divider, List, SegmentedButtons, Text, useTheme } from 'react-native-paper';
+import { Avatar, Button, Card, Divider, IconButton, List, SegmentedButtons, Text, useTheme } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { collection, doc, limit, onSnapshot, orderBy, query, where } from 'firebase/firestore';
 
@@ -29,6 +29,7 @@ type GroupDoc = {
   joinCode?: string;
   createdBy?: string;
   logoUrl?: string | null;
+  streakRule?: 'workout' | 'any';
 };
 
 type MemberDoc = {
@@ -168,6 +169,7 @@ export default function GroupDetailScreen({ route, navigation }: Props) {
   }, [members, user]);
 
   const isCreator = Boolean(user?.uid && group?.createdBy && user.uid === group.createdBy);
+  const streakRule = (group?.streakRule ?? 'workout') as 'workout' | 'any';
 
   // Backfill join code mapping for existing groups (so older groups can be joined).
   useEffect(() => {
@@ -368,6 +370,22 @@ export default function GroupDetailScreen({ route, navigation }: Props) {
     return byUid;
   }, [logs]);
 
+  const streakDaysThisWeekByUid = useMemo(() => {
+    const weekStart = weekStartSundayLocal();
+    const allowed = streakRule === 'any' ? new Set(['workout', 'calories', 'weight', 'photo']) : new Set(['workout']);
+    const datesByUid: Record<string, Set<string>> = {};
+    for (const l of logs) {
+      if (!allowed.has(l.type)) continue;
+      const d = parseYYYYMMDDLocal(l.date);
+      if (Number.isNaN(d.valueOf()) || d < weekStart) continue;
+      datesByUid[l.uid] = datesByUid[l.uid] ?? new Set<string>();
+      datesByUid[l.uid].add(l.date);
+    }
+    const out: Record<string, number> = {};
+    for (const [uid, set] of Object.entries(datesByUid)) out[uid] = set.size;
+    return out;
+  }, [logs, streakRule]);
+
   const todayWorkoutMinutesByUid = useMemo(() => {
     const today = todayYYYYMMDD();
     const out: Record<string, number> = {};
@@ -563,15 +581,16 @@ export default function GroupDetailScreen({ route, navigation }: Props) {
             <LoadingState skeletonCount={3} />
           ) : memberSummaries.length === 0 ? (
             <Text>No members yet.</Text>
-          ) : nobodyLoggedToday ? (
-            <EmptyState
-              title="No one has logged today"
-              message="Be the first to log calories or a workout."
-              ctaLabel="Log now"
-              onCta={() => navigation.navigate('LogToday', { groupId })}
-            />
           ) : (
             <View style={{ gap: 12 }}>
+              {nobodyLoggedToday ? (
+                <EmptyState
+                  title="No one has logged today"
+                  message="Be the first to log calories or a workout."
+                  ctaLabel="Log now"
+                  onCta={() => navigation.navigate('LogToday', { groupId })}
+                />
+              ) : null}
               <View
                 style={{
                   borderRadius: 12,
@@ -651,6 +670,7 @@ export default function GroupDetailScreen({ route, navigation }: Props) {
           const meta = formatLog(l);
           const note = logNote(l);
           const ts = formatLogDateTime(l);
+          const canEdit = Boolean(user?.uid && l.uid === user.uid && l.type !== 'photo');
           return (
             <List.Item
               key={l.id}
@@ -680,6 +700,40 @@ export default function GroupDetailScreen({ route, navigation }: Props) {
                   <RecentAvatar uid={l.uid} />
                 </View>
               )}
+              right={() =>
+                canEdit ? (
+                  <IconButton
+                    icon="pencil"
+                    onPress={() => {
+                      if (l.type === 'calories') {
+                        const c = Number((l.payload as any)?.calories);
+                        const meal = ((l.payload as any)?.meal ?? 'all') as any;
+                        const n = (l.payload as any)?.note ?? null;
+                        if (!Number.isFinite(c) || c <= 0) return;
+                        navigation.navigate('AddCalories', { groupId, edit: { logId: l.id, date: l.date, calories: c, meal, note: n } });
+                        return;
+                      }
+                      if (l.type === 'workout') {
+                        const workoutType = ((l.payload as any)?.workoutType ?? 'weightLifting') as any;
+                        const mins = Number((l.payload as any)?.durationMinutes);
+                        const n = (l.payload as any)?.note ?? null;
+                        if (!Number.isFinite(mins) || mins <= 0) return;
+                        navigation.navigate('AddWorkout', {
+                          groupId,
+                          edit: { logId: l.id, date: l.date, workoutType, durationMinutes: mins, note: n },
+                        });
+                        return;
+                      }
+                      if (l.type === 'weight') {
+                        const w = Number((l.payload as any)?.weight);
+                        const n = (l.payload as any)?.note ?? null;
+                        if (!Number.isFinite(w) || w <= 0) return;
+                        navigation.navigate('AddWeight', { groupId, edit: { logId: l.id, date: l.date, weight: w, note: n } });
+                      }
+                    }}
+                  />
+                ) : null
+              }
             />
           );
         })}
@@ -765,6 +819,10 @@ export default function GroupDetailScreen({ route, navigation }: Props) {
             title={displayNameFor(m.uid)}
             description={[
               `Role: ${m.role}`,
+              (() => {
+                const n = streakDaysThisWeekByUid[m.uid] ?? 0;
+                return n > 0 ? `🔥 ${n}-day streak` : `😢 ${n}-day streak`;
+              })(),
               publicUsers[m.uid]?.age != null ? `Age: ${publicUsers[m.uid]?.age}` : null,
               publicUsers[m.uid]?.height != null ? `Height: ${formatHeightInches(publicUsers[m.uid]?.height)}` : null,
               publicUsers[m.uid]?.weightCurrent != null ? `Current weight: ${formatWeightLb(publicUsers[m.uid]?.weightCurrent)}` : null,

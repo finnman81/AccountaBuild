@@ -10,6 +10,8 @@ type Props = {
   showPointLabels?: boolean;
   formatPointLabel?: (v: number) => string;
   labelColor?: string;
+  yMin?: number;
+  yMax?: number;
 };
 
 function clamp(n: number, min: number, max: number) {
@@ -24,6 +26,8 @@ export default function SimpleLineChart({
   showPointLabels = false,
   formatPointLabel,
   labelColor = '#E8E8E8',
+  yMin,
+  yMax,
 }: Props) {
   const { width } = useWindowDimensions();
   const chartWidth = clamp((widthOverride ?? (width - 32)), 240, 520);
@@ -31,8 +35,10 @@ export default function SimpleLineChart({
   const { path, points } = useMemo(() => {
     if (values.length === 0) return { path: '', points: [] as { x: number; y: number }[] };
 
-    const min = Math.min(...values);
-    const max = Math.max(...values);
+    const computedMin = Math.min(...values);
+    const computedMax = Math.max(...values);
+    const min = Number.isFinite(yMin ?? NaN) ? (yMin as number) : computedMin;
+    const max = Number.isFinite(yMax ?? NaN) ? (yMax as number) : computedMax;
     const range = max - min || 1;
 
     const pad = 8;
@@ -49,7 +55,7 @@ export default function SimpleLineChart({
 
     const d = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
     return { path: d, points: pts };
-  }, [chartWidth, height, values]);
+  }, [chartWidth, height, values, yMax, yMin]);
 
   if (values.length === 0) return null;
 

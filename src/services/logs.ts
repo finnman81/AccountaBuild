@@ -11,6 +11,7 @@ import {
 
 import { db } from '../firebase/firebase';
 import { touchGroupActivity } from './groups';
+import { isValidYYYYMMDD, todayYYYYMMDD } from '../utils/dates';
 
 export type WorkoutType =
   | 'weightLifting'
@@ -37,12 +38,9 @@ export type GroupLog = {
   payload: Record<string, unknown>;
 };
 
-function todayYYYYMMDD() {
-  const d = new Date();
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}`;
+function normalizeLogDate(date?: string) {
+  const d = (date ?? '').trim();
+  return isValidYYYYMMDD(d) ? d : todayYYYYMMDD();
 }
 
 export async function addCaloriesLog(params: {
@@ -51,11 +49,12 @@ export async function addCaloriesLog(params: {
   calories: number;
   meal: MealType;
   note?: string;
+  date?: string; // YYYY-MM-DD
 }) {
   const res = await addDoc(collection(db, 'groups', params.groupId, 'logs'), {
     uid: params.uid,
     type: 'calories',
-    date: todayYYYYMMDD(),
+    date: normalizeLogDate(params.date),
     ts: serverTimestamp(),
     payload: {
       calories: params.calories,
@@ -73,11 +72,12 @@ export async function addWorkoutLog(params: {
   workoutType: WorkoutType;
   durationMinutes: number;
   note?: string;
+  date?: string; // YYYY-MM-DD
 }) {
   const res = await addDoc(collection(db, 'groups', params.groupId, 'logs'), {
     uid: params.uid,
     type: 'workout',
-    date: todayYYYYMMDD(),
+    date: normalizeLogDate(params.date),
     ts: serverTimestamp(),
     payload: {
       workoutType: params.workoutType,
@@ -94,11 +94,12 @@ export async function addWeightLog(params: {
   uid: string;
   weight: number;
   note?: string;
+  date?: string; // YYYY-MM-DD
 }) {
   const res = await addDoc(collection(db, 'groups', params.groupId, 'logs'), {
     uid: params.uid,
     type: 'weight',
-    date: todayYYYYMMDD(),
+    date: normalizeLogDate(params.date),
     ts: serverTimestamp(),
     payload: {
       weight: params.weight,
@@ -114,11 +115,12 @@ export async function addPhotoLog(params: {
   uid: string;
   url: string;
   caption?: string;
+  date?: string; // YYYY-MM-DD
 }) {
   const res = await addDoc(collection(db, 'groups', params.groupId, 'logs'), {
     uid: params.uid,
     type: 'photo',
-    date: todayYYYYMMDD(),
+    date: normalizeLogDate(params.date),
     ts: serverTimestamp(),
     payload: {
       url: params.url,

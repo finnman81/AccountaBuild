@@ -4,9 +4,21 @@ export type RootStackParamList = {
   ForgotPassword: undefined;
   MainTabs: undefined;
   LogToday: { groupId: string };
-  AddCalories: { groupId: string };
-  AddWorkout: { groupId: string };
-  AddWeight: { groupId: string };
+  AddCalories: {
+    groupId: string;
+    edit?: { logId: string; date: string; calories: number; meal: import('../services/logs').MealType; note?: string | null };
+  };
+  AddWorkout: {
+    groupId: string;
+    edit?: {
+      logId: string;
+      date: string;
+      workoutType: import('../services/logs').WorkoutType;
+      durationMinutes: number;
+      note?: string | null;
+    };
+  };
+  AddWeight: { groupId: string; edit?: { logId: string; date: string; weight: number; note?: string | null } };
   AddPhoto: { groupId: string };
   EditProfile: { focusField?: 'displayName' | 'height' | 'age' | 'weightCurrent' | 'weightGoal' | 'units' } | undefined;
 };
