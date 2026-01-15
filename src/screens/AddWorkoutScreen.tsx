@@ -94,6 +94,7 @@ export default function AddWorkoutScreen({ route, navigation }: Props) {
           workoutType,
           durationMinutes: minutes,
           ts: serverTimestamp(),
+          source: 'self_reported',
         });
       }
       navigation.goBack();

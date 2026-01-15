@@ -35,6 +35,7 @@ export type GroupLog = {
   type: LogType;
   date: string; // YYYY-MM-DD
   ts?: unknown;
+  source?: 'self_reported' | 'apple_health' | 'google_fit' | 'mixed' | string;
   payload: Record<string, unknown>;
 };
 
@@ -56,6 +57,7 @@ export async function addCaloriesLog(params: {
     type: 'calories',
     date: normalizeLogDate(params.date),
     ts: serverTimestamp(),
+    source: 'self_reported',
     payload: {
       calories: params.calories,
       meal: params.meal,
@@ -79,6 +81,7 @@ export async function addWorkoutLog(params: {
     type: 'workout',
     date: normalizeLogDate(params.date),
     ts: serverTimestamp(),
+    source: 'self_reported',
     payload: {
       workoutType: params.workoutType,
       durationMinutes: params.durationMinutes,
@@ -101,6 +104,7 @@ export async function addWeightLog(params: {
     type: 'weight',
     date: normalizeLogDate(params.date),
     ts: serverTimestamp(),
+    source: 'self_reported',
     payload: {
       weight: params.weight,
       note: params.note?.trim() || null,
@@ -122,6 +126,7 @@ export async function addPhotoLog(params: {
     type: 'photo',
     date: normalizeLogDate(params.date),
     ts: serverTimestamp(),
+    source: 'self_reported',
     payload: {
       url: params.url,
       caption: params.caption?.trim() || null,

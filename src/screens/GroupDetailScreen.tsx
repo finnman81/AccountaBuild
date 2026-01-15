@@ -194,6 +194,17 @@ export default function GroupDetailScreen({ route, navigation }: Props) {
     return friendlyNameFromDisplayName(p?.displayName ?? null, uid);
   };
 
+  const rankLabelFor = (uid: string) => {
+    const p = publicUsers[uid] as any;
+    const tier = String(p?.rankTierPublic ?? '').trim();
+    const div = p?.rankDivisionPublic;
+    const lp = p?.lpPublic;
+    if (!tier) return '—';
+    const roman = div === 1 ? 'I' : div === 2 ? 'II' : div === 3 ? 'III' : div === 4 ? 'IV' : '';
+    const lpTxt = typeof lp === 'number' ? `${Math.round(lp)} LP` : null;
+    return [div ? `${tier} ${roman}` : tier, lpTxt].filter(Boolean).join(' • ');
+  };
+
   const photoUrlFor = (uid: string) => {
     const p = publicUsers[uid];
     const u = (p?.photoURL ?? '').trim();
@@ -564,6 +575,7 @@ export default function GroupDetailScreen({ route, navigation }: Props) {
           <NavList
             items={[
               { title: 'View charts', icon: 'chart-line', onPress: () => navigation.navigate('GroupCharts', { groupId }) },
+              { title: 'Leaderboard', icon: 'trophy', onPress: () => navigation.navigate('Leaderboard', { groupId }) },
               { title: 'Group chat', icon: 'message', badge: hasNewChat, onPress: () => navigation.navigate('GroupChat', { groupId }) },
               { title: 'Progress gallery', icon: 'image-multiple', badge: hasNewPhotos, onPress: () => navigation.navigate('ViewPhotos', { groupId }) },
               { title: 'Goals', icon: 'target', onPress: () => navigation.navigate('SetGoals', { groupId }) },
@@ -823,6 +835,7 @@ export default function GroupDetailScreen({ route, navigation }: Props) {
                 const n = streakDaysThisWeekByUid[m.uid] ?? 0;
                 return n > 0 ? `🔥 ${n}-day streak` : `😢 ${n}-day streak`;
               })(),
+              `Rank: ${rankLabelFor(m.uid)}`,
               publicUsers[m.uid]?.age != null ? `Age: ${publicUsers[m.uid]?.age}` : null,
               publicUsers[m.uid]?.height != null ? `Height: ${formatHeightInches(publicUsers[m.uid]?.height)}` : null,
               publicUsers[m.uid]?.weightCurrent != null ? `Current weight: ${formatWeightLb(publicUsers[m.uid]?.weightCurrent)}` : null,

@@ -25,8 +25,11 @@ import GroupListScreen from '../screens/GroupListScreen';
 import CreateGroupScreen from '../screens/CreateGroupScreen';
 import JoinGroupScreen from '../screens/JoinGroupScreen';
 import ProfileScreen from '../screens/ProfileScreen';
+import SeasonHistoryScreen from '../screens/SeasonHistoryScreen';
+import MMRHistoryScreen from '../screens/MMRHistoryScreen';
 import ProgressScreen from '../screens/ProgressScreen';
 import HomeScreen from '../screens/HomeScreen';
+import LeaderboardScreen from '../screens/LeaderboardScreen';
 import LogActionSheet from '../components/ui/LogActionSheet';
 import { useActiveGroup } from '../store/ActiveGroupContext';
 
@@ -41,6 +44,7 @@ function HomeStackNavigator() {
     <HomeStack.Navigator>
       <HomeStack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
       <HomeStack.Screen name="GroupDetail" component={GroupDetailScreen} options={{ title: 'Home' }} />
+      <HomeStack.Screen name="Leaderboard" component={LeaderboardScreen} options={{ title: 'Leaderboard' }} />
       <HomeStack.Screen name="GroupCharts" component={GroupChartsScreen} options={{ title: 'Charts' }} />
       <HomeStack.Screen name="GroupChat" component={GroupChatScreen} options={{ title: 'Chat' }} />
       <HomeStack.Screen name="ViewPhotos" component={ViewPhotosScreen} options={{ title: 'Photos' }} />
@@ -72,6 +76,8 @@ function ProfileStackNavigator() {
   return (
     <ProfileStack.Navigator>
       <ProfileStack.Screen name="Profile" component={ProfileScreen} options={{ headerShown: false }} />
+      <ProfileStack.Screen name="SeasonHistory" component={SeasonHistoryScreen} options={{ title: 'Season history' }} />
+      <ProfileStack.Screen name="MMRHistory" component={MMRHistoryScreen} options={{ title: 'MMR history' }} />
     </ProfileStack.Navigator>
   );
 }

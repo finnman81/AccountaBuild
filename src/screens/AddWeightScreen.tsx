@@ -74,6 +74,7 @@ export default function AddWeightScreen({ route, navigation }: Props) {
           date,
           weight: value,
           ts: serverTimestamp(),
+          source: 'self_reported',
         });
       }
       // Keep weight consistent across groups and profile:

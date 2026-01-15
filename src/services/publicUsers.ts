@@ -19,6 +19,11 @@ export type PublicUser = {
   age: number | null;
   weightCurrent: number | null;
   weightGoal: number | null;
+  // Global MMR (public mirror)
+  mmrPublic?: number | null;
+  rankTierPublic?: string | null;
+  rankDivisionPublic?: number | null;
+  lpPublic?: number | null;
 };
 
 function chunk<T>(arr: T[], size: number) {
@@ -74,6 +79,10 @@ export function subscribePublicUsers(uids: string[], onChange: (map: Record<stri
           age: data?.age ?? null,
           weightCurrent: data?.weightCurrent ?? null,
           weightGoal: data?.weightGoal ?? null,
+          mmrPublic: typeof data?.mmrPublic === 'number' ? data.mmrPublic : null,
+          rankTierPublic: data?.rankTierPublic ?? null,
+          rankDivisionPublic: typeof data?.rankDivisionPublic === 'number' ? data.rankDivisionPublic : null,
+          lpPublic: typeof data?.lpPublic === 'number' ? data.lpPublic : null,
         };
       }
       emit();

@@ -21,11 +21,13 @@ export type RootStackParamList = {
   AddWeight: { groupId: string; edit?: { logId: string; date: string; weight: number; note?: string | null } };
   AddPhoto: { groupId: string };
   EditProfile: { focusField?: 'displayName' | 'height' | 'age' | 'weightCurrent' | 'weightGoal' | 'units' } | undefined;
+  MMRGoals: undefined;
 };
 
 export type HomeStackParamList = {
   Home: undefined;
   GroupDetail: { groupId: string };
+  Leaderboard: { groupId: string };
   GroupCharts: { groupId: string };
   GroupChat: { groupId: string };
   ViewPhotos: { groupId: string };
@@ -45,6 +47,8 @@ export type ProgressStackParamList = {
 
 export type ProfileStackParamList = {
   Profile: undefined;
+  SeasonHistory: undefined;
+  MMRHistory: undefined;
 };
 
 export type TabsParamList = {
