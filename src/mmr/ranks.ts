@@ -48,7 +48,7 @@ export function bandForMMR(mmr: number): Band {
   return BANDS.find((b) => x >= b.min && x <= b.max) ?? BANDS[0];
 }
 
-export function lpForMMR(mmr: number, band: Band): number {
+export function mpForMMR(mmr: number, band: Band): number {
   if (!band.division) return 0;
   const denom = Math.max(1, band.max - band.min);
   return clamp(0, 100, Math.round(100 * ((mmr - band.min) / denom)));
@@ -102,12 +102,12 @@ export function applyRankWithDemotionRules(params: {
   oldBand: Band;
   newMMR: number;
   tierShieldWeeksRemaining: number;
-}): { band: Band; lp: number } {
+}): { band: Band; mp: number } {
   const candidate = bandForMMR(params.newMMR);
 
   // Promotion / same-band: accept immediately.
   if (isHigherOrEqual(candidate, params.oldBand)) {
-    return { band: candidate, lp: lpForMMR(params.newMMR, candidate) };
+    return { band: candidate, mp: mpForMMR(params.newMMR, candidate) };
   }
 
   // Candidate is lower (demotion).
@@ -115,15 +115,15 @@ export function applyRankWithDemotionRules(params: {
   if (tierDemotion && params.tierShieldWeeksRemaining > 0) {
     // Shield blocks tier demotion: stay in old tier floor (lowest division).
     const floored = tierFloorBand(params.oldBand.tier);
-    return { band: floored, lp: lpForMMR(params.newMMR, floored) };
+    return { band: floored, mp: mpForMMR(params.newMMR, floored) };
   }
 
   const threshold = demotionThresholdForBand(params.oldBand);
   if (params.newMMR > threshold) {
     // Hysteresis prevents demotion.
-    return { band: params.oldBand, lp: lpForMMR(params.newMMR, params.oldBand) };
+    return { band: params.oldBand, mp: mpForMMR(params.newMMR, params.oldBand) };
   }
 
-  return { band: candidate, lp: lpForMMR(params.newMMR, candidate) };
+  return { band: candidate, mp: mpForMMR(params.newMMR, candidate) };
 }
 

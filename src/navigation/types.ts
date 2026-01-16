@@ -20,7 +20,9 @@ export type RootStackParamList = {
   };
   AddWeight: { groupId: string; edit?: { logId: string; date: string; weight: number; note?: string | null } };
   AddPhoto: { groupId: string };
-  EditProfile: { focusField?: 'displayName' | 'height' | 'age' | 'weightCurrent' | 'weightGoal' | 'units' } | undefined;
+  EditProfile:
+    | { focusField?: 'displayName' | 'height' | 'age' | 'weightCurrent' | 'weightGoal' | 'weightTargetDate' | 'units' }
+    | undefined;
   MMRGoals: undefined;
 };
 

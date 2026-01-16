@@ -1,8 +1,10 @@
 import React, { useContext, useEffect, useState } from 'react';
-import { KeyboardAvoidingView, Platform, View } from 'react-native';
+import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, TouchableWithoutFeedback, View } from 'react-native';
 import { Button, Card, Text, TextInput } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { useHeaderHeight } from '@react-navigation/elements';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { RootStackParamList } from '../navigation/types';
 import { AuthContext } from '../store/AuthContext';
@@ -18,6 +20,8 @@ type Props = NativeStackScreenProps<RootStackParamList, 'AddWeight'>;
 export default function AddWeightScreen({ route, navigation }: Props) {
   const { user } = useContext(AuthContext);
   const { groupId, edit } = route.params;
+  const headerHeight = useHeaderHeight();
+  const insets = useSafeAreaInsets();
   const [logDate, setLogDate] = useState(todayYYYYMMDD());
   const [weight, setWeight] = useState('');
   const [note, setNote] = useState('');
@@ -89,41 +93,50 @@ export default function AddWeightScreen({ route, navigation }: Props) {
   };
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <View style={{ flex: 1, padding: 16, justifyContent: 'center' }}>
-        <Card>
-          <Card.Title title={edit?.logId ? 'Edit weight' : 'Log weight'} subtitle="Quick daily weigh-in" />
-          <Card.Content>
-            <LogDateField value={logDate} onChange={setLogDate} disabled={isSubmitting} />
-            <View style={{ height: 12 }} />
-            <TextInput
-              label="Weight (lb)"
-              keyboardType="decimal-pad"
-              value={weight}
-              onChangeText={setWeight}
-              disabled={isSubmitting}
-            />
-            <View style={{ height: 12 }} />
-            <TextInput
-              label="Note (optional)"
-              value={note}
-              onChangeText={setNote}
-              disabled={isSubmitting}
-              multiline
-            />
-            {error ? (
-              <>
-                <View style={{ height: 12 }} />
-                <Text style={{ color: 'crimson' }}>{error}</Text>
-              </>
-            ) : null}
-            <View style={{ height: 16 }} />
-            <Button mode="contained" onPress={onSubmit} loading={isSubmitting} disabled={isSubmitting}>
-              {edit?.logId ? 'Update' : 'Save'}
-            </Button>
-          </Card.Content>
-        </Card>
-      </View>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={headerHeight}
+    >
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={Platform.OS === 'ios' ? 'on-drag' : 'none'}
+          contentContainerStyle={{
+            flexGrow: 1,
+            padding: 16,
+            paddingBottom: 16 + insets.bottom,
+            justifyContent: 'center',
+          }}
+        >
+          <Card>
+            <Card.Title title={edit?.logId ? 'Edit weight' : 'Log weight'} subtitle="Quick daily weigh-in" />
+            <Card.Content>
+              <LogDateField value={logDate} onChange={setLogDate} disabled={isSubmitting} />
+              <View style={{ height: 12 }} />
+              <TextInput
+                label="Weight (lb)"
+                keyboardType="decimal-pad"
+                value={weight}
+                onChangeText={setWeight}
+                disabled={isSubmitting}
+              />
+              <View style={{ height: 12 }} />
+              <TextInput label="Note (optional)" value={note} onChangeText={setNote} disabled={isSubmitting} multiline />
+              {error ? (
+                <>
+                  <View style={{ height: 12 }} />
+                  <Text style={{ color: 'crimson' }}>{error}</Text>
+                </>
+              ) : null}
+              <View style={{ height: 16 }} />
+              <Button mode="contained" onPress={onSubmit} loading={isSubmitting} disabled={isSubmitting}>
+                {edit?.logId ? 'Update' : 'Save'}
+              </Button>
+            </Card.Content>
+          </Card>
+        </ScrollView>
+      </TouchableWithoutFeedback>
     </KeyboardAvoidingView>
   );
 }

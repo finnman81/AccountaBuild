@@ -1,8 +1,10 @@
 import React, { useContext, useEffect, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
+import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, TouchableWithoutFeedback, View } from 'react-native';
 import { Button, Card, List, Modal, Portal, Text, TextInput, useTheme } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { useHeaderHeight } from '@react-navigation/elements';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { RootStackParamList } from '../navigation/types';
 import { AuthContext } from '../store/AuthContext';
@@ -33,6 +35,8 @@ export default function AddWorkoutScreen({ route, navigation }: Props) {
   const { user } = useContext(AuthContext);
   const { groupId, edit } = route.params;
   const theme = useTheme();
+  const headerHeight = useHeaderHeight();
+  const insets = useSafeAreaInsets();
   const [logDate, setLogDate] = useState(todayYYYYMMDD());
   const [workoutType, setWorkoutType] = useState<WorkoutType>('weightLifting');
   const [typePickerVisible, setTypePickerVisible] = useState(false);
@@ -106,96 +110,101 @@ export default function AddWorkoutScreen({ route, navigation }: Props) {
   };
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <View style={{ flex: 1, padding: 16, justifyContent: 'center' }}>
-        <Portal>
-          <Modal
-            visible={typePickerVisible}
-            onDismiss={() => setTypePickerVisible(false)}
-            contentContainerStyle={{
-              margin: 16,
-              borderRadius: 16,
-              overflow: 'hidden',
-              backgroundColor: theme.colors.surface,
-              maxHeight: '70%',
-            }}
-          >
-            <Card>
-              <Card.Title title="Workout type" />
-              <Card.Content style={{ paddingHorizontal: 0, paddingTop: 6, paddingBottom: 0 }}>
-                <ScrollView
-                  style={{ maxHeight: 380 }}
-                  contentContainerStyle={{ paddingTop: 6, paddingBottom: 18 }}
-                  showsVerticalScrollIndicator
-                >
-                  {workoutTypes.map((w) => (
-                    <List.Item
-                      key={w.value}
-                      title={w.label}
-                      onPress={() => {
-                        setWorkoutType(w.value);
-                        setTypePickerVisible(false);
-                      }}
-                      right={(props) => (w.value === workoutType ? <List.Icon {...props} icon="check" /> : null)}
-                    />
-                  ))}
-                </ScrollView>
-              </Card.Content>
-              <Card.Actions style={{ justifyContent: 'flex-end' }}>
-                <Button mode="text" onPress={() => setTypePickerVisible(false)}>
-                  Close
-                </Button>
-              </Card.Actions>
-            </Card>
-          </Modal>
-        </Portal>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={headerHeight}
+    >
+      <Portal>
+        <Modal
+          visible={typePickerVisible}
+          onDismiss={() => setTypePickerVisible(false)}
+          contentContainerStyle={{
+            margin: 16,
+            borderRadius: 16,
+            overflow: 'hidden',
+            backgroundColor: theme.colors.surface,
+            maxHeight: '70%',
+          }}
+        >
+          <Card>
+            <Card.Title title="Workout type" />
+            <Card.Content style={{ paddingHorizontal: 0, paddingTop: 6, paddingBottom: 0 }}>
+              <ScrollView style={{ maxHeight: 380 }} contentContainerStyle={{ paddingTop: 6, paddingBottom: 18 }} showsVerticalScrollIndicator>
+                {workoutTypes.map((w) => (
+                  <List.Item
+                    key={w.value}
+                    title={w.label}
+                    onPress={() => {
+                      setWorkoutType(w.value);
+                      setTypePickerVisible(false);
+                    }}
+                    right={(props) => (w.value === workoutType ? <List.Icon {...props} icon="check" /> : null)}
+                  />
+                ))}
+              </ScrollView>
+            </Card.Content>
+            <Card.Actions style={{ justifyContent: 'flex-end' }}>
+              <Button mode="text" onPress={() => setTypePickerVisible(false)}>
+                Close
+              </Button>
+            </Card.Actions>
+          </Card>
+        </Modal>
+      </Portal>
 
-        <Card>
-          <Card.Title title={edit?.logId ? 'Edit workout' : 'Log workout'} />
-          <Card.Content>
-            <LogDateField value={logDate} onChange={setLogDate} disabled={isSubmitting} />
-            <View style={{ height: 12 }} />
-            <Text variant="bodySmall">Workout type</Text>
-            <View style={{ height: 8 }} />
-            <Button
-              mode="outlined"
-              disabled={isSubmitting}
-              onPress={() => setTypePickerVisible(true)}
-              contentStyle={{ justifyContent: 'space-between' }}
-              icon="chevron-down"
-            >
-              {workoutTypes.find((w) => w.value === workoutType)?.label ?? 'Select'}
-            </Button>
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={Platform.OS === 'ios' ? 'on-drag' : 'none'}
+          contentContainerStyle={{
+            flexGrow: 1,
+            padding: 16,
+            paddingBottom: 16 + insets.bottom,
+            justifyContent: 'center',
+          }}
+        >
+          <Card>
+            <Card.Title title={edit?.logId ? 'Edit workout' : 'Log workout'} />
+            <Card.Content>
+              <LogDateField value={logDate} onChange={setLogDate} disabled={isSubmitting} />
+              <View style={{ height: 12 }} />
+              <Text variant="bodySmall">Workout type</Text>
+              <View style={{ height: 8 }} />
+              <Button
+                mode="outlined"
+                disabled={isSubmitting}
+                onPress={() => setTypePickerVisible(true)}
+                contentStyle={{ justifyContent: 'space-between' }}
+                icon="chevron-down"
+              >
+                {workoutTypes.find((w) => w.value === workoutType)?.label ?? 'Select'}
+              </Button>
 
-            <View style={{ height: 12 }} />
-            <TextInput
-              label="Duration (minutes)"
-              keyboardType="number-pad"
-              value={durationMinutes}
-              onChangeText={setDurationMinutes}
-              disabled={isSubmitting}
-            />
-            <View style={{ height: 12 }} />
-            <TextInput
-              label="Note (optional)"
-              value={note}
-              onChangeText={setNote}
-              disabled={isSubmitting}
-              multiline
-            />
-            {error ? (
-              <>
-                <View style={{ height: 12 }} />
-                <Text style={{ color: 'crimson' }}>{error}</Text>
-              </>
-            ) : null}
-            <View style={{ height: 16 }} />
-            <Button mode="contained" onPress={onSubmit} loading={isSubmitting} disabled={isSubmitting}>
-              {edit?.logId ? 'Update' : 'Save'}
-            </Button>
-          </Card.Content>
-        </Card>
-      </View>
+              <View style={{ height: 12 }} />
+              <TextInput
+                label="Duration (minutes)"
+                keyboardType="number-pad"
+                value={durationMinutes}
+                onChangeText={setDurationMinutes}
+                disabled={isSubmitting}
+              />
+              <View style={{ height: 12 }} />
+              <TextInput label="Note (optional)" value={note} onChangeText={setNote} disabled={isSubmitting} multiline />
+              {error ? (
+                <>
+                  <View style={{ height: 12 }} />
+                  <Text style={{ color: 'crimson' }}>{error}</Text>
+                </>
+              ) : null}
+              <View style={{ height: 16 }} />
+              <Button mode="contained" onPress={onSubmit} loading={isSubmitting} disabled={isSubmitting}>
+                {edit?.logId ? 'Update' : 'Save'}
+              </Button>
+            </Card.Content>
+          </Card>
+        </ScrollView>
+      </TouchableWithoutFeedback>
     </KeyboardAvoidingView>
   );
 }

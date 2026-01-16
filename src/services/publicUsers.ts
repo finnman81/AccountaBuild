@@ -19,11 +19,16 @@ export type PublicUser = {
   age: number | null;
   weightCurrent: number | null;
   weightGoal: number | null;
+  // User-level goals (persist across groups)
+  dailyCalorieGoal?: number | null;
+  workoutsPerWeek?: number | null;
+  logCaloriesDaysPerWeek?: number | null;
+  logWeightDaysPerWeek?: number | null;
   // Global MMR (public mirror)
   mmrPublic?: number | null;
   rankTierPublic?: string | null;
   rankDivisionPublic?: number | null;
-  lpPublic?: number | null;
+  mpPublic?: number | null;
 };
 
 function chunk<T>(arr: T[], size: number) {
@@ -41,6 +46,10 @@ export async function upsertMyPublicUser(uid: string, data: Partial<PublicUser>)
   if (data.age !== undefined) patch.age = data.age;
   if (data.weightCurrent !== undefined) patch.weightCurrent = data.weightCurrent;
   if (data.weightGoal !== undefined) patch.weightGoal = data.weightGoal;
+  if (data.dailyCalorieGoal !== undefined) patch.dailyCalorieGoal = data.dailyCalorieGoal;
+  if (data.workoutsPerWeek !== undefined) patch.workoutsPerWeek = data.workoutsPerWeek;
+  if (data.logCaloriesDaysPerWeek !== undefined) patch.logCaloriesDaysPerWeek = data.logCaloriesDaysPerWeek;
+  if (data.logWeightDaysPerWeek !== undefined) patch.logWeightDaysPerWeek = data.logWeightDaysPerWeek;
 
   await setDoc(doc(db, 'publicUsers', uid), patch, { merge: true });
 }
@@ -79,10 +88,14 @@ export function subscribePublicUsers(uids: string[], onChange: (map: Record<stri
           age: data?.age ?? null,
           weightCurrent: data?.weightCurrent ?? null,
           weightGoal: data?.weightGoal ?? null,
+          dailyCalorieGoal: typeof data?.dailyCalorieGoal === 'number' ? data.dailyCalorieGoal : null,
+          workoutsPerWeek: typeof data?.workoutsPerWeek === 'number' ? data.workoutsPerWeek : null,
+          logCaloriesDaysPerWeek: typeof data?.logCaloriesDaysPerWeek === 'number' ? data.logCaloriesDaysPerWeek : null,
+          logWeightDaysPerWeek: typeof data?.logWeightDaysPerWeek === 'number' ? data.logWeightDaysPerWeek : null,
           mmrPublic: typeof data?.mmrPublic === 'number' ? data.mmrPublic : null,
           rankTierPublic: data?.rankTierPublic ?? null,
           rankDivisionPublic: typeof data?.rankDivisionPublic === 'number' ? data.rankDivisionPublic : null,
-          lpPublic: typeof data?.lpPublic === 'number' ? data.lpPublic : null,
+          mpPublic: typeof data?.mpPublic === 'number' ? data.mpPublic : typeof data?.lpPublic === 'number' ? data.lpPublic : null, // Backward compat
         };
       }
       emit();

@@ -102,15 +102,15 @@ export default function MMRHistoryScreen() {
             const status = w.missedWeek ? 'Missed' : w.completedWeek ? 'Completed' : 'Partial';
             const delta = Math.round(w.deltaMMR);
             const deltaTxt = `${delta >= 0 ? '+' : ''}${delta}`;
-            const deltaLP = typeof w.deltaLP === 'number' ? Math.round(w.deltaLP) : null;
-            const deltaLPTxt = deltaLP == null ? null : `${deltaLP >= 0 ? '+' : ''}${deltaLP} LP`;
+            const deltaMP = typeof w.deltaMP === 'number' ? Math.round(w.deltaMP) : typeof w.deltaLP === 'number' ? Math.round(w.deltaLP) : null; // Backward compat
+            const deltaMPTxt = deltaMP == null ? null : `${deltaMP >= 0 ? '+' : ''}${deltaMP} MP`;
             const promo = w.promotion ? 'Promotion' : w.demotion ? 'Demotion' : null;
             return (
               <List.Item
                 key={w.weekId}
                 title={`${w.weekId} • ${status}`}
                 description={[
-                  `ΔMMR: ${deltaTxt}${deltaLPTxt ? ` (${deltaLPTxt})` : ''}  (MMR: ${Math.round(w.mmrBefore)} → ${Math.round(w.mmrAfter)})`,
+                  `ΔMMR: ${deltaTxt}${deltaMPTxt ? ` (${deltaMPTxt})` : ''}  (MMR: ${Math.round(w.mmrBefore)} → ${Math.round(w.mmrAfter)})`,
                   promo ? promo : null,
                   `Penalty: ${Math.round(w.penalty)} • Bonus: ${Math.round(w.bonus)} • Streak ×${w.streakMultiplier.toFixed(2)}`,
                 ].join('\n')}

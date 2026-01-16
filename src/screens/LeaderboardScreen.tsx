@@ -79,11 +79,11 @@ export default function LeaderboardScreen({ route }: Props) {
     const p = publicUsers[uid] as any;
     const tier = String(p?.rankTierPublic ?? '').trim();
     const div = p?.rankDivisionPublic;
-    const lp = p?.lpPublic;
+    const mp = p?.mpPublic ?? p?.lpPublic; // Backward compat
     if (!tier) return '—';
     const roman = div === 1 ? 'I' : div === 2 ? 'II' : div === 3 ? 'III' : div === 4 ? 'IV' : '';
-    const lpTxt = typeof lp === 'number' ? `${Math.round(lp)} LP` : null;
-    return [div ? `${tier} ${roman}` : tier, lpTxt].filter(Boolean).join(' • ');
+    const mpTxt = typeof mp === 'number' ? `${Math.round(mp)} MP` : null;
+    return [div ? `${tier} ${roman}` : tier, mpTxt].filter(Boolean).join(' • ');
   };
 
   const streakDaysThisWeekByUid = useMemo(() => {
@@ -203,7 +203,7 @@ export default function LeaderboardScreen({ route }: Props) {
                     <UserAvatar uid={r.uid} url={r.photoURL} size={36} />
                   </View>
                 )}
-                right={() => (r.tier ? <RankBadge tier={r.tier} size={34} /> : null)}
+                right={() => (r.tier ? <RankBadge tier={r.tier} size={54} /> : null)}
               />
             );
           })

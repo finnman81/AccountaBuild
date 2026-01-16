@@ -1,4 +1,4 @@
-import { applyRankWithDemotionRules, bandForMMR, demotionThresholdForBand, lpForMMR, BANDS } from '../../src/mmr/ranks';
+import { applyRankWithDemotionRules, bandForMMR, demotionThresholdForBand, mpForMMR, BANDS } from '../../src/mmr/ranks';
 
 describe('mmr/ranks', () => {
   test('bandForMMR lands in expected tiers', () => {
@@ -12,9 +12,9 @@ describe('mmr/ranks', () => {
     expect(bandForMMR(7000).tier).toBe('Challenger');
   });
 
-  test('lpForMMR is 0 for non-division tiers', () => {
+  test('mpForMMR is 0 for non-division tiers', () => {
     const master = BANDS.find((b) => b.tier === 'Master')!;
-    expect(lpForMMR(6000, master)).toBe(0);
+    expect(mpForMMR(6000, master)).toBe(0);
   });
 
   test('demotionThreshold uses larger buffer for tier boundary', () => {

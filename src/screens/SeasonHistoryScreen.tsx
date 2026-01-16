@@ -10,11 +10,11 @@ import RankBadge from '../components/mmr/RankBadge';
 
 type SeasonRankBadge = Extract<EarnedBadge, { type: 'seasonRank' }>;
 
-function rankLabel(tier: string, division?: number | null, lp?: number | null) {
+function rankLabel(tier: string, division?: number | null, mp?: number | null) {
   const div = division ?? null;
   const roman = div === 1 ? 'I' : div === 2 ? 'II' : div === 3 ? 'III' : div === 4 ? 'IV' : '';
-  const lpTxt = typeof lp === 'number' ? `${Math.round(lp)} LP` : null;
-  return [div ? `${tier} ${roman}` : tier, lpTxt].filter(Boolean).join(' • ');
+  const mpTxt = typeof mp === 'number' ? `${Math.round(mp)} MP` : null;
+  return [div ? `${tier} ${roman}` : tier, mpTxt].filter(Boolean).join(' • ');
 }
 
 export default function SeasonHistoryScreen() {
@@ -71,14 +71,14 @@ export default function SeasonHistoryScreen() {
             const badge = badgeBySeason[r.seasonId] ?? null;
             const tier = badge?.tier ?? r.final?.tier ?? null;
             const division = badge?.division ?? r.final?.division ?? null;
-            const lp = r.final?.lp ?? null;
+            const mp = r.final?.mp ?? null;
             const mmr = r.final?.mmr ?? null;
             return (
               <List.Item
                 key={r.id}
                 title={r.seasonId}
                 description={[
-                  tier ? `Final: ${rankLabel(tier, division ?? undefined, lp ?? undefined)}` : 'Final: —',
+                  tier ? `Final: ${rankLabel(tier, division ?? undefined, mp ?? undefined)}` : 'Final: —',
                   mmr != null ? `MMR: ${Math.round(mmr)}` : null,
                 ]
                   .filter(Boolean)

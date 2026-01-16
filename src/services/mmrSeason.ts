@@ -2,7 +2,7 @@ import { doc, runTransaction, serverTimestamp } from 'firebase/firestore';
 
 import { db } from '../firebase/firebase';
 import type { Tier } from '../mmr/types';
-import { bandForMMR, lpForMMR, BANDS, type Band } from '../mmr/ranks';
+import { bandForMMR, mpForMMR, BANDS, type Band } from '../mmr/ranks';
 import { DEFAULT_TZ, seasonIdFromDate } from '../mmr/time';
 
 function findBandForRank(tier: Tier, division?: 1 | 2 | 3 | 4): Band {
@@ -88,7 +88,7 @@ export async function ensureSeasonRollover(uid: string) {
 
     const mmrBefore = typeof u?.mmr === 'number' ? Number(u.mmr) : 1000;
     const bandBefore = bandForMMR(mmrBefore);
-    const lpBefore = lpForMMR(mmrBefore, bandBefore);
+    const mpBefore = mpForMMR(mmrBefore, bandBefore);
 
     const finalTier = (u?.rankTier ?? bandBefore.tier) as Tier;
     const finalDivision = (u?.rankDivision ?? bandBefore.division ?? null) as 1 | 2 | 3 | 4 | null;
@@ -100,7 +100,7 @@ export async function ensureSeasonRollover(uid: string) {
     const peakDivision = (peak?.division ?? finalDivision ?? null) as 1 | 2 | 3 | 4 | null;
     const peakMMR = typeof peak?.mmr === 'number' ? Number(peak.mmr) : mmrBefore;
     const peakBand = bandForMMR(peakMMR);
-    const peakLP = lpForMMR(peakMMR, peakBand);
+    const peakMP = mpForMMR(peakMMR, peakBand);
 
     // Award season badges (private)
     const seasonRankBadgeId = `${prevSeasonId}-rank`;
@@ -112,7 +112,7 @@ export async function ensureSeasonRollover(uid: string) {
         tier: finalTier,
         division: finalDivision,
         mmr: mmrBefore,
-        lp: lpBefore,
+        mp: mpBefore,
         earnedAt: serverTimestamp(),
       },
       { merge: true },
@@ -127,7 +127,7 @@ export async function ensureSeasonRollover(uid: string) {
         tier: peakTier,
         division: peakDivision,
         mmr: peakMMR,
-        lp: peakLP,
+        mp: peakMP,
         earnedAt: serverTimestamp(),
       },
       { merge: true },
@@ -139,7 +139,7 @@ export async function ensureSeasonRollover(uid: string) {
       {
         seasonId: prevSeasonId,
         endedAt: serverTimestamp(),
-        final: { tier: finalTier, division: finalDivision, mmr: mmrBefore, lp: lpBefore },
+        final: { tier: finalTier, division: finalDivision, mmr: mmrBefore, mp: mpBefore },
       },
       { merge: true },
     );
@@ -151,8 +151,8 @@ export async function ensureSeasonRollover(uid: string) {
         seasonId: prevSeasonId,
         endedAt: serverTimestamp(),
         endMMR: mmrBefore,
-        endRank: { tier: finalTier, division: finalDivision, lp: lpBefore },
-        peakRank: { tier: peakTier, division: peakDivision, mmr: peakMMR, lp: peakLP },
+        endRank: { tier: finalTier, division: finalDivision, mp: mpBefore },
+        peakRank: { tier: peakTier, division: peakDivision, mmr: peakMMR, mp: peakMP },
         badgesEarned: [seasonRankBadgeId, seasonPeakBadgeId],
       },
       { merge: true },
@@ -166,7 +166,7 @@ export async function ensureSeasonRollover(uid: string) {
     const targetBand = findBandForRank(targetTier, targetDiv);
     const mmrAfterReset = bandMidpointMMR(targetBand);
     const bandAfterReset = bandForMMR(mmrAfterReset);
-    const lpAfterReset = lpForMMR(mmrAfterReset, bandAfterReset);
+    const mpAfterReset = mpForMMR(mmrAfterReset, bandAfterReset);
 
     tx.set(
       userRef,
@@ -174,11 +174,11 @@ export async function ensureSeasonRollover(uid: string) {
         mmr: mmrAfterReset,
         rankTier: bandAfterReset.tier,
         rankDivision: bandAfterReset.division ?? null,
-        lp: lpAfterReset,
+        mp: mpAfterReset,
 
         // Reset season-scoped counters
         streakWeeks: 0,
-        tierShieldWeeksRemaining: 0,
+        tierShieldWeeksRemaining: 5, // Default 5 shields for testing
         consecutiveMissedWeeks: 0,
 
         // Initialize season peak for new season
@@ -205,8 +205,8 @@ export async function ensureSeasonRollover(uid: string) {
         seasonId: currentSeasonId,
         startedAt: serverTimestamp(),
         startMMR: mmrAfterReset,
-        startRank: { tier: bandAfterReset.tier, division: bandAfterReset.division ?? null, lp: lpAfterReset },
-        peakRank: { tier: bandAfterReset.tier, division: bandAfterReset.division ?? null, mmr: mmrAfterReset, lp: lpAfterReset },
+        startRank: { tier: bandAfterReset.tier, division: bandAfterReset.division ?? null, mp: mpAfterReset },
+        peakRank: { tier: bandAfterReset.tier, division: bandAfterReset.division ?? null, mmr: mmrAfterReset, mp: mpAfterReset },
         rulesVersion: String(u?.rulesVersion ?? 'v1'),
       },
       { merge: true },
@@ -218,7 +218,7 @@ export async function ensureSeasonRollover(uid: string) {
         mmrPublic: mmrAfterReset,
         rankTierPublic: bandAfterReset.tier,
         rankDivisionPublic: bandAfterReset.division ?? null,
-        lpPublic: lpAfterReset,
+        mpPublic: mpAfterReset,
         seasonIdPublic: currentSeasonId,
         updatedAtPublic: serverTimestamp(),
       },

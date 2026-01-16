@@ -7,7 +7,7 @@ export type SeasonResult = {
   id: string; // seasonId
   seasonId: string;
   endedAtMs: number | null;
-  final: { tier: Tier; division?: 1 | 2 | 3 | 4 | null; mmr: number; lp: number } | null;
+  final: { tier: Tier; division?: 1 | 2 | 3 | 4 | null; mmr: number; mp: number } | null;
 };
 
 function toMillisMaybe(ts: any): number | null {
@@ -33,19 +33,19 @@ export function subscribeMySeasonResults(uid: string, onChange: (items: SeasonRe
           const tier = String(f?.tier ?? '').trim() as Tier;
           const division = f?.division ?? null;
           const mmr = typeof f?.mmr === 'number' ? Number(f.mmr) : null;
-          const lp = typeof f?.lp === 'number' ? Number(f.lp) : null;
+          const mp = typeof f?.mp === 'number' ? Number(f.mp) : typeof f?.lp === 'number' ? Number(f.lp) : null; // Backward compat
 
           return {
             id: d.id,
             seasonId,
             endedAtMs,
             final:
-              tier && mmr != null && lp != null
+              tier && mmr != null && mp != null
                 ? {
                     tier,
                     division: division === 1 || division === 2 || division === 3 || division === 4 ? division : null,
                     mmr,
-                    lp,
+                    mp,
                   }
                 : null,
           };

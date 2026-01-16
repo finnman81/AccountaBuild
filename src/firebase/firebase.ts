@@ -41,12 +41,25 @@ export const firebaseApp = getApps().length ? getApp() : initializeApp(firebaseC
 // Firebase Auth persistence:
 // - Web: default browser persistence via getAuth().
 // - Native: AsyncStorage-backed persistence (keeps users signed in across restarts).
-export const auth =
-  Platform.OS === 'web'
-    ? getAuth(firebaseApp)
-    : initializeAuth(firebaseApp, {
-        persistence: getReactNativePersistence(AsyncStorage),
-      });
+// Handle case where auth might already be initialized (e.g., hot reload).
+let authInstance: ReturnType<typeof getAuth>;
+if (Platform.OS === 'web') {
+  authInstance = getAuth(firebaseApp);
+} else {
+  try {
+    authInstance = initializeAuth(firebaseApp, {
+      persistence: getReactNativePersistence(AsyncStorage),
+    });
+  } catch (error: any) {
+    // Auth already initialized (e.g., during hot reload), use existing instance
+    if (error?.code === 'auth/already-initialized') {
+      authInstance = getAuth(firebaseApp);
+    } else {
+      throw error;
+    }
+  }
+}
+export const auth = authInstance;
 export const db = getFirestore(firebaseApp);
 export const storage = getStorage(firebaseApp);
 

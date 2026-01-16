@@ -6,8 +6,7 @@ describe('memberSummary', () => {
     const weekStart = new Date('2026-01-12T00:00:00');
 
     const out = buildMemberSummaries({
-      members: [{ uid: 'u1', displayName: 'Jake' }],
-      goals: [{ uid: 'u1', dailyCalorieGoal: 2000 } as any],
+      members: [{ uid: 'u1', displayName: 'Jake', dailyCalorieGoal: 2000 }],
       logs: [
         { id: '1', uid: 'u1', type: 'calories', date: today, payload: { calories: 500 }, ts: new Date() } as any,
         { id: '2', uid: 'u1', type: 'calories', date: today, payload: { calories: 200 }, ts: new Date() } as any,

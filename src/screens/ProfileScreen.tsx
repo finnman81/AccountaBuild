@@ -1,6 +1,6 @@
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Image, ScrollView, TouchableOpacity, View, useWindowDimensions } from 'react-native';
-import { Avatar, Button, Card, IconButton, Text, useTheme } from 'react-native-paper';
+import { Animated, Image, TouchableOpacity, View } from 'react-native';
+import { Card, IconButton, Text, useTheme } from 'react-native-paper';
 import * as Haptics from 'expo-haptics';
 import { collection, doc, limit, onSnapshot, orderBy, query } from 'firebase/firestore';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -11,22 +11,27 @@ import NavList from '../components/ui/NavList';
 import { AuthContext } from '../store/AuthContext';
 import { subscribeMyProfile } from '../services/profile';
 import { db } from '../firebase/firebase';
-import { formatHeightInches, formatMinutesHM, formatWeightLb } from '../utils/formatters';
-import SimpleLineChart from '../components/charts/SimpleLineChart';
-import PlaceholderLineChart from '../components/charts/PlaceholderLineChart';
+import { formatHeightInches, formatWeightLb } from '../utils/formatters';
 import { useActiveGroup } from '../store/ActiveGroupContext';
 import { subscribeGroupLogs, type GroupLog } from '../services/logs';
 import type { RootStackParamList } from '../navigation/types';
-import { subscribeCalorieDays, setCalorieDay } from '../services/calorieDays';
 import { DEFAULT_TZ, isoWeekIdInTz, yyyyMmDdInTz } from '../mmr/time';
 import { subscribeMyMmrState, type MmrState } from '../services/mmrState';
 import { updateGlobalMmrUpToCurrentWeek } from '../services/mmrUpdate';
 import { subscribeLatestMmrWeeklySummary, type MmrWeeklySummary } from '../services/mmrWeekly';
 import { ensureSeasonRollover } from '../services/mmrSeason';
 import { subscribeMyBadges, type EarnedBadge } from '../services/mmrBadges';
-import RankBadge from '../components/mmr/RankBadge';
-import { demotionRisk } from '../mmr/risk';
-import { ensureGlobalSeasonDoc, subscribeGlobalSeason, type GlobalSeason } from '../services/mmrGlobalSeasons';
+import { ensureGlobalSeasonDoc } from '../services/mmrGlobalSeasons';
+import { subscribeMyMmrProjection, type MmrProjection } from '../services/mmrProjection';
+import RankHeroCard from '../components/profile/RankHeroCard';
+import WeeklyTrajectoryCard from '../components/profile/WeeklyTrajectoryCard';
+import RiskBanner from '../components/profile/RiskBanner';
+import ConsistencyStrip from '../components/profile/ConsistencyStrip';
+import GoalSummaryRow from '../components/profile/GoalSummaryRow';
+import TrendPreviewSparkline from '../components/profile/TrendPreviewSparkline';
+import RankDetailsModal from '../components/profile/RankDetailsModal';
+import ProjectionDetailsModal from '../components/profile/ProjectionDetailsModal';
+import { spacing } from '../theme/spacing';
 
 function weekStartSundayLocal() {
   const d = new Date();
@@ -46,7 +51,6 @@ function weekdayShort(idx: number) {
 
 export default function ProfileScreen() {
   const theme = useTheme();
-  const { width: windowWidth } = useWindowDimensions();
   const { user, logout } = useContext(AuthContext);
   const nav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { activeGroupId } = useActiveGroup();
@@ -58,14 +62,16 @@ export default function ProfileScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [latestWeekly, setLatestWeekly] = useState<MmrWeeklySummary | null>(null);
   const [badges, setBadges] = useState<EarnedBadge[]>([]);
-  const [globalSeason, setGlobalSeason] = useState<GlobalSeason | null>(null);
+  const [projection, setProjection] = useState<MmrProjection | null>(null);
 
   const [weightEntries, setWeightEntries] = useState<{ date: string; weight: number; tsMs: number | null }[]>([]);
-  const [calorieDays, setCalorieDays] = useState<Record<string, { met: boolean }>>({});
+  const [calorieLogDates, setCalorieLogDates] = useState<Set<string>>(new Set()); // Dates where user logged calories
   const [weekWorkoutDays, setWeekWorkoutDays] = useState<number[]>(Array(7).fill(0)); // circles
   const [weekMinutes, setWeekMinutes] = useState(0);
   const [group, setGroup] = useState<{ streakRule?: 'workout' | 'any'; name?: string } | null>(null);
   const [groupLogs, setGroupLogs] = useState<GroupLog[]>([]);
+  const [rankDetailsVisible, setRankDetailsVisible] = useState(false);
+  const [projectionDetailsVisible, setProjectionDetailsVisible] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -88,19 +94,16 @@ export default function ProfileScreen() {
   }, [user]);
 
   useEffect(() => {
+    if (!user) return;
+    return subscribeMyMmrProjection(user.uid, setProjection);
+  }, [user]);
+
+  useEffect(() => {
     if (!user?.uid) return;
     if (!mmrState?.currentSeasonId) return;
     // Best-effort initialize global season doc for countdown UI.
     void ensureGlobalSeasonDoc(user.uid, mmrState.currentSeasonId).catch(() => {});
   }, [mmrState?.currentSeasonId, user?.uid]);
-
-  useEffect(() => {
-    if (!mmrState?.currentSeasonId) {
-      setGlobalSeason(null);
-      return;
-    }
-    return subscribeGlobalSeason(mmrState.currentSeasonId, setGlobalSeason);
-  }, [mmrState?.currentSeasonId]);
 
   const didAutoCatchUpRef = useRef(false);
   useEffect(() => {
@@ -151,10 +154,22 @@ export default function ProfileScreen() {
     return out;
   }, []);
 
+  // Track calorie logs from all groups (automatic, not manual)
   useEffect(() => {
     if (!user) return;
-    return subscribeCalorieDays(user.uid, last7DatesNY, setCalorieDays);
-  }, [last7DatesNY, user]);
+    const weekStart = weekStartSundayLocal();
+    const dates = new Set<string>();
+    
+    // Check all group logs for calorie entries by this user
+    for (const l of groupLogs) {
+      if (l.uid !== user.uid || l.type !== 'calories') continue;
+      const dt = parseYYYYMMDDLocal(l.date);
+      if (Number.isNaN(dt.valueOf()) || dt < weekStart) continue;
+      dates.add(l.date);
+    }
+    
+    setCalorieLogDates(dates);
+  }, [groupLogs, user]);
 
   useEffect(() => {
     if (!user) return;
@@ -242,36 +257,26 @@ export default function ProfileScreen() {
     return Object.values(byDate).sort((a, b) => a.date.localeCompare(b.date));
   }, [weightEntries]);
 
-  const recentWeightText = useMemo(() => {
-    if (dailyWeightEntries.length === 0) return '';
-    const last = dailyWeightEntries.slice(-6).map((e) => Math.round(e.weight));
-    return `Recent (lb): ${last.join(', ')}`;
+  const weightSeries = useMemo(() => dailyWeightEntries.map((e) => e.weight), [dailyWeightEntries]);
+
+  // Calculate weight delta for sparkline (first vs last of last 7 days)
+  const weightDelta = useMemo(() => {
+    if (dailyWeightEntries.length < 2) return null;
+    const last7 = dailyWeightEntries.slice(-7);
+    if (last7.length < 2) return null;
+    const first = last7[0].weight;
+    const last = last7[last7.length - 1].weight;
+    return last - first;
   }, [dailyWeightEntries]);
 
-  const weightSeries = useMemo(() => dailyWeightEntries.map((e) => e.weight), [dailyWeightEntries]);
-  const weightDates = useMemo(() => dailyWeightEntries.map((e) => e.date), [dailyWeightEntries]);
+  // Calculate calorie days met (binary: if user logged anything that day, it counts)
+  const calorieDaysMet = useMemo(() => {
+    return last7DatesNY.filter((d) => calorieLogDates.has(d)).length;
+  }, [last7DatesNY, calorieLogDates]);
 
-  // Default the weight chart to a 10 lb window, centered on current weight (rounded to nearest 5).
-  const weightAxis = useMemo(() => {
-    const vals = weightSeries.filter((n) => Number.isFinite(n));
-    if (!vals.length) {
-      return { yMin: null as number | null, yMax: null as number | null, ticks: { top: '—', mid: '—', bot: '—' } };
-    }
-    const last = vals[vals.length - 1];
-    const center = Math.round(last / 5) * 5; // 189 -> 190
-    const yMin = center - 5;
-    const yMax = center + 5;
-    const fmt = (n: number) => `${Math.round(n)}`;
-    return { yMin, yMax, ticks: { top: fmt(yMax), mid: fmt(center), bot: fmt(yMin) } };
-  }, [weightSeries]);
-
-  const formatShortDate = (yyyyMMdd: string) => {
-    const d = parseYYYYMMDDLocal(yyyyMMdd);
-    if (Number.isNaN(d.valueOf())) return yyyyMMdd;
-    const m = d.getMonth() + 1;
-    const day = d.getDate();
-    return `${m}/${day}`;
-  };
+  const calorieDayDots = useMemo(() => {
+    return last7DatesNY.map((d) => calorieLogDates.has(d));
+  }, [last7DatesNY, calorieLogDates]);
 
   if (!user) {
     return (
@@ -290,47 +295,6 @@ export default function ProfileScreen() {
     { key: 'height', label: 'Height', value: profile?.height == null ? '—' : formatHeightInches(profile.height), focusField: 'height' as const },
     { key: 'age', label: 'Age', value: profile?.age == null ? '—' : String(profile.age), focusField: 'age' as const },
   ];
-
-  const rankLabel = useMemo(() => {
-    if (!mmrState) return 'Unranked';
-    const div = mmrState.rankDivision;
-    const roman = div === 1 ? 'I' : div === 2 ? 'II' : div === 3 ? 'III' : div === 4 ? 'IV' : '';
-    const tier = mmrState.rankTier;
-    const lp = mmrState.lp ?? 0;
-    return div ? `${tier} ${roman} • ${lp} LP` : `${tier} • ${lp} LP`;
-  }, [mmrState]);
-
-  const weeklyStatusLabel = useMemo(() => {
-    if (!latestWeekly) return null;
-    if (latestWeekly.missedWeek) return 'Missed week';
-    if (latestWeekly.completedWeek) return 'Completed week';
-    return 'Partial week';
-  }, [latestWeekly]);
-
-  const isSeasonBadge = (b: EarnedBadge): b is Extract<EarnedBadge, { type: 'seasonRank' | 'seasonPeak' }> =>
-    b.type === 'seasonRank' || b.type === 'seasonPeak';
-  const isAchievementBadge = (b: EarnedBadge): b is Extract<EarnedBadge, { type: 'achievement' }> => b.type === 'achievement';
-
-  const risk = useMemo(() => {
-    if (!mmrState) return { level: 'none' as const, message: '' };
-    return demotionRisk({
-      mmr: mmrState.mmr,
-      consecutiveMissedWeeks: mmrState.consecutiveMissedWeeks,
-      tierShieldWeeksRemaining: mmrState.tierShieldWeeksRemaining,
-      missedLastWeek: Boolean(latestWeekly?.missedWeek),
-    });
-  }, [latestWeekly?.missedWeek, mmrState]);
-
-  const seasonCountdown = useMemo(() => {
-    if (!mmrState?.currentSeasonId) return null;
-    const end = (globalSeason?.endDate ?? '').trim();
-    if (!end) return null;
-    const endDate = new Date(`${end}T23:59:59`);
-    if (Number.isNaN(endDate.valueOf())) return null;
-    const ms = endDate.getTime() - Date.now();
-    const days = Math.max(0, Math.ceil(ms / (24 * 60 * 60 * 1000)));
-    return { seasonId: mmrState.currentSeasonId, days };
-  }, [globalSeason?.endDate, mmrState?.currentSeasonId]);
 
   const prevWeekStreakRef = useRef<number[]>(Array(7).fill(0));
   const circleAnim = useRef(Array.from({ length: 7 }, () => new Animated.Value(1))).current;
@@ -403,317 +367,80 @@ export default function ProfileScreen() {
             </View>
             <View style={{ height: 12 }} />
             <Text variant="headlineSmall">{name}</Text>
-            <Text variant="bodySmall" style={{ opacity: 0.75 }}>
-              🔥 {weekStreakCount}-day streak
-            </Text>
           </View>
         </Card.Content>
       </Card>
 
-      <View style={{ height: 16 }} />
+      <View style={{ height: spacing.base }} />
 
-      <Card>
-        <Card.Title title="My progress" subtitle={activeGroupId ? (group?.name ?? 'This group') : 'This week'} />
-        <Card.Content>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <View>
-              <Text variant="labelSmall" style={{ opacity: 0.75 }}>
-                Global rank
-              </Text>
-              <Text variant="titleMedium">{rankLabel}</Text>
-              <Text variant="bodySmall" style={{ opacity: 0.75 }}>
-                MMR: {mmrState?.mmr ?? '—'}
-              </Text>
-            </View>
-            {mmrState ? <RankBadge tier={mmrState.rankTier} size={54} /> : null}
-            <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-              {activeGroupId ? (
-                <Button
-                  mode="outlined"
-                  compact
-                  onPress={() => {
-                    // Jump into the HomeTab stack and open the leaderboard for the active group.
-                    nav.navigate('MainTabs' as any, {
-                      screen: 'HomeTab',
-                      params: { screen: 'Leaderboard', params: { groupId: activeGroupId } },
-                    } as any);
-                  }}
-                >
-                  Leaderboard
-                </Button>
-              ) : null}
-              <Button
-                mode="outlined"
-                compact
-                loading={mmrBusy}
-                disabled={mmrBusy || !user}
-                onPress={() => {
-                  if (!user) return;
-                  setMmrError(null);
-                  setMmrBusy(true);
-                  void ensureSeasonRollover(user.uid)
-                    .then(() => updateGlobalMmrUpToCurrentWeek(user.uid))
-                    .catch(() => setMmrError('Failed to update MMR.'))
-                    .finally(() => setMmrBusy(false));
-                }}
-              >
-                Update
-              </Button>
-            </View>
-          </View>
-          {mmrError ? (
-            <>
-              <View style={{ height: 8 }} />
+      {/* Section 1: Rank Header */}
+      <RankHeroCard
+        mmrState={mmrState}
+        onPress={() => setRankDetailsVisible(true)}
+        onViewLeaderboard={
+          activeGroupId
+            ? () => {
+                nav.navigate('MainTabs' as any, {
+                  screen: 'HomeTab',
+                  params: { screen: 'Leaderboard', params: { groupId: activeGroupId } },
+                } as any);
+              }
+            : undefined
+        }
+      />
+
+      {mmrError ? (
+        <>
+          <View style={{ height: spacing.sm }} />
+          <Card>
+            <Card.Content>
               <Text style={{ color: 'crimson' }}>{mmrError}</Text>
-            </>
-          ) : null}
+            </Card.Content>
+          </Card>
+        </>
+      ) : null}
 
-          {latestWeekly ? (
-            <>
-              <View style={{ height: 12 }} />
-              <View style={{ borderRadius: 14, padding: 12, backgroundColor: theme.colors.surfaceVariant }}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                  <Text variant="titleSmall">Last week recap</Text>
-                  <Text variant="labelSmall" style={{ opacity: 0.75 }}>
-                    {latestWeekly.weekId}
-                  </Text>
-                </View>
-                <View style={{ height: 6 }} />
-                <Text variant="bodyMedium">
-                  {latestWeekly.deltaMMR >= 0 ? '+' : ''}
-                  {Math.round(latestWeekly.deltaMMR)} MMR
-                  {typeof (latestWeekly as any)?.deltaLP === 'number'
-                    ? ` (${(latestWeekly as any).deltaLP >= 0 ? '+' : ''}${Math.round((latestWeekly as any).deltaLP)} LP)`
-                    : ''}
-                  {' • '}
-                  {weeklyStatusLabel}
-                </Text>
-                <Text variant="bodySmall" style={{ opacity: 0.75, marginTop: 2 }}>
-                  Penalty: {Math.round(latestWeekly.penalty)} • Bonus: {Math.round(latestWeekly.bonus)} • Streak ×{latestWeekly.streakMultiplier.toFixed(2)}
-                </Text>
-                {(latestWeekly as any)?.promotion ? (
-                  <Text variant="bodySmall" style={{ opacity: 0.75, marginTop: 2 }}>
-                    Promotion
-                  </Text>
-                ) : (latestWeekly as any)?.demotion ? (
-                  <Text variant="bodySmall" style={{ opacity: 0.75, marginTop: 2 }}>
-                    Demotion
-                  </Text>
-                ) : null}
-              </View>
-            </>
-          ) : null}
+      <View style={{ height: spacing.base }} />
 
-          {seasonCountdown ? (
-            <>
-              <View style={{ height: 10 }} />
-              <Text variant="bodySmall" style={{ opacity: 0.75 }}>
-                Season {seasonCountdown.seasonId} ends in {seasonCountdown.days} day{seasonCountdown.days === 1 ? '' : 's'}.
-              </Text>
-            </>
-          ) : null}
+      {/* Section 2: Weekly Trajectory */}
+      <WeeklyTrajectoryCard
+        projection={projection}
+        onViewDetails={() => setProjectionDetailsVisible(true)}
+      />
 
-          {risk.level !== 'none' ? (
-            <>
-              <View style={{ height: 10 }} />
-              <View
-                style={{
-                  borderRadius: 14,
-                  padding: 12,
-                  backgroundColor: risk.level === 'danger' ? 'rgba(220, 20, 60, 0.18)' : 'rgba(255, 165, 0, 0.18)',
-                  borderWidth: 1,
-                  borderColor: risk.level === 'danger' ? 'rgba(220, 20, 60, 0.45)' : 'rgba(255, 165, 0, 0.45)',
-                }}
-              >
-                <Text variant="titleSmall">Demotion risk</Text>
-                <View style={{ height: 4 }} />
-                <Text variant="bodySmall" style={{ opacity: 0.85 }}>
-                  {risk.message}
-                </Text>
-              </View>
-            </>
-          ) : null}
+      <View style={{ height: spacing.base }} />
 
-          {badges.length ? (
-            <>
-              <View style={{ height: 12 }} />
-              <Text variant="titleSmall">Badges</Text>
-              <View style={{ height: 8 }} />
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
-                {badges.filter(isSeasonBadge).map((b) => (
-                    <View key={b.id} style={{ alignItems: 'center' }}>
-                      <RankBadge tier={b.tier} size={48} />
-                      <View style={{ height: 6 }} />
-                      <Text variant="labelSmall" style={{ opacity: 0.75 }}>
-                        {b.seasonId}
-                        {b.type === 'seasonPeak' ? ' Peak' : ''}
-                      </Text>
-                    </View>
-                  ))}
-              </ScrollView>
-              {badges.some(isAchievementBadge) ? (
-                <>
-                  <View style={{ height: 10 }} />
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                    {badges.filter(isAchievementBadge).map((b) => (
-                        <View
-                          key={b.id}
-                          style={{
-                            paddingHorizontal: 10,
-                            paddingVertical: 6,
-                            borderRadius: 999,
-                            backgroundColor: theme.colors.surfaceVariant,
-                            borderWidth: 1,
-                            borderColor: theme.colors.outlineVariant,
-                          }}
-                        >
-                          <Text variant="labelSmall">{b.title}</Text>
-                        </View>
-                      ))}
-                  </View>
-                </>
-              ) : null}
-            </>
-          ) : null}
+      {/* Section 3: Risk / Safety State */}
+      <RiskBanner mmrState={mmrState} latestWeekly={latestWeekly} />
 
-          <View style={{ height: 12 }} />
-          <Text variant="titleMedium">{weekStreakCount}/7 streak days</Text>
-          <Text variant="bodySmall" style={{ opacity: 0.75, marginTop: 2 }}>
-            {streakRule === 'any' ? 'Counts any log' : 'Counts workouts only'} (set by group admin)
-          </Text>
+      <View style={{ height: spacing.base }} />
 
-          <View style={{ height: 10 }} />
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 4 }}>
-            {weekStreak.map((v, idx) => (
-              <View key={idx} style={{ alignItems: 'center', width: 34 }}>
-                <Animated.View style={{ transform: [{ scale: circleAnim[idx] }] }}>
-                  <View
-                    style={{
-                      width: 18,
-                      height: 18,
-                      borderRadius: 999,
-                      backgroundColor: v ? theme.colors.primary : theme.colors.surfaceVariant,
-                      borderWidth: v ? 0 : 1,
-                      borderColor: theme.colors.outlineVariant,
-                    }}
-                  />
-                </Animated.View>
-                <View style={{ height: 6 }} />
-                <Text variant="labelSmall" style={{ opacity: 0.75 }}>
-                  {weekdayShort(idx)}
-                </Text>
-              </View>
-            ))}
-          </View>
+      {/* Section 4: Consistency */}
+      <ConsistencyStrip
+        activeDays={weekStreakCount}
+        totalDays={7}
+        streakDots={weekStreak}
+        totalMinutes={weekMinutes}
+        onPress={() => {
+          nav.navigate('MainTabs' as any, {
+            screen: 'ProgressTab',
+            params: { screen: 'Progress' },
+          } as any);
+        }}
+      />
 
-          <View style={{ height: 12 }} />
-          <Text variant="bodyMedium">Total minutes trained this week: {weekMinutes > 0 ? formatMinutesHM(weekMinutes) : '—'}</Text>
+      <View style={{ height: spacing.base }} />
 
-          <View style={{ height: 16 }} />
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-            <Text variant="titleMedium">Calorie goal days</Text>
-            <Button mode="text" compact onPress={() => nav.navigate('MMRGoals')}>
-              MMR goals
-            </Button>
-          </View>
-          <Text variant="bodySmall" style={{ opacity: 0.75 }}>
-            Tap a day to mark “met calorie goal” (self-reported).
-          </Text>
-          <View style={{ height: 10 }} />
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-            {last7DatesNY.map((d) => {
-              const met = Boolean(calorieDays[d]?.met);
-              const dt = parseYYYYMMDDLocal(d);
-              const label = weekdayShort(dt.getDay());
-              return (
-                <View key={d} style={{ alignItems: 'center', width: 40 }}>
-                  <Button
-                    mode={met ? 'contained' : 'outlined'}
-                    compact
-                    onPress={() => {
-                      if (!user) return;
-                      // Optimistic UI
-                      setCalorieDays((prev) => ({ ...prev, [d]: { met: !met } }));
-                      void setCalorieDay({ uid: user.uid, date: d, met: !met }).catch(() => {
-                        // revert
-                        setCalorieDays((prev) => ({ ...prev, [d]: { met } }));
-                      });
-                    }}
-                    style={{ minWidth: 36, height: 34, justifyContent: 'center' }}
-                    contentStyle={{ height: 34 }}
-                  >
-                    {met ? '✓' : ''}
-                  </Button>
-                  <View style={{ height: 6 }} />
-                  <Text variant="labelSmall" style={{ opacity: 0.75 }}>
-                    {label}
-                  </Text>
-                </View>
-              );
-            })}
-          </View>
+      {/* Section 5: Goal Compliance */}
+      <GoalSummaryRow
+        label="Calorie goals"
+        met={calorieDaysMet}
+        total={7}
+        dayDots={calorieDayDots}
+        dayLabels={last7DatesNY.map((d) => weekdayShort(parseYYYYMMDDLocal(d).getDay()))}
+      />
 
-          <View style={{ height: 16 }} />
-          <Text variant="titleMedium">Weight trend (lb)</Text>
-          <Text variant="bodySmall" style={{ opacity: 0.75 }}>
-            {dailyWeightEntries.length ? `Last ${dailyWeightEntries.length} days` : 'Start tracking to see your progress curve.'}
-          </Text>
-          <View style={{ height: 8 }} />
-          {dailyWeightEntries.length === 0 ? (
-            <PlaceholderLineChart height={140} />
-          ) : (
-            <>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <View style={{ width: 64, height: 160, paddingVertical: 8 }}>
-                  <Text variant="labelSmall" style={{ opacity: 0.6, textAlign: 'right' }}>
-                    lb
-                  </Text>
-                  <View style={{ flex: 1, justifyContent: 'space-between', marginTop: 4 }}>
-                    <Text variant="labelSmall" style={{ opacity: 0.75, textAlign: 'right' }}>
-                      {weightAxis.ticks.top}
-                    </Text>
-                    <Text variant="labelSmall" style={{ opacity: 0.75, textAlign: 'right' }}>
-                      {weightAxis.ticks.mid}
-                    </Text>
-                    <Text variant="labelSmall" style={{ opacity: 0.75, textAlign: 'right' }}>
-                      {weightAxis.ticks.bot}
-                    </Text>
-                  </View>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <SimpleLineChart
-                    values={weightSeries}
-                    height={160}
-                    width={Math.max(240, windowWidth - 32 - 32 - 64)}
-                    showPointLabels={weightSeries.length <= 7}
-                    formatPointLabel={(v) => `${Math.round(v)}`}
-                    labelColor={theme.colors.onSurface}
-                    color={theme.colors.primary}
-                    yMin={weightAxis.yMin ?? undefined}
-                    yMax={weightAxis.yMax ?? undefined}
-                  />
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6, paddingHorizontal: 4 }}>
-                    {weightDates.map((d, i) => (
-                      <Text key={`${d}-${i}`} variant="labelSmall" style={{ opacity: 0.75 }}>
-                        {formatShortDate(d)}
-                      </Text>
-                    ))}
-                  </View>
-                  <Text variant="labelSmall" style={{ opacity: 0.75, textAlign: 'center', marginTop: 4 }}>
-                    Date
-                  </Text>
-                </View>
-              </View>
-              <View style={{ height: 8 }} />
-              <Text variant="bodySmall" style={{ opacity: 0.75 }}>
-                {recentWeightText}
-              </Text>
-            </>
-          )}
-        </Card.Content>
-      </Card>
-
-      <View style={{ height: 16 }} />
+      <View style={{ height: spacing.base }} />
 
       <Card>
         <Card.Title title="Stats" />
@@ -725,7 +452,7 @@ export default function ProfileScreen() {
                 style={{ flex: 1 }}
                 onPress={() => nav.navigate('EditProfile', { focusField: s.focusField })}
               >
-                <View style={{ borderRadius: 16, padding: 14, backgroundColor: theme.colors.surfaceVariant }}>
+                <View style={{ borderRadius: 16, padding: 14, backgroundColor: theme.colors.surfaceVariant, borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.04)' }}>
                   <Text variant="labelSmall" style={{ opacity: 0.75 }}>
                     {s.label}
                   </Text>
@@ -744,7 +471,7 @@ export default function ProfileScreen() {
                 style={{ flex: 1 }}
                 onPress={() => nav.navigate('EditProfile', { focusField: s.focusField })}
               >
-                <View style={{ borderRadius: 16, padding: 14, backgroundColor: theme.colors.surfaceVariant }}>
+                <View style={{ borderRadius: 16, padding: 14, backgroundColor: theme.colors.surfaceVariant, borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.04)' }}>
                   <Text variant="labelSmall" style={{ opacity: 0.75 }}>
                     {s.label}
                   </Text>
@@ -766,6 +493,7 @@ export default function ProfileScreen() {
           <NavList
             items={[
               { title: 'Edit profile', icon: 'account-edit', onPress: () => nav.navigate('EditProfile', undefined) },
+              { title: 'Goals', icon: 'target', onPress: () => nav.navigate('MMRGoals') },
               { title: 'Season history', icon: 'trophy', onPress: () => (nav as any).navigate('SeasonHistory') },
               { title: 'MMR history', icon: 'chart-line', onPress: () => (nav as any).navigate('MMRHistory') },
               {
@@ -807,6 +535,19 @@ export default function ProfileScreen() {
           />
         </Card.Content>
       </Card>
+
+      {/* Modals */}
+      <RankDetailsModal
+        visible={rankDetailsVisible}
+        mmrState={mmrState}
+        badges={badges}
+        onDismiss={() => setRankDetailsVisible(false)}
+      />
+      <ProjectionDetailsModal
+        visible={projectionDetailsVisible}
+        projection={projection}
+        onDismiss={() => setProjectionDetailsVisible(false)}
+      />
     </Screen>
   );
 }

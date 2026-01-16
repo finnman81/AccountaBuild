@@ -11,7 +11,7 @@ export type MmrWeeklySummary = {
   completedWeek: boolean;
   missedWeek: boolean;
   deltaMMR: number;
-  deltaLP?: number | null;
+  deltaMP?: number | null;
   penalty: number;
   bonus: number;
   weekScore: number;
@@ -19,8 +19,8 @@ export type MmrWeeklySummary = {
   mmrBefore: number;
   mmrAfter: number;
 
-  rankBefore?: { tier: string; division?: 1 | 2 | 3 | 4 | null; lp?: number | null } | null;
-  rankAfter?: { tier: string; division?: 1 | 2 | 3 | 4 | null; lp?: number | null } | null;
+  rankBefore?: { tier: string; division?: 1 | 2 | 3 | 4 | null; mp?: number | null } | null;
+  rankAfter?: { tier: string; division?: 1 | 2 | 3 | 4 | null; mp?: number | null } | null;
   promotion?: { from: any; to: any } | null;
   demotion?: { from: any; to: any } | null;
 };
@@ -51,7 +51,7 @@ export function subscribeLatestMmrWeeklySummary(uid: string, onChange: (s: MmrWe
         completedWeek: Boolean(d?.completedWeek),
         missedWeek: Boolean(d?.missedWeek),
         deltaMMR: typeof d?.deltaMMR === 'number' ? Number(d.deltaMMR) : 0,
-        deltaLP: typeof d?.deltaLP === 'number' ? Number(d.deltaLP) : null,
+        deltaMP: typeof d?.deltaMP === 'number' ? Number(d.deltaMP) : typeof d?.deltaLP === 'number' ? Number(d.deltaLP) : null, // Backward compat
         penalty: typeof d?.penalty === 'number' ? Number(d.penalty) : 0,
         bonus: typeof d?.bonus === 'number' ? Number(d.bonus) : 0,
         weekScore: typeof d?.weekScore === 'number' ? Number(d.weekScore) : 0,
@@ -84,7 +84,7 @@ export function subscribeMmrWeeklyHistory(uid: string, maxWeeks: number, onChang
           completedWeek: Boolean(d?.completedWeek),
           missedWeek: Boolean(d?.missedWeek),
           deltaMMR: typeof d?.deltaMMR === 'number' ? Number(d.deltaMMR) : 0,
-          deltaLP: typeof d?.deltaLP === 'number' ? Number(d.deltaLP) : null,
+          deltaMP: typeof d?.deltaMP === 'number' ? Number(d.deltaMP) : typeof d?.deltaLP === 'number' ? Number(d.deltaLP) : null, // Backward compat
           penalty: typeof d?.penalty === 'number' ? Number(d.penalty) : 0,
           bonus: typeof d?.bonus === 'number' ? Number(d.bonus) : 0,
           weekScore: typeof d?.weekScore === 'number' ? Number(d.weekScore) : 0,

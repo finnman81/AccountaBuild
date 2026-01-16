@@ -146,9 +146,9 @@ export default function TabsNavigator() {
                   justifyContent: 'center',
                   alignItems: 'center',
                   shadowColor: '#000',
-                  shadowOpacity: 0.25,
-                  shadowRadius: 10,
-                  elevation: 10,
+                  shadowOpacity: 0.15,
+                  shadowRadius: 8,
+                  elevation: 2,
                 }}
               >
                 <Icon source="plus" color={theme.colors.onPrimary} size={26} />

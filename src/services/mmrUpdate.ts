@@ -15,7 +15,7 @@ import {
 import { db } from '../firebase/firebase';
 import { RULES_VERSION, missedWeekPenalty, partialWeekPenalty, streakMultiplier } from '../mmr/constants';
 import { D_calDays, D_minutes, D_workouts, D_weightGain, D_weightLoss } from '../mmr/difficulty';
-import { bandForMMR, bandOrderIndex, applyRankWithDemotionRules, isStrictlyHigher, lpForMMR } from '../mmr/ranks';
+import { bandForMMR, bandOrderIndex, applyRankWithDemotionRules, isStrictlyHigher, mpForMMR } from '../mmr/ranks';
 import { combineWeekScore, goalScore } from '../mmr/scoring';
 import { DEFAULT_TZ, isoWeekIdInTz, isoWeekRangeInTz, nextIsoWeekId, seasonIdFromDate, zonedNoonUtcFromYmd } from '../mmr/time';
 
@@ -149,8 +149,8 @@ function avg(nums: number[]) {
 }
 
 function rankObjFromBand(mmr: number, band: { tier: any; division?: any }) {
-  const lp = lpForMMR(mmr, band as any);
-  return { tier: band.tier, division: band.division ?? null, lp };
+  const mp = mpForMMR(mmr, band as any);
+  return { tier: band.tier, division: band.division ?? null, mp };
 }
 
 export async function updateGlobalMmrForCurrentWeek(uid: string) {
@@ -166,10 +166,21 @@ export async function updateGlobalMmrUpToCurrentWeek(uid: string) {
   const currentStart = isoWeekRangeInTz(currentWeekId, DEFAULT_TZ).start;
 
   const userSnap = await getDoc(doc(db, 'users', uid));
+  const userData = userSnap.exists() ? (userSnap.data() as any) : {};
   const lastWeekIdUpdated = userSnap.exists() ? (userSnap.data() as any)?.lastWeekIdUpdated : null;
   const last = typeof lastWeekIdUpdated === 'string' ? lastWeekIdUpdated : null;
+  const firstWeekId = typeof userData?.firstWeekId === 'string' ? String(userData.firstWeekId) : null;
 
-  let wk = last ? nextIsoWeekId(last, DEFAULT_TZ) : currentWeekId;
+  // Important: always recompute the current week at least once (idempotent),
+  // even if the user is already "up to date". This keeps the public mirror and
+  // weekly summary consistent after fixes or manual data edits.
+  let wk = !last ? currentWeekId : last === currentWeekId ? currentWeekId : nextIsoWeekId(last, DEFAULT_TZ);
+  
+  // If firstWeekId is set, don't process weeks before it (user wasn't participating yet)
+  if (firstWeekId != null && wk < firstWeekId) {
+    wk = firstWeekId;
+  }
+  
   // Safety: cap catch-up to 20 weeks.
   for (let i = 0; i < 20; i += 1) {
     const start = isoWeekRangeInTz(wk, DEFAULT_TZ).start;
@@ -320,14 +331,26 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
         ? Number(weeklyData.shieldBefore)
         : typeof userData?.tierShieldWeeksRemaining === 'number'
           ? Number(userData.tierShieldWeeksRemaining)
-          : 0;
+          : 5; // Default 5 shields for testing
 
+    // Track first participation week: only count missed weeks from when user started
+    // This prevents counting weeks before the user joined as "missed"
+    const firstWeekId = typeof userData?.firstWeekId === 'string' ? String(userData.firstWeekId) : null;
+    const isFirstWeek = firstWeekId == null;
+    const shouldSetFirstWeek = isFirstWeek && anyActivity; // Set first week when user has activity
+    
+    // If this week is BEFORE firstWeekId, don't count it as missed at all
+    const isWeekBeforeFirst = firstWeekId != null && weekId < firstWeekId;
+    
+    // Only count missed weeks from firstWeekId onward (don't penalize for weeks before user joined)
     const missedBefore =
       weeklyData && typeof weeklyData?.missedBefore === 'number'
         ? Number(weeklyData.missedBefore)
-        : missedWeek
-          ? Math.max(0, (typeof userData?.consecutiveMissedWeeks === 'number' ? Number(userData.consecutiveMissedWeeks) : 0) - 1)
-          : 0;
+        : isFirstWeek || isWeekBeforeFirst
+          ? 0 // First week ever OR week before user joined: don't count as missed
+          : missedWeek
+            ? Math.max(0, (typeof userData?.consecutiveMissedWeeks === 'number' ? Number(userData.consecutiveMissedWeeks) : 0) - 1)
+            : 0;
 
     const streakAfter = completedWeek ? streakBefore + 1 : 0;
     const S = streakMultiplier(streakAfter);
@@ -339,15 +362,18 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
 
     const ranked = applyRankWithDemotionRules({ oldBand, newMMR, tierShieldWeeksRemaining: shieldBefore });
     const band = ranked.band;
-    const lp = ranked.lp;
-    const rankAfter = { tier: band.tier, division: band.division ?? null, lp };
+    const mp = ranked.mp;
+    const rankAfter = { tier: band.tier, division: band.division ?? null, mp };
 
     const tierPromoted = band.tier !== oldBand.tier && isStrictlyHigher(band, oldBand);
     let shieldAfter = tierPromoted ? 2 : shieldBefore;
     if (completedWeek && shieldAfter > 0 && !tierPromoted) shieldAfter = Math.max(0, shieldAfter - 1);
 
-    const consecutiveMissedWeeks = missedWeek ? missedBefore + 1 : 0;
-    if (consecutiveMissedWeeks >= 2) shieldAfter = 0;
+    // Don't count missed weeks for weeks before user joined
+    const consecutiveMissedWeeks = isWeekBeforeFirst ? 0 : (missedWeek ? missedBefore + 1 : 0);
+    // Only reset shields to 0 if user has 2+ consecutive missed weeks AND shields are low (testing: preserve manually set high shields)
+    // This allows admins to manually set shields to 5 for testing without them being immediately reset
+    if (consecutiveMissedWeeks >= 2 && shieldAfter < 3) shieldAfter = 0;
 
     // Season peak tracking (current season only)
     const peak = (userData?.seasonPeak?.seasonId === seasonId ? userData.seasonPeak : null) as
@@ -450,34 +476,35 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
         // Rank deltas
         rankBefore,
         rankAfter,
-        lpBefore: rankBefore.lp,
-        lpAfter: rankAfter.lp,
-        deltaLP: rankAfter.lp - rankBefore.lp,
+        mpBefore: rankBefore.mp,
+        mpAfter: rankAfter.mp,
+        deltaMP: rankAfter.mp - rankBefore.mp,
         promotion: bandOrderIndex(band) > bandOrderIndex(oldBand) ? { from: rankBefore, to: rankAfter } : null,
         demotion: bandOrderIndex(band) < bandOrderIndex(oldBand) ? { from: rankBefore, to: rankAfter } : null,
       },
       { merge: true },
     );
 
-    tx.set(
-      userRef,
-      {
-        mmr: newMMR,
-        rankTier: band.tier,
-        rankDivision: band.division ?? null,
-        lp,
-        streakWeeks: streakAfter,
-        tierShieldWeeksRemaining: shieldAfter,
-        consecutiveMissedWeeks,
-        currentSeasonId: seasonId,
-        lastWeekIdUpdated: weekId,
-        rulesVersion: RULES_VERSION,
-        seasonPeak: nextPeak,
-        hardModeWeeks: hardModeAfter,
-        updatedAt: serverTimestamp(),
-      },
-      { merge: true },
-    );
+    const userUpdate: Record<string, unknown> = {
+      mmr: newMMR,
+      rankTier: band.tier,
+      rankDivision: band.division ?? null,
+      mp,
+      streakWeeks: streakAfter,
+      tierShieldWeeksRemaining: shieldAfter,
+      consecutiveMissedWeeks,
+      currentSeasonId: seasonId,
+      lastWeekIdUpdated: weekId,
+      rulesVersion: RULES_VERSION,
+      seasonPeak: nextPeak,
+      hardModeWeeks: hardModeAfter,
+      updatedAt: serverTimestamp(),
+    };
+    // Set firstWeekId when user first participates (has activity)
+    if (shouldSetFirstWeek) {
+      userUpdate.firstWeekId = weekId;
+    }
+    tx.set(userRef, userUpdate, { merge: true });
 
     tx.set(
       publicRef,
@@ -485,7 +512,7 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
         mmrPublic: newMMR,
         rankTierPublic: band.tier,
         rankDivisionPublic: band.division ?? null,
-        lpPublic: lp,
+        mpPublic: mp,
         seasonIdPublic: seasonId,
         updatedAtPublic: serverTimestamp(),
       },
