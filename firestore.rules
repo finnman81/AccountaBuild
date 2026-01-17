@@ -121,6 +121,15 @@ service cloud.firestore {
         allow create: if isGroupMember(groupId);
         allow update, delete: if signedIn() && request.auth.uid == resource.data.uid;
       }
+
+      match /issues/{issueId} {
+        allow read: if isGroupMember(groupId);
+        allow create: if isGroupMember(groupId);
+        // Only admins can toggle resolved status
+        allow update: if isGroupAdmin(groupId) &&
+          request.resource.data.diff(resource.data).changedKeys().hasOnly(['resolved', 'resolvedBy', 'resolvedAt']);
+        allow delete: if signedIn() && request.auth.uid == resource.data.uid;
+      }
     }
   }
 }

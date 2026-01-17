@@ -33,6 +33,7 @@ export type HomeStackParamList = {
   GroupCharts: { groupId: string };
   GroupChat: { groupId: string };
   ViewPhotos: { groupId: string };
+  Issues: { groupId: string };
   SetGoals: { groupId: string };
   GroupSettings: { groupId: string };
 };

@@ -707,6 +707,7 @@ export default function GroupDetailScreen({ route, navigation }: Props) {
               { title: 'Leaderboard', icon: 'trophy', onPress: () => navigation.navigate('Leaderboard', { groupId }) },
               { title: 'Group chat', icon: 'message', badge: hasNewChat, onPress: () => navigation.navigate('GroupChat', { groupId }) },
               { title: 'Progress gallery', icon: 'image-multiple', badge: hasNewPhotos, onPress: () => navigation.navigate('ViewPhotos', { groupId }) },
+              { title: 'Issues / Suggestions', icon: 'bug', onPress: () => navigation.navigate('Issues', { groupId }) },
               { title: 'Group settings', icon: 'cog', onPress: () => navigation.navigate('GroupSettings', { groupId }) },
             ]}
           />

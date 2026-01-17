@@ -19,6 +19,7 @@ import GroupDetailScreen from '../screens/GroupDetailScreen';
 import GroupChartsScreen from '../screens/GroupChartsScreen';
 import GroupChatScreen from '../screens/GroupChatScreen';
 import ViewPhotosScreen from '../screens/ViewPhotosScreen';
+import IssuesScreen from '../screens/IssuesScreen';
 import SetGoalsScreen from '../screens/SetGoalsScreen';
 import GroupSettingsScreen from '../screens/GroupSettingsScreen';
 import GroupListScreen from '../screens/GroupListScreen';
@@ -48,6 +49,7 @@ function HomeStackNavigator() {
       <HomeStack.Screen name="GroupCharts" component={GroupChartsScreen} options={{ title: 'Charts' }} />
       <HomeStack.Screen name="GroupChat" component={GroupChatScreen} options={{ title: 'Chat' }} />
       <HomeStack.Screen name="ViewPhotos" component={ViewPhotosScreen} options={{ title: 'Photos' }} />
+      <HomeStack.Screen name="Issues" component={IssuesScreen} options={{ title: 'Issues / Suggestions' }} />
       <HomeStack.Screen name="SetGoals" component={SetGoalsScreen} options={{ title: 'Goals' }} />
       <HomeStack.Screen name="GroupSettings" component={GroupSettingsScreen} options={{ title: 'Group settings' }} />
     </HomeStack.Navigator>
