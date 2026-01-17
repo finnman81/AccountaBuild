@@ -4,7 +4,7 @@ import { DarkTheme as NavDarkTheme, NavigationContainer } from '@react-navigatio
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { IconButton, useTheme } from 'react-native-paper';
 
-import { isFirebaseConfigured } from '../firebase/firebase';
+import { firebaseInitError, isFirebaseConfigured } from '../firebase/firebase';
 import { AuthContext } from '../store/AuthContext';
 import FirebaseConfigErrorScreen from '../screens/FirebaseConfigErrorScreen';
 import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
@@ -27,7 +27,7 @@ export default function AppNavigator() {
   const { user, isLoading } = useContext(AuthContext);
   const theme = useTheme();
 
-  if (!isFirebaseConfigured()) {
+  if (!isFirebaseConfigured() || firebaseInitError) {
     return <FirebaseConfigErrorScreen />;
   }
 

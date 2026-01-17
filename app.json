@@ -23,7 +23,7 @@
       "package": "com.accountabuild.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#0d1b2a"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false

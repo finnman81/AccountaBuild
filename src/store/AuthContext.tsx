@@ -10,7 +10,7 @@ import {
 } from 'firebase/auth';
 import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 
-import { auth, db, isFirebaseConfigured } from '../firebase/firebase';
+import { auth, db, firebaseInitError, isFirebaseConfigured } from '../firebase/firebase';
 import { syncMyMemberProfileToAllGroups } from '../services/profile';
 import { syncMyVisibilityIndex } from '../services/visibility';
 
@@ -41,7 +41,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [didSyncMemberProfile, setDidSyncMemberProfile] = useState(false);
 
   useEffect(() => {
-    if (!isFirebaseConfigured()) {
+    if (!isFirebaseConfigured() || firebaseInitError || !auth) {
       setIsLoading(false);
       setUser(null);
       return;
@@ -74,9 +74,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user,
       isLoading,
       login: async (email: string, password: string) => {
+        if (!auth) {
+          throw new Error('Firebase is not initialized.');
+        }
         await signInWithEmailAndPassword(auth, email.trim(), password);
       },
       register: async (displayName: string, email: string, password: string) => {
+        if (!auth || !db) {
+          throw new Error('Firebase is not initialized.');
+        }
         const credential = await createUserWithEmailAndPassword(
           auth,
           email.trim(),
@@ -104,9 +110,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // If they join groups later, the login-time sync will populate group member profiles.
       },
       resetPassword: async (email: string) => {
+        if (!auth) {
+          throw new Error('Firebase is not initialized.');
+        }
         await sendPasswordResetEmail(auth, email.trim());
       },
       logout: async () => {
+        if (!auth) {
+          throw new Error('Firebase is not initialized.');
+        }
         await signOut(auth);
       },
     }),
