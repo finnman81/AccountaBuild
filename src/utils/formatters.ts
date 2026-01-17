@@ -22,7 +22,7 @@ export function formatWeightLb(lb?: number | null) {
   if (lb == null || !Number.isFinite(lb)) return '—';
   // Keep up to 1 decimal if needed, otherwise show integer.
   const rounded = Math.round(lb * 10) / 10;
-  const txt = Number.isInteger(rounded) ? String(rounded) : String(rounded);
+  const txt = String(rounded);
   return `${txt} lb`;
 }
 

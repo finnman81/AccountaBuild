@@ -1,0 +1,10 @@
+
+
+Nice to haves / next steps:
+1. emojis / reactions in chat (defer for now — moderate effort: message schema + UI + Firestore rules/transactions)
+2. Apple Health Sync
+3. Subtle animated ring fill when someone logs
+
+4. Tiny haptic when your avatar turns blue (logged)
+
+5. “Streak leader” gold ring with very subtle shimmer (once per day, not constant)

@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useMemo, useState } from 'react';
-import { Image, ScrollView, View } from 'react-native';
+import { FlatList, Image, ScrollView, View } from 'react-native';
 import { Avatar, Button, Card, Divider, IconButton, List, SegmentedButtons, Text, useTheme } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { collection, doc, limit, onSnapshot, orderBy, query, where } from 'firebase/firestore';
@@ -7,19 +7,28 @@ import { collection, doc, limit, onSnapshot, orderBy, query, where } from 'fireb
 import Screen from '../components/layout/Screen';
 import PrimaryButton from '../components/ui/PrimaryButton';
 import NavList from '../components/ui/NavList';
-import MemberStatusCard from '../components/group/MemberStatusCard';
+import MemberDetailCard from '../components/group/MemberDetailCard';
+import MemberDetailModal from '../components/group/MemberDetailModal';
+import AvatarStatusChip from '../components/ui/AvatarStatusChip';
+import Row from '../components/ui/Row';
 import LoadingState from '../components/state/LoadingState';
 import EmptyState from '../components/state/EmptyState';
 import { HomeStackParamList } from '../navigation/types';
 import { db } from '../firebase/firebase';
 import { AuthContext } from '../store/AuthContext';
 import { GroupLog, subscribeGroupLogs } from '../services/logs';
-import { subscribeGroupGoals, UserGoals } from '../services/goals';
 import { ensureJoinCodeMapping, subscribeMyGroupMeta } from '../services/groups';
 import { formatHeightInches, formatWeightLb, friendlyNameFromDisplayName } from '../utils/formatters';
-import { buildMemberSummaries, sortMemberSummaries } from '../viewmodels/memberSummary';
+import { buildMemberSummaries, sortMemberSummaries, type MemberSummary } from '../viewmodels/memberSummary';
 import { subscribePublicUsers, type PublicUser } from '../services/publicUsers';
 import { subscribeMyCanSeeUids } from '../services/visibility';
+import { subscribeMyBadges, type EarnedBadge } from '../services/mmrBadges';
+import { subscribeMyMmrState, type MmrState } from '../services/mmrState';
+import { colors } from '../theme/colors';
+import { spacing } from '../theme/spacing';
+import { radius } from '../theme/radius';
+import { shadow } from '../theme/shadows';
+import RankBadge from '../components/mmr/RankBadge';
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'GroupDetail'>;
 
@@ -68,16 +77,17 @@ export default function GroupDetailScreen({ route, navigation }: Props) {
   const [publicUsers, setPublicUsers] = useState<Record<string, PublicUser>>({});
   const [canSee, setCanSee] = useState<Set<string>>(new Set());
   const [logs, setLogs] = useState<GroupLog[]>([]);
-  const [goals, setGoals] = useState<UserGoals[]>([]);
   const [myMeta, setMyMeta] = useState<any | null>(null);
   const [latestChatAt, setLatestChatAt] = useState<any | null>(null);
   const [latestPhotoAt, setLatestPhotoAt] = useState<any | null>(null);
   const [showAllRecent, setShowAllRecent] = useState(false);
-  const [showAllGoals, setShowAllGoals] = useState(false);
   const [isMembersLoading, setIsMembersLoading] = useState(true);
   const [isLogsLoading, setIsLogsLoading] = useState(true);
-  const [isGoalsLoading, setIsGoalsLoading] = useState(true);
   const [todayMode, setTodayMode] = useState<'calories' | 'workout' | 'weight'>('calories');
+  const [myBadges, setMyBadges] = useState<EarnedBadge[]>([]);
+  const [mmrStates, setMmrStates] = useState<Record<string, MmrState>>({});
+  const [selectedMember, setSelectedMember] = useState<MemberSummary | null>(null);
+  const [modalVisible, setModalVisible] = useState(false);
 
   useEffect(() => {
     const unsubGroup = onSnapshot(doc(db, 'groups', groupId), (snap) => {
@@ -120,6 +130,59 @@ export default function GroupDetailScreen({ route, navigation }: Props) {
   }, [groupId, user]);
 
   useEffect(() => {
+    if (!user) return;
+    return subscribeMyBadges(user.uid, setMyBadges);
+  }, [user]);
+
+  // Subscribe to MMR states for all members (for streak leader calculation)
+  // Note: This is optional - if subscriptions fail, streak leader feature will be skipped
+  useEffect(() => {
+    if (!user) return;
+    
+    let unsubs: Array<() => void> = [];
+    let timeoutId: NodeJS.Timeout;
+    
+    // Debounce to avoid rapid re-subscriptions
+    timeoutId = setTimeout(() => {
+      const allowed = members
+        .map((m) => m.uid)
+        .filter((uid) => uid === user.uid || canSee.has(uid));
+      
+      // Limit to reasonable number to avoid Firestore issues
+      if (allowed.length > 15) {
+        // Only subscribe to first 15 members to avoid overwhelming Firestore
+        return;
+      }
+      
+      for (const uid of allowed) {
+        const unsub = subscribeMyMmrState(uid, (state) => {
+          if (state) {
+            setMmrStates((prev) => ({ ...prev, [uid]: state }));
+          } else {
+            setMmrStates((prev) => {
+              const next = { ...prev };
+              delete next[uid];
+              return next;
+            });
+          }
+        });
+        unsubs.push(unsub);
+      }
+    }, 100);
+    
+    return () => {
+      clearTimeout(timeoutId);
+      for (const unsub of unsubs) {
+        unsub();
+      }
+    };
+  }, [members, canSee, user]);
+
+  const isSeasonBadge = (b: EarnedBadge): b is Extract<EarnedBadge, { type: 'seasonRank' | 'seasonPeak' }> =>
+    b.type === 'seasonRank' || b.type === 'seasonPeak';
+  const isAchievementBadge = (b: EarnedBadge): b is Extract<EarnedBadge, { type: 'achievement' }> => b.type === 'achievement';
+
+  useEffect(() => {
     // Latest message timestamp for badge.
     const ref = query(collection(db, 'groups', groupId, 'messages'), orderBy('createdAt', 'desc'), limit(1));
     return onSnapshot(ref, (snap) => {
@@ -155,14 +218,6 @@ export default function GroupDetailScreen({ route, navigation }: Props) {
     );
   }, [groupId]);
 
-  useEffect(() => {
-    setIsGoalsLoading(true);
-    return subscribeGroupGoals(groupId, (items) => {
-      setGoals(items);
-      setIsGoalsLoading(false);
-    });
-  }, [groupId]);
-
   const myRole = useMemo(() => {
     if (!user) return null;
     return members.find((m) => m.uid === user.uid)?.role ?? null;
@@ -192,6 +247,17 @@ export default function GroupDetailScreen({ route, navigation }: Props) {
   const displayNameFor = (uid: string) => {
     const p = publicUsers[uid];
     return friendlyNameFromDisplayName(p?.displayName ?? null, uid);
+  };
+
+  const rankLabelFor = (uid: string) => {
+    const p = publicUsers[uid] as any;
+    const tier = String(p?.rankTierPublic ?? '').trim();
+    const div = p?.rankDivisionPublic;
+    const mp = p?.mpPublic ?? p?.lpPublic; // Backward compat
+    if (!tier) return '—';
+    const roman = div === 1 ? 'I' : div === 2 ? 'II' : div === 3 ? 'III' : div === 4 ? 'IV' : '';
+    const mpTxt = typeof mp === 'number' ? `${Math.round(mp)} MP` : null;
+    return [div ? `${tier} ${roman}` : tier, mpTxt].filter(Boolean).join(' • ');
   };
 
   const photoUrlFor = (uid: string) => {
@@ -410,10 +476,7 @@ export default function GroupDetailScreen({ route, navigation }: Props) {
     return copy;
   }, [members, displayNameFor]);
 
-  const goalsMembers = useMemo(
-    () => (showAllGoals ? membersSorted : membersSorted.slice(0, LIST_LIMIT)),
-    [membersSorted, showAllGoals],
-  );
+  const goalsMembers = useMemo(() => membersSorted.slice(0, LIST_LIMIT), [membersSorted]);
 
   const toMillis = (t: any | null) => {
     if (!t) return null;
@@ -501,17 +564,18 @@ export default function GroupDetailScreen({ route, navigation }: Props) {
         uid: m.uid,
         displayName: publicUsers[m.uid]?.displayName ?? null,
         photoURL: publicUsers[m.uid]?.photoURL ?? null,
+        rankTier: ((publicUsers[m.uid] as any)?.rankTierPublic ?? null) as any,
+        dailyCalorieGoal: (publicUsers[m.uid] as any)?.dailyCalorieGoal ?? null,
       })),
-      goals,
       logs,
       todayYYYYMMDD: today,
       weekStart,
       workoutLabel: friendlyWorkout,
     });
     return sortMemberSummaries(summaries);
-  }, [goals, logs, members, publicUsers]);
+  }, [logs, members, publicUsers]);
 
-  const isTodayLoading = isMembersLoading || isLogsLoading || isGoalsLoading;
+  const isTodayLoading = isMembersLoading || isLogsLoading;
   const nobodyLoggedToday = memberSummaries.length > 0 && memberSummaries.every((m) => !m.loggedToday);
 
   const todaySummary = useMemo(() => {
@@ -522,6 +586,82 @@ export default function GroupDetailScreen({ route, navigation }: Props) {
     const photosToday = logs.filter((l) => l.type === 'photo' && l.date === today).length;
     return { totalMembers, loggedCount, workoutDayCount, photosToday };
   }, [logs, memberSummaries, members.length]);
+
+  // Determine streak leader (highest streakWeeks, tie-break by MMR)
+  const streakLeaderUid = useMemo(() => {
+    let maxStreak = -1;
+    let leaderUid: string | null = null;
+    let leaderMmr = -1;
+
+    for (const [uid, state] of Object.entries(mmrStates)) {
+      const streak = state.streakWeeks;
+      const mmr = state.mmr;
+      if (streak > maxStreak || (streak === maxStreak && mmr > leaderMmr)) {
+        maxStreak = streak;
+        leaderUid = uid;
+        leaderMmr = mmr;
+      }
+    }
+
+    return maxStreak > 0 ? leaderUid : null;
+  }, [mmrStates]);
+
+  // Check if member is at risk (after 6pm local and not logged)
+  const isAtRisk = (member: MemberSummary): boolean => {
+    const now = new Date();
+    const hour = now.getHours();
+    if (hour >= 18 && !member.loggedToday) {
+      return true;
+    }
+    return false;
+  };
+
+  // Get current user's summary
+  const mySummary = useMemo(() => {
+    if (!user) return null;
+    return memberSummaries.find((m) => m.uid === user.uid) ?? null;
+  }, [memberSummaries, user]);
+
+  // Get team members (excluding current user) with status and sorting
+  const teamMembers = useMemo(() => {
+    if (!user) return [];
+    
+    const team = memberSummaries
+      .filter((m) => m.uid !== user.uid)
+      .map((m) => {
+        let status: 'logged' | 'notLogged' | 'streakLeader' = m.loggedToday ? 'logged' : 'notLogged';
+        if (m.uid === streakLeaderUid) {
+          status = 'streakLeader';
+        }
+        return { ...m, status, isAtRisk: isAtRisk(m) };
+      });
+
+    // Sort: logged first → not logged → streak leader pinned → tie-breakers
+    team.sort((a, b) => {
+      // Streak leader always near front (but after logged)
+      if (a.status === 'streakLeader' && b.status !== 'streakLeader' && b.status === 'logged') return 1;
+      if (b.status === 'streakLeader' && a.status !== 'streakLeader' && a.status === 'logged') return -1;
+      if (a.status === 'streakLeader' && b.status !== 'streakLeader') return -1;
+      if (b.status === 'streakLeader' && a.status !== 'streakLeader') return 1;
+
+      // Logged before not logged
+      if (a.status === 'logged' && b.status !== 'logged') return -1;
+      if (b.status === 'logged' && a.status !== 'logged') return 1;
+
+      // Tie-breakers: streak weeks, then MMR, then alphabetical
+      const aStreak = mmrStates[a.uid]?.streakWeeks ?? 0;
+      const bStreak = mmrStates[b.uid]?.streakWeeks ?? 0;
+      if (aStreak !== bStreak) return bStreak - aStreak;
+
+      const aMmr = mmrStates[a.uid]?.mmr ?? 0;
+      const bMmr = mmrStates[b.uid]?.mmr ?? 0;
+      if (aMmr !== bMmr) return bMmr - aMmr;
+
+      return a.name.localeCompare(b.name);
+    });
+
+    return team;
+  }, [memberSummaries, user, streakLeaderUid, mmrStates]);
 
   return (
     <Screen safeTop={false}>
@@ -564,100 +704,175 @@ export default function GroupDetailScreen({ route, navigation }: Props) {
           <NavList
             items={[
               { title: 'View charts', icon: 'chart-line', onPress: () => navigation.navigate('GroupCharts', { groupId }) },
+              { title: 'Leaderboard', icon: 'trophy', onPress: () => navigation.navigate('Leaderboard', { groupId }) },
               { title: 'Group chat', icon: 'message', badge: hasNewChat, onPress: () => navigation.navigate('GroupChat', { groupId }) },
               { title: 'Progress gallery', icon: 'image-multiple', badge: hasNewPhotos, onPress: () => navigation.navigate('ViewPhotos', { groupId }) },
-              { title: 'Goals', icon: 'target', onPress: () => navigation.navigate('SetGoals', { groupId }) },
+              { title: 'Issues / Suggestions', icon: 'bug', onPress: () => navigation.navigate('Issues', { groupId }) },
               { title: 'Group settings', icon: 'cog', onPress: () => navigation.navigate('GroupSettings', { groupId }) },
             ]}
           />
         </Card.Content>
       </Card>
 
-      <View style={{ height: 16 }} />
+      <View style={{ height: spacing.base }} />
       <Card>
-        <Card.Title title="Today" subtitle="Member status" />
+        <Card.Title title="Today" />
         <Card.Content>
           {isTodayLoading ? (
             <LoadingState skeletonCount={3} />
           ) : memberSummaries.length === 0 ? (
             <Text>No members yet.</Text>
           ) : (
-            <View style={{ gap: 12 }}>
-              {nobodyLoggedToday ? (
-                <EmptyState
-                  title="No one has logged today"
-                  message="Be the first to log calories or a workout."
-                  ctaLabel="Log now"
-                  onCta={() => navigation.navigate('LogToday', { groupId })}
-                />
+            <View style={{ gap: spacing.xl }}>
+              {/* Section 1: You */}
+              {mySummary ? (
+                <>
+                  <View style={{ marginBottom: -spacing.sm }}>
+                    <Text variant="titleSmall" style={{ color: colors.textSecondary, marginBottom: spacing.md }}>
+                      You
+                    </Text>
+                    <MemberDetailCard item={mySummary} mode={todayMode} />
+                  </View>
+                </>
               ) : null}
-              <View
-                style={{
-                  borderRadius: 12,
-                  padding: 12,
-                  backgroundColor: theme.colors.surfaceVariant,
-                }}
-              >
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 12 }}>
-                  <View style={{ flex: 1 }}>
-                    <Text variant="labelSmall" style={{ opacity: 0.75 }}>
-                      Logged today
-                    </Text>
-                    <Text variant="titleLarge">
-                      {todaySummary.loggedCount}/{todaySummary.totalMembers}
-                    </Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text variant="labelSmall" style={{ opacity: 0.75 }}>
-                      Workout days
-                    </Text>
-                    <Text variant="titleLarge">{todaySummary.workoutDayCount}</Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text variant="labelSmall" style={{ opacity: 0.75 }}>
-                      Photos
-                    </Text>
-                    <Text variant="titleLarge">{todaySummary.photosToday}</Text>
-                  </View>
+
+              {/* Section 2: Team Today */}
+              <View style={{ marginTop: spacing.sm }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md }}>
+                  <Text variant="titleSmall" style={{ color: colors.textSecondary }}>
+                    Team Today
+                  </Text>
+                  <Text variant="labelSmall" style={{ color: colors.textMuted }}>
+                    {todaySummary.loggedCount}/{todaySummary.totalMembers} logged
+                  </Text>
                 </View>
-                <View style={{ height: 10 }} />
-                <View
-                  style={{
-                    height: 8,
-                    borderRadius: 999,
-                    overflow: 'hidden',
-                    backgroundColor: theme.colors.backdrop,
-                    opacity: 0.35,
-                  }}
-                >
-                  <View
-                    style={{
-                      height: 8,
-                      width: `${todaySummary.totalMembers > 0 ? (todaySummary.loggedCount / todaySummary.totalMembers) * 100 : 0}%`,
-                      backgroundColor: theme.colors.primary,
-                      opacity: 1,
-                    }}
+                <SegmentedButtons
+                  value={todayMode}
+                  onValueChange={(v) => setTodayMode(v as any)}
+                  buttons={[
+                    {
+                      value: 'calories',
+                      label: 'Calories',
+                      style: {
+                        backgroundColor:
+                          todayMode === 'calories' ? colors.surface2 : 'transparent',
+                        borderWidth: todayMode === 'calories' ? 0 : 1,
+                        borderColor: todayMode === 'calories' ? undefined : colors.divider,
+                        minHeight: 40,
+                        paddingHorizontal: spacing.md,
+                        borderRadius: radius.pill,
+                        ...(todayMode === 'calories' && {
+                          ...shadow,
+                          shadowOpacity: 0.1,
+                          shadowRadius: 4,
+                          elevation: 1,
+                        }),
+                      },
+                      labelStyle: {
+                        color:
+                          todayMode === 'calories' ? colors.primary : colors.textSecondary,
+                        fontWeight: todayMode === 'calories' ? '600' : '400',
+                      },
+                    },
+                    {
+                      value: 'workout',
+                      label: 'Workout',
+                      style: {
+                        backgroundColor:
+                          todayMode === 'workout' ? colors.surface2 : 'transparent',
+                        borderWidth: todayMode === 'workout' ? 0 : 1,
+                        borderColor: todayMode === 'workout' ? undefined : colors.divider,
+                        minHeight: 40,
+                        paddingHorizontal: spacing.md,
+                        borderRadius: radius.pill,
+                        ...(todayMode === 'workout' && {
+                          ...shadow,
+                          shadowOpacity: 0.1,
+                          shadowRadius: 4,
+                          elevation: 1,
+                        }),
+                      },
+                      labelStyle: {
+                        color:
+                          todayMode === 'workout' ? colors.primary : colors.textSecondary,
+                        fontWeight: todayMode === 'workout' ? '600' : '400',
+                      },
+                    },
+                    {
+                      value: 'weight',
+                      label: 'Weight',
+                      style: {
+                        backgroundColor:
+                          todayMode === 'weight' ? colors.surface2 : 'transparent',
+                        borderWidth: todayMode === 'weight' ? 0 : 1,
+                        borderColor: todayMode === 'weight' ? undefined : colors.divider,
+                        minHeight: 40,
+                        paddingHorizontal: spacing.md,
+                        borderRadius: radius.pill,
+                        ...(todayMode === 'weight' && {
+                          ...shadow,
+                          shadowOpacity: 0.1,
+                          shadowRadius: 4,
+                          elevation: 1,
+                        }),
+                      },
+                      labelStyle: {
+                        color:
+                          todayMode === 'weight' ? colors.primary : colors.textSecondary,
+                        fontWeight: todayMode === 'weight' ? '600' : '400',
+                      },
+                    },
+                  ]}
+                  style={{ marginBottom: spacing.md }}
+                />
+                {teamMembers.length > 0 ? (
+                  <FlatList
+                    horizontal
+                    data={teamMembers}
+                    keyExtractor={(item) => item.uid}
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={{ paddingRight: spacing.base }}
+                    renderItem={({ item }) => (
+                      <AvatarStatusChip
+                        member={item}
+                        mode={todayMode}
+                        status={item.status}
+                        isAtRisk={item.isAtRisk}
+                        onPress={() => {
+                          setSelectedMember(item);
+                          setModalVisible(true);
+                        }}
+                      />
+                    )}
                   />
-                </View>
+                ) : (
+                  <Text variant="bodySmall" style={{ color: colors.textMuted }}>
+                    No other members yet.
+                  </Text>
+                )}
               </View>
 
-              <SegmentedButtons
-                value={todayMode}
-                onValueChange={(v) => setTodayMode(v as any)}
-                buttons={[
-                  { value: 'calories', label: 'Calories' },
-                  { value: 'workout', label: 'Workout' },
-                  { value: 'weight', label: 'Weight' },
-                ]}
+              {/* Section 3: View Leaderboard */}
+              <Row
+                title="View leaderboard"
+                icon="trophy"
+                onPress={() => navigation.navigate('Leaderboard', { groupId })}
               />
-
-              {memberSummaries.map((m) => (
-                <MemberStatusCard key={m.uid} item={m} mode={todayMode} />
-              ))}
             </View>
           )}
         </Card.Content>
       </Card>
+
+      {/* Member Detail Modal */}
+      <MemberDetailModal
+        visible={modalVisible}
+        member={selectedMember}
+        mode={todayMode}
+        onDismiss={() => {
+          setModalVisible(false);
+          setSelectedMember(null);
+        }}
+      />
 
       <View style={{ height: 16 }} />
       <Card>
@@ -748,66 +963,6 @@ export default function GroupDetailScreen({ route, navigation }: Props) {
 
       <View style={{ height: 16 }} />
       <Card>
-        <Card.Title title="Goals (this week)" />
-        <Card.Content>
-          {goalsMembers.map((m) => {
-            const g = goals.find((x) => x.uid === m.uid) ?? null;
-            const s = rollup[m.uid] ?? { caloriesToday: 0, workoutsThisWeek: 0, lastWeight: null };
-
-            const weekStart = weekStartSundayLocal();
-            const caloriesDaysThisWeek = new Set(
-              logs
-                .filter((l) => {
-                  if (l.uid !== m.uid || l.type !== 'calories') return false;
-                  const d = parseYYYYMMDDLocal(l.date);
-                  return !Number.isNaN(d.valueOf()) && d >= weekStart;
-                })
-                .map((l) => l.date),
-            ).size;
-            const weightDaysThisWeek = new Set(
-              logs
-                .filter((l) => {
-                  if (l.uid !== m.uid || l.type !== 'weight') return false;
-                  const d = parseYYYYMMDDLocal(l.date);
-                  return !Number.isNaN(d.valueOf()) && d >= weekStart;
-                })
-                .map((l) => l.date),
-            ).size;
-
-            return (
-              <View key={m.uid} style={{ marginBottom: 12 }}>
-                <Text variant="bodyMedium">{displayNameFor(m.uid)}</Text>
-                {g ? (
-                  <>
-                    <Text variant="bodySmall">Workouts: {s.workoutsThisWeek}/{g.workoutsPerWeek}</Text>
-                    <Text variant="bodySmall">
-                      Daily calorie goal: {g.dailyCalorieGoal ? `${s.caloriesToday}/${g.dailyCalorieGoal}` : '—'}
-                    </Text>
-                    <Text variant="bodySmall">
-                      Calories days: {caloriesDaysThisWeek}/{g.logCaloriesDaysPerWeek}
-                    </Text>
-                    <Text variant="bodySmall">
-                      Weight days: {weightDaysThisWeek}/{g.logWeightDaysPerWeek}
-                    </Text>
-                  </>
-                ) : (
-                  <Text variant="bodySmall">No goals set yet.</Text>
-                )}
-              </View>
-            );
-          })}
-        </Card.Content>
-        {members.length > LIST_LIMIT ? (
-          <Card.Actions style={{ justifyContent: 'flex-end' }}>
-            <Button mode="text" compact onPress={() => setShowAllGoals((v) => !v)}>
-              {showAllGoals ? 'View less' : 'View all'}
-            </Button>
-          </Card.Actions>
-        ) : null}
-      </Card>
-
-      <View style={{ height: 16 }} />
-      <Card>
         <Card.Title title="Members" />
         <Card.Content>
           {members.length === 0 ? <Text>No members found yet.</Text> : null}
@@ -823,6 +978,7 @@ export default function GroupDetailScreen({ route, navigation }: Props) {
                 const n = streakDaysThisWeekByUid[m.uid] ?? 0;
                 return n > 0 ? `🔥 ${n}-day streak` : `😢 ${n}-day streak`;
               })(),
+              `Rank: ${rankLabelFor(m.uid)}`,
               publicUsers[m.uid]?.age != null ? `Age: ${publicUsers[m.uid]?.age}` : null,
               publicUsers[m.uid]?.height != null ? `Height: ${formatHeightInches(publicUsers[m.uid]?.height)}` : null,
               publicUsers[m.uid]?.weightCurrent != null ? `Current weight: ${formatWeightLb(publicUsers[m.uid]?.weightCurrent)}` : null,

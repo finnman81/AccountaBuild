@@ -11,6 +11,8 @@ import { formatHeightInches, formatWeightLb } from '../utils/formatters';
 import { uploadUserAvatar } from '../services/photos';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
+import { isValidYYYYMMDD, todayYYYYMMDD } from '../utils/dates';
+import { DEFAULT_TZ, seasonIdFromDate } from '../mmr/time';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'EditProfile'>;
 
@@ -30,6 +32,7 @@ export default function EditProfileScreen({ route, navigation }: Props) {
   const [age, setAge] = useState('');
   const [weightCurrent, setWeightCurrent] = useState('');
   const [weightGoal, setWeightGoal] = useState('');
+  const [weightTargetDate, setWeightTargetDate] = useState('');
   const [photoURL, setPhotoURL] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
@@ -40,6 +43,7 @@ export default function EditProfileScreen({ route, navigation }: Props) {
   const ageRef = useRef<any>(null);
   const weightCurrentRef = useRef<any>(null);
   const weightGoalRef = useRef<any>(null);
+  const weightTargetDateRef = useRef<any>(null);
 
   const heightPreview = useMemo(() => {
     const n = Number(height);
@@ -64,6 +68,7 @@ export default function EditProfileScreen({ route, navigation }: Props) {
       setAge(p.age == null ? '' : String(p.age));
       setWeightCurrent(p.weightCurrent == null ? '' : String(p.weightCurrent));
       setWeightGoal(p.weightGoal == null ? '' : String(p.weightGoal));
+      setWeightTargetDate((p as any).weightTargetDate == null ? '' : String((p as any).weightTargetDate));
     });
   }, [user]);
 
@@ -73,9 +78,21 @@ export default function EditProfileScreen({ route, navigation }: Props) {
       if (focusField === 'age') ageRef.current?.focus?.();
       if (focusField === 'weightCurrent') weightCurrentRef.current?.focus?.();
       if (focusField === 'weightGoal') weightGoalRef.current?.focus?.();
+      if (focusField === 'weightTargetDate') weightTargetDateRef.current?.focus?.();
     }, 250);
     return () => clearTimeout(t);
   }, [focusField]);
+
+  const seasonEndDefault = useMemo(() => {
+    const seasonId = seasonIdFromDate(new Date(), DEFAULT_TZ); // e.g. 2026Q1
+    const y = seasonId.slice(0, 4);
+    const q = seasonId.slice(4);
+    if (q === 'Q1') return `${y}-03-31`;
+    if (q === 'Q2') return `${y}-06-30`;
+    if (q === 'Q3') return `${y}-09-30`;
+    if (q === 'Q4') return `${y}-12-31`;
+    return '';
+  }, []);
 
   const changePhoto = async () => {
     if (!user) return;
@@ -156,6 +173,16 @@ export default function EditProfileScreen({ route, navigation }: Props) {
         const n = toNumberOrNull(wgText);
         if (n == null) throw new Error('Goal weight must be a number');
         patch.weightGoal = n;
+      }
+
+      // Target date (optional). If user clears it, explicitly clear stored value (null).
+      const td = weightTargetDate.trim();
+      if (td) {
+        if (!isValidYYYYMMDD(td)) throw new Error('Target date must be YYYY-MM-DD.');
+        if (td < todayYYYYMMDD()) throw new Error('Target date cannot be in the past.');
+        patch.weightTargetDate = td;
+      } else {
+        patch.weightTargetDate = null;
       }
 
       if (auth.currentUser) {
@@ -251,6 +278,28 @@ export default function EditProfileScreen({ route, navigation }: Props) {
               />
               <Text variant="bodySmall" style={{ opacity: 0.75 }}>
                 Preview: {goalWeightPreview}
+              </Text>
+
+              <View style={{ height: 12 }} />
+              <TextInput
+                ref={weightTargetDateRef}
+                label="Target date (YYYY-MM-DD)"
+                value={weightTargetDate}
+                onChangeText={setWeightTargetDate}
+                autoCapitalize="none"
+                autoCorrect={false}
+                disabled={isSaving}
+              />
+              <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                <Button mode="outlined" compact disabled={isSaving || !seasonEndDefault} onPress={() => setWeightTargetDate(seasonEndDefault)}>
+                  Use season end
+                </Button>
+                <Button mode="text" compact disabled={isSaving} onPress={() => setWeightTargetDate('')}>
+                  Clear
+                </Button>
+              </View>
+              <Text variant="bodySmall" style={{ opacity: 0.75, marginTop: 6 }}>
+                Default: end of season ({seasonEndDefault || '—'}).
               </Text>
 
               {error ? (

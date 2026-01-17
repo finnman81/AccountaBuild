@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { ScrollView, View, useWindowDimensions } from 'react-native';
+import React, { useContext, useEffect, useMemo, useState } from 'react';
+import { LayoutChangeEvent, ScrollView, View, useWindowDimensions } from 'react-native';
 import { Card, Text, useTheme } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { collection, onSnapshot } from 'firebase/firestore';
@@ -8,7 +8,9 @@ import Svg, { Rect, Text as SvgText } from 'react-native-svg';
 import { RootStackParamList } from '../navigation/types';
 import { db } from '../firebase/firebase';
 import { GroupLog, subscribeGroupLogs } from '../services/logs';
-import { subscribeGroupGoals, UserGoals } from '../services/goals';
+import { AuthContext } from '../store/AuthContext';
+import { subscribeMyCanSeeUids } from '../services/visibility';
+import { subscribePublicUsers } from '../services/publicUsers';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'GroupCharts'>;
 
@@ -49,11 +51,13 @@ function colorForPercent(percent: number, redHex: string, greenHex: string) {
 
 export default function GroupChartsScreen({ route }: Props) {
   const { groupId } = route.params;
+  const { user } = useContext(AuthContext);
   const theme = useTheme();
   const { width: windowWidth } = useWindowDimensions();
   const [logs, setLogs] = useState<GroupLog[]>([]);
   const [memberUids, setMemberUids] = useState<string[]>([]);
-  const [goals, setGoals] = useState<UserGoals[]>([]);
+  const [canSee, setCanSee] = useState<Set<string>>(new Set());
+  const [publicUsers, setPublicUsers] = useState<Record<string, any>>({});
 
   useEffect(() => subscribeGroupLogs(groupId, setLogs, undefined, 500), [groupId]);
   useEffect(() => {
@@ -63,8 +67,14 @@ export default function GroupChartsScreen({ route }: Props) {
     });
   }, [groupId]);
   useEffect(() => {
-    return subscribeGroupGoals(groupId, setGoals);
-  }, [groupId]);
+    if (!user) return;
+    return subscribeMyCanSeeUids(user.uid, (uids) => setCanSee(new Set(uids)), undefined);
+  }, [user]);
+  useEffect(() => {
+    if (!user) return;
+    const visible = memberUids.filter((uid) => uid === user.uid || canSee.has(uid));
+    return subscribePublicUsers(visible, setPublicUsers);
+  }, [canSee, memberUids, user]);
 
   const compliance = useMemo(() => {
     const total = memberUids.length || 1;
@@ -88,9 +98,6 @@ export default function GroupChartsScreen({ route }: Props) {
       }
     }
 
-    const goalsByUid: Record<string, UserGoals> = {};
-    for (const g of goals) goalsByUid[g.uid] = g;
-
     let hasGoalsCount = 0;
     let sumWeightDone = 0;
     let sumWeightGoal = 0;
@@ -100,9 +107,8 @@ export default function GroupChartsScreen({ route }: Props) {
     let sumWorkoutsGoal = 0;
 
     for (const uid of memberUids) {
-      const g = goalsByUid[uid];
+      const g = publicUsers[uid] ?? null;
       if (!g) continue;
-      hasGoalsCount += 1;
 
       const wDays = weightDays[uid]?.size ?? 0;
       const cDays = caloriesDays[uid]?.size ?? 0;
@@ -111,6 +117,7 @@ export default function GroupChartsScreen({ route }: Props) {
       const weightGoal = Math.max(0, Number(g.logWeightDaysPerWeek ?? 0));
       const caloriesGoal = Math.max(0, Number(g.logCaloriesDaysPerWeek ?? 0));
       const workoutsGoal = Math.max(0, Number(g.workoutsPerWeek ?? 0));
+      if (weightGoal > 0 || caloriesGoal > 0 || workoutsGoal > 0) hasGoalsCount += 1;
 
       if (weightGoal > 0) {
         sumWeightGoal += weightGoal;
@@ -140,7 +147,7 @@ export default function GroupChartsScreen({ route }: Props) {
       caloriesRatio: sumCaloriesGoal > 0 ? `${sumCaloriesDone}/${sumCaloriesGoal}` : '—',
       workoutRatio: sumWorkoutsGoal > 0 ? `${sumWorkoutsDone}/${sumWorkoutsGoal}` : '—',
     };
-  }, [logs, memberUids, goals]);
+  }, [logs, memberUids, publicUsers]);
 
   const bars = useMemo(
     () => [
@@ -153,13 +160,37 @@ export default function GroupChartsScreen({ route }: Props) {
 
   const red = theme.colors.secondary;
   const green = '#22C55E';
-  const width = Math.max(260, windowWidth - 32); // ScrollView padding is 16 on each side
+  const [chartWidth, setChartWidth] = useState(0);
   const height = 140;
-  const gap = Math.max(12, Math.round(width * 0.05));
-  const chartLeft = 16;
-  const baseline = 110;
-  const maxH = 80;
-  const barW = Math.max(56, Math.floor((width - chartLeft * 2 - gap * 2) / 3));
+
+  // Plot area insets (same as line chart)
+  const paddingLeft = 18;
+  const paddingRight = 26;
+  const paddingTop = 20;
+  const paddingBottom = 22;
+  const xDomainPadding = 12; // Outer padding so first/last bars aren't on edge
+
+  // Calculate plot area
+  const plotW = chartWidth > 0 ? chartWidth - paddingLeft - paddingRight : 0;
+  const plotH = height - paddingTop - paddingBottom;
+  const baseline = height - paddingBottom;
+
+  // Calculate bar dimensions with proper spacing
+  const barCount = bars.length;
+  const gap = Math.max(12, Math.round(plotW * 0.05));
+  const availableWidth = plotW - 2 * xDomainPadding;
+  const barW = barCount > 0 ? Math.max(56, Math.floor((availableWidth - gap * (barCount - 1)) / barCount)) : 0;
+  const maxH = plotH;
+
+  const handleLayout = (event: LayoutChangeEvent) => {
+    const { width } = event.nativeEvent.layout;
+    if (width > 0) {
+      setChartWidth(width);
+    }
+  };
+
+  // Use responsive width, fallback to window width calculation
+  const effectiveWidth = chartWidth || Math.max(260, windowWidth - 32);
 
   return (
     <ScrollView contentContainerStyle={{ padding: 16 }}>
@@ -184,28 +215,34 @@ export default function GroupChartsScreen({ route }: Props) {
           }
         />
         <Card.Content>
-          <Svg width={width} height={height}>
-            {bars.map((b, idx) => {
-              const x = chartLeft + idx * (barW + gap);
-              const h = Math.round((b.pct / 100) * maxH);
-              const y = baseline - h;
-              const fill = colorForPercent(b.pct, red, green);
-              return (
-                <React.Fragment key={b.label}>
-                  <Rect x={x} y={y} width={barW} height={h} rx={10} ry={10} fill={fill} />
-                  <SvgText x={x + barW / 2} y={baseline + 18} fontSize="12" fill={theme.colors.onSurface} textAnchor="middle">
-                    {b.label}
-                  </SvgText>
-                  <SvgText x={x + barW / 2} y={baseline + 34} fontSize="12" fill={theme.colors.onSurfaceVariant} textAnchor="middle">
-                    {b.ratio}
-                  </SvgText>
-                  <SvgText x={x + barW / 2} y={y - 6} fontSize="12" fill={theme.colors.onSurface} textAnchor="middle">
-                    {b.pct}%
-                  </SvgText>
-                </React.Fragment>
-              );
-            })}
-          </Svg>
+          <View style={{ width: '100%', height }} onLayout={handleLayout}>
+            {chartWidth > 0 && (
+              <Svg width={chartWidth} height={height}>
+                {bars.map((b, idx) => {
+                  // Calculate x position with domain padding and proper spacing
+                  const startX = paddingLeft + xDomainPadding;
+                  const x = startX + idx * (barW + gap);
+                  const h = Math.round((b.pct / 100) * maxH);
+                  const y = baseline - h;
+                  const fill = colorForPercent(b.pct, red, green);
+                  return (
+                    <React.Fragment key={b.label}>
+                      <Rect x={x} y={y} width={barW} height={h} rx={10} ry={10} fill={fill} />
+                      <SvgText x={x + barW / 2} y={baseline + 18} fontSize="12" fill={theme.colors.onSurface} textAnchor="middle">
+                        {b.label}
+                      </SvgText>
+                      <SvgText x={x + barW / 2} y={baseline + 34} fontSize="12" fill={theme.colors.onSurfaceVariant} textAnchor="middle">
+                        {b.ratio}
+                      </SvgText>
+                      <SvgText x={x + barW / 2} y={y - 6} fontSize="12" fill={theme.colors.onSurface} textAnchor="middle">
+                        {b.pct}%
+                      </SvgText>
+                    </React.Fragment>
+                  );
+                })}
+              </Svg>
+            )}
+          </View>
           <Text variant="bodySmall">
             Weight: {compliance.weightRatio} ({compliance.weightPct}%) • Calories: {compliance.caloriesRatio} ({compliance.caloriesPct}%) • Workouts: {compliance.workoutRatio} ({compliance.workoutPct}%)
           </Text>

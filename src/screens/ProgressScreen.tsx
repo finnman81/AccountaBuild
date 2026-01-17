@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Image, ScrollView, useWindowDimensions, View } from 'react-native';
-import { Button, Card, IconButton, List, Modal, Portal, Text, useTheme } from 'react-native-paper';
+import { Button, Card, IconButton, List, Modal, Portal, SegmentedButtons, Text, useTheme } from 'react-native-paper';
 import { collection, doc, onSnapshot } from 'firebase/firestore';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -13,7 +13,11 @@ import { AuthContext } from '../store/AuthContext';
 import { useActiveGroup } from '../store/ActiveGroupContext';
 import { db } from '../firebase/firebase';
 import { subscribeGroupLogs, subscribeGroupPhotoLogs, type GroupLog } from '../services/logs';
-import { formatMinutesHM } from '../utils/formatters';
+import { formatMinutesHM, formatWeightLb, formatDeltaLb } from '../utils/formatters';
+import { colors } from '../theme/colors';
+import { spacing } from '../theme/spacing';
+import { radius } from '../theme/radius';
+import { shadow } from '../theme/shadows';
 import type { ProgressStackParamList } from '../navigation/types';
 import type { RootStackParamList } from '../navigation/types';
 
@@ -137,6 +141,109 @@ export default function ProgressScreen({ navigation }: Props) {
     }
     return out;
   }, []);
+
+  // Calculate new metrics: Total Group Weight Change, Total Training Minutes, Logging Consistency %
+  const weeklyMetrics = useMemo(() => {
+    if (!activeGroupId) {
+      return {
+        totalWeightChange: null as number | null,
+        totalTrainingMinutes: 0,
+        loggingConsistency: 0,
+        totalWeightChangeDelta: null as number | null,
+        totalTrainingMinutesDelta: null as number | null,
+        loggingConsistencyDelta: null as number | null,
+      };
+    }
+    const weekStart = weekStartSundayLocal();
+    const memberCount = memberUids.length || groupMeta?.memberCount || 0;
+    
+    // Calculate total training minutes this week
+    let totalMins = 0;
+    for (const l of groupLogs) {
+      const dt = parseYYYYMMDDLocal(l.date);
+      if (Number.isNaN(dt.valueOf()) || dt < weekStart) continue;
+      if (l.type === 'workout') {
+        const mins = Number((l.payload as any)?.durationMinutes);
+        if (Number.isFinite(mins) && mins > 0) totalMins += mins;
+      }
+    }
+    
+    // Calculate total weight change (first weight vs last weight this week)
+    const weightByUid: Record<string, { first: number | null; last: number | null }> = {};
+    for (const l of groupLogs) {
+      if (l.type !== 'weight') continue;
+      const w = Number((l.payload as any)?.weight);
+      if (!Number.isFinite(w) || w <= 0) continue;
+      const dt = parseYYYYMMDDLocal(l.date);
+      if (Number.isNaN(dt.valueOf()) || dt < weekStart) continue;
+      if (!weightByUid[l.uid]) weightByUid[l.uid] = { first: null, last: null };
+      if (weightByUid[l.uid].first == null) weightByUid[l.uid].first = w;
+      weightByUid[l.uid].last = w;
+    }
+    let totalWeightChange = 0;
+    for (const uid of Object.keys(weightByUid)) {
+      const entry = weightByUid[uid];
+      if (entry.first != null && entry.last != null) {
+        totalWeightChange += entry.last - entry.first;
+      }
+    }
+    
+    // Calculate logging consistency (members who logged at least once this week / total members)
+    const membersWhoLogged = new Set<string>();
+    for (const l of groupLogs) {
+      const dt = parseYYYYMMDDLocal(l.date);
+      if (Number.isNaN(dt.valueOf()) || dt < weekStart) continue;
+      if (['workout', 'calories', 'weight'].includes(l.type)) {
+        membersWhoLogged.add(l.uid);
+      }
+    }
+    const consistency = memberCount > 0 ? Math.round((membersWhoLogged.size / memberCount) * 100) : 0;
+    
+    // Calculate deltas vs previous week (simplified - compare to week before)
+    const prevWeekStart = new Date(weekStart);
+    prevWeekStart.setDate(prevWeekStart.getDate() - 7);
+    let prevWeekMins = 0;
+    const prevWeekWeightByUid: Record<string, { first: number | null; last: number | null }> = {};
+    const prevWeekLogged = new Set<string>();
+    
+    for (const l of groupLogs) {
+      const dt = parseYYYYMMDDLocal(l.date);
+      if (Number.isNaN(dt.valueOf()) || dt < prevWeekStart || dt >= weekStart) continue;
+      if (l.type === 'workout') {
+        const mins = Number((l.payload as any)?.durationMinutes);
+        if (Number.isFinite(mins) && mins > 0) prevWeekMins += mins;
+      }
+      if (l.type === 'weight') {
+        const w = Number((l.payload as any)?.weight);
+        if (Number.isFinite(w) && w > 0) {
+          if (!prevWeekWeightByUid[l.uid]) prevWeekWeightByUid[l.uid] = { first: null, last: null };
+          if (prevWeekWeightByUid[l.uid].first == null) prevWeekWeightByUid[l.uid].first = w;
+          prevWeekWeightByUid[l.uid].last = w;
+        }
+      }
+      if (['workout', 'calories', 'weight'].includes(l.type)) {
+        prevWeekLogged.add(l.uid);
+      }
+    }
+    
+    let prevWeekWeightChange = 0;
+    for (const uid of Object.keys(prevWeekWeightByUid)) {
+      const entry = prevWeekWeightByUid[uid];
+      if (entry.first != null && entry.last != null) {
+        prevWeekWeightChange += entry.last - entry.first;
+      }
+    }
+    const prevWeekConsistency = memberCount > 0 ? Math.round((prevWeekLogged.size / memberCount) * 100) : 0;
+    
+    return {
+      totalWeightChange: totalWeightChange !== 0 ? totalWeightChange : null,
+      totalTrainingMinutes: totalMins,
+      loggingConsistency: consistency,
+      totalWeightChangeDelta: totalWeightChange !== 0 && prevWeekWeightChange !== 0 ? totalWeightChange - prevWeekWeightChange : null,
+      totalTrainingMinutesDelta: prevWeekMins > 0 ? totalMins - prevWeekMins : null,
+      loggingConsistencyDelta: prevWeekConsistency > 0 ? consistency - prevWeekConsistency : null,
+    };
+  }, [activeGroupId, groupLogs, memberUids.length, groupMeta?.memberCount]);
 
   const aggregates = useMemo(() => {
     if (!activeGroupId) return { series: [] as number[], history: [] as any[], yLabel: '', title: '' };
@@ -271,16 +378,25 @@ export default function ProgressScreen({ navigation }: Props) {
       <Card>
         <Card.Title title="Progress" subtitle={activeGroupName ?? undefined} />
         <Card.Content>
-          <Text variant="bodySmall" style={{ opacity: 0.75, marginBottom: 8 }}>
+          <Text variant="bodySmall" style={{ color: colors.textSecondary, marginBottom: spacing.md }}>
             Group
           </Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
             {groups.map((g) => (
               <Button
                 key={g.groupId}
                 mode={g.groupId === activeGroupId ? 'contained' : 'outlined'}
                 compact
                 onPress={() => void setActiveGroupId(g.groupId)}
+                style={{
+                  borderRadius: radius.pill,
+                  ...(g.groupId === activeGroupId && {
+                    ...shadow,
+                    shadowOpacity: 0.1,
+                    shadowRadius: 4,
+                    elevation: 1,
+                  }),
+                }}
               >
                 {g.name}
               </Button>
@@ -289,117 +405,364 @@ export default function ProgressScreen({ navigation }: Props) {
         </Card.Content>
       </Card>
 
-      <View style={{ height: 16 }} />
+      <View style={{ height: spacing.base }} />
 
+      {/* Weekly Metrics Summary */}
       <Card>
-        <Card.Title title="Trend" subtitle="Group averages" />
+        <Card.Title title="This Week" />
         <Card.Content>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-            <Button mode={metric === 'weight' ? 'contained' : 'outlined'} compact onPress={() => setMetric('weight')}>
-              Bodyweight
-            </Button>
-            <Button mode={metric === 'workout' ? 'contained' : 'outlined'} compact onPress={() => setMetric('workout')}>
-              Workout
-            </Button>
-            <Button mode={metric === 'calories' ? 'contained' : 'outlined'} compact onPress={() => setMetric('calories')}>
-              Calories
-            </Button>
-          </ScrollView>
+          <View
+            style={{
+              flexDirection: 'row',
+              gap: spacing.md,
+              flexWrap: 'wrap',
+            }}
+          >
+            {/* Total Group Weight Change */}
+            <View style={{ flex: 1, minWidth: 120 }}>
+              <Text variant="labelSmall" style={{ color: colors.textSecondary, marginBottom: spacing.xs }}>
+                Total Weight Change
+              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs }}>
+                <Text variant="titleLarge" style={{ color: colors.textPrimary }}>
+                  {weeklyMetrics.totalWeightChange != null
+                    ? formatDeltaLb(weeklyMetrics.totalWeightChange)
+                    : '—'}
+                </Text>
+                {weeklyMetrics.totalWeightChangeDelta != null && (
+                  <Text
+                    variant="labelSmall"
+                    style={{
+                      color:
+                        weeklyMetrics.totalWeightChangeDelta > 0
+                          ? colors.success
+                          : weeklyMetrics.totalWeightChangeDelta < 0
+                            ? colors.danger
+                            : colors.textMuted,
+                    }}
+                  >
+                    {weeklyMetrics.totalWeightChangeDelta > 0 ? '↑' : weeklyMetrics.totalWeightChangeDelta < 0 ? '↓' : '→'}
+                  </Text>
+                )}
+              </View>
+            </View>
 
-          <View style={{ height: 12 }} />
+            {/* Total Training Minutes */}
+            <View style={{ flex: 1, minWidth: 120 }}>
+              <Text variant="labelSmall" style={{ color: colors.textSecondary, marginBottom: spacing.xs }}>
+                Total Training Minutes
+              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs }}>
+                <Text variant="titleLarge" style={{ color: colors.textPrimary }}>
+                  {formatMinutesHM(weeklyMetrics.totalTrainingMinutes)}
+                </Text>
+                {weeklyMetrics.totalTrainingMinutesDelta != null && (
+                  <Text
+                    variant="labelSmall"
+                    style={{
+                      color:
+                        weeklyMetrics.totalTrainingMinutesDelta > 0
+                          ? colors.success
+                          : weeklyMetrics.totalTrainingMinutesDelta < 0
+                            ? colors.danger
+                            : colors.textMuted,
+                    }}
+                  >
+                    {weeklyMetrics.totalTrainingMinutesDelta > 0 ? '↑' : weeklyMetrics.totalTrainingMinutesDelta < 0 ? '↓' : '→'}
+                  </Text>
+                )}
+              </View>
+            </View>
 
-          <Text variant="titleMedium">{aggregates.title}</Text>
-          <Text variant="bodySmall" style={{ opacity: 0.75 }}>
-            {metric === 'weight'
-              ? 'This week vs first weigh-in this week'
-              : `This week • averaged across ${Math.max(1, memberUids.length || groupMeta?.memberCount || 0)} members`}
-          </Text>
-
-          <View style={{ height: 10 }} />
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            {/**
-             * Layout math:
-             * - Screen adds 16px padding on each side => 32 total
-             * - Card.Content has its own horizontal padding (Paper default ~16 each side => 32)
-             * - We also have a Y-axis tick column to the left (yAxisW)
-             */}
-            {(() => {
-              const yAxisW = 56;
-              const estimatedCardPadding = 32;
-              const chartW = Math.max(240, width - 32 - estimatedCardPadding - yAxisW);
-              return (
-                <>
-                  <View style={{ width: yAxisW, justifyContent: 'space-between', height: 160, paddingVertical: 8 }}>
-                    <Text variant="labelSmall" style={{ opacity: 0.75, textAlign: 'right' }}>
-                      {yTicks.top}
-                    </Text>
-                    <Text variant="labelSmall" style={{ opacity: 0.75, textAlign: 'right' }}>
-                      {yTicks.mid}
-                    </Text>
-                    <Text variant="labelSmall" style={{ opacity: 0.75, textAlign: 'right' }}>
-                      {yTicks.bot}
-                    </Text>
-                  </View>
-                  <View style={{ flex: 1, overflow: 'hidden' }}>
-                    <SimpleLineChart
-                      values={aggregates.series}
-                      height={160}
-                      width={chartW}
-                      color={theme.colors.primary}
-                      showPointLabels
-                      formatPointLabel={formatPointLabel}
-                      labelColor={theme.colors.onSurface}
-                    />
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6, paddingHorizontal: 4 }}>
-                      {weekDates.map((d, i) => {
-                        const idx = parseYYYYMMDDLocal(d).getDay();
-                        return (
-                          <Text key={`${d}-${i}`} variant="labelSmall" style={{ opacity: 0.75 }}>
-                            {weekdayShort(idx)}
-                          </Text>
-                        );
-                      })}
-                    </View>
-                    <Text variant="labelSmall" style={{ opacity: 0.75, textAlign: 'center', marginTop: 4 }}>
-                      Day
-                    </Text>
-                  </View>
-                </>
-              );
-            })()}
+            {/* Logging Consistency */}
+            <View style={{ flex: 1, minWidth: 120 }}>
+              <Text variant="labelSmall" style={{ color: colors.textSecondary, marginBottom: spacing.xs }}>
+                Logging Consistency
+              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs }}>
+                <Text variant="titleLarge" style={{ color: colors.textPrimary }}>
+                  {weeklyMetrics.loggingConsistency}%
+                </Text>
+                {weeklyMetrics.loggingConsistencyDelta != null && (
+                  <Text
+                    variant="labelSmall"
+                    style={{
+                      color:
+                        weeklyMetrics.loggingConsistencyDelta > 0
+                          ? colors.success
+                          : weeklyMetrics.loggingConsistencyDelta < 0
+                            ? colors.danger
+                            : colors.textMuted,
+                    }}
+                  >
+                    {weeklyMetrics.loggingConsistencyDelta > 0 ? '↑' : weeklyMetrics.loggingConsistencyDelta < 0 ? '↓' : '→'}
+                  </Text>
+                )}
+              </View>
+            </View>
           </View>
         </Card.Content>
       </Card>
 
-      <View style={{ height: 16 }} />
+      <View style={{ height: spacing.base }} />
+
+      {/* Weekly Insight Summary */}
+      <Card>
+        <Card.Title title="Weekly Insight" />
+        <Card.Content>
+          <View
+            style={{
+              borderRadius: radius.card,
+              padding: spacing.md,
+              backgroundColor: colors.surface2,
+              borderWidth: 1,
+              borderColor: 'rgba(255, 255, 255, 0.04)',
+            }}
+          >
+            <Text variant="bodyMedium" style={{ color: colors.textPrimary, lineHeight: 20 }}>
+              {(() => {
+                const insights: string[] = [];
+                if (weeklyMetrics.totalWeightChange != null && weeklyMetrics.totalWeightChange < 0) {
+                  insights.push(`Group lost ${formatDeltaLb(Math.abs(weeklyMetrics.totalWeightChange))} total`);
+                }
+                if (weeklyMetrics.totalTrainingMinutes > 0) {
+                  insights.push(`${formatMinutesHM(weeklyMetrics.totalTrainingMinutes)} total training time`);
+                }
+                if (weeklyMetrics.loggingConsistency >= 80) {
+                  insights.push(`${weeklyMetrics.loggingConsistency}% logging consistency`);
+                } else if (weeklyMetrics.loggingConsistency < 50) {
+                  insights.push(`Only ${weeklyMetrics.loggingConsistency}% logged this week`);
+                }
+                return insights.length > 0 ? insights.join(' • ') : 'Start logging to see insights.';
+              })()}
+            </Text>
+          </View>
+        </Card.Content>
+      </Card>
+
+      <View style={{ height: spacing.base }} />
+
+      <Card>
+        <Card.Title title="Trend" subtitle="Group averages" />
+        <Card.Content>
+          <SegmentedButtons
+            value={metric}
+            onValueChange={(v) => setMetric(v as any)}
+            buttons={[
+              {
+                value: 'workout',
+                label: 'Workout',
+                style: {
+                  backgroundColor: metric === 'workout' ? colors.surface2 : 'transparent',
+                  borderWidth: metric === 'workout' ? 0 : 1,
+                  borderColor: metric === 'workout' ? undefined : colors.divider,
+                  minHeight: 40,
+                  paddingHorizontal: spacing.md,
+                  borderRadius: radius.pill,
+                  ...(metric === 'workout' && {
+                    ...shadow,
+                    shadowOpacity: 0.1,
+                    shadowRadius: 4,
+                    elevation: 1,
+                  }),
+                },
+                labelStyle: {
+                  color: metric === 'workout' ? colors.primary : colors.textSecondary,
+                  fontWeight: metric === 'workout' ? '600' : '400',
+                },
+              },
+              {
+                value: 'calories',
+                label: 'Calories',
+                style: {
+                  backgroundColor: metric === 'calories' ? colors.surface2 : 'transparent',
+                  borderWidth: metric === 'calories' ? 0 : 1,
+                  borderColor: metric === 'calories' ? undefined : colors.divider,
+                  minHeight: 40,
+                  paddingHorizontal: spacing.md,
+                  borderRadius: radius.pill,
+                  ...(metric === 'calories' && {
+                    ...shadow,
+                    shadowOpacity: 0.1,
+                    shadowRadius: 4,
+                    elevation: 1,
+                  }),
+                },
+                labelStyle: {
+                  color: metric === 'calories' ? colors.primary : colors.textSecondary,
+                  fontWeight: metric === 'calories' ? '600' : '400',
+                },
+              },
+              {
+                value: 'weight',
+                label: 'Weight',
+                style: {
+                  backgroundColor: metric === 'weight' ? colors.surface2 : 'transparent',
+                  borderWidth: metric === 'weight' ? 0 : 1,
+                  borderColor: metric === 'weight' ? undefined : colors.divider,
+                  minHeight: 40,
+                  paddingHorizontal: spacing.md,
+                  borderRadius: radius.pill,
+                  ...(metric === 'weight' && {
+                    ...shadow,
+                    shadowOpacity: 0.1,
+                    shadowRadius: 4,
+                    elevation: 1,
+                  }),
+                },
+                labelStyle: {
+                  color: metric === 'weight' ? colors.primary : colors.textSecondary,
+                  fontWeight: metric === 'weight' ? '600' : '400',
+                },
+              },
+            ]}
+          />
+
+          <View style={{ height: spacing.md }} />
+
+          <View
+            style={{
+              borderRadius: radius.card,
+              padding: spacing.md,
+              backgroundColor: colors.surface2,
+              borderWidth: 1,
+              borderColor: 'rgba(255, 255, 255, 0.04)',
+            }}
+          >
+            <Text variant="titleMedium" style={{ color: colors.textPrimary, marginBottom: spacing.xs }}>
+              {aggregates.title}
+            </Text>
+            <Text variant="bodySmall" style={{ color: colors.textSecondary }}>
+              {metric === 'weight'
+                ? 'This week vs first weigh-in this week'
+                : `This week • averaged across ${Math.max(1, memberUids.length || groupMeta?.memberCount || 0)} members`}
+            </Text>
+
+            <View style={{ height: spacing.md }} />
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              {/**
+               * Layout math:
+               * - Screen adds 16px padding on each side => 32 total
+               * - Card.Content has its own horizontal padding (Paper default ~16 each side => 32)
+               * - We also have a Y-axis tick column to the left (yAxisW)
+               */}
+              {(() => {
+                const yAxisW = 56;
+                const estimatedCardPadding = 32;
+                const chartW = Math.max(240, width - 32 - estimatedCardPadding - yAxisW);
+                return (
+                  <>
+                    <View style={{ width: yAxisW, justifyContent: 'space-between', height: 160, paddingVertical: 8 }}>
+                      <Text variant="labelSmall" style={{ color: colors.textMuted, textAlign: 'right' }}>
+                        {yTicks.top}
+                      </Text>
+                      <Text variant="labelSmall" style={{ color: colors.textMuted, textAlign: 'right' }}>
+                        {yTicks.mid}
+                      </Text>
+                      <Text variant="labelSmall" style={{ color: colors.textMuted, textAlign: 'right' }}>
+                        {yTicks.bot}
+                      </Text>
+                    </View>
+                    <View style={{ flex: 1, overflow: 'hidden' }}>
+                      <SimpleLineChart
+                        values={aggregates.series}
+                        height={160}
+                        width={chartW}
+                        color={colors.primary}
+                        showPointLabels
+                        formatPointLabel={formatPointLabel}
+                        labelColor={colors.textPrimary}
+                      />
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6, paddingHorizontal: 4 }}>
+                        {weekDates.map((d, i) => {
+                          const idx = parseYYYYMMDDLocal(d).getDay();
+                          return (
+                            <Text key={`${d}-${i}`} variant="labelSmall" style={{ color: colors.textMuted }}>
+                              {weekdayShort(idx)}
+                            </Text>
+                          );
+                        })}
+                      </View>
+                      <Text variant="labelSmall" style={{ color: colors.textMuted, textAlign: 'center', marginTop: 4 }}>
+                        Day
+                      </Text>
+                    </View>
+                  </>
+                );
+              })()}
+            </View>
+          </View>
+        </Card.Content>
+      </Card>
+
+      <View style={{ height: spacing.base }} />
 
       <Card>
         <Card.Title title="History" />
         <Card.Content style={{ paddingHorizontal: 0 }}>
           {aggregates.history.length === 0 ? (
-            <View style={{ paddingHorizontal: 16, paddingVertical: 12 }}>
-              <Text style={{ opacity: 0.75 }}>No data yet.</Text>
+            <View style={{ paddingHorizontal: spacing.base, paddingVertical: spacing.md }}>
+              <Text style={{ color: colors.textMuted }}>No data yet.</Text>
             </View>
           ) : (
             aggregates.history
               .slice()
               .reverse()
-              .map((h: any, i: number) => (
-                <List.Item
-                  key={`${h.date}-${i}`}
-                  title={h.date}
-                  description={[
-                    `Avg % loss: ${h.avgPct == null ? '—' : `${h.avgPct}%`}`,
-                    `Avg minutes: ${formatMinutesHM(h.avgMins)}`,
-                    `Avg calories: ${Math.round(h.avgCals)}`,
-                  ].join('\n')}
-                />
-              ))
+              .map((h: any, i: number) => {
+                // Calculate deltas for this day vs previous day
+                const prevDay = i < aggregates.history.length - 1 ? aggregates.history[aggregates.history.length - 2 - i] : null;
+                const weightDelta = prevDay && h.avgPct != null && prevDay.avgPct != null ? h.avgPct - prevDay.avgPct : null;
+                const minsDelta = prevDay ? h.avgMins - prevDay.avgMins : null;
+                
+                return (
+                  <List.Item
+                    key={`${h.date}-${i}`}
+                    title={h.date}
+                    description={
+                      <View style={{ gap: 2 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
+                          <Text variant="bodySmall" style={{ color: colors.textSecondary }}>
+                            Avg % loss: {h.avgPct == null ? '—' : `${h.avgPct}%`}
+                          </Text>
+                          {weightDelta != null && weightDelta !== 0 && (
+                            <Text
+                              variant="labelSmall"
+                              style={{
+                                color: weightDelta > 0 ? colors.success : colors.danger,
+                              }}
+                            >
+                              {weightDelta > 0 ? '↑' : '↓'}
+                            </Text>
+                          )}
+                        </View>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
+                          <Text variant="bodySmall" style={{ color: colors.textSecondary }}>
+                            Avg minutes: {formatMinutesHM(h.avgMins)}
+                          </Text>
+                          {minsDelta != null && minsDelta !== 0 && (
+                            <Text
+                              variant="labelSmall"
+                              style={{
+                                color: minsDelta > 0 ? colors.success : colors.danger,
+                              }}
+                            >
+                              {minsDelta > 0 ? '↑' : '↓'}
+                            </Text>
+                          )}
+                        </View>
+                        <Text variant="bodySmall" style={{ color: colors.textMuted }}>
+                          Avg calories: {Math.round(h.avgCals)}
+                        </Text>
+                      </View>
+                    }
+                  />
+                );
+              })
           )}
         </Card.Content>
       </Card>
 
-      <View style={{ height: 16 }} />
+      <View style={{ height: spacing.base }} />
 
       <Card>
         <Card.Title

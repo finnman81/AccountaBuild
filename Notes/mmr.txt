@@ -1,0 +1,2597 @@
+i WANT TO implement a League of legends like MMR system to the app, for ranking and motivation. Here is the detialed info. Please create an implementaiton plan, including all current app requirements to ensure the new system integrates smoothly
+
+0) Goals of the system
+Design goals
+
+Universal scoring across different goals (workouts, minutes, weight loss/gain, calorie adherence days).
+
+Harder goals → more points, but no exploit-y stacking.
+
+Late-stage weight loss is worth more than early-stage.
+
+Reward both:
+
+Adherence (did they do what they planned?)
+
+Outcome (did they move toward the goal at the rate they committed to?)
+
+Balanced penalties: missing a week matters, but doesn’t crush motivation.
+
+Quarterly seasons with soft reset:
+
+Gold II resets around Silver II.
+
+Platinum+ drops 2 tiers to keep top ranks rare.
+
+Works with 5 beta users now (absolute ranks), can later display percentiles.
+
+1) Definitions & terminology
+Time units
+
+Week: ISO week (YYYY-WW) in user timezone (America/New_York for now).
+
+Season: calendar quarter:
+
+Q1: Jan 1–Mar 31
+
+Q2: Apr 1–Jun 30
+
+Q3: Jul 1–Sep 30
+
+Q4: Oct 1–Dec 31
+
+Goal Types (v1)
+
+You said focus on:
+
+Workouts/week (frequency)
+
+Minutes/week (volume)
+
+Weight loss (timeline required)
+
+Weight gain (timeline required)
+
+Calorie adherence days/week (nutrition adherence)
+
+We’ll implement all five.
+
+Core scoring variables
+
+Each goal contributes to a weekly score using:
+
+D: Difficulty multiplier (goal difficulty)
+
+A: Adherence score (0–1)
+
+O: Outcome score (0–1)
+
+wA, wO: weights for adherence vs outcome:
+
+wA = 0.70
+
+wO = 0.30
+
+K: base weekly points:
+
+K = 100 (tune later)
+
+Bonus: one-time completion bonus
+
+P: penalty for missing week
+
+2) Weekly MMR update equation
+2.1 GoalScore (per goal)
+
+For each active goal g:
+
+𝐺
+𝑜
+𝑎
+𝑙
+𝑆
+𝑐
+𝑜
+𝑟
+𝑒
+𝑔
+=
+𝐾
+⋅
+𝐷
+𝑔
+⋅
+(
+𝑤
+𝐴
+𝐴
+𝑔
++
+𝑤
+𝑂
+𝑂
+𝑔
+)
+GoalScore
+g
+	​
+
+=K⋅D
+g
+	​
+
+⋅(w
+A
+	​
+
+A
+g
+	​
+
++w
+O
+	​
+
+O
+g
+	​
+
+)
+
+Where:
+
+0
+≤
+𝐴
+𝑔
+≤
+1
+0≤A
+g
+	​
+
+≤1
+
+0
+≤
+𝑂
+𝑔
+≤
+1
+0≤O
+g
+	​
+
+≤1
+
+2.2 Combine multiple goals into a single WeekScore (anti-exploit)
+
+Do not sum raw scores (stacking explodes). Use a “max + average blend”:
+
+Let scores[] = {GoalScore_1, GoalScore_2, ...} for active goals.
+
+𝑊
+𝑒
+𝑒
+𝑘
+𝑆
+𝑐
+𝑜
+𝑟
+𝑒
+=
+0.60
+⋅
+max
+⁡
+(
+𝑠
+𝑐
+𝑜
+𝑟
+𝑒
+𝑠
+)
++
+0.40
+⋅
+𝑎
+𝑣
+𝑔
+(
+𝑠
+𝑐
+𝑜
+𝑟
+𝑒
+𝑠
+)
+WeekScore=0.60⋅max(scores)+0.40⋅avg(scores)
+
+This ensures:
+
+The hardest goal matters most
+
+Additional goals help, but don’t create runaway inflation
+
+2.3 Streak multiplier (optional v1; included here)
+
+You can add this right away or later. It’s powerful and LoL-like.
+
+Let streakWeeks = consecutive completed weeks.
+
+𝑆
+=
+{
+1.00
+	
+𝑠
+𝑡
+𝑟
+𝑒
+𝑎
+𝑘
+𝑊
+𝑒
+𝑒
+𝑘
+𝑠
+<
+2
+
+
+1.05
+	
+2
+≤
+𝑠
+𝑡
+𝑟
+𝑒
+𝑎
+𝑘
+𝑊
+𝑒
+𝑒
+𝑘
+𝑠
+<
+4
+
+
+1.15
+	
+4
+≤
+𝑠
+𝑡
+𝑟
+𝑒
+𝑎
+𝑘
+𝑊
+𝑒
+𝑒
+𝑘
+𝑠
+<
+8
+
+
+1.30
+	
+8
+≤
+𝑠
+𝑡
+𝑟
+𝑒
+𝑎
+𝑘
+𝑊
+𝑒
+𝑒
+𝑘
+𝑠
+<
+12
+
+
+1.45
+	
+12
+≤
+𝑠
+𝑡
+𝑟
+𝑒
+𝑎
+𝑘
+𝑊
+𝑒
+𝑒
+𝑘
+𝑠
+S=
+⎩
+⎨
+⎧
+	​
+
+1.00
+1.05
+1.15
+1.30
+1.45
+	​
+
+streakWeeks<2
+2≤streakWeeks<4
+4≤streakWeeks<8
+8≤streakWeeks<12
+12≤streakWeeks
+	​
+
+2.4 Penalties and final MMR delta
+Δ
+𝑀
+𝑀
+𝑅
+=
+𝑊
+𝑒
+𝑒
+𝑘
+𝑆
+𝑐
+𝑜
+𝑟
+𝑒
+⋅
+𝑆
+−
+𝑃
++
+𝐵
+𝑜
+𝑛
+𝑢
+𝑠
+ΔMMR=WeekScore⋅S−P+Bonus
+3) Weekly completion, win/loss definitions
+
+Define:
+
+Completed Week: A_total >= 0.70
+
+Missed Week: A_total < 0.50 OR no logs at all
+
+Where A_total can be a goal-weighted adherence summary (details below).
+
+These labels drive:
+
+streak increments/resets
+
+penalties
+
+(future) promo series logic
+
+4) Difficulty multipliers (D), adherence (A), outcome (O)
+4.1 Workouts/week goal
+Inputs
+
+t = target workouts per week (1–7)
+
+done = workouts completed this week (0–7)
+
+Difficulty multiplier
+
+Use a fixed table (easy to tune and intuitive):
+
+Target workouts/week (t)	D_workouts
+1	0.70
+2	0.85
+3	1.00
+4	1.18
+5	1.40
+6	1.70
+7	1.85
+Adherence
+𝐴
+𝑤
+=
+min
+⁡
+(
+1
+,
+𝑑
+𝑜
+𝑛
+𝑒
+/
+𝑡
+)
+A
+w
+	​
+
+=min(1,done/t)
+Outcome (v1)
+
+Any workout counts. For now:
+
+𝑂
+𝑤
+=
+𝐴
+𝑤
+O
+w
+	​
+
+=A
+w
+	​
+
+4.2 Minutes/week goal
+Inputs
+
+m = target minutes/week
+
+minutesDone
+
+Difficulty multiplier
+
+Baseline m0 = 150 minutes/week.
+
+𝐷
+𝑚
+𝑖
+𝑛
+𝑢
+𝑡
+𝑒
+𝑠
+=
+𝑐
+𝑙
+𝑎
+𝑚
+𝑝
+(
+0.75
+,
+2.0
+,
+(
+𝑚
+/
+150
+)
+0.55
+)
+D
+minutes
+	​
+
+=clamp(0.75,2.0,(m/150)
+0.55
+)
+
+Examples (approx)
+
+90 min → ~0.85
+
+150 → 1.00
+
+240 → ~1.25
+
+300 → ~1.40
+
+420 → ~1.70
+
+cap at 2.0
+
+Adherence
+𝐴
+𝑚
+=
+min
+⁡
+(
+1
+,
+𝑚
+𝑖
+𝑛
+𝑢
+𝑡
+𝑒
+𝑠
+𝐷
+𝑜
+𝑛
+𝑒
+/
+𝑚
+)
+A
+m
+	​
+
+=min(1,minutesDone/m)
+Outcome (v1)
+𝑂
+𝑚
+=
+𝐴
+𝑚
+O
+m
+	​
+
+=A
+m
+	​
+
+4.3 Calorie adherence days/week goal
+Inputs
+
+d = target compliance days/week (1–7)
+
+daysHit = count of days user hit calorie target (self-reported for beta)
+
+Difficulty multiplier
+Target days/week (d)	D_calDays
+3	0.90
+4	0.98
+5	1.08
+6	1.22
+7	1.40
+Adherence
+𝐴
+𝑐
+=
+min
+⁡
+(
+1
+,
+𝑑
+𝑎
+𝑦
+𝑠
+𝐻
+𝑖
+𝑡
+/
+𝑑
+)
+A
+c
+	​
+
+=min(1,daysHit/d)
+Outcome (v1)
+𝑂
+𝑐
+=
+𝐴
+𝑐
+O
+c
+	​
+
+=A
+c
+	​
+
+
+Later when you integrate weight goals tightly, you can tie nutrition outcome to rate of weight change.
+
+4.4 Weight loss goal (timeline required)
+
+This is the most important design. It includes:
+
+Base difficulty (big cut harder than small cut)
+
+Phase difficulty (endgame is much harder; last 10% ~ 2×)
+
+Timeline difficulty (more aggressive timelines worth more)
+
+Outcome compared to the user’s own committed timeline
+
+Completion bonus
+
+Inputs
+
+W0 = start weight (lbs)
+
+Wg = goal weight (lbs) where Wg < W0
+
+Wt = current weight at end of this week (lbs)
+
+Tweeks = number of weeks between startDate and targetEndDate (clamp minimum 4)
+
+W_last = last week’s end weight
+
+weighinsDone this week
+
+optional: adherence to workouts/minutes/calorie days (integrated below)
+
+Derived
+
+Total loss required:
+
+𝐿
+=
+𝑊
+0
+−
+𝑊
+𝑔
+L=W0−Wg
+
+Progress fraction:
+
+𝑝
+=
+𝑐
+𝑙
+𝑎
+𝑚
+𝑝
+(
+0
+,
+1
+,
+𝑊
+0
+−
+𝑊
+𝑡
+𝐿
+)
+p=clamp(0,1,
+L
+W0−Wt
+	​
+
+)
+Weekly target loss from timeline
+𝑙
+𝑜
+𝑠
+𝑠
+𝑇
+𝑎
+𝑟
+𝑔
+𝑒
+𝑡
+𝑅
+𝑎
+𝑤
+=
+𝐿
+𝑇
+𝑤
+𝑒
+𝑒
+𝑘
+𝑠
+lossTargetRaw=
+Tweeks
+L
+	​
+
+
+Cap to prevent gaming:
+
+𝑙
+𝑜
+𝑠
+𝑠
+𝑇
+𝑎
+𝑟
+𝑔
+𝑒
+𝑡
+=
+𝑐
+𝑙
+𝑎
+𝑚
+𝑝
+(
+0.25
+,
+ 
+2.5
+,
+ 
+𝑙
+𝑜
+𝑠
+𝑠
+𝑇
+𝑎
+𝑟
+𝑔
+𝑒
+𝑡
+𝑅
+𝑎
+𝑤
+)
+lossTarget=clamp(0.25, 2.5, lossTargetRaw)
+Weekly actual change
+Δ
+𝑊
+=
+𝑊
+𝑙
+𝑎
+𝑠
+𝑡
+−
+𝑊
+𝑡
+ΔW=W
+last
+	​
+
+−W
+t
+	​
+
+
+(Positive means weight went down.)
+
+Difficulty multiplier components
+(1) Base cut difficulty
+𝐷
+𝑏
+𝑎
+𝑠
+𝑒
+=
+1
++
+0.9
+⋅
+(
+𝐿
+/
+𝑊
+0
+)
+0.6
+D
+base
+	​
+
+=1+0.9⋅(L/W0)
+0.6
+
+This increases with %BW to lose, sublinearly (prevents huge cuts from dominating too hard).
+
+(2) Phase difficulty (endgame boost)
+
+You want final 10% ≈ 2× harder than early stage.
+
+𝐷
+𝑝
+ℎ
+𝑎
+𝑠
+𝑒
+=
+1
++
+1.0
+⋅
+𝑝
+3.0
+D
+phase
+	​
+
+=1+1.0⋅p
+3.0
+
+p = 0 → 1.0
+
+p = 0.9 → 1.729
+
+p = 1.0 → 2.0
+
+(3) Timeline difficulty (aggressiveness)
+
+Baseline is 1 lb/week.
+
+𝐷
+𝑡
+𝑖
+𝑚
+𝑒
+𝑙
+𝑖
+𝑛
+𝑒
+=
+𝑐
+𝑙
+𝑎
+𝑚
+𝑝
+(
+0.90
+,
+ 
+1.60
+,
+ 
+(
+𝑙
+𝑜
+𝑠
+𝑠
+𝑇
+𝑎
+𝑟
+𝑔
+𝑒
+𝑡
+/
+1.0
+)
+0.35
+)
+D
+timeline
+	​
+
+=clamp(0.90, 1.60, (lossTarget/1.0)
+0.35
+)
+
+If they set a slow timeline, they get slightly less difficulty.
+
+If they set an aggressive timeline, they get more.
+
+Final weight loss difficulty
+𝐷
+𝑤
+𝑙
+=
+𝐷
+𝑏
+𝑎
+𝑠
+𝑒
+⋅
+𝐷
+𝑝
+ℎ
+𝑎
+𝑠
+𝑒
+⋅
+𝐷
+𝑡
+𝑖
+𝑚
+𝑒
+𝑙
+𝑖
+𝑛
+𝑒
+D
+wl
+	​
+
+=D
+base
+	​
+
+⋅D
+phase
+	​
+
+⋅D
+timeline
+	​
+
+Adherence (A_wl)
+
+Because this is a beta/self-report system, adherence should reflect “showing up” across behaviors.
+
+We use three components:
+
+weigh-in adherence (at least 1/week)
+
+workout frequency adherence (if they have a workouts goal)
+
+calorie adherence (if they have a calorie days goal)
+
+Define:
+
+A_weighin = min(1, weighinsDone / 1) (≥1 weigh-in per week)
+
+A_w = workouts adherence (from workouts goal if present; else treat as 1.0 or omit)
+
+A_c = calorie adherence (from calorie goal if present; else omit)
+
+Default weights:
+
+weigh-in: 0.20
+
+workouts: 0.45
+
+calories: 0.35
+
+𝐴
+𝑤
+𝑙
+=
+0.20
+𝐴
+𝑤
+𝑒
+𝑖
+𝑔
+ℎ
+𝑖
+𝑛
++
+0.45
+𝐴
+𝑤
++
+0.35
+𝐴
+𝑐
+A
+wl
+	​
+
+=0.20A
+weighin
+	​
+
++0.45A
+w
+	​
+
++0.35A
+c
+	​
+
+
+If user doesn’t have workouts goal or calorie goal, renormalize weights across available components.
+
+Outcome (O_wl)
+
+Outcome compares actual weekly loss to timeline target.
+
+𝑂
+𝑤
+𝑙
+=
+𝑐
+𝑙
+𝑎
+𝑚
+𝑝
+(
+0
+,
+1
+,
+Δ
+𝑊
+𝑙
+𝑜
+𝑠
+𝑠
+𝑇
+𝑎
+𝑟
+𝑔
+𝑒
+𝑡
+)
+O
+wl
+	​
+
+=clamp(0,1,
+lossTarget
+ΔW
+	​
+
+)
+
+Important safety/anti-exploit:
+
+If ΔW is greater than target, just cap to 1.0 (don’t reward extreme dieting):
+
+Equivalent to clamp above.
+
+Completion bonus
+
+When the goal is reached for the first time:
+
+condition: Wt <= Wg and goal.status transitions active → completed
+
+bonus:
+
+𝐵
+𝑜
+𝑛
+𝑢
+𝑠
+𝑤
+𝑙
+=
+300
+⋅
+𝐷
+𝑏
+𝑎
+𝑠
+𝑒
+Bonus
+wl
+	​
+
+=300⋅D
+base
+	​
+
+
+(Scales with the overall challenge.)
+
+4.5 Weight gain goal (timeline required)
+
+Same structure, different dynamics.
+
+Inputs
+
+W0, Wg where Wg > W0
+
+Tweeks
+
+Wt, W_last
+
+adherence signals (workouts/minutes/nutrition if you track bulking compliance)
+
+Derived:
+
+𝐺
+=
+𝑊
+𝑔
+−
+𝑊
+0
+G=Wg−W0
+𝑝
+=
+𝑐
+𝑙
+𝑎
+𝑚
+𝑝
+(
+0
+,
+1
+,
+𝑊
+𝑡
+−
+𝑊
+0
+𝐺
+)
+p=clamp(0,1,
+G
+Wt−W0
+	​
+
+)
+
+Weekly target gain:
+
+𝑔
+𝑎
+𝑖
+𝑛
+𝑇
+𝑎
+𝑟
+𝑔
+𝑒
+𝑡
+𝑅
+𝑎
+𝑤
+=
+𝐺
+𝑇
+𝑤
+𝑒
+𝑒
+𝑘
+𝑠
+gainTargetRaw=
+Tweeks
+G
+	​
+
+
+Cap (to prevent silly exploitation):
+
+𝑔
+𝑎
+𝑖
+𝑛
+𝑇
+𝑎
+𝑟
+𝑔
+𝑒
+𝑡
+=
+𝑐
+𝑙
+𝑎
+𝑚
+𝑝
+(
+0.10
+,
+ 
+1.5
+,
+ 
+𝑔
+𝑎
+𝑖
+𝑛
+𝑇
+𝑎
+𝑟
+𝑔
+𝑒
+𝑡
+𝑅
+𝑎
+𝑤
+)
+gainTarget=clamp(0.10, 1.5, gainTargetRaw)
+
+Weekly actual gain:
+
+Δ
+𝑊
+=
+𝑊
+𝑡
+−
+𝑊
+𝑙
+𝑎
+𝑠
+𝑡
+ΔW=W
+t
+	​
+
+−W
+last
+	​
+
+Difficulty
+𝐷
+𝑏
+𝑎
+𝑠
+𝑒
+=
+1
++
+0.7
+⋅
+(
+𝐺
+/
+𝑊
+0
+)
+0.6
+D
+base
+	​
+
+=1+0.7⋅(G/W0)
+0.6
+
+Phase difficulty (still harder late; but less dramatic than cutting):
+
+𝐷
+𝑝
+ℎ
+𝑎
+𝑠
+𝑒
+=
+1
++
+0.7
+⋅
+𝑝
+2.5
+D
+phase
+	​
+
+=1+0.7⋅p
+2.5
+
+Timeline aggressiveness:
+
+𝐷
+𝑡
+𝑖
+𝑚
+𝑒
+𝑙
+𝑖
+𝑛
+𝑒
+=
+𝑐
+𝑙
+𝑎
+𝑚
+𝑝
+(
+0.90
+,
+ 
+1.50
+,
+ 
+(
+𝑔
+𝑎
+𝑖
+𝑛
+𝑇
+𝑎
+𝑟
+𝑔
+𝑒
+𝑡
+/
+0.5
+)
+0.35
+)
+D
+timeline
+	​
+
+=clamp(0.90, 1.50, (gainTarget/0.5)
+0.35
+)
+
+Final:
+
+𝐷
+𝑤
+𝑔
+=
+𝐷
+𝑏
+𝑎
+𝑠
+𝑒
+⋅
+𝐷
+𝑝
+ℎ
+𝑎
+𝑠
+𝑒
+⋅
+𝐷
+𝑡
+𝑖
+𝑚
+𝑒
+𝑙
+𝑖
+𝑛
+𝑒
+D
+wg
+	​
+
+=D
+base
+	​
+
+⋅D
+phase
+	​
+
+⋅D
+timeline
+	​
+
+Adherence (A_wg)
+
+If you’re not tracking nutrition surplus yet, just use workouts + weigh-ins:
+
+weigh-in weekly
+
+workouts adherence
+Optionally calorie adherence if used for bulking.
+
+Outcome (O_wg)
+𝑂
+𝑤
+𝑔
+=
+𝑐
+𝑙
+𝑎
+𝑚
+𝑝
+(
+0
+,
+1
+,
+Δ
+𝑊
+𝑔
+𝑎
+𝑖
+𝑛
+𝑇
+𝑎
+𝑟
+𝑔
+𝑒
+𝑡
+)
+O
+wg
+	​
+
+=clamp(0,1,
+gainTarget
+ΔW
+	​
+
+)
+
+Completion bonus:
+
+𝐵
+𝑜
+𝑛
+𝑢
+𝑠
+𝑤
+𝑔
+=
+300
+⋅
+𝐷
+𝑏
+𝑎
+𝑠
+𝑒
+Bonus
+wg
+	​
+
+=300⋅D
+base
+	​
+
+5) Total adherence (A_total) for week completion
+
+To determine if a week is “completed” for penalties/streak:
+
+compute a weighted adherence across active goals.
+
+Simplest stable approach:
+
+Let A_g be adherence per goal.
+
+𝐴
+𝑡
+𝑜
+𝑡
+𝑎
+𝑙
+=
+𝑎
+𝑣
+𝑔
+(
+𝐴
+𝑔
+)
+over active goals
+A
+total
+	​
+
+=avg(A
+g
+	​
+
+)over active goals
+
+Then:
+
+completed if A_total >= 0.70
+
+missed if A_total < 0.50 (or no logs)
+
+(You can later weight adherence by each goal’s D, but average is stable for beta.)
+
+6) Penalties (balanced)
+
+If user misses a week (A_total < 0.50 or no logs):
+
+Penalty:
+
+𝑃
+=
+max
+⁡
+(
+30
+,
+ 
+0.015
+⋅
+𝑀
+𝑀
+𝑅
+)
+P=max(30, 0.015⋅MMR)
+
+Effects:
+
+streak resets to 0
+
+“demotion risk” UI on Home/Profile
+
+If partially active but not completed (0.50 ≤ A_total < 0.70):
+
+apply smaller penalty:
+
+P = 15 (flat) OR P = max(15, 0.0075 * MMR)
+
+streak resets to 0 (or you can reduce streak by 1, but reset is simpler and LoL-like)
+
+7) Rank ladder (absolute MMR) + LP (0–100)
+7.1 Tiers & divisions
+
+Iron IV → I
+
+Bronze IV → I
+
+Silver IV → I
+
+Gold IV → I
+
+Platinum IV → I
+
+Diamond IV → I
+
+Master (no divisions)
+
+Challenger (no divisions)
+
+7.2 MMR ranges (v1)
+
+These ranges are tuned for weekly deltas in the ~30–250 range.
+
+Iron: 0 – 999
+
+Bronze: 1000 – 1799
+
+Silver: 1800 – 2599
+
+Gold: 2600 – 3499
+
+Platinum: 3500 – 4499
+
+Diamond: 4500 – 5799
+
+Master: 5800 – 6999
+
+Challenger: 7000+
+
+7.3 Division bands
+
+We split each tier into 4 divisions. Example approach:
+
+Make lower divisions slightly smaller, upper divisions a bit larger (harder climb near top).
+
+Iron (0–999)
+
+Iron IV: 0–249
+
+Iron III: 250–499
+
+Iron II: 500–749
+
+Iron I: 750–999
+
+Bronze (1000–1799)
+
+Bronze IV: 1000–1199
+
+Bronze III: 1200–1399
+
+Bronze II: 1400–1599
+
+Bronze I: 1600–1799
+
+Silver (1800–2599)
+
+Silver IV: 1800–1999
+
+Silver III: 2000–2199
+
+Silver II: 2200–2399
+
+Silver I: 2400–2599
+
+Gold (2600–3499)
+
+Gold IV: 2600–2799
+
+Gold III: 2800–2999
+
+Gold II: 3000–3249
+
+Gold I: 3250–3499
+
+Platinum (3500–4499)
+
+Platinum IV: 3500–3749
+
+Platinum III: 3750–3999
+
+Platinum II: 4000–4249
+
+Platinum I: 4250–4499
+
+Diamond (4500–5799)
+
+Diamond IV: 4500–4849
+
+Diamond III: 4850–5199
+
+Diamond II: 5200–5499
+
+Diamond I: 5500–5799
+
+Master / Challenger
+
+Master: 5800–6999
+
+Challenger: 7000+
+
+(For UI you can still show LP within Master/Challenger based on distance to next milestone, but optional.)
+
+7.4 LP calculation (0–100)
+
+For tiers with divisions:
+
+Let bandMin, bandMax be the division range.
+
+𝐿
+𝑃
+=
+𝑟
+𝑜
+𝑢
+𝑛
+𝑑
+(
+100
+⋅
+𝑀
+𝑀
+𝑅
+−
+𝑏
+𝑎
+𝑛
+𝑑
+𝑀
+𝑖
+𝑛
+𝑏
+𝑎
+𝑛
+𝑑
+𝑀
+𝑎
+𝑥
+−
+𝑏
+𝑎
+𝑛
+𝑑
+𝑀
+𝑖
+𝑛
+)
+LP=round(100⋅
+bandMax−bandMin
+MMR−bandMin
+	​
+
+)
+
+Clamp 0–100.
+
+Note: LP is derived from MMR (recommended). You can store it for quick UI but treat MMR as source of truth.
+
+8) Promotions & demotions
+8.1 Promotions (v1)
+
+When MMR crosses into a higher division band → promote instantly.
+
+When MMR crosses into a higher tier band → promote instantly + animation + badge unlock.
+
+No promo series yet (beta-friendly).
+
+8.2 Demotions with buffers (hysteresis)
+
+To prevent bouncing at edges:
+
+Buffers
+
+Division demotion buffer: 40 MMR
+
+Tier demotion buffer: 120 MMR
+
+You demote only if you fall below:
+
+Division demote threshold: divisionMin - 40
+
+Tier demote threshold: tierMin - 120
+
+Example:
+
+Gold IV minimum is 2600.
+
+Tier demote threshold from Gold to Silver: 2600 - 120 = 2480.
+So someone doesn’t get demoted for tiny fluctuations.
+
+8.3 Demotion shield
+
+When a user promotes into a new tier (not division):
+
+grant a 2-week tier demotion shield.
+
+Rules:
+
+While shield is active: tier demotion is prevented even if below tierMin - 120
+
+Shield ticks down only on completed weeks OR simply weekly regardless (choose one).
+
+Shield breaks immediately if user misses 2 consecutive weeks.
+
+Recommended implementation:
+
+store tierShieldWeeksRemaining: 2 after tier promotion
+
+each week end:
+
+if week completed: decrement by 1
+
+if missed week: decrement by 0 (or decrement by 1—your call)
+
+if missed 2 weeks in a row: set to 0
+
+This makes shield feel earned by consistency.
+
+9) Quarterly seasons + soft reset (Platinum+ drop 2 tiers)
+9.1 Season schedule
+
+Seasons align to calendar quarters.
+
+At season end:
+
+snapshot results
+
+award seasonal badges
+
+apply soft reset for next season
+
+9.2 Soft reset principles
+
+Preserve prestige: top tiers remain rare.
+
+Preserve motivation: strong performers start above average.
+
+Keep it simple & explainable.
+
+Your requirement: Platinum+ drops 2 tiers.
+
+9.3 Tier drop rules
+
+Iron → Iron (no drop)
+
+Bronze → Bronze (no drop)
+
+Silver → Bronze (drop 1)
+
+Gold → Silver (drop 1)
+
+Platinum → Silver (drop 2)
+
+Diamond → Gold (drop 2)
+
+Master → Platinum (drop 2)
+
+Challenger → Diamond (drop 2) (or Diamond I specifically)
+
+Additionally:
+
+Preserve division index when possible (II stays II).
+
+9.4 Full season reset mapping (tier+division)
+
+Here’s the explicit mapping table:
+
+Iron
+
+Iron IV → Iron IV
+
+Iron III → Iron III
+
+Iron II → Iron II
+
+Iron I → Iron I
+
+Bronze
+
+Bronze IV → Bronze IV
+
+Bronze III → Bronze III
+
+Bronze II → Bronze II
+
+Bronze I → Bronze I
+
+Silver → Bronze (drop 1 tier)
+
+Silver IV → Bronze IV
+
+Silver III → Bronze III
+
+Silver II → Bronze II
+
+Silver I → Bronze I
+
+Gold → Silver (drop 1 tier)
+
+Gold IV → Silver IV
+
+Gold III → Silver III
+
+Gold II → Silver II
+
+Gold I → Silver I
+
+Platinum → Silver (drop 2 tiers)
+
+Platinum IV → Silver IV
+
+Platinum III → Silver III
+
+Platinum II → Silver II
+
+Platinum I → Silver I
+
+Diamond → Gold (drop 2 tiers)
+
+Diamond IV → Gold IV
+
+Diamond III → Gold III
+
+Diamond II → Gold II
+
+Diamond I → Gold I
+
+Master → Platinum (drop 2 tiers)
+
+Master → Platinum II (default)
+
+if you want to preserve “high Master” vs “low Master”, do:
+
+Master 5800–6399 → Platinum II
+
+Master 6400–6999 → Platinum I
+
+Challenger → Diamond (drop 2 tiers)
+
+Challenger → Diamond I (default)
+
+optional: top-end Challenger stays Diamond I, low-end Challenger Diamond II
+
+This exactly enforces “Platinum+ drops 2 tiers” while keeping a clean mental model.
+
+9.5 MMR reset value for the new season
+
+Two valid approaches. For beta simplicity, I recommend midpoint reset (stable, predictable).
+
+Option A (recommended v1): Reset to midpoint of target division band
+
+After mapping to the new rank, set:
+
+𝑀
+𝑀
+𝑅
+𝑛
+𝑒
+𝑤
+=
+𝑏
+𝑎
+𝑛
+𝑑
+𝑀
+𝑖
+𝑛
++
+𝑏
+𝑎
+𝑛
+𝑑
+𝑀
+𝑎
+𝑥
+2
+MMR
+new
+	​
+
+=
+2
+bandMin+bandMax
+	​
+
+
+Examples:
+
+Gold II ends season → maps to Silver II (2200–2399)
+
+new MMR ≈ (2200 + 2399)/2 = 2299.5 → 2300
+
+Platinum I → maps to Silver I (2400–2599)
+
+new MMR ≈ 2500
+
+Diamond II → maps to Gold II (3000–3249)
+
+new MMR ≈ 3125
+
+Option B (advanced): Compressed carry-over (keeps ordering more)
+𝑀
+𝑀
+𝑅
+𝑛
+𝑒
+𝑤
+=
+𝑀
+𝑀
+𝑅
+𝑓
+𝑙
+𝑜
+𝑜
+𝑟
++
+𝜆
+⋅
+(
+𝑀
+𝑀
+𝑅
+𝑜
+𝑙
+𝑑
+−
+𝑀
+𝑀
+𝑅
+𝑓
+𝑙
+𝑜
+𝑜
+𝑟
+)
+MMR
+new
+	​
+
+=MMR
+floor
+	​
+
++λ⋅(MMR
+old
+	​
+
+−MMR
+floor
+	​
+
+)
+
+MMR_floor = 1000
+
+λ = 0.65
+
+Then clamp to the mapped division band (so it doesn’t conflict with rank mapping).
+Use this later when you have more users and want more nuance.
+
+9.6 Season rewards
+
+At rollover, award:
+
+SeasonBadge: e.g. “2026 Q1 Gold II”
+
+PeakRankBadge: highest rank achieved in that season
+
+(optional) “Consistency” badges: 8+ completed weeks, 12+ completed weeks
+
+10) Badge system (ties to ranks + achievements)
+Rank badges
+
+Every tier/division has a badge icon:
+
+Iron IV, Iron III, … Gold II, etc.
+
+Seasonal badge overlays:
+
+“2026 Q1 Gold II”
+
+Achievement badges (examples)
+
+Endgame Crusher: complete final 10% of a cut on time
+
+Perfect Week: A_total ≥ 0.95
+
+Streak Lord: 8+ completed weeks streak
+
+Hard Mode: maintain difficulty score D ≥ 1.6 for 4 weeks
+
+11) Technical requirements (implementation)
+11.1 Where computations happen (v1 vs later)
+
+v1 (beta):
+
+Compute weekly score client-side (Expo app)
+
+Write weekly summary to Firestore
+
+Update user MMR/rank with a Firestore transaction
+
+v1.5 / production:
+
+Move weekly computation + MMR update into Cloud Functions (authoritative, anti-cheat)
+
+Client submits logs only; server computes score.
+
+11.2 Required inputs UI must collect
+
+For each user, for each goal:
+
+Workouts goal: target workouts/week
+
+Minutes goal: target minutes/week (optional if workouts goal exists, but allowed)
+
+Calorie days goal: target days/week
+
+Weight loss/gain goal:
+
+start weight
+
+goal weight
+
+start date
+
+target end date (timeline)
+
+weigh-in logging interface (at least weekly)
+
+11.3 Rules to prevent obvious exploits (beta-safe)
+
+Clamp timeline rates:
+
+cutting: lossTarget ∈ [0.25, 2.5] lb/week
+
+bulking: gainTarget ∈ [0.10, 1.5] lb/week
+
+Cap outcome score to 1.0 (no extra credit for extreme weekly changes)
+
+Cap difficulty multipliers:
+
+D_minutes ≤ 2.0
+
+D_timeline capped
+
+Combine goals using max+avg blend (prevents stacking)
+
+11.4 Logging requirements (beta)
+
+Self-report allowed:
+
+workouts count
+
+minutes
+
+calorie compliance days
+
+weigh-ins
+
+Data model should include “source” field:
+
+"self_reported" now
+
+later "apple_health"
+
+12) Firestore data model (recommended)
+12.1 Users
+
+users/{uid}
+
+displayName: string
+
+photoURL?: string
+
+mmr: number
+
+rankTier: "Iron" | "Bronze" | "Silver" | "Gold" | "Platinum" | "Diamond" | "Master" | "Challenger"
+
+rankDivision?: 1|2|3|4 (1 = I, 4 = IV) OR store "I"|"II"|"III"|"IV"
+
+lp: number (0–100) (optional derived)
+
+streakWeeks: number
+
+tierShieldWeeksRemaining: number (0–2)
+
+consecutiveMissedWeeks: number
+
+currentSeasonId: string (e.g. "2026Q1")
+
+seasonPeak: { tier, division?, mmr }
+
+lastWeekIdUpdated: string (ISO week, e.g. "2026-W03")
+
+12.2 Goals
+
+users/{uid}/goals/{goalId}
+
+type: "workouts" | "minutes" | "calorieDays" | "weightLoss" | "weightGain"
+
+status: "active" | "paused" | "completed"
+
+createdAt
+
+startDate
+
+targetEndDate
+
+Goal params:
+
+workouts: { targetWorkoutsPerWeek }
+
+minutes: { targetMinutesPerWeek }
+
+calorieDays: { targetDaysPerWeek, calorieTarget? }
+
+weightLoss/weightGain: { startWeight, goalWeight }
+
+completionDate?: timestamp
+
+completionBonusAwarded?: boolean
+
+12.3 Weekly summaries
+
+users/{uid}/weekly/{weekId} where weekId="2026-W03"
+
+raw logs (self-reported):
+
+workoutsDone
+
+minutesDone
+
+calorieDaysHit
+
+weighInsDone
+
+weightStartOfWeek
+
+weightEndOfWeek
+
+computed:
+
+goalScores: Record<goalId, number>
+
+weekScore: number
+
+A_total: number
+
+deltaMMR: number
+
+mmrBefore: number
+
+mmrAfter: number
+
+completedWeek: boolean
+
+metadata:
+
+dataSource: "self_reported" | "apple_health" | "mixed"
+
+createdAt
+
+12.4 Seasons
+
+global/seasons/{seasonId}
+
+seasonId: "2026Q1"
+
+startDate
+
+endDate
+
+resetProcessed: boolean (admin tool / function)
+
+rulesVersion: "v1"
+
+users/{uid}/seasons/{seasonId}
+
+startMMR, endMMR
+
+startRank, endRank
+
+peakRank
+
+badgesEarned: string[]
+
+13) TypeScript-style pseudocode (core logic)
+13.1 Utility helpers
+function clamp(min: number, max: number, x: number): number {
+  return Math.max(min, Math.min(max, x));
+}
+
+type Tier = "Iron"|"Bronze"|"Silver"|"Gold"|"Platinum"|"Diamond"|"Master"|"Challenger";
+type Division = 1|2|3|4; // 1=I,2=II,3=III,4=IV (or invert if you prefer)
+
+type Rank = { tier: Tier; division?: Division };
+
+13.2 Difficulty multipliers
+function D_workouts(target: number): number {
+  const table: Record<number, number> = {
+    1: 0.70, 2: 0.85, 3: 1.00, 4: 1.18, 5: 1.40, 6: 1.70, 7: 1.85
+  };
+  return table[Math.round(target)] ?? 1.0;
+}
+
+function D_minutes(targetMinutes: number): number {
+  const base = Math.pow(targetMinutes / 150, 0.55);
+  return clamp(0.75, 2.0, base);
+}
+
+function D_calDays(targetDays: number): number {
+  const table: Record<number, number> = {
+    1: 0.75, 2: 0.82, 3: 0.90, 4: 0.98, 5: 1.08, 6: 1.22, 7: 1.40
+  };
+  return table[Math.round(targetDays)] ?? 1.0;
+}
+
+function D_weightLoss(params: {
+  W0: number; Wg: number; Wt: number;
+  Tweeks: number;
+}): { D: number; D_base: number; lossTarget: number; progress: number } {
+  const { W0, Wg, Wt } = params;
+  const L = W0 - Wg;
+  const Tweeks = Math.max(4, params.Tweeks);
+
+  const p = clamp(0, 1, (W0 - Wt) / L);
+
+  const D_base = 1 + 0.9 * Math.pow((L / W0), 0.6);
+  const D_phase = 1 + 1.0 * Math.pow(p, 3.0);
+
+  const lossTargetRaw = L / Tweeks;
+  const lossTarget = clamp(0.25, 2.5, lossTargetRaw);
+
+  const D_timeline = clamp(0.90, 1.60, Math.pow(lossTarget / 1.0, 0.35));
+
+  const D = D_base * D_phase * D_timeline;
+  return { D, D_base, lossTarget, progress: p };
+}
+
+function D_weightGain(params: {
+  W0: number; Wg: number; Wt: number;
+  Tweeks: number;
+}): { D: number; D_base: number; gainTarget: number; progress: number } {
+  const { W0, Wg, Wt } = params;
+  const G = Wg - W0;
+  const Tweeks = Math.max(4, params.Tweeks);
+
+  const p = clamp(0, 1, (Wt - W0) / G);
+
+  const D_base = 1 + 0.7 * Math.pow((G / W0), 0.6);
+  const D_phase = 1 + 0.7 * Math.pow(p, 2.5);
+
+  const gainTargetRaw = G / Tweeks;
+  const gainTarget = clamp(0.10, 1.5, gainTargetRaw);
+
+  const D_timeline = clamp(0.90, 1.50, Math.pow(gainTarget / 0.5, 0.35));
+
+  const D = D_base * D_phase * D_timeline;
+  return { D, D_base, gainTarget, progress: p };
+}
+
+13.3 Adherence/outcome per goal
+function adherenceFraction(done: number, target: number): number {
+  if (target <= 0) return 1;
+  return clamp(0, 1, done / target);
+}
+
+function outcomeRate(actual: number, target: number): number {
+  if (target <= 0) return 0;
+  return clamp(0, 1, actual / target);
+}
+
+13.4 GoalScore + WeekScore
+const K = 100;
+const wA = 0.70;
+const wO = 0.30;
+
+function goalScore(D: number, A: number, O: number): number {
+  return K * D * (wA * A + wO * O);
+}
+
+function combineWeekScore(scores: number[]): number {
+  if (scores.length === 0) return 0;
+  const maxScore = Math.max(...scores);
+  const avgScore = scores.reduce((a,b)=>a+b,0) / scores.length;
+  return 0.60 * maxScore + 0.40 * avgScore;
+}
+
+function streakMultiplier(streakWeeks: number): number {
+  if (streakWeeks >= 12) return 1.45;
+  if (streakWeeks >= 8) return 1.30;
+  if (streakWeeks >= 4) return 1.15;
+  if (streakWeeks >= 2) return 1.05;
+  return 1.00;
+}
+
+13.5 Missed week penalty
+function missedWeekPenalty(mmr: number): number {
+  return Math.max(30, 0.015 * mmr);
+}
+
+function partialWeekPenalty(mmr: number): number {
+  return Math.max(15, 0.0075 * mmr);
+}
+
+14) Rank computation logic (MMR → tier/division)
+14.1 Band definitions
+
+Represent the ladder as bands in code (source of truth):
+
+type Band = { tier: Tier; division?: Division; min: number; max: number };
+
+const BANDS: Band[] = [
+  // Iron
+  { tier:"Iron", division:4, min:0, max:249 },
+  { tier:"Iron", division:3, min:250, max:499 },
+  { tier:"Iron", division:2, min:500, max:749 },
+  { tier:"Iron", division:1, min:750, max:999 },
+
+  // Bronze
+  { tier:"Bronze", division:4, min:1000, max:1199 },
+  { tier:"Bronze", division:3, min:1200, max:1399 },
+  { tier:"Bronze", division:2, min:1400, max:1599 },
+  { tier:"Bronze", division:1, min:1600, max:1799 },
+
+  // Silver
+  { tier:"Silver", division:4, min:1800, max:1999 },
+  { tier:"Silver", division:3, min:2000, max:2199 },
+  { tier:"Silver", division:2, min:2200, max:2399 },
+  { tier:"Silver", division:1, min:2400, max:2599 },
+
+  // Gold
+  { tier:"Gold", division:4, min:2600, max:2799 },
+  { tier:"Gold", division:3, min:2800, max:2999 },
+  { tier:"Gold", division:2, min:3000, max:3249 },
+  { tier:"Gold", division:1, min:3250, max:3499 },
+
+  // Platinum
+  { tier:"Platinum", division:4, min:3500, max:3749 },
+  { tier:"Platinum", division:3, min:3750, max:3999 },
+  { tier:"Platinum", division:2, min:4000, max:4249 },
+  { tier:"Platinum", division:1, min:4250, max:4499 },
+
+  // Diamond
+  { tier:"Diamond", division:4, min:4500, max:4849 },
+  { tier:"Diamond", division:3, min:4850, max:5199 },
+  { tier:"Diamond", division:2, min:5200, max:5499 },
+  { tier:"Diamond", division:1, min:5500, max:5799 },
+
+  // Master/Challenger
+  { tier:"Master", min:5800, max:6999 },
+  { tier:"Challenger", min:7000, max:999999 },
+];
+
+14.2 MMR → band & LP
+function bandForMMR(mmr: number): Band {
+  const x = Math.max(0, mmr);
+  return BANDS.find(b => x >= b.min && x <= b.max) ?? BANDS[0];
+}
+
+function lpForMMR(mmr: number, band: Band): number {
+  if (!band.division) return 0; // optional
+  const lp = 100 * ((mmr - band.min) / (band.max - band.min));
+  return clamp(0, 100, Math.round(lp));
+}
+
+15) Promotion/demotion evaluation with buffers + shield
+Buffers
+
+Division buffer: 40
+
+Tier buffer: 120
+
+const DIV_DEMOTE_BUFFER = 40;
+const TIER_DEMOTE_BUFFER = 120;
+
+Applying demotion logic (conceptual)
+
+You will compute new MMR, then compute the “candidate” band.
+But before allowing demotion, you check:
+
+Is it a tier demotion?
+
+Is tier shield active?
+
+Pseudo:
+
+function applyRankWithDemotionRules(params: {
+  oldRank: Band;
+  newMMR: number;
+  tierShieldWeeksRemaining: number;
+}): { finalBand: Band; lp: number } {
+
+  const candidate = bandForMMR(params.newMMR);
+  const oldBand = params.oldRank;
+
+  // If candidate is same or higher, accept immediately (promotion is instant)
+  if (isHigherOrEqual(candidate, oldBand)) {
+    return { finalBand: candidate, lp: lpForMMR(params.newMMR, candidate) };
+  }
+
+  // Candidate is lower (demotion). Determine if it's tier demotion vs division demotion.
+  const tierDemotion = candidate.tier !== oldBand.tier;
+
+  if (tierDemotion && params.tierShieldWeeksRemaining > 0) {
+    // Shield blocks tier demotion: keep at least old tier floor (but LP can be 0)
+    const floored = floorToTier(oldBand.tier, params.newMMR);
+    return { finalBand: floored, lp: lpForMMR(params.newMMR, floored) };
+  }
+
+  // Apply hysteresis: only demote if below boundary - buffer
+  const threshold = demotionThreshold(oldBand);
+  if (params.newMMR > threshold) {
+    // Not low enough to demote; stay in old band (LP can decrease)
+    return { finalBand: oldBand, lp: lpForMMR(params.newMMR, oldBand) };
+  }
+
+  // Demotion allowed
+  return { finalBand: candidate, lp: lpForMMR(params.newMMR, candidate) };
+}
+
+// demotion threshold based on old band
+function demotionThreshold(oldBand: Band): number {
+  if (!oldBand.division) {
+    // For Master/Challenger, you can decide special logic later; default:
+    return oldBand.min - TIER_DEMOTE_BUFFER;
+  }
+
+  // Determine if demoting within tier or to lower tier by looking at band below
+  const below = bandBelow(oldBand);
+  const tierDemotion = below ? below.tier !== oldBand.tier : false;
+  const buffer = tierDemotion ? TIER_DEMOTE_BUFFER : DIV_DEMOTE_BUFFER;
+  return oldBand.min - buffer;
+}
+
+
+(Implement helpers bandBelow, isHigherOrEqual, floorToTier based on your BANDS ordering.)
+
+16) End-to-end weekly update flow (exact steps)
+
+At end of each week (or when user opens app and week rolls over):
+
+Identify current weekId (ISO).
+
+Gather logs for that week (workouts, minutes, calorie days, weigh-ins, weights).
+
+Load active goals for user.
+
+For each goal:
+
+compute D, A, O
+
+compute GoalScore
+
+Compute:
+
+A_total = avg(A_g)
+
+completedWeek = A_total >= 0.70
+
+missedWeek = A_total < 0.50 or no logs
+
+Compute WeekScore = 0.6*max + 0.4*avg.
+
+Compute streak multiplier S.
+
+Compute penalty P based on completed/partial/missed.
+
+Apply completion bonuses for goals achieved this week.
+
+Compute ΔMMR = WeekScore*S - P + Bonus.
+
+Update MMR:
+
+mmrAfter = max(0, mmrBefore + ΔMMR)
+
+Compute candidate band & LP.
+
+Apply demotion shield + hysteresis rules.
+
+If tier promotion occurred:
+
+set tierShieldWeeksRemaining = 2
+
+Update:
+
+user rank
+
+user streak
+
+weekly record document with audit fields
+
+Update season peak:
+
+if new rank higher, update seasonPeak*
+
+17) Season rollover flow (quarterly)
+
+At season end (Cloud Function later; manual admin now):
+
+For each user:
+
+Snapshot:
+
+endSeasonMMR, endSeasonRank, seasonPeakRank
+
+Award badges:
+
+Season rank badge
+
+Season peak badge
+
+Determine reset rank using mapping table (Section 9.4)
+
+Set mmrNewSeason:
+
+midpoint of reset division band (recommended v1)
+
+Write users/{uid}/seasons/{oldSeasonId} summary
+
+Update users/{uid}:
+
+currentSeasonId = newSeasonId
+
+mmr = mmrNewSeason
+
+rankTier/division = reset rank
+
+lp computed
+
+streakWeeks = 0
+
+tierShieldWeeksRemaining = 0
+
+consecutiveMissedWeeks = 0
+
+initialize season peak to current rank
+
+18) UI requirements (to make it feel like LoL)
+
+Show Rank Badge + LP everywhere:
+
+Home header, Profile, Group leaderboard cards
+
+End-of-week recap card:
+
+“+72 MMR (+18 LP)”
+
+“Completed week: ✅”
+
+“Streak: 3 weeks”
+
+“Promotion: Gold III → Gold II” (if occurred)
+
+Demotion risk banner if:
+
+missed week OR consecutiveMissedWeeks >= 1 OR MMR near demotion threshold
+
+Season countdown:
+
+“Season ends in 12 days”
+
+Seasonal badge inventory on Profile.
+
+19) What you can tune (knobs)
+
+If ranking feels too fast/slow:
+
+adjust K (base weekly points)
+
+adjust S (streak multipliers)
+
+adjust D tables/exponents/caps
+
+adjust tier band sizes (narrower = faster promotions)
+
+If penalties feel too harsh:
+
+reduce 0.015 in penalty to 0.01
+
+increase demotion buffers
+
+increase demotion shield weeks to 3
+
+20) Final confirmation (your chosen key decisions)
+
+✅ Goal types: workouts/week, minutes/week, weight loss, weight gain, calorie adherence days
+✅ Difficulty: hybrid; hard goals earn more
+✅ Weight loss: last 10% worth ~2× via 1 + p^3 curve
+✅ Timeline required; outcome compares to timeline target
+✅ Adherence + outcome mix: 70/30
+✅ Missed week: penalty + demotion risk (not crushing)
+✅ Absolute ranks now; later show percentiles
+✅ Quarterly seasons; soft reset; Platinum+ drops 2 tiers
+✅ Promotions instant; demotions buffered + 2-week tier shield
