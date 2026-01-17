@@ -2,6 +2,8 @@ import { doc, onSnapshot, serverTimestamp, setDoc, getDoc } from 'firebase/fires
 
 import { db } from '../firebase/firebase';
 import { upsertMyPublicUser } from './publicUsers';
+import { upsertGoal } from './mmrGoals';
+import { DEFAULT_TZ, yyyyMmDdInTz } from '../mmr/time';
 
 export type UserProfile = {
   uid: string;
@@ -12,6 +14,12 @@ export type UserProfile = {
   age: number | null;
   weightCurrent: number | null;
   weightGoal: number | null;
+  weightTargetDate: string | null; // YYYY-MM-DD
+  // User-level goals (persist across groups)
+  dailyCalorieGoal?: number | null;
+  workoutsPerWeek?: number | null;
+  logCaloriesDaysPerWeek?: number | null;
+  logWeightDaysPerWeek?: number | null;
 };
 
 export function subscribeMyProfile(
@@ -36,6 +44,11 @@ export function subscribeMyProfile(
         age: data.age ?? null,
         weightCurrent: data.weightCurrent ?? null,
         weightGoal: data.weightGoal ?? null,
+        weightTargetDate: data.weightTargetDate ?? null,
+        dailyCalorieGoal: typeof data.dailyCalorieGoal === 'number' ? data.dailyCalorieGoal : null,
+        workoutsPerWeek: typeof data.workoutsPerWeek === 'number' ? data.workoutsPerWeek : null,
+        logCaloriesDaysPerWeek: typeof data.logCaloriesDaysPerWeek === 'number' ? data.logCaloriesDaysPerWeek : null,
+        logWeightDaysPerWeek: typeof data.logWeightDaysPerWeek === 'number' ? data.logWeightDaysPerWeek : null,
       });
     },
     onError,
@@ -50,6 +63,11 @@ export async function updateMyProfile(params: {
   age?: number | null;
   weightCurrent?: number | null;
   weightGoal?: number | null;
+  weightTargetDate?: string | null; // YYYY-MM-DD
+  dailyCalorieGoal?: number | null;
+  workoutsPerWeek?: number | null;
+  logCaloriesDaysPerWeek?: number | null;
+  logWeightDaysPerWeek?: number | null;
 }) {
   // Important: treat `undefined` as "no change". Only explicit `null` clears a field.
   const patch: Record<string, unknown> = { updatedAt: serverTimestamp() };
@@ -59,6 +77,11 @@ export async function updateMyProfile(params: {
   if (params.age !== undefined) patch.age = params.age;
   if (params.weightCurrent !== undefined) patch.weightCurrent = params.weightCurrent;
   if (params.weightGoal !== undefined) patch.weightGoal = params.weightGoal;
+  if (params.weightTargetDate !== undefined) patch.weightTargetDate = params.weightTargetDate;
+  if (params.dailyCalorieGoal !== undefined) patch.dailyCalorieGoal = params.dailyCalorieGoal;
+  if (params.workoutsPerWeek !== undefined) patch.workoutsPerWeek = params.workoutsPerWeek;
+  if (params.logCaloriesDaysPerWeek !== undefined) patch.logCaloriesDaysPerWeek = params.logCaloriesDaysPerWeek;
+  if (params.logWeightDaysPerWeek !== undefined) patch.logWeightDaysPerWeek = params.logWeightDaysPerWeek;
 
   await setDoc(doc(db, 'users', params.uid), patch, { merge: true });
 
@@ -70,8 +93,66 @@ export async function updateMyProfile(params: {
   if (params.age !== undefined) publicPatch.age = params.age;
   if (params.weightCurrent !== undefined) publicPatch.weightCurrent = params.weightCurrent;
   if (params.weightGoal !== undefined) publicPatch.weightGoal = params.weightGoal;
+  if (params.dailyCalorieGoal !== undefined) publicPatch.dailyCalorieGoal = params.dailyCalorieGoal;
+  if (params.workoutsPerWeek !== undefined) publicPatch.workoutsPerWeek = params.workoutsPerWeek;
+  if (params.logCaloriesDaysPerWeek !== undefined) publicPatch.logCaloriesDaysPerWeek = params.logCaloriesDaysPerWeek;
+  if (params.logWeightDaysPerWeek !== undefined) publicPatch.logWeightDaysPerWeek = params.logWeightDaysPerWeek;
 
   await upsertMyPublicUser(params.uid, publicPatch);
+
+  // Optional: if user explicitly set/cleared a weight target date or goal weight, sync it into the MMR weight timeline goal.
+  // This keeps "Edit profile" as the simplest place to define a weight timeline.
+  if (params.weightGoal !== undefined || params.weightTargetDate !== undefined) {
+    const snap = await getDoc(doc(db, 'users', params.uid));
+    const u = snap.exists() ? ((snap.data() as any) ?? {}) : {};
+    const weightGoal = u.weightGoal as number | null | undefined;
+    const targetDate = (u.weightTargetDate as string | null | undefined) ?? null;
+
+    // If either is missing/cleared, pause both weight goals.
+    if (!weightGoal || !targetDate) {
+      await Promise.all([
+        upsertGoal(params.uid, 'weightLoss', { type: 'weightLoss', status: 'paused' }),
+        upsertGoal(params.uid, 'weightGain', { type: 'weightGain', status: 'paused' }),
+      ]);
+      return;
+    }
+
+    // Start of timeline: lock in start date + start weight when first enabled.
+    const today = yyyyMmDdInTz(new Date(), DEFAULT_TZ);
+    const startDate = (u.weightGoalStartDate as string | null | undefined) ?? today;
+    const startWeight = (u.weightGoalStartWeight as number | null | undefined) ?? (u.weightCurrent as number | null | undefined);
+
+    if (!startWeight || startWeight <= 0) {
+      // Can't build a timeline without a start weight; pause until user sets current weight.
+      await Promise.all([
+        upsertGoal(params.uid, 'weightLoss', { type: 'weightLoss', status: 'paused' }),
+        upsertGoal(params.uid, 'weightGain', { type: 'weightGain', status: 'paused' }),
+      ]);
+      return;
+    }
+
+    // Persist locked timeline anchors if missing.
+    const anchorsPatch: Record<string, unknown> = {};
+    if (u.weightGoalStartDate == null) anchorsPatch.weightGoalStartDate = startDate;
+    if (u.weightGoalStartWeight == null) anchorsPatch.weightGoalStartWeight = startWeight;
+    if (Object.keys(anchorsPatch).length) {
+      await setDoc(doc(db, 'users', params.uid), anchorsPatch, { merge: true });
+    }
+
+    const isLoss = weightGoal < startWeight;
+    const activeId = isLoss ? 'weightLoss' : 'weightGain';
+    const inactiveId = isLoss ? 'weightGain' : 'weightLoss';
+
+    await upsertGoal(params.uid, activeId, {
+      type: activeId,
+      status: 'active',
+      startWeight,
+      goalWeight: weightGoal,
+      startDate,
+      targetEndDate: targetDate,
+    });
+    await upsertGoal(params.uid, inactiveId, { type: inactiveId, status: 'paused' });
+  }
 }
 
 export type PublicMemberProfile = {
@@ -97,6 +178,10 @@ export async function syncMyMemberProfileToAllGroups(uid: string) {
   if (data.age !== undefined) patch.age = data.age;
   if (data.weightCurrent !== undefined) patch.weightCurrent = data.weightCurrent;
   if (data.weightGoal !== undefined) patch.weightGoal = data.weightGoal;
+  if (data.dailyCalorieGoal !== undefined) patch.dailyCalorieGoal = data.dailyCalorieGoal;
+  if (data.workoutsPerWeek !== undefined) patch.workoutsPerWeek = data.workoutsPerWeek;
+  if (data.logCaloriesDaysPerWeek !== undefined) patch.logCaloriesDaysPerWeek = data.logCaloriesDaysPerWeek;
+  if (data.logWeightDaysPerWeek !== undefined) patch.logWeightDaysPerWeek = data.logWeightDaysPerWeek;
   await upsertMyPublicUser(uid, patch);
 }
 

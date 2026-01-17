@@ -68,6 +68,7 @@ export async function upsertUserWorkoutHistoryFromGroupLog(params: {
     workoutType: params.workoutType,
     durationMinutes: params.durationMinutes,
     ts: serverTimestamp(),
+    source: 'self_reported',
   });
 }
 
@@ -104,6 +105,7 @@ export async function upsertUserWeightHistoryFromGroupLog(params: {
     date: normalizeLogDate(params.date),
     weight: params.weight,
     ts: serverTimestamp(),
+    source: 'self_reported',
   });
 }
 

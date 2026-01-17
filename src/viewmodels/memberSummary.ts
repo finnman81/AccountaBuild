@@ -1,17 +1,20 @@
 import { friendlyNameFromDisplayName } from '../utils/formatters';
 import type { GroupLog, WorkoutType } from '../services/logs';
-import type { UserGoals } from '../services/goals';
+import type { Tier } from '../mmr/types';
 
 export type MemberLike = {
   uid: string;
   displayName?: string | null;
   photoURL?: string | null;
+  rankTier?: Tier | null;
+  dailyCalorieGoal?: number | null;
 };
 
 export type MemberSummary = {
   uid: string;
   name: string;
   photoURL: string | null;
+  rankTier: Tier | null;
   caloriesLoggedToday: number;
   caloriesRemaining: number | null;
   workoutMinutesToday: number;
@@ -34,15 +37,11 @@ function toMillis(ts: any | null): number | null {
 
 export function buildMemberSummaries(params: {
   members: MemberLike[];
-  goals: UserGoals[];
   logs: GroupLog[];
   todayYYYYMMDD: string;
   weekStart: Date;
   workoutLabel: (t: WorkoutType | unknown) => string;
 }): MemberSummary[] {
-  const goalsByUid: Record<string, UserGoals> = {};
-  for (const g of params.goals) goalsByUid[g.uid] = g;
-
   const caloriesToday: Record<string, number> = {};
   const workoutMinsToday: Record<string, number> = {};
   const workoutMinsWeek: Record<string, number> = {};
@@ -98,7 +97,7 @@ export function buildMemberSummaries(params: {
 
   const out: MemberSummary[] = params.members.map((m) => {
     const name = friendlyNameFromDisplayName(m.displayName ?? null, m.uid);
-    const goal = Number(goalsByUid[m.uid]?.dailyCalorieGoal ?? 0);
+    const goal = Number(m.dailyCalorieGoal ?? 0);
     const logged = Math.round(caloriesToday[m.uid] ?? 0);
     const remaining = Number.isFinite(goal) && goal > 0 ? Math.max(0, Math.round(goal - logged)) : null;
     const mins = Math.round(workoutMinsToday[m.uid] ?? 0);
@@ -113,6 +112,7 @@ export function buildMemberSummaries(params: {
       uid: m.uid,
       name,
       photoURL: (m.photoURL ?? '').trim() || null,
+      rankTier: (m.rankTier ?? null) as Tier | null,
       caloriesLoggedToday: logged,
       caloriesRemaining: remaining,
       workoutMinutesToday: mins,

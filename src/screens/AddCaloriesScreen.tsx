@@ -1,7 +1,9 @@
 import React, { useContext, useEffect, useState } from 'react';
-import { KeyboardAvoidingView, Platform, View } from 'react-native';
+import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, TouchableWithoutFeedback, View } from 'react-native';
 import { Button, Card, Menu, Text, TextInput } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useHeaderHeight } from '@react-navigation/elements';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { RootStackParamList } from '../navigation/types';
 import { AuthContext } from '../store/AuthContext';
@@ -15,6 +17,8 @@ type Props = NativeStackScreenProps<RootStackParamList, 'AddCalories'>;
 export default function AddCaloriesScreen({ route, navigation }: Props) {
   const { user } = useContext(AuthContext);
   const { groupId, edit } = route.params;
+  const headerHeight = useHeaderHeight();
+  const insets = useSafeAreaInsets();
   const [logDate, setLogDate] = useState(todayYYYYMMDD());
   const [calories, setCalories] = useState('');
   const [meal, setMeal] = useState<MealType>('all');
@@ -85,70 +89,79 @@ export default function AddCaloriesScreen({ route, navigation }: Props) {
   };
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <View style={{ flex: 1, padding: 16, justifyContent: 'center' }}>
-        <Card>
-          <Card.Title title={edit?.logId ? 'Edit calories' : 'Log calories'} subtitle="Add entries anytime during the day" />
-          <Card.Content>
-            <LogDateField value={logDate} onChange={setLogDate} disabled={isSubmitting} />
-            <View style={{ height: 12 }} />
-            <TextInput
-              label="Calories"
-              keyboardType="number-pad"
-              value={calories}
-              onChangeText={setCalories}
-              disabled={isSubmitting}
-            />
-            <View style={{ height: 12 }} />
-            <Text variant="labelMedium">Meal</Text>
-            <View style={{ height: 8 }} />
-            <Menu
-              visible={mealMenuVisible}
-              onDismiss={() => setMealMenuVisible(false)}
-              anchor={
-                <Button
-                  mode="outlined"
-                  disabled={isSubmitting}
-                  onPress={() => setMealMenuVisible(true)}
-                  contentStyle={{ justifyContent: 'space-between' }}
-                  icon="chevron-down"
-                >
-                  {mealLabel(meal)}
-                </Button>
-              }
-            >
-              {(['breakfast', 'lunch', 'dinner', 'snack', 'all'] as MealType[]).map((m) => (
-                <Menu.Item
-                  key={m}
-                  title={mealLabel(m)}
-                  onPress={() => {
-                    setMeal(m);
-                    setMealMenuVisible(false);
-                  }}
-                />
-              ))}
-            </Menu>
-            <View style={{ height: 12 }} />
-            <TextInput
-              label="Note (optional)"
-              value={note}
-              onChangeText={setNote}
-              disabled={isSubmitting}
-              multiline
-            />
-            {error ? (
-              <>
-                <View style={{ height: 12 }} />
-                <Text style={{ color: 'crimson' }}>{error}</Text>
-              </>
-            ) : null}
-            <View style={{ height: 16 }} />
-            <Button mode="contained" onPress={onSubmit} loading={isSubmitting} disabled={isSubmitting}>
-              {edit?.logId ? 'Update' : 'Save'}
-            </Button>
-          </Card.Content>
-        </Card>
-      </View>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={headerHeight}
+    >
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={Platform.OS === 'ios' ? 'on-drag' : 'none'}
+          contentContainerStyle={{
+            flexGrow: 1,
+            padding: 16,
+            paddingBottom: 16 + insets.bottom,
+            justifyContent: 'center',
+          }}
+        >
+          <Card>
+            <Card.Title title={edit?.logId ? 'Edit calories' : 'Log calories'} subtitle="Add entries anytime during the day" />
+            <Card.Content>
+              <LogDateField value={logDate} onChange={setLogDate} disabled={isSubmitting} />
+              <View style={{ height: 12 }} />
+              <TextInput
+                label="Calories"
+                keyboardType="number-pad"
+                value={calories}
+                onChangeText={setCalories}
+                disabled={isSubmitting}
+              />
+              <View style={{ height: 12 }} />
+              <Text variant="labelMedium">Meal</Text>
+              <View style={{ height: 8 }} />
+              <Menu
+                visible={mealMenuVisible}
+                onDismiss={() => setMealMenuVisible(false)}
+                anchor={
+                  <Button
+                    mode="outlined"
+                    disabled={isSubmitting}
+                    onPress={() => setMealMenuVisible(true)}
+                    contentStyle={{ justifyContent: 'space-between' }}
+                    icon="chevron-down"
+                  >
+                    {mealLabel(meal)}
+                  </Button>
+                }
+              >
+                {(['breakfast', 'lunch', 'dinner', 'snack', 'all'] as MealType[]).map((m) => (
+                  <Menu.Item
+                    key={m}
+                    title={mealLabel(m)}
+                    onPress={() => {
+                      setMeal(m);
+                      setMealMenuVisible(false);
+                    }}
+                  />
+                ))}
+              </Menu>
+              <View style={{ height: 12 }} />
+              <TextInput label="Note (optional)" value={note} onChangeText={setNote} disabled={isSubmitting} multiline />
+              {error ? (
+                <>
+                  <View style={{ height: 12 }} />
+                  <Text style={{ color: 'crimson' }}>{error}</Text>
+                </>
+              ) : null}
+              <View style={{ height: 16 }} />
+              <Button mode="contained" onPress={onSubmit} loading={isSubmitting} disabled={isSubmitting}>
+                {edit?.logId ? 'Update' : 'Save'}
+              </Button>
+            </Card.Content>
+          </Card>
+        </ScrollView>
+      </TouchableWithoutFeedback>
     </KeyboardAvoidingView>
   );
 }

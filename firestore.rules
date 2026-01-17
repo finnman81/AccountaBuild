@@ -31,6 +31,36 @@ service cloud.firestore {
       match /workouts/{entryId} {
         allow read, write: if signedIn() && request.auth.uid == uid;
       }
+      // Global MMR system (v1 beta): private per-user state + inputs.
+      match /goals/{goalId} {
+        allow read, write: if signedIn() && request.auth.uid == uid;
+      }
+      match /weekly/{weekId} {
+        allow read, write: if signedIn() && request.auth.uid == uid;
+      }
+      // Daily calorie adherence toggle: users/{uid}/calorieDays/{YYYY-MM-DD}
+      match /calorieDays/{dateId} {
+        allow read, write: if signedIn() && request.auth.uid == uid;
+      }
+      // Earned badges + season snapshots (private, v1 beta)
+      match /badges/{badgeId} {
+        allow read, write: if signedIn() && request.auth.uid == uid;
+      }
+      match /seasonResults/{seasonId} {
+        allow read, write: if signedIn() && request.auth.uid == uid;
+      }
+      // Per-season snapshot (legacy-spec aligned): users/{uid}/seasons/{seasonId}
+      match /seasons/{seasonId} {
+        allow read, write: if signedIn() && request.auth.uid == uid;
+      }
+    }
+
+    // Global season metadata (for countdown / UI). Any signed-in user can read.
+    // In beta, allow create by any signed-in user; updates/deletes only by the creator.
+    match /globalSeasons/{seasonId} {
+      allow read: if signedIn();
+      allow create: if signedIn();
+      allow update, delete: if signedIn() && request.auth.uid == resource.data.createdBy;
     }
 
     // Public user profiles, readable only if the viewer shares a group with the target user.
@@ -90,6 +120,15 @@ service cloud.firestore {
         allow read: if isGroupMember(groupId);
         allow create: if isGroupMember(groupId);
         allow update, delete: if signedIn() && request.auth.uid == resource.data.uid;
+      }
+
+      match /issues/{issueId} {
+        allow read: if isGroupMember(groupId);
+        allow create: if isGroupMember(groupId);
+        // Only admins can toggle resolved status
+        allow update: if isGroupAdmin(groupId) &&
+          request.resource.data.diff(resource.data).changedKeys().hasOnly(['resolved', 'resolvedBy', 'resolvedAt']);
+        allow delete: if signedIn() && request.auth.uid == resource.data.uid;
       }
     }
   }

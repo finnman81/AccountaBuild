@@ -1,17 +1,24 @@
 import { MD3DarkTheme, configureFonts } from 'react-native-paper';
+import { colors as themeColors } from './colors';
 
-// Dark charcoal base + electric blue primary + muted red secondary
+// Use theme tokens for core colors, maintain react-native-paper compatibility
 const colors = {
-  primary: '#3B82F6', // electric-ish blue
-  secondary: '#E05A5A', // muted red
-  background: '#121212', // charcoal
-  surface: '#1A1A1A',
-  surfaceVariant: '#242424',
-  outline: '#3A3A3A',
+  primary: themeColors.primary,
+  secondary: '#E05A5A', // muted red (kept for backward compat)
+  background: themeColors.background,
+  surface: themeColors.surface,
+  surfaceVariant: themeColors.surface2,
+  outline: themeColors.divider,
   onPrimary: '#0B1020',
   onSecondary: '#1A0B0B',
-  onBackground: '#E8E8E8',
-  onSurface: '#E8E8E8',
+  onBackground: themeColors.textPrimary,
+  onSurface: themeColors.textPrimary,
+  // Additional react-native-paper required colors
+  onSurfaceVariant: themeColors.textSecondary,
+  outlineVariant: themeColors.divider,
+  backdrop: 'rgba(0, 0, 0, 0.5)',
+  secondaryContainer: themeColors.surface2,
+  onSecondaryContainer: themeColors.textPrimary,
 };
 
 const fontConfig = {

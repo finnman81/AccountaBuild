@@ -15,6 +15,7 @@ import AddWeightScreen from '../screens/AddWeightScreen';
 import AddPhotoScreen from '../screens/AddPhotoScreen';
 import LogTodayScreen from '../screens/LogTodayScreen';
 import EditProfileScreen from '../screens/EditProfileScreen';
+import MMRGoalsScreen from '../screens/MMRGoalsScreen';
 import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
 import { RootStackParamList } from './types';
@@ -81,6 +82,7 @@ export default function AppNavigator() {
               component={EditProfileScreen}
               options={{ title: 'Edit profile', presentation: 'modal' }}
             />
+            <Stack.Screen name="MMRGoals" component={MMRGoalsScreen} options={{ title: 'Goals', presentation: 'modal' }} />
           </>
         ) : (
           <>

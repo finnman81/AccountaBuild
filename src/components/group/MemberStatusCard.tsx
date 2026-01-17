@@ -4,6 +4,8 @@ import { Card, Chip, Text, useTheme } from 'react-native-paper';
 
 import { formatDeltaLb, formatMinutesHM, formatWeightLb } from '../../utils/formatters';
 import type { MemberSummary } from '../../viewmodels/memberSummary';
+import RankBadge from '../mmr/RankBadge';
+import Tag from '../ui/Tag';
 
 function initialsFromName(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -48,11 +50,7 @@ export default function MemberStatusCard({
     };
   }, [item.caloriesRemaining, item.weightDelta, item.workoutMinutesThisWeek, mode]);
 
-  const statusPill = useMemo(() => {
-    const bg = item.loggedToday ? theme.colors.secondaryContainer : theme.colors.surfaceVariant;
-    const fg = item.loggedToday ? theme.colors.onSecondaryContainer : theme.colors.onSurfaceVariant;
-    return { bg, fg, label: item.loggedToday ? 'Logged' : 'No log' };
-  }, [item.loggedToday, theme.colors.onSecondaryContainer, theme.colors.onSurfaceVariant, theme.colors.secondaryContainer, theme.colors.surfaceVariant]);
+  const statusPillLabel = item.loggedToday ? 'Logged' : 'No log';
 
   return (
     <Card>
@@ -84,20 +82,15 @@ export default function MemberStatusCard({
             </View>
           )}
           <View style={{ flex: 1 }}>
-            <Text variant="titleMedium">{item.name}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Text variant="titleMedium">{item.name}</Text>
+              {item.rankTier ? <RankBadge tier={item.rankTier} size={70} /> : null}
+            </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
-              <View
-                style={{
-                  paddingHorizontal: 10,
-                  paddingVertical: 4,
-                  borderRadius: 999,
-                  backgroundColor: statusPill.bg,
-                }}
-              >
-                <Text variant="labelSmall" style={{ color: statusPill.fg }}>
-                  {statusPill.label}
-                </Text>
-              </View>
+              <Tag
+                label={statusPillLabel}
+                variant={item.loggedToday ? 'subtle' : 'noLog'}
+              />
               {chips.workoutTag ? (
                 <Chip compact mode="outlined">
                   {chips.workoutTag}
@@ -116,6 +109,8 @@ export default function MemberStatusCard({
             borderRadius: 12,
             padding: 12,
             backgroundColor: theme.colors.surfaceVariant,
+            borderWidth: 1,
+            borderColor: 'rgba(255, 255, 255, 0.04)',
           }}
         >
           <Text variant="labelSmall" style={{ opacity: 0.75 }}>
