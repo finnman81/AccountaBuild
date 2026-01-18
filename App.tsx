@@ -8,6 +8,7 @@ import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold } from '@expo-goog
 import AppNavigator from './src/navigation/AppNavigator';
 import { AuthProvider } from './src/store/AuthContext';
 import { ActiveGroupProvider } from './src/store/ActiveGroupContext';
+import { NotificationProvider } from './src/components/notifications/NotificationProvider';
 import { appTheme } from './src/theme/theme';
 
 export default function App() {
@@ -28,10 +29,12 @@ export default function App() {
   return (
     <AuthProvider>
       <ActiveGroupProvider>
-        <PaperProvider theme={appTheme}>
-          <AppNavigator />
-          <StatusBar style="light" />
-        </PaperProvider>
+        <NotificationProvider>
+          <PaperProvider theme={appTheme}>
+            <AppNavigator />
+            <StatusBar style="light" />
+          </PaperProvider>
+        </NotificationProvider>
       </ActiveGroupProvider>
     </AuthProvider>
   );

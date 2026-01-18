@@ -17,7 +17,8 @@
       "bundleIdentifier": "com.accountabuild.app",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
-      }
+      },
+      "notificationMode": "production"
     },
     "android": {
       "package": "com.accountabuild.app",
@@ -32,7 +33,15 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-font"
+      "expo-font",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#ffffff",
+          "sounds": []
+        }
+      ]
     ],
     "extra": {
       "eas": {
