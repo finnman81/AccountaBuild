@@ -3,6 +3,7 @@ import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, TouchableWithoutF
 import { Button, Card, List, Modal, Portal, Text, TextInput, useTheme } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { clearBadge } from '../services/notifications';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -101,6 +102,8 @@ export default function AddWorkoutScreen({ route, navigation }: Props) {
           source: 'self_reported',
         });
       }
+      // Clear notification badge since user logged a workout
+      await clearBadge();
       navigation.goBack();
     } catch (e) {
       setError(edit?.logId ? 'Failed to update workout.' : 'Failed to save workout.');

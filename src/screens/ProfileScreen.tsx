@@ -499,10 +499,7 @@ export default function ProfileScreen() {
               {
                 title: 'Notifications',
                 icon: 'bell',
-                description: 'Coming soon',
-                onPress: async () => {
-                  await Haptics.selectionAsync();
-                },
+                onPress: () => nav.navigate('Notifications', undefined),
               },
               {
                 title: 'Units',

@@ -52,6 +52,7 @@ export type ProfileStackParamList = {
   Profile: undefined;
   SeasonHistory: undefined;
   MMRHistory: undefined;
+  Notifications: undefined;
 };
 
 export type TabsParamList = {

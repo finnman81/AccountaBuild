@@ -29,6 +29,7 @@
     "expo-font": "~14.0.10",
     "expo-haptics": "~15.0.8",
     "expo-image-picker": "~17.0.10",
+    "expo-notifications": "~0.29.9",
     "expo-status-bar": "~3.0.9",
     "expo-updates": "~29.0.16",
     "firebase": "^12.7.0",
