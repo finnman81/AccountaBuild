@@ -12,14 +12,17 @@ Notifications.setNotificationHandler({
 });
 
 const REMINDER_MESSAGES = [
-  "Time to log your workout!",
-  "Don't forget to track your progress today!",
-  "Ready to log your workout?",
-  "Keep your streak going - log your workout!",
-  "Your workout log is waiting for you!",
+  "Your rank isn’t locked in yet. Log today to protect your standing.",
+  "Your group is active. Don’t be the one who didn’t log today.",
+  "Still on a streak. Log now to keep it alive.",
+  "Progress beats perfection. Log whatever you did today.",
+  "Quick check-in — log and move on.",
+  "It takes 10 seconds. Your future self will care.",
 ];
 
 const LAST_MESSAGE_INDEX_KEY = 'notification_last_message_index';
+const LAST_SCHEDULED_PREFS_KEY = 'notification_last_scheduled_prefs';
+const LAST_SCHEDULED_DAY_KEY = 'notification_last_scheduled_day';
 
 async function getNextMessageIndex(): Promise<number> {
   try {
@@ -64,15 +67,54 @@ function parseTime(timeStr: string): { hour: number; minute: number } {
   return { hour: hour ?? 9, minute: minute ?? 0 };
 }
 
-export async function scheduleNotifications(): Promise<void> {
+function localDayKey(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function nextOccurrenceDate(timeStr: string, minLeadSeconds: number, startFromTomorrow: boolean): Date {
+  const { hour, minute } = parseTime(timeStr);
+  const now = new Date();
+  const target = new Date(now);
+  target.setHours(hour, minute, 0, 0);
+  // If starting tomorrow, always push to next day.
+  if (startFromTomorrow) {
+    target.setDate(target.getDate() + 1);
+    return target;
+  }
+  // If the target is in the past OR too soon, push to next day
+  const diffMs = target.getTime() - now.getTime();
+  if (target <= now || diffMs <= minLeadSeconds * 1000) {
+    target.setDate(target.getDate() + 1);
+  }
+  return target;
+}
+
+function prefsSignature(prefs: NotificationPreferences) {
+  return JSON.stringify({ enabled: prefs.enabled, count: prefs.count, times: prefs.times });
+}
+
+export async function scheduleNotifications(options?: { force?: boolean; startFromTomorrow?: boolean; minLeadSeconds?: number }): Promise<void> {
   try {
-    // Cancel all existing notifications first
-    await Notifications.cancelAllScheduledNotificationsAsync();
-    
     const prefs = await getNotificationPreferences();
     if (!prefs.enabled) {
       return;
     }
+
+    const signature = prefsSignature(prefs);
+    const lastSignature = await AsyncStorage.getItem(LAST_SCHEDULED_PREFS_KEY);
+    const todayKey = localDayKey(new Date());
+    const lastDayKey = await AsyncStorage.getItem(LAST_SCHEDULED_DAY_KEY);
+    if (!options?.force && lastSignature === signature && lastDayKey === todayKey) {
+      return; // No changes, avoid rescheduling/spam
+    }
+    
+    // Cancel all existing notifications before rescheduling
+    await Notifications.cancelAllScheduledNotificationsAsync();
+    // Clear any already-delivered notifications to avoid immediate bursts
+    await Notifications.dismissAllNotificationsAsync();
     
     const hasPermission = await requestNotificationPermissions();
     if (!hasPermission) {
@@ -80,16 +122,17 @@ export async function scheduleNotifications(): Promise<void> {
       return;
     }
     
-    // Schedule notifications for each time slot
+    // Schedule notifications for each time slot (single fire for next occurrence)
+    // Use a small lead time to avoid immediate "save -> notify" behavior.
+    const minLeadSeconds = options?.minLeadSeconds ?? 120;
     for (let i = 0; i < prefs.count; i++) {
       const timeStr = prefs.times[i];
       if (!timeStr) continue;
-      
-      const { hour, minute } = parseTime(timeStr);
+      const date = nextOccurrenceDate(timeStr, minLeadSeconds, Boolean(options?.startFromTomorrow));
       const messageIndex = await getNextMessageIndex();
       const body = REMINDER_MESSAGES[messageIndex];
       
-      // Create a daily repeating notification
+      // Schedule next occurrence only (no catch-up bursts)
       await Notifications.scheduleNotificationAsync({
         content: {
           title: 'AccountaBuild',
@@ -98,12 +141,13 @@ export async function scheduleNotifications(): Promise<void> {
           badge: 1,
         },
         trigger: {
-          hour,
-          minute,
-          repeats: true,
+          date,
         },
       });
     }
+
+    await AsyncStorage.setItem(LAST_SCHEDULED_PREFS_KEY, signature);
+    await AsyncStorage.setItem(LAST_SCHEDULED_DAY_KEY, todayKey);
   } catch (e) {
     console.error('Failed to schedule notifications:', e);
   }

@@ -15,8 +15,13 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.accountabuild.app",
+      "entitlements": {
+        "com.apple.developer.healthkit": true
+      },
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSHealthShareUsageDescription": "AccountaBuild needs access to your health data to automatically sync workouts, calories, and weight from Apple Health.",
+        "NSHealthUpdateUsageDescription": "AccountaBuild needs permission to read your health data from Apple Health."
       },
       "notificationMode": "production"
     },
@@ -40,6 +45,13 @@
           "icon": "./assets/icon.png",
           "color": "#ffffff",
           "sounds": []
+        }
+      ],
+      [
+        "@kingstinct/react-native-healthkit",
+        {
+          "healthSharePermission": "AccountaBuild needs access to your health data to automatically sync workouts, calories, and weight from Apple Health.",
+          "healthUpdatePermission": "AccountaBuild needs permission to read your health data from Apple Health."
         }
       ]
     ],

@@ -16,6 +16,7 @@ import EmptyState from '../components/state/EmptyState';
 import { HomeStackParamList } from '../navigation/types';
 import { db } from '../firebase/firebase';
 import { AuthContext } from '../store/AuthContext';
+import { useActiveGroup } from '../store/ActiveGroupContext';
 import { GroupLog, subscribeGroupLogs } from '../services/logs';
 import { ensureJoinCodeMapping, subscribeMyGroupMeta } from '../services/groups';
 import { formatHeightInches, formatWeightLb, friendlyNameFromDisplayName } from '../utils/formatters';
@@ -59,17 +60,19 @@ function parseYYYYMMDDLocal(dateYYYYMMDD: string) {
   return new Date(`${dateYYYYMMDD}T00:00:00`);
 }
 
-function weekStartSundayLocal() {
+function weekStartMondayLocal() {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
   const day = d.getDay(); // 0 = Sunday
-  d.setDate(d.getDate() - day);
+  const offset = (day + 6) % 7; // Monday = 0
+  d.setDate(d.getDate() - offset);
   return d;
 }
 
 export default function GroupDetailScreen({ route, navigation }: Props) {
   const { user } = useContext(AuthContext);
   const { groupId } = route.params;
+  const { groups, setActiveGroupId } = useActiveGroup();
   const theme = useTheme();
 
   const [group, setGroup] = useState<GroupDoc | null>(null);
@@ -88,6 +91,11 @@ export default function GroupDetailScreen({ route, navigation }: Props) {
   const [mmrStates, setMmrStates] = useState<Record<string, MmrState>>({});
   const [selectedMember, setSelectedMember] = useState<MemberSummary | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
+
+  // Sync active group when this screen loads
+  useEffect(() => {
+    void setActiveGroupId(groupId);
+  }, [groupId, setActiveGroupId]);
 
   useEffect(() => {
     const unsubGroup = onSnapshot(doc(db, 'groups', groupId), (snap) => {
@@ -207,6 +215,8 @@ export default function GroupDetailScreen({ route, navigation }: Props) {
 
   useEffect(() => {
     setIsLogsLoading(true);
+    // Fetch more logs (250) to ensure we have enough historical data for streak calculation
+    // This covers ~2-3 months of daily logging, which is sufficient for streak calculation
     return subscribeGroupLogs(
       groupId,
       (items) => {
@@ -214,7 +224,7 @@ export default function GroupDetailScreen({ route, navigation }: Props) {
         setIsLogsLoading(false);
       },
       () => setIsLogsLoading(false),
-      50,
+      250,
     );
   }, [groupId]);
 
@@ -407,7 +417,7 @@ export default function GroupDetailScreen({ route, navigation }: Props) {
 
   const rollup = useMemo(() => {
     const today = todayYYYYMMDD();
-    const weekStart = weekStartSundayLocal();
+    const weekStart = weekStartMondayLocal();
 
     const byUid: Record<
       string,
@@ -436,21 +446,57 @@ export default function GroupDetailScreen({ route, navigation }: Props) {
     return byUid;
   }, [logs]);
 
-  const streakDaysThisWeekByUid = useMemo(() => {
-    const weekStart = weekStartSundayLocal();
+  // Calculate continuous streak days (not resetting at week boundary)
+  const streakDaysByUid = useMemo(() => {
+    const today = todayYYYYMMDD();
+    const todayDate = parseYYYYMMDDLocal(today);
     const allowed = streakRule === 'any' ? new Set(['workout', 'calories', 'weight', 'photo']) : new Set(['workout']);
+    
+    // Collect all dates with logs for each user
     const datesByUid: Record<string, Set<string>> = {};
     for (const l of logs) {
       if (!allowed.has(l.type)) continue;
       const d = parseYYYYMMDDLocal(l.date);
-      if (Number.isNaN(d.valueOf()) || d < weekStart) continue;
+      if (Number.isNaN(d.valueOf())) continue;
       datesByUid[l.uid] = datesByUid[l.uid] ?? new Set<string>();
       datesByUid[l.uid].add(l.date);
     }
+    
+    // Calculate continuous streak going backwards from today
     const out: Record<string, number> = {};
-    for (const [uid, set] of Object.entries(datesByUid)) out[uid] = set.size;
+    for (const [uid, dateSet] of Object.entries(datesByUid)) {
+      let streak = 0;
+      let currentDate = new Date(todayDate);
+      let daysChecked = 0;
+      const maxDaysToCheck = 365; // Safety limit: don't check more than a year
+      
+      // Count backwards day by day until we hit a gap
+      while (daysChecked < maxDaysToCheck) {
+        const dateStr = formatYYYYMMDD(currentDate);
+        if (dateSet.has(dateStr)) {
+          streak++;
+          // Move to previous day
+          currentDate.setDate(currentDate.getDate() - 1);
+          daysChecked++;
+        } else {
+          // Found a gap, streak ends
+          break;
+        }
+      }
+      
+      out[uid] = streak;
+    }
+    
     return out;
   }, [logs, streakRule]);
+
+  // Helper function to format date as YYYY-MM-DD
+  function formatYYYYMMDD(date: Date): string {
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const dd = String(date.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  }
 
   const todayWorkoutMinutesByUid = useMemo(() => {
     const today = todayYYYYMMDD();
@@ -558,7 +604,7 @@ export default function GroupDetailScreen({ route, navigation }: Props) {
 
   const memberSummaries = useMemo(() => {
     const today = todayYYYYMMDD();
-    const weekStart = weekStartSundayLocal();
+    const weekStart = weekStartMondayLocal();
     const summaries = buildMemberSummaries({
       members: members.map((m) => ({
         uid: m.uid,
@@ -697,6 +743,44 @@ export default function GroupDetailScreen({ route, navigation }: Props) {
           <PrimaryButton onPress={() => navigation.navigate('LogToday', { groupId })}>Log today</PrimaryButton>
         </Card.Content>
       </Card>
+
+      {/* Group Selector - only show if user has multiple groups */}
+      {groups.length > 1 && (
+        <>
+          <View style={{ height: 16 }} />
+          <Card>
+            <Card.Content>
+              <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: spacing.md }}>
+                Switch Group
+              </Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
+                {groups.map((g) => (
+                  <Button
+                    key={g.groupId}
+                    mode={g.groupId === groupId ? 'contained' : 'outlined'}
+                    compact
+                    onPress={() => {
+                      void setActiveGroupId(g.groupId);
+                      navigation.replace('GroupDetail', { groupId: g.groupId });
+                    }}
+                    style={{
+                      borderRadius: radius.pill,
+                      ...(g.groupId === groupId && {
+                        ...shadow,
+                        shadowOpacity: 0.1,
+                        shadowRadius: 4,
+                        elevation: 1,
+                      }),
+                    }}
+                  >
+                    {g.name}
+                  </Button>
+                ))}
+              </ScrollView>
+            </Card.Content>
+          </Card>
+        </>
+      )}
 
       <View style={{ height: 16 }} />
       <Card>
@@ -917,36 +1001,50 @@ export default function GroupDetailScreen({ route, navigation }: Props) {
               )}
               right={() =>
                 canEdit ? (
-                  <IconButton
-                    icon="pencil"
-                    onPress={() => {
-                      if (l.type === 'calories') {
-                        const c = Number((l.payload as any)?.calories);
-                        const meal = ((l.payload as any)?.meal ?? 'all') as any;
-                        const n = (l.payload as any)?.note ?? null;
-                        if (!Number.isFinite(c) || c <= 0) return;
-                        navigation.navigate('AddCalories', { groupId, edit: { logId: l.id, date: l.date, calories: c, meal, note: n } });
-                        return;
-                      }
-                      if (l.type === 'workout') {
-                        const workoutType = ((l.payload as any)?.workoutType ?? 'weightLifting') as any;
-                        const mins = Number((l.payload as any)?.durationMinutes);
-                        const n = (l.payload as any)?.note ?? null;
-                        if (!Number.isFinite(mins) || mins <= 0) return;
-                        navigation.navigate('AddWorkout', {
-                          groupId,
-                          edit: { logId: l.id, date: l.date, workoutType, durationMinutes: mins, note: n },
-                        });
-                        return;
-                      }
-                      if (l.type === 'weight') {
-                        const w = Number((l.payload as any)?.weight);
-                        const n = (l.payload as any)?.note ?? null;
-                        if (!Number.isFinite(w) || w <= 0) return;
-                        navigation.navigate('AddWeight', { groupId, edit: { logId: l.id, date: l.date, weight: w, note: n } });
-                      }
-                    }}
-                  />
+                  <View style={{ flexDirection: 'row' }}>
+                    <IconButton
+                      icon="delete"
+                      iconColor={theme.colors.error}
+                      onPress={async () => {
+                        try {
+                          const { deleteLog } = await import('../services/logs');
+                          await deleteLog(groupId, l.id);
+                        } catch (error) {
+                          console.error('Failed to delete log:', error);
+                        }
+                      }}
+                    />
+                    <IconButton
+                      icon="pencil"
+                      onPress={() => {
+                        if (l.type === 'calories') {
+                          const c = Number((l.payload as any)?.calories);
+                          const meal = ((l.payload as any)?.meal ?? 'all') as any;
+                          const n = (l.payload as any)?.note ?? null;
+                          if (!Number.isFinite(c) || c <= 0) return;
+                          navigation.navigate('AddCalories', { groupId, edit: { logId: l.id, date: l.date, calories: c, meal, note: n } });
+                          return;
+                        }
+                        if (l.type === 'workout') {
+                          const workoutType = ((l.payload as any)?.workoutType ?? 'weightLifting') as any;
+                          const mins = Number((l.payload as any)?.durationMinutes);
+                          const n = (l.payload as any)?.note ?? null;
+                          if (!Number.isFinite(mins) || mins <= 0) return;
+                          navigation.navigate('AddWorkout', {
+                            groupId,
+                            edit: { logId: l.id, date: l.date, workoutType, durationMinutes: mins, note: n },
+                          });
+                          return;
+                        }
+                        if (l.type === 'weight') {
+                          const w = Number((l.payload as any)?.weight);
+                          const n = (l.payload as any)?.note ?? null;
+                          if (!Number.isFinite(w) || w <= 0) return;
+                          navigation.navigate('AddWeight', { groupId, edit: { logId: l.id, date: l.date, weight: w, note: n } });
+                        }
+                      }}
+                    />
+                  </View>
                 ) : null
               }
             />
@@ -975,7 +1073,7 @@ export default function GroupDetailScreen({ route, navigation }: Props) {
             description={[
               `Role: ${m.role}`,
               (() => {
-                const n = streakDaysThisWeekByUid[m.uid] ?? 0;
+                const n = streakDaysByUid[m.uid] ?? 0;
                 return n > 0 ? `🔥 ${n}-day streak` : `😢 ${n}-day streak`;
               })(),
               `Rank: ${rankLabelFor(m.uid)}`,

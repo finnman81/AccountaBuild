@@ -53,6 +53,10 @@ service cloud.firestore {
       match /seasons/{seasonId} {
         allow read, write: if signedIn() && request.auth.uid == uid;
       }
+      // Health & Fitness integration settings: users/{uid}/healthSettings/{settingsId}
+      match /healthSettings/{settingsId} {
+        allow read, write: if signedIn() && request.auth.uid == uid;
+      }
     }
 
     // Global season metadata (for countdown / UI). Any signed-in user can read.

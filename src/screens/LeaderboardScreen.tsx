@@ -30,11 +30,19 @@ function parseYYYYMMDDLocal(dateYYYYMMDD: string) {
   return new Date(`${dateYYYYMMDD}T00:00:00`);
 }
 
-function weekStartSundayLocal() {
+function formatYYYYMMDD(date: Date): string {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const dd = String(date.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function weekStartMondayLocal() {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
   const day = d.getDay(); // 0 = Sunday
-  d.setDate(d.getDate() - day);
+  const offset = (day + 6) % 7; // Monday = 0
+  d.setDate(d.getDate() - offset);
   return d;
 }
 
@@ -86,21 +94,45 @@ export default function LeaderboardScreen({ route }: Props) {
     return [div ? `${tier} ${roman}` : tier, mpTxt].filter(Boolean).join(' • ');
   };
 
-  const streakDaysThisWeekByUid = useMemo(() => {
-    const weekStart = weekStartSundayLocal();
+  // Calculate continuous streak days (not resetting at week boundary)
+  const streakDaysByUid = useMemo(() => {
+    const today = formatYYYYMMDD(new Date());
+    const todayDate = parseYYYYMMDDLocal(today);
     const rule = (group?.streakRule ?? 'workout') as 'workout' | 'any';
     const allowedTypes = rule === 'any' ? new Set(['workout', 'calories', 'weight', 'photo']) : new Set(['workout']);
 
+    // Collect all dates with logs for each user
     const datesByUid: Record<string, Set<string>> = {};
     for (const l of logs) {
       if (!allowedTypes.has(l.type)) continue;
       const d = parseYYYYMMDDLocal(l.date);
-      if (Number.isNaN(d.valueOf()) || d < weekStart) continue;
+      if (Number.isNaN(d.valueOf())) continue;
       datesByUid[l.uid] = datesByUid[l.uid] ?? new Set<string>();
       datesByUid[l.uid].add(l.date);
     }
+
+    // Calculate continuous streak going backwards from today
     const out: Record<string, number> = {};
-    for (const [uid, set] of Object.entries(datesByUid)) out[uid] = set.size;
+    for (const [uid, dateSet] of Object.entries(datesByUid)) {
+      let streak = 0;
+      let currentDate = new Date(todayDate);
+      
+      // Count backwards day by day until we hit a gap
+      while (true) {
+        const dateStr = formatYYYYMMDD(currentDate);
+        if (dateSet.has(dateStr)) {
+          streak++;
+          // Move to previous day
+          currentDate.setDate(currentDate.getDate() - 1);
+        } else {
+          // Found a gap, streak ends
+          break;
+        }
+      }
+      
+      out[uid] = streak;
+    }
+    
     return out;
   }, [group?.streakRule, logs]);
 
@@ -112,7 +144,7 @@ export default function LeaderboardScreen({ route }: Props) {
       const name = friendlyNameFromDisplayName(p?.displayName ?? null, uid);
       const mmr = typeof (p as any)?.mmrPublic === 'number' ? Number((p as any).mmrPublic) : null;
       const tier = asTier((p as any)?.rankTierPublic);
-      const streakDays = streakDaysThisWeekByUid[uid] ?? 0;
+      const streakDays = streakDaysByUid[uid] ?? 0;
       return { uid, name, mmr, tier, rankLabel: rankLabelFor(uid), photoURL: p?.photoURL ?? null, streakDays };
     });
 
