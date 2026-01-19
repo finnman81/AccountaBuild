@@ -1,6 +1,6 @@
-import React, { useContext, useEffect, useState } from 'react';
-import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, Switch, TouchableWithoutFeedback, View } from 'react-native';
-import { Button, Card, SegmentedButtons, Text, TextInput, useTheme } from 'react-native-paper';
+import React, { useContext, useEffect, useRef, useState } from 'react';
+import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, Switch, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
+import { Button, Card, Modal, Portal, Text, useTheme } from 'react-native-paper';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -23,13 +23,35 @@ export default function NotificationsScreen() {
   const insets = useSafeAreaInsets();
 
   const [enabled, setEnabled] = useState(true);
-  const [count, setCount] = useState<1 | 2 | 3>(3);
+  const [count, setCount] = useState<1 | 2 | 3 | 4 | 5>(3);
   const [times, setTimes] = useState<string[]>(['09:00', '12:00', '21:00']);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
   const [permissionStatus, setPermissionStatus] = useState<string>('undetermined');
   const [loading, setLoading] = useState(true);
+  const [countModalVisible, setCountModalVisible] = useState(false);
+  const [tempCount, setTempCount] = useState<1 | 2 | 3 | 4 | 5>(3);
+  const countScrollRef = useRef<ScrollView>(null);
+
+  const countOptions: Array<1 | 2 | 3 | 4 | 5> = [1, 2, 3, 4, 5];
+  const COUNT_ITEM_HEIGHT = 44;
+
+  const getDefaultTimes = (nextCount: number) => {
+    if (nextCount === 1) return ['09:00'];
+    if (nextCount === 2) return ['09:00', '21:00'];
+    if (nextCount === 3) return ['09:00', '12:00', '21:00'];
+    // Evenly distribute between 09:00 and 21:00 (inclusive)
+    const startHour = 9;
+    const endHour = 21;
+    const interval = (endHour - startHour) / (nextCount - 1);
+    const out: string[] = [];
+    for (let i = 0; i < nextCount; i += 1) {
+      const hour = Math.round(startHour + interval * i);
+      out.push(`${String(hour).padStart(2, '0')}:00`);
+    }
+    return out;
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -53,6 +75,21 @@ export default function NotificationsScreen() {
     const newTimes = [...times];
     newTimes[index] = value;
     setTimes(newTimes);
+  };
+
+  const applyCountChange = (nextCount: 1 | 2 | 3 | 4 | 5) => {
+    setCount(nextCount);
+    if (nextCount >= 4) {
+      setTimes(getDefaultTimes(nextCount));
+      return;
+    }
+    // Keep existing times where possible
+    const newTimes = [...times];
+    while (newTimes.length < nextCount) {
+      const defaults = getDefaultTimes(nextCount);
+      newTimes.push(defaults[newTimes.length] ?? '09:00');
+    }
+    setTimes(newTimes.slice(0, nextCount));
   };
 
   const save = async () => {
@@ -86,8 +123,9 @@ export default function NotificationsScreen() {
           setSaving(false);
           return;
         }
-        // Schedule notifications
-        await scheduleNotifications();
+        // Schedule notifications (force re-schedule on save)
+        // Allow later-today notifications, but avoid immediate bursts.
+        await scheduleNotifications({ force: true, startFromTomorrow: false, minLeadSeconds: 300 });
       } else {
         // Cancel all notifications
         await cancelAllNotifications();
@@ -160,25 +198,30 @@ export default function NotificationsScreen() {
               {enabled && (
                 <>
                   <Text variant="titleMedium" style={{ marginBottom: 8 }}>Notifications per day</Text>
-                  <SegmentedButtons
-                    value={String(count)}
-                    onValueChange={(v) => {
-                      const newCount = Number(v) as 1 | 2 | 3;
-                      setCount(newCount);
-                      // Ensure we have enough times
-                      const newTimes = [...times];
-                      while (newTimes.length < newCount) {
-                        newTimes.push('09:00');
-                      }
-                      setTimes(newTimes);
+                  <TouchableOpacity
+                    onPress={() => {
+                      setTempCount(count);
+                      setCountModalVisible(true);
+                      requestAnimationFrame(() => {
+                        const idx = countOptions.indexOf(count);
+                        if (countScrollRef.current && idx >= 0) {
+                          countScrollRef.current.scrollTo({ y: idx * COUNT_ITEM_HEIGHT, animated: false });
+                        }
+                      });
                     }}
-                    buttons={[
-                      { value: '1', label: '1' },
-                      { value: '2', label: '2' },
-                      { value: '3', label: '3' },
-                    ]}
                     disabled={saving || !canEdit}
-                  />
+                    style={{
+                      backgroundColor: theme.colors.surfaceVariant,
+                      borderColor: theme.colors.outline,
+                      borderWidth: 1,
+                      borderRadius: 10,
+                      paddingVertical: 12,
+                      paddingHorizontal: 16,
+                      marginBottom: 16,
+                    }}
+                  >
+                    <Text variant="titleMedium">{count}</Text>
+                  </TouchableOpacity>
 
                   <View style={{ height: 16 }} />
 
@@ -229,6 +272,84 @@ export default function NotificationsScreen() {
           </Card>
         </ScrollView>
       </TouchableWithoutFeedback>
+      <Portal>
+        <Modal
+          visible={countModalVisible}
+          onDismiss={() => setCountModalVisible(false)}
+          contentContainerStyle={{
+            margin: 20,
+            borderRadius: 16,
+            padding: 20,
+            backgroundColor: theme.colors.surface,
+          }}
+        >
+          <Text variant="titleLarge" style={{ marginBottom: 16 }}>
+            Notifications per day
+          </Text>
+          <View
+            style={{
+              height: COUNT_ITEM_HEIGHT * 5,
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: theme.colors.outline,
+              overflow: 'hidden',
+              backgroundColor: theme.colors.surface,
+            }}
+          >
+            <ScrollView
+              ref={countScrollRef}
+              showsVerticalScrollIndicator={false}
+              snapToInterval={COUNT_ITEM_HEIGHT}
+              decelerationRate="fast"
+              contentContainerStyle={{
+                paddingVertical: COUNT_ITEM_HEIGHT * 2,
+              }}
+              onMomentumScrollEnd={(e) => {
+                const offsetY = e?.nativeEvent?.contentOffset?.y ?? 0;
+                const idx = Math.round(offsetY / COUNT_ITEM_HEIGHT);
+                const clampedIdx = Math.max(0, Math.min(idx, countOptions.length - 1));
+                const next = countOptions[clampedIdx] ?? 3;
+                setTempCount(next);
+                countScrollRef.current?.scrollTo({ y: clampedIdx * COUNT_ITEM_HEIGHT, animated: true });
+              }}
+            >
+              {countOptions.map((opt) => {
+                const isSelected = opt === tempCount;
+                return (
+                  <TouchableOpacity
+                    key={opt}
+                    onPress={() => setTempCount(opt)}
+                    style={{
+                      height: COUNT_ITEM_HEIGHT,
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      backgroundColor: isSelected ? 'rgba(59, 130, 246, 0.2)' : 'transparent',
+                    }}
+                  >
+                    <Text variant="titleLarge" style={{ color: isSelected ? theme.colors.primary : theme.colors.onSurface }}>
+                      {opt}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+          <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 16, gap: 12 }}>
+            <Button mode="text" onPress={() => setCountModalVisible(false)}>
+              Cancel
+            </Button>
+            <Button
+              mode="contained"
+              onPress={() => {
+                applyCountChange(tempCount);
+                setCountModalVisible(false);
+              }}
+            >
+              Done
+            </Button>
+          </View>
+        </Modal>
+      </Portal>
     </KeyboardAvoidingView>
   );
 }

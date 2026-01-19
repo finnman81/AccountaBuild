@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export interface NotificationPreferences {
   enabled: boolean;
-  count: 1 | 2 | 3;
+  count: 1 | 2 | 3 | 4 | 5;
   times: string[]; // HH:mm format, local time
 }
 
@@ -21,8 +21,10 @@ export async function getNotificationPreferences(): Promise<NotificationPreferen
     // Validate and merge with defaults
     return {
       enabled: parsed.enabled ?? DEFAULT_PREFERENCES.enabled,
-      count: (parsed.count === 1 || parsed.count === 2 || parsed.count === 3) ? parsed.count : DEFAULT_PREFERENCES.count,
-      times: Array.isArray(parsed.times) && parsed.times.length > 0 
+      count: (parsed.count === 1 || parsed.count === 2 || parsed.count === 3 || parsed.count === 4 || parsed.count === 5)
+        ? parsed.count
+        : DEFAULT_PREFERENCES.count,
+      times: Array.isArray(parsed.times) && parsed.times.length > 0
         ? parsed.times.slice(0, parsed.count ?? 3)
         : DEFAULT_PREFERENCES.times,
     };

@@ -9,6 +9,7 @@ import AppNavigator from './src/navigation/AppNavigator';
 import { AuthProvider } from './src/store/AuthContext';
 import { ActiveGroupProvider } from './src/store/ActiveGroupContext';
 import { NotificationProvider } from './src/components/notifications/NotificationProvider';
+import HealthAutoSync from './src/components/health/HealthAutoSync';
 import { appTheme } from './src/theme/theme';
 
 export default function App() {
@@ -32,6 +33,7 @@ export default function App() {
         <NotificationProvider>
           <PaperProvider theme={appTheme}>
             <AppNavigator />
+            <HealthAutoSync />
             <StatusBar style="light" />
           </PaperProvider>
         </NotificationProvider>

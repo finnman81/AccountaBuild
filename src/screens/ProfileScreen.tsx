@@ -33,11 +33,12 @@ import RankDetailsModal from '../components/profile/RankDetailsModal';
 import ProjectionDetailsModal from '../components/profile/ProjectionDetailsModal';
 import { spacing } from '../theme/spacing';
 
-function weekStartSundayLocal() {
+function weekStartMondayLocal() {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
   const day = d.getDay(); // 0 = Sunday
-  d.setDate(d.getDate() - day);
+  const offset = (day + 6) % 7; // Monday = 0
+  d.setDate(d.getDate() - offset);
   return d;
 }
 
@@ -121,7 +122,11 @@ export default function ProfileScreen() {
         if (mmrState.lastWeekIdUpdated === currentWeekId) return;
         return updateGlobalMmrUpToCurrentWeek(user.uid);
       })
-      .catch(() => setMmrError('Failed to update MMR.'))
+      .catch((err) => {
+        console.error('[MMR Auto-Update Error]', err);
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        setMmrError(`Failed to update MMR: ${errorMessage}`);
+      })
       .finally(() => setMmrBusy(false));
   }, [mmrBusy, mmrState, refreshing, user]);
 
@@ -157,7 +162,7 @@ export default function ProfileScreen() {
   // Track calorie logs from all groups (automatic, not manual)
   useEffect(() => {
     if (!user) return;
-    const weekStart = weekStartSundayLocal();
+    const weekStart = weekStartMondayLocal();
     const dates = new Set<string>();
     
     // Check all group logs for calorie entries by this user
@@ -175,7 +180,7 @@ export default function ProfileScreen() {
     if (!user) return;
     const ref = query(collection(db, 'users', user.uid, 'workouts'), orderBy('ts', 'desc'), limit(100));
     return onSnapshot(ref, (snap) => {
-      const weekStart = weekStartSundayLocal();
+      const weekStart = weekStartMondayLocal();
       const seen = new Set<string>();
       let total = 0;
       for (const d of snap.docs) {
@@ -222,7 +227,7 @@ export default function ProfileScreen() {
   const weekStreak = useMemo(() => {
     if (!user) return Array(7).fill(0);
     if (!activeGroupId) return Array(7).fill(0);
-    const weekStart = weekStartSundayLocal();
+    const weekStart = weekStartMondayLocal();
     const allowed = streakRule === 'any' ? new Set(['workout', 'calories', 'weight', 'photo']) : new Set(['workout']);
     const dateSet = new Set<string>();
     for (const l of groupLogs) {
@@ -323,7 +328,11 @@ export default function ProfileScreen() {
         setRefreshing(true);
         void ensureSeasonRollover(user.uid)
           .then(() => updateGlobalMmrUpToCurrentWeek(user.uid))
-          .catch(() => setMmrError('Failed to refresh MMR.'))
+          .catch((err) => {
+            console.error('[MMR Refresh Error]', err);
+            const errorMessage = err instanceof Error ? err.message : String(err);
+            setMmrError(`Failed to refresh MMR: ${errorMessage}`);
+          })
           .finally(() => setRefreshing(false));
       }}
     >
@@ -500,6 +509,11 @@ export default function ProfileScreen() {
                 title: 'Notifications',
                 icon: 'bell',
                 onPress: () => nav.navigate('Notifications', undefined),
+              },
+              {
+                title: 'Health & Fitness',
+                icon: 'heart-pulse',
+                onPress: () => (nav as any).navigate('HealthSettings'),
               },
               {
                 title: 'Units',

@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { Text, useTheme } from 'react-native-paper';
+import { Button, Modal, Portal, Text, useTheme } from 'react-native-paper';
 
-const ITEM_HEIGHT = 40;
+const ITEM_HEIGHT = 44;
 const VISIBLE_ITEMS = 5;
 const PICKER_HEIGHT = ITEM_HEIGHT * VISIBLE_ITEMS;
 
@@ -10,6 +10,7 @@ interface TimePickerProps {
   value: string; // HH:mm format (24-hour)
   onChange: (value: string) => void; // Returns HH:mm format (24-hour)
   disabled?: boolean;
+  label?: string;
 }
 
 // Convert 24-hour to 12-hour with AM/PM
@@ -29,6 +30,12 @@ function to24Hour(hour12: number, ampm: 'AM' | 'PM'): number {
   }
 }
 
+// Format time for display
+function formatTimeDisplay(hour24: number, minute: number, ampm: 'AM' | 'PM'): string {
+  const { hour } = to12Hour(hour24);
+  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')} ${ampm}`;
+}
+
 interface PickerColumnProps {
   items: (number | string)[];
   selectedValue: number | string;
@@ -41,13 +48,81 @@ function PickerColumn({ items, selectedValue, onValueChange, disabled, formatLab
   const theme = useTheme();
   const scrollRef = useRef<ScrollView>(null);
   const selectedIndex = items.findIndex((item) => item === selectedValue);
-  const scrollOffset = selectedIndex * ITEM_HEIGHT;
+  const isScrolling = useRef(false);
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Initial scroll to selected value
   useEffect(() => {
-    if (scrollRef.current && selectedIndex >= 0) {
-      scrollRef.current.scrollTo({ y: scrollOffset, animated: false });
+    if (scrollRef.current && selectedIndex >= 0 && !isScrolling.current) {
+      scrollRef.current.scrollTo({ y: selectedIndex * ITEM_HEIGHT, animated: false });
     }
-  }, [selectedIndex, scrollOffset]);
+  }, [selectedIndex]);
+
+  const handleScrollEnd = (e: any) => {
+    // Clear any pending timeout
+    if (scrollTimeoutRef.current) {
+      clearTimeout(scrollTimeoutRef.current);
+      scrollTimeoutRef.current = null;
+    }
+
+    // Snapshot offset synchronously (synthetic event pooling)
+    const offsetY = e?.nativeEvent?.contentOffset?.y;
+    if (typeof offsetY !== 'number') {
+      isScrolling.current = false;
+      return;
+    }
+
+    // Use requestAnimationFrame to ensure smooth updates
+    requestAnimationFrame(() => {
+      isScrolling.current = false;
+      const index = Math.round(offsetY / ITEM_HEIGHT);
+      const clampedIndex = Math.max(0, Math.min(index, items.length - 1));
+      const newValue = items[clampedIndex];
+
+      // Only update if value actually changed
+      if (newValue !== selectedValue) {
+        onValueChange(newValue);
+      }
+
+      // Smooth scroll to exact position
+      scrollRef.current?.scrollTo({ y: clampedIndex * ITEM_HEIGHT, animated: true });
+    });
+  };
+
+  const handleScrollBegin = () => {
+    isScrolling.current = true;
+    // Clear any pending timeout
+    if (scrollTimeoutRef.current) {
+      clearTimeout(scrollTimeoutRef.current);
+    }
+  };
+
+  const handleScroll = () => {
+    // Debounce rapid scroll events
+    if (scrollTimeoutRef.current) {
+      clearTimeout(scrollTimeoutRef.current);
+    }
+    
+    scrollTimeoutRef.current = setTimeout(() => {
+      isScrolling.current = false;
+    }, 150);
+  };
+
+  const handleItemPress = (item: number | string, index: number) => {
+    if (isScrolling.current) return; // Prevent taps during scroll
+    
+    onValueChange(item);
+    scrollRef.current?.scrollTo({ y: index * ITEM_HEIGHT, animated: true });
+  };
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+    };
+  }, []);
 
   return (
     <View style={styles.pickerColumn}>
@@ -56,13 +131,9 @@ function PickerColumn({ items, selectedValue, onValueChange, disabled, formatLab
         showsVerticalScrollIndicator={false}
         snapToInterval={ITEM_HEIGHT}
         decelerationRate="fast"
-        onMomentumScrollEnd={(e) => {
-          const offsetY = e.nativeEvent.contentOffset.y;
-          const index = Math.round(offsetY / ITEM_HEIGHT);
-          const clampedIndex = Math.max(0, Math.min(index, items.length - 1));
-          onValueChange(items[clampedIndex]!);
-          scrollRef.current?.scrollTo({ y: clampedIndex * ITEM_HEIGHT, animated: true });
-        }}
+        onScrollBeginDrag={handleScrollBegin}
+        onMomentumScrollEnd={handleScrollEnd}
+        scrollEventThrottle={16}
         contentContainerStyle={{
           paddingVertical: ITEM_HEIGHT * 2,
         }}
@@ -70,105 +141,208 @@ function PickerColumn({ items, selectedValue, onValueChange, disabled, formatLab
         {items.map((item, index) => {
           const isSelected = item === selectedValue;
           const label = formatLabel ? formatLabel(item) : String(item);
+          const distanceFromSelected = Math.abs(index - selectedIndex);
+          const opacity = isSelected ? 1 : Math.max(0.4, 1 - distanceFromSelected * 0.2);
+          
           return (
             <TouchableOpacity
-              key={index}
+              key={`${item}-${index}`}
               style={[styles.pickerItem, { height: ITEM_HEIGHT }]}
-              onPress={() => {
-                onValueChange(item);
-                scrollRef.current?.scrollTo({ y: index * ITEM_HEIGHT, animated: true });
-              }}
+              onPress={() => handleItemPress(item, index)}
               disabled={disabled}
+              activeOpacity={0.7}
             >
-              <Text
-                variant="titleLarge"
-                style={{
-                  color: isSelected ? theme.colors.primary : theme.colors.onSurface,
-                  opacity: isSelected ? 1 : 0.4,
-                  fontWeight: isSelected ? '600' : '400',
-                }}
+              <View
+                style={[
+                  styles.pickerItemContent,
+                  isSelected && {
+                    backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                    borderRadius: 8,
+                  }
+                ]}
               >
-                {label}
-              </Text>
+                <Text
+                  variant="titleLarge"
+                  style={{
+                    color: isSelected ? theme.colors.primary : theme.colors.onSurface,
+                    opacity,
+                    fontWeight: isSelected ? '700' : '500',
+                    fontSize: isSelected ? 20 : 17,
+                  }}
+                >
+                  {label}
+                </Text>
+              </View>
             </TouchableOpacity>
           );
         })}
       </ScrollView>
-      <View style={[styles.pickerOverlay, { backgroundColor: theme.colors.surface }]} pointerEvents="none" />
+      {/* Fade overlays */}
+      <View 
+        style={[styles.fadeOverlayTop, { backgroundColor: theme.colors.surface }]} 
+        pointerEvents="none" 
+      />
+      <View 
+        style={[styles.fadeOverlayBottom, { backgroundColor: theme.colors.surface }]} 
+        pointerEvents="none" 
+      />
     </View>
   );
 }
 
-export default function TimePicker({ value, onChange, disabled }: TimePickerProps) {
+export default function TimePicker({ value, onChange, disabled, label }: TimePickerProps) {
   const theme = useTheme();
-  const [hour12, setHour12] = useState(9);
-  const [minute, setMinute] = useState(0);
-  const [ampm, setAmpm] = useState<'AM' | 'PM'>('AM');
-  const isInitialMount = React.useRef(true);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [tempHour12, setTempHour12] = useState(9);
+  const [tempMinute, setTempMinute] = useState(0);
+  const [tempAmpm, setTempAmpm] = useState<'AM' | 'PM'>('AM');
 
   // Parse value from props
   useEffect(() => {
     const [h, m] = value.split(':').map(Number);
     if (Number.isFinite(h) && Number.isFinite(m)) {
       const { hour, ampm: ap } = to12Hour(h);
-      setHour12(hour);
-      setMinute(m);
-      setAmpm(ap);
-    }
-    // Mark as initialized after first value parse
-    if (isInitialMount.current) {
-      isInitialMount.current = false;
+      setTempHour12(hour);
+      setTempMinute(m);
+      setTempAmpm(ap);
     }
   }, [value]);
 
-  // Update parent when user changes time (skip initial mount)
+  // When modal opens, sync temp values with current value
   useEffect(() => {
-    if (isInitialMount.current) return;
-    const hour24 = to24Hour(hour12, ampm);
-    const newValue = `${String(hour24).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+    if (modalVisible) {
+      const [h, m] = value.split(':').map(Number);
+      if (Number.isFinite(h) && Number.isFinite(m)) {
+        const { hour, ampm: ap } = to12Hour(h);
+        setTempHour12(hour);
+        setTempMinute(m);
+        setTempAmpm(ap);
+      }
+    }
+  }, [modalVisible, value]);
+
+  const handleConfirm = () => {
+    const hour24 = to24Hour(tempHour12, tempAmpm);
+    const newValue = `${String(hour24).padStart(2, '0')}:${String(tempMinute).padStart(2, '0')}`;
     onChange(newValue);
-  }, [hour12, minute, ampm, onChange]);
+    setModalVisible(false);
+  };
+
+  const handleCancel = () => {
+    // Reset to original value
+    const [h, m] = value.split(':').map(Number);
+    if (Number.isFinite(h) && Number.isFinite(m)) {
+      const { hour, ampm: ap } = to12Hour(h);
+      setTempHour12(hour);
+      setTempMinute(m);
+      setTempAmpm(ap);
+    }
+    setModalVisible(false);
+  };
+
+  const [h, m] = value.split(':').map(Number);
+  const displayTime = Number.isFinite(h) && Number.isFinite(m) 
+    ? formatTimeDisplay(h, m, to12Hour(h).ampm)
+    : '09:00 AM';
 
   const hours = Array.from({ length: 12 }, (_, i) => i + 1);
   const minutes = Array.from({ length: 60 }, (_, i) => i);
   const ampmOptions: ('AM' | 'PM')[] = ['AM', 'PM'];
 
   return (
-    <View style={[styles.container, disabled && { opacity: 0.5 }]}>
-      <View style={[styles.pickerWrapper, { backgroundColor: theme.colors.surfaceVariant, borderColor: theme.colors.outline }]}>
-        <PickerColumn
-          items={hours}
-          selectedValue={hour12}
-          onValueChange={(v) => setHour12(v as number)}
-          disabled={disabled}
-          formatLabel={(h) => String(h).padStart(2, '0')}
-        />
-        <View style={styles.separator}>
-          <Text variant="titleLarge" style={{ color: theme.colors.onSurface, fontWeight: '600' }}>
-            :
-          </Text>
-        </View>
-        <PickerColumn
-          items={minutes}
-          selectedValue={minute}
-          onValueChange={(v) => setMinute(v as number)}
-          disabled={disabled}
-          formatLabel={(m) => String(m).padStart(2, '0')}
-        />
-        <PickerColumn
-          items={ampmOptions}
-          selectedValue={ampm}
-          onValueChange={(v) => setAmpm(v as 'AM' | 'PM')}
-          disabled={disabled}
-        />
-      </View>
-    </View>
+    <>
+      <TouchableOpacity
+        onPress={() => !disabled && setModalVisible(true)}
+        disabled={disabled}
+        style={[
+          styles.timeButton,
+          {
+            backgroundColor: theme.colors.surfaceVariant,
+            borderColor: theme.colors.outline,
+            opacity: disabled ? 0.5 : 1,
+          }
+        ]}
+      >
+        <Text variant="titleMedium" style={{ color: theme.colors.onSurface }}>
+          {displayTime}
+        </Text>
+      </TouchableOpacity>
+
+      <Portal>
+        <Modal
+          visible={modalVisible}
+          onDismiss={handleCancel}
+          contentContainerStyle={[
+            styles.modalContent,
+            { backgroundColor: theme.colors.surface }
+          ]}
+        >
+          <View style={styles.modalHeader}>
+            <Text variant="titleLarge" style={{ color: theme.colors.onSurface }}>
+              {label || 'Select Time'}
+            </Text>
+          </View>
+
+          <View style={[
+            styles.pickerWrapper,
+            { backgroundColor: theme.colors.surface, borderColor: theme.colors.outline }
+          ]}>
+            <PickerColumn
+              items={hours}
+              selectedValue={tempHour12}
+              onValueChange={(v) => setTempHour12(v as number)}
+              formatLabel={(h) => String(h).padStart(2, '0')}
+            />
+            <View style={styles.separator}>
+              <Text variant="titleLarge" style={{ color: theme.colors.onSurface, fontWeight: '600', fontSize: 20 }}>
+                :
+              </Text>
+            </View>
+            <PickerColumn
+              items={minutes}
+              selectedValue={tempMinute}
+              onValueChange={(v) => setTempMinute(v as number)}
+              formatLabel={(m) => String(m).padStart(2, '0')}
+            />
+            <PickerColumn
+              items={ampmOptions}
+              selectedValue={tempAmpm}
+              onValueChange={(v) => setTempAmpm(v as 'AM' | 'PM')}
+            />
+          </View>
+
+          <View style={styles.modalActions}>
+            <Button mode="text" onPress={handleCancel}>
+              Cancel
+            </Button>
+            <Button mode="contained" onPress={handleConfirm}>
+              Done
+            </Button>
+          </View>
+        </Modal>
+      </Portal>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    marginVertical: 8,
+  timeButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    minHeight: 48,
+    justifyContent: 'center',
+  },
+  modalContent: {
+    margin: 20,
+    borderRadius: 16,
+    padding: 20,
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    marginBottom: 20,
+    alignItems: 'center',
   },
   pickerWrapper: {
     flexDirection: 'row',
@@ -177,6 +351,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     overflow: 'hidden',
     alignItems: 'center',
+    marginBottom: 20,
   },
   pickerColumn: {
     flex: 1,
@@ -186,20 +361,39 @@ const styles = StyleSheet.create({
   pickerItem: {
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  pickerOverlay: {
-    position: 'absolute',
-    top: ITEM_HEIGHT * 2,
-    left: 0,
-    right: 0,
     height: ITEM_HEIGHT,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
-  separator: {
-    width: 20,
+  pickerItemContent: {
+    width: '90%',
+    height: '80%',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  fadeOverlayTop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: ITEM_HEIGHT * 2,
+    zIndex: 1,
+  },
+  fadeOverlayBottom: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: ITEM_HEIGHT * 2,
+    zIndex: 1,
+  },
+  separator: {
+    width: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 2,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 12,
   },
 });

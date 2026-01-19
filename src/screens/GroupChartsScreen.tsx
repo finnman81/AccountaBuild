@@ -18,11 +18,12 @@ function parseYYYYMMDDLocal(dateYYYYMMDD: string) {
   return new Date(`${dateYYYYMMDD}T00:00:00`);
 }
 
-function weekStartSundayLocal() {
+function weekStartMondayLocal() {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
   const day = d.getDay(); // 0 = Sunday
-  d.setDate(d.getDate() - day);
+  const offset = (day + 6) % 7; // Monday = 0
+  d.setDate(d.getDate() - offset);
   return d;
 }
 
@@ -78,7 +79,7 @@ export default function GroupChartsScreen({ route }: Props) {
 
   const compliance = useMemo(() => {
     const total = memberUids.length || 1;
-    const weekStart = weekStartSundayLocal();
+    const weekStart = weekStartMondayLocal();
 
     const workoutsCount: Record<string, number> = {};
     const caloriesDays: Record<string, Set<string>> = {};
