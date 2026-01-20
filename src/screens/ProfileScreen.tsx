@@ -154,10 +154,20 @@ export default function ProfileScreen() {
     return out;
   }, []);
 
+<<<<<<< HEAD
   const calorieTotalsByDate = useMemo(() => {
     if (!user) return {} as Record<string, number>;
     const weekStart = weekStartMondayLocal();
     const totals: Record<string, number> = {};
+=======
+  // Track calorie logs from all groups (automatic, not manual)
+  useEffect(() => {
+    if (!user) return;
+    const weekStart = weekStartMondayLocal();
+    const dates = new Set<string>();
+    
+    // Check all group logs for calorie entries by this user
+>>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
     for (const l of groupLogs) {
       if (l.uid !== user.uid || l.type !== 'calories') continue;
       const dt = parseYYYYMMDDLocal(l.date);

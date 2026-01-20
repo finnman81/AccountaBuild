@@ -227,11 +227,15 @@ export async function updateGlobalMmrUpToCurrentWeek(uid: string) {
     // Important: always recompute the current week at least once (idempotent),
     // even if the user is already "up to date". This keeps the public mirror and
     // weekly summary consistent after fixes or manual data edits.
+<<<<<<< HEAD
     let wk = !last
       ? currentWeekId
       : last === currentWeekId
         ? prevWeekId
         : nextIsoWeekId(last, DEFAULT_TZ);
+=======
+    let wk = !last ? currentWeekId : last === currentWeekId ? currentWeekId : nextIsoWeekId(last, DEFAULT_TZ);
+>>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
     
     // If firstWeekId is set, don't process weeks before it (user wasn't participating yet)
     if (firstWeekId != null && wk < firstWeekId) {
@@ -268,6 +272,7 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
   const seasonId = params.seasonId ?? seasonIdFromDate(new Date(), DEFAULT_TZ);
   const { start, end, dates } = isoWeekRangeInTz(weekId, DEFAULT_TZ);
 
+<<<<<<< HEAD
   let goals, groupIds, weights, workoutsDone, minutesDone, calorieDaysHit, caloriesLogged;
   let calorieTotalsByDate: Record<string, number> = {};
   let totalCaloriesLogged = 0;
@@ -285,12 +290,19 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
     weights = weightsResult;
     const userData = userSnap.exists() ? (userSnap.data() as any) : {};
     dailyCalorieGoal = typeof userData?.dailyCalorieGoal === 'number' ? Number(userData.dailyCalorieGoal) : null;
+=======
+  let goals, groupIds, weights, workoutsDone, minutesDone, calorieDaysHit;
+  
+  try {
+    [goals, groupIds, weights] = await Promise.all([getMyGlobalGoals(uid), getMyGroupIds(uid), getMyWeights(uid)]);
+>>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
   } catch (error) {
     console.error('[MMR Update] Error fetching user data:', error);
     throw new Error(`Failed to fetch user data: ${error instanceof Error ? error.message : String(error)}`);
   }
   
   try {
+<<<<<<< HEAD
     const [workoutTotals, calorieDayHits, calorieTotals] = await Promise.all([
       getWeekWorkoutTotals(uid, groupIds, start, end),
       countCalorieDaysHit(uid, dates),
@@ -306,6 +318,12 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
     if (calorieDaysFromLogs > calorieDaysHit) {
       calorieDaysHit = calorieDaysFromLogs;
     }
+=======
+    [{ workoutsDone, minutesDone }, calorieDaysHit] = await Promise.all([
+      getWeekWorkoutTotals(uid, groupIds, start, end),
+      countCalorieDaysHit(uid, dates),
+    ]);
+>>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
   } catch (error) {
     console.error('[MMR Update] Error fetching week data:', error);
     throw new Error(`Failed to fetch week data: ${error instanceof Error ? error.message : String(error)}`);

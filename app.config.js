@@ -20,6 +20,7 @@ module.exports = ({ config }) => {
 
   return {
     ...config,
+<<<<<<< HEAD
     updates: {
       ...(config.updates ?? {}),
       checkAutomatically: 'NEVER',
@@ -43,6 +44,9 @@ module.exports = ({ config }) => {
       ...config.android,
       // Permissions are defined in app.json
     },
+=======
+    plugins: [...filteredPlugins, healthKitPlugin],
+>>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
     ios: {
       ...config.ios,
       entitlements: {

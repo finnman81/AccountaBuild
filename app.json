@@ -55,6 +55,7 @@
         }
       ],
       [
+<<<<<<< HEAD
         "expo-image-picker",
         {
           "photosPermission": "AccountaBuild needs access to your photos to upload progress photos and profile pictures.",
@@ -62,6 +63,8 @@
         }
       ],
       [
+=======
+>>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
         "@kingstinct/react-native-healthkit",
         {
           "healthSharePermission": "AccountaBuild needs access to your health data to automatically sync workouts, calories, and weight from Apple Health.",

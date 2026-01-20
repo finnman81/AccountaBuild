@@ -3,16 +3,23 @@ import {
   requestAuthorization,
   queryWorkoutSamples,
   queryQuantitySamples,
+<<<<<<< HEAD
   queryCorrelationSamples,
   queryStatisticsForQuantitySeparateBySource,
   querySources,
   queryStatisticsForQuantity,
+=======
+>>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
   getMostRecentQuantitySample,
   isHealthDataAvailable,
 } from '@kingstinct/react-native-healthkit';
 import { mapHealthKitWorkoutType } from './workoutMapper';
 import { WorkoutType } from '../logs';
+<<<<<<< HEAD
 import { formatYYYYMMDDLocal, todayYYYYMMDD } from '../../utils/dates';
+=======
+import { todayYYYYMMDD } from '../../utils/dates';
+>>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
 
 export type HealthKitWorkout = {
   workoutType: WorkoutType;
@@ -40,6 +47,7 @@ export type HealthKitWeight = {
   timestamp: Date;
 };
 
+<<<<<<< HEAD
 function coerceNumber(value: any): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 }
@@ -76,10 +84,13 @@ function summarizeCalorieSample(sample: any) {
   };
 }
 
+=======
+>>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
 // HealthKit type identifiers as strings (matching Apple's HealthKit constants)
 const HKWorkoutTypeIdentifier = 'HKWorkoutTypeIdentifier';
 const HKQuantityTypeIdentifierDietaryEnergyConsumed = 'HKQuantityTypeIdentifierDietaryEnergyConsumed';
 const HKQuantityTypeIdentifierBodyMass = 'HKQuantityTypeIdentifierBodyMass';
+<<<<<<< HEAD
 const HKCorrelationTypeIdentifierFood = 'HKCorrelationTypeIdentifierFood';
 
 // NOTE:
@@ -88,6 +99,9 @@ const HKCorrelationTypeIdentifierFood = 'HKCorrelationTypeIdentifierFood';
 // types (the native module may not catch it), which would crash the app at auth time.
 // For calories we request the Dietary Energy quantity type; correlation reads are attempted
 // later on a best-effort basis and are already wrapped in try/catch.
+=======
+
+>>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
 const READ_TYPES = [
   HKWorkoutTypeIdentifier,
   HKQuantityTypeIdentifierDietaryEnergyConsumed,
@@ -185,8 +199,17 @@ export async function checkHealthKitPermissions(): Promise<{
         } as any);
         return true;
       } catch (err: any) {
+<<<<<<< HEAD
         console.error('[HealthKit] Permission probe (workouts) failed:', err);
         return false;
+=======
+        // If error is permission-related, assume not granted
+        if (err?.message?.includes('authorization') || err?.code === 'permission') {
+          return false;
+        }
+        // Other errors (like no data) mean permissions are likely granted
+        return true;
+>>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
       }
     })();
 
@@ -200,8 +223,15 @@ export async function checkHealthKitPermissions(): Promise<{
         } as any);
         return true;
       } catch (err: any) {
+<<<<<<< HEAD
         console.error('[HealthKit] Permission probe (calories) failed:', err);
         return false;
+=======
+        if (err?.message?.includes('authorization') || err?.code === 'permission') {
+          return false;
+        }
+        return true;
+>>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
       }
     })();
 
@@ -211,8 +241,15 @@ export async function checkHealthKitPermissions(): Promise<{
       await getMostRecentQuantitySample(HKQuantityTypeIdentifierBodyMass);
       return true;
     } catch (err: any) {
+<<<<<<< HEAD
       console.error('[HealthKit] Permission probe (weight) failed:', err);
       return false;
+=======
+      if (err?.message?.includes('authorization') || err?.code === 'permission') {
+        return false;
+      }
+      return true;
+>>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
     }
   })();
 
@@ -235,7 +272,10 @@ export async function readTodayWorkouts(): Promise<HealthKitWorkout[]> {
       startDate: startOfToday,
       endDate: now,
       ascending: true,
+<<<<<<< HEAD
       limit: 0,
+=======
+>>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
     } as any);
 
     // Handle both array response and object with samples property
@@ -246,7 +286,14 @@ export async function readTodayWorkouts(): Promise<HealthKitWorkout[]> {
         const workoutType = mapHealthKitWorkoutType(w.workoutActivityType);
         if (!workoutType) return null;
 
+<<<<<<< HEAD
         const durationMinutes = deriveWorkoutDurationMinutes(w);
+=======
+        // Duration might be in seconds or as a number
+        const durationSeconds =
+          typeof w.duration === 'number' ? w.duration : w.totalDuration || 0;
+        const durationMinutes = Math.round(durationSeconds / 60);
+>>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
 
         const startDate = w.startDate instanceof Date ? w.startDate : new Date(w.startDate);
         const endDate = w.endDate instanceof Date ? w.endDate : new Date(w.endDate);
@@ -258,8 +305,12 @@ export async function readTodayWorkouts(): Promise<HealthKitWorkout[]> {
           endDate,
         };
       })
+<<<<<<< HEAD
       .filter((w: HealthKitWorkout | null): w is HealthKitWorkout => w !== null)
       .filter((w: HealthKitWorkout) => w.startDate >= startOfToday && w.startDate <= now);
+=======
+      .filter((w: HealthKitWorkout | null): w is HealthKitWorkout => w !== null);
+>>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
   } catch (error) {
     console.error('Error reading HealthKit workouts:', error);
     return [];
@@ -288,12 +339,16 @@ function extractMealType(sample: any): 'breakfast' | 'lunch' | 'dinner' | 'snack
   const metadata = sample.metadata || {};
   
   // Check for custom meal type metadata (common keys used by apps)
+<<<<<<< HEAD
   const mealType =
     metadata.Meal ||
     metadata.MealType ||
     metadata.meal ||
     metadata.mealType ||
     metadata['HKFoodMeal'];
+=======
+  const mealType = metadata.MealType || metadata.meal || metadata.mealType || metadata['HKFoodMeal'];
+>>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
   if (mealType) {
     const mealLower = String(mealType).toLowerCase();
     if (mealLower.includes('breakfast')) return 'breakfast';
@@ -321,6 +376,7 @@ export async function readTodayCalorieEntries(): Promise<HealthKitCalorieEntry[]
 
     console.log('[HealthKit] Reading calorie entries from', startOfToday, 'to', now);
 
+<<<<<<< HEAD
     let result: any = await queryQuantitySamples(HKQuantityTypeIdentifierDietaryEnergyConsumed, {
       startDate: startOfToday,
       endDate: now,
@@ -440,14 +496,44 @@ export async function readTodayCalorieEntries(): Promise<HealthKitCalorieEntry[]
     if (samples.length > 0) {
       const preview = samples.slice(0, 3).map(summarizeCalorieSample);
       console.log('[HealthKit] Sample preview:', preview);
+=======
+    const result: any = await queryQuantitySamples(HKQuantityTypeIdentifierDietaryEnergyConsumed, {
+      startDate: startOfToday,
+      endDate: now,
+      ascending: true,
+    } as any);
+
+    console.log('[HealthKit] Raw calories query result:', JSON.stringify(result, null, 2));
+
+    // Handle both array response and object with samples property
+    const samples = Array.isArray(result) ? result : (result?.samples || []);
+    console.log('[HealthKit] Processed samples count:', samples.length);
+
+    if (samples.length === 0) {
+      console.log('[HealthKit] No calorie samples found for today');
+      return [];
+    }
+
+    // Log first sample to understand structure
+    if (samples.length > 0) {
+      console.log('[HealthKit] First sample:', JSON.stringify(samples[0], null, 2));
+>>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
     }
 
     // Convert each sample to an entry
     const entries: HealthKitCalorieEntry[] = [];
+<<<<<<< HEAD
+=======
+    const today = todayYYYYMMDD();
+>>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
 
     console.log('[HealthKit] Processing', samples.length, 'samples into entries...');
     for (let i = 0; i < samples.length; i++) {
       const sample = samples[i];
+<<<<<<< HEAD
+=======
+      console.log(`[HealthKit] Sample ${i + 1}/${samples.length}:`, JSON.stringify(sample, null, 2));
+>>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
       
       // Try multiple ways to extract quantity
       let qty = 0;
@@ -455,20 +541,29 @@ export async function readTodayCalorieEntries(): Promise<HealthKitCalorieEntry[]
         qty = sample.quantity;
       } else if (typeof sample.value === 'number') {
         qty = sample.value;
+<<<<<<< HEAD
       } else if (typeof sample.quantity?.quantity === 'number') {
         qty = sample.quantity.quantity;
       } else if (typeof sample.quantity?.value === 'number') {
         qty = sample.quantity.value;
+=======
+>>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
       } else if (sample.quantityValue && typeof sample.quantityValue === 'number') {
         qty = sample.quantityValue;
       }
       
+<<<<<<< HEAD
+=======
+      console.log(`[HealthKit] Sample ${i + 1} quantity:`, qty, 'unit:', sample.unit || sample.quantityUnit || 'unknown');
+      
+>>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
       if (qty <= 0) {
         console.log(`[HealthKit] Skipping sample ${i + 1} - quantity is 0 or invalid`);
         continue;
       }
 
       const startDate = sample.startDate ? new Date(sample.startDate) : (sample.startTime ? new Date(sample.startTime) : new Date());
+<<<<<<< HEAD
       if (startDate < startOfToday || startDate > now) {
         continue;
       }
@@ -479,6 +574,22 @@ export async function readTodayCalorieEntries(): Promise<HealthKitCalorieEntry[]
       entries.push({
         calories: Math.round(qty),
         date: entryDate,
+=======
+      const meal = extractMealType(sample);
+      const source = sample.source?.name || sample.sourceRevision?.source?.name || sample.sourceName || undefined;
+
+      console.log(`[HealthKit] Sample ${i + 1} parsed:`, {
+        calories: Math.round(qty),
+        date: today,
+        meal,
+        timestamp: startDate.toISOString(),
+        source,
+      });
+
+      entries.push({
+        calories: Math.round(qty),
+        date: today,
+>>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
         meal,
         timestamp: startDate,
         source,
@@ -511,6 +622,7 @@ export async function readTodayCalories(): Promise<HealthKitCalories | null> {
   };
 }
 
+<<<<<<< HEAD
 export async function readCalorieDiagnostics(): Promise<{
   sources: any[];
   statsBySource: any[];
@@ -553,6 +665,8 @@ export async function readWorkoutDiagnostics(): Promise<{
   }
 }
 
+=======
+>>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
 /**
  * Read most recent weight entry for today
  */
@@ -603,7 +717,10 @@ export async function readTodayWeight(): Promise<HealthKitWeight | null> {
 export async function runHealthKitDiagnostics(): Promise<string> {
   const out: string[] = [];
   const timestamp = new Date().toISOString();
+<<<<<<< HEAD
   const maxSamplesToInclude = 50;
+=======
+>>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
   
   out.push('=== HealthKit Diagnostics ===');
   out.push(`Timestamp: ${timestamp}`);
@@ -644,7 +761,11 @@ export async function runHealthKitDiagnostics(): Promise<string> {
     out.push('');
 
     // Step 3: Try querying workouts
+<<<<<<< HEAD
     out.push('3. Querying workout samples (limit: 0)...');
+=======
+    out.push('3. Querying workout samples (limit: 1)...');
+>>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
     try {
       const now = new Date();
       const startOfToday = new Date(now);
@@ -653,16 +774,23 @@ export async function runHealthKitDiagnostics(): Promise<string> {
       const result: any = await queryWorkoutSamples({
         startDate: startOfToday,
         endDate: now,
+<<<<<<< HEAD
         limit: 0,
+=======
+        limit: 1,
+>>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
       } as any);
       
       const workouts = Array.isArray(result) ? result : (result?.samples || []);
       out.push(`   queryWorkoutSamples: OK`);
       out.push(`   Result type: ${Array.isArray(result) ? 'array' : typeof result}`);
       out.push(`   Samples count: ${workouts.length}`);
+<<<<<<< HEAD
       const workoutSamplesToShow = workouts.slice(0, maxSamplesToInclude);
       out.push(`   Samples (showing ${workoutSamplesToShow.length}${workouts.length > maxSamplesToInclude ? ` of ${workouts.length}` : ''}):`);
       out.push(JSON.stringify(workoutSamplesToShow, null, 2));
+=======
+>>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
       if (result && typeof result === 'object' && !Array.isArray(result)) {
         out.push(`   Has samples property: ${'samples' in result}`);
         out.push(`   Has deletedSamples: ${'deletedSamples' in result}`);
@@ -677,7 +805,11 @@ export async function runHealthKitDiagnostics(): Promise<string> {
     out.push('');
 
     // Step 4: Try querying calories
+<<<<<<< HEAD
     out.push('4. Querying dietary energy samples (limit: 0)...');
+=======
+    out.push('4. Querying dietary energy samples (limit: 1)...');
+>>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
     try {
       const now = new Date();
       const startOfToday = new Date(now);
@@ -686,17 +818,24 @@ export async function runHealthKitDiagnostics(): Promise<string> {
       const result: any = await queryQuantitySamples(HKQuantityTypeIdentifierDietaryEnergyConsumed, {
         startDate: startOfToday,
         endDate: now,
+<<<<<<< HEAD
         limit: 0,
         unit: 'kcal',
+=======
+        limit: 1,
+>>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
       } as any);
       
       const samples = Array.isArray(result) ? result : (result?.samples || []);
       out.push(`   queryQuantitySamples: OK`);
       out.push(`   Result type: ${Array.isArray(result) ? 'array' : typeof result}`);
       out.push(`   Samples count: ${samples.length}`);
+<<<<<<< HEAD
       const calorieSamplesToShow = samples.slice(0, maxSamplesToInclude);
       out.push(`   Samples (showing ${calorieSamplesToShow.length}${samples.length > maxSamplesToInclude ? ` of ${samples.length}` : ''}):`);
       out.push(JSON.stringify(calorieSamplesToShow, null, 2));
+=======
+>>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
     } catch (e: any) {
       out.push(`   ERROR: ${e?.message ?? String(e)}`);
       out.push(`   Code: ${e?.code ?? 'N/A'}`);
