@@ -24,7 +24,7 @@ export default function RiskBanner({ mmrState, latestWeekly }: Props) {
     });
   }, [latestWeekly?.missedWeek, mmrState]);
 
-  if (!risk || !risk.isAtRisk) {
+  if (!risk || risk.level === 'none') {
     // Show shield badge if safe
     if (mmrState?.tierShieldWeeksRemaining && mmrState.tierShieldWeeksRemaining > 0) {
       return (
@@ -71,7 +71,7 @@ export default function RiskBanner({ mmrState, latestWeekly }: Props) {
             Demotion risk
           </Text>
           <Text variant="bodySmall" style={{ color: colors.textPrimary }}>
-            {risk.missedWeeks} missed week{risk.missedWeeks !== 1 ? 's' : ''}. Complete this week to restore shield.
+            {risk.message}
           </Text>
         </View>
       </Card.Content>

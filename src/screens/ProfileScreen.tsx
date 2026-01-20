@@ -11,11 +11,12 @@ import NavList from '../components/ui/NavList';
 import { AuthContext } from '../store/AuthContext';
 import { subscribeMyProfile } from '../services/profile';
 import { db } from '../firebase/firebase';
-import { formatHeightInches, formatWeightLb } from '../utils/formatters';
+import { formatHeightInches, formatMinutesHM, formatWeightLb } from '../utils/formatters';
 import { useActiveGroup } from '../store/ActiveGroupContext';
 import { subscribeGroupLogs, type GroupLog } from '../services/logs';
 import type { RootStackParamList } from '../navigation/types';
-import { DEFAULT_TZ, isoWeekIdInTz, yyyyMmDdInTz } from '../mmr/time';
+import { DEFAULT_TZ, isoWeekIdInTz } from '../mmr/time';
+import { formatYYYYMMDDLocal } from '../utils/dates';
 import { subscribeMyMmrState, type MmrState } from '../services/mmrState';
 import { updateGlobalMmrUpToCurrentWeek } from '../services/mmrUpdate';
 import { subscribeLatestMmrWeeklySummary, type MmrWeeklySummary } from '../services/mmrWeekly';
@@ -27,7 +28,6 @@ import RankHeroCard from '../components/profile/RankHeroCard';
 import WeeklyTrajectoryCard from '../components/profile/WeeklyTrajectoryCard';
 import RiskBanner from '../components/profile/RiskBanner';
 import ConsistencyStrip from '../components/profile/ConsistencyStrip';
-import GoalSummaryRow from '../components/profile/GoalSummaryRow';
 import TrendPreviewSparkline from '../components/profile/TrendPreviewSparkline';
 import RankDetailsModal from '../components/profile/RankDetailsModal';
 import ProjectionDetailsModal from '../components/profile/ProjectionDetailsModal';
@@ -46,10 +46,6 @@ function parseYYYYMMDDLocal(dateYYYYMMDD: string) {
   return new Date(`${dateYYYYMMDD}T00:00:00`);
 }
 
-function weekdayShort(idx: number) {
-  return ['S', 'M', 'T', 'W', 'T', 'F', 'S'][idx] ?? '';
-}
-
 export default function ProfileScreen() {
   const theme = useTheme();
   const { user, logout } = useContext(AuthContext);
@@ -66,7 +62,6 @@ export default function ProfileScreen() {
   const [projection, setProjection] = useState<MmrProjection | null>(null);
 
   const [weightEntries, setWeightEntries] = useState<{ date: string; weight: number; tsMs: number | null }[]>([]);
-  const [calorieLogDates, setCalorieLogDates] = useState<Set<string>>(new Set()); // Dates where user logged calories
   const [weekWorkoutDays, setWeekWorkoutDays] = useState<number[]>(Array(7).fill(0)); // circles
   const [weekMinutes, setWeekMinutes] = useState(0);
   const [group, setGroup] = useState<{ streakRule?: 'workout' | 'any'; name?: string } | null>(null);
@@ -148,32 +143,30 @@ export default function ProfileScreen() {
     });
   }, [user]);
 
-  const last7DatesNY = useMemo(() => {
+  const weekDates = useMemo(() => {
     const out: string[] = [];
-    const now = new Date();
-    for (let i = 6; i >= 0; i -= 1) {
-      const d = new Date(now);
-      d.setDate(d.getDate() - i);
-      out.push(yyyyMmDdInTz(d));
+    const start = weekStartMondayLocal();
+    for (let i = 0; i < 7; i += 1) {
+      const d = new Date(start);
+      d.setDate(d.getDate() + i);
+      out.push(formatYYYYMMDDLocal(d));
     }
     return out;
   }, []);
 
-  // Track calorie logs from all groups (automatic, not manual)
-  useEffect(() => {
-    if (!user) return;
+  const calorieTotalsByDate = useMemo(() => {
+    if (!user) return {} as Record<string, number>;
     const weekStart = weekStartMondayLocal();
-    const dates = new Set<string>();
-    
-    // Check all group logs for calorie entries by this user
+    const totals: Record<string, number> = {};
     for (const l of groupLogs) {
       if (l.uid !== user.uid || l.type !== 'calories') continue;
       const dt = parseYYYYMMDDLocal(l.date);
       if (Number.isNaN(dt.valueOf()) || dt < weekStart) continue;
-      dates.add(l.date);
+      const cals = Number((l.payload as any)?.calories);
+      if (!Number.isFinite(cals) || cals <= 0) continue;
+      totals[l.date] = (totals[l.date] ?? 0) + cals;
     }
-    
-    setCalorieLogDates(dates);
+    return totals;
   }, [groupLogs, user]);
 
   useEffect(() => {
@@ -274,14 +267,23 @@ export default function ProfileScreen() {
     return last - first;
   }, [dailyWeightEntries]);
 
-  // Calculate calorie days met (binary: if user logged anything that day, it counts)
-  const calorieDaysMet = useMemo(() => {
-    return last7DatesNY.filter((d) => calorieLogDates.has(d)).length;
-  }, [last7DatesNY, calorieLogDates]);
-
+  const dailyCalorieGoal = Number(profile?.dailyCalorieGoal ?? 0);
   const calorieDayDots = useMemo(() => {
-    return last7DatesNY.map((d) => calorieLogDates.has(d));
-  }, [last7DatesNY, calorieLogDates]);
+    if (!Number.isFinite(dailyCalorieGoal) || dailyCalorieGoal <= 0) {
+      return weekDates.map(() => 0);
+    }
+    const min = dailyCalorieGoal * 0.75;
+    const max = dailyCalorieGoal * 1.25;
+    return weekDates.map((d) => {
+      const total = calorieTotalsByDate[d] ?? 0;
+      return total >= min && total <= max ? 1 : 0;
+    });
+  }, [calorieTotalsByDate, dailyCalorieGoal, weekDates]);
+
+  const calorieDaysMet = useMemo(
+    () => calorieDayDots.reduce((sum, v) => sum + (v ? 1 : 0), 0),
+    [calorieDayDots],
+  );
 
   if (!user) {
     return (
@@ -426,10 +428,12 @@ export default function ProfileScreen() {
 
       {/* Section 4: Consistency */}
       <ConsistencyStrip
+        title="Workouts"
         activeDays={weekStreakCount}
         totalDays={7}
-        streakDots={weekStreak}
-        totalMinutes={weekMinutes}
+        streakDots={[weekStreak[1], weekStreak[2], weekStreak[3], weekStreak[4], weekStreak[5], weekStreak[6], weekStreak[0]]} // Reorder: Monday first
+        countLabel="active days"
+        footerText={`Total time this week: ${formatMinutesHM(weekMinutes)}`}
         onPress={() => {
           nav.navigate('MainTabs' as any, {
             screen: 'ProgressTab',
@@ -440,13 +444,14 @@ export default function ProfileScreen() {
 
       <View style={{ height: spacing.base }} />
 
-      {/* Section 5: Goal Compliance */}
-      <GoalSummaryRow
-        label="Calorie goals"
-        met={calorieDaysMet}
-        total={7}
-        dayDots={calorieDayDots}
-        dayLabels={last7DatesNY.map((d) => weekdayShort(parseYYYYMMDDLocal(d).getDay()))}
+      {/* Section 5: Calorie Goals */}
+      <ConsistencyStrip
+        title="Calorie goals"
+        activeDays={calorieDaysMet}
+        totalDays={7}
+        streakDots={calorieDayDots}
+        countLabel="days met"
+        footerText="Counts if within 25% of goal"
       />
 
       <View style={{ height: spacing.base }} />

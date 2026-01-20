@@ -14,6 +14,7 @@ import * as HealthService from '../services/health/healthService';
 import { syncHealthData } from '../services/healthSync';
 import { db } from '../firebase/firebase';
 import * as HealthKitService from '../services/health/healthKitService';
+import { todayYYYYMMDD } from '../utils/dates';
 
 export default function HealthSettingsScreen() {
   const { user } = useContext(AuthContext);
@@ -174,7 +175,7 @@ export default function HealthSettingsScreen() {
       addLog(`Permissions: workouts=${permissions.workouts}, calories=${permissions.calories}, weight=${permissions.weight}`);
 
       // Check for manual logs
-      const today = new Date().toISOString().split('T')[0].replace(/-/g, '');
+      const today = todayYYYYMMDD();
       addLog(`Today's date: ${today}`);
       
       const result = await syncHealthData(user.uid, activeGroupId, settings);
@@ -188,7 +189,26 @@ export default function HealthSettingsScreen() {
       if (result.diagnostics) {
         if (result.diagnostics.calories) {
           const cal = result.diagnostics.calories;
-          addLog(`Calories: hasManualLog=${cal.hasManualLog}, data=${JSON.stringify(cal.dataFromHealth)}, reason=${cal.reason || 'N/A'}`);
+          const calData = cal.dataFromHealth || {};
+          const calSummary = {
+            entriesCount: calData.entriesCount ?? calData.entries?.length ?? 0,
+            syncedCount: calData.syncedCount ?? 0,
+            skippedDuplicates: calData.skippedDuplicates ?? 0,
+            sampleEntries: Array.isArray(calData.entriesDetailed) ? calData.entriesDetailed.slice(0, 3) : [],
+            total: calData.total ?? null,
+          };
+          addLog(`Calories: hasManualLog=${cal.hasManualLog}, data=${JSON.stringify(calSummary)}, reason=${cal.reason || 'N/A'}`);
+        }
+        if (result.diagnostics.workouts) {
+          const wkt = result.diagnostics.workouts;
+          const wktData = wkt.dataFromHealth || {};
+          const wktSummary = {
+            totalCount: wktData.totalCount ?? 0,
+            syncedCount: wktData.syncedCount ?? 0,
+            skippedDuplicates: wktData.skippedDuplicates ?? 0,
+            sampleItems: Array.isArray(wktData.items) ? wktData.items.slice(0, 3) : [],
+          };
+          addLog(`Workouts: hasManualLog=${wkt.hasManualLog}, data=${JSON.stringify(wktSummary)}, reason=${wkt.reason || 'N/A'}`);
         }
         if (result.diagnostics.weight) {
           const w = result.diagnostics.weight;
@@ -196,7 +216,7 @@ export default function HealthSettingsScreen() {
         }
       }
 
-      addLog(`Sync result: ${JSON.stringify(result, null, 2)}`);
+      addLog(`Sync result: workoutsSynced=${result.workoutsSynced}, caloriesSynced=${result.caloriesSynced}, weightSynced=${result.weightSynced}, errors=${result.errors.length}`);
 
       const messages: string[] = [];
       if (result.workoutsSynced > 0) {

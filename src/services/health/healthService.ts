@@ -149,6 +149,28 @@ export async function readTodayCalorieEntries(): Promise<HealthCalorieEntry[]> {
   return [];
 }
 
+export async function readCalorieDiagnostics(): Promise<{ sources: any[]; statsBySource: any[] }> {
+  if (Platform.OS === 'ios') {
+    const service = await getHealthKitService();
+    if (!service || typeof (service as any).readCalorieDiagnostics !== 'function') {
+      return { sources: [], statsBySource: [] };
+    }
+    return await (service as any).readCalorieDiagnostics();
+  }
+  return { sources: [], statsBySource: [] };
+}
+
+export async function readWorkoutDiagnostics(): Promise<{ sources: any[] }> {
+  if (Platform.OS === 'ios') {
+    const service = await getHealthKitService();
+    if (!service || typeof (service as any).readWorkoutDiagnostics !== 'function') {
+      return { sources: [] };
+    }
+    return await (service as any).readWorkoutDiagnostics();
+  }
+  return { sources: [] };
+}
+
 /**
  * Read total calories consumed for today
  */

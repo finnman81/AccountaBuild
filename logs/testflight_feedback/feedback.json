@@ -1,9 +1,9 @@
 {
-  "id" : "AOg5PyziFur6_6dGgFjOd18",
-  "timestamp" : "2026-01-17T21:24:43.652Z[UTC]",
+  "id" : "AMzx93U_twkxky8B78lgHW8",
+  "timestamp" : "2026-01-20T02:57:16.629Z[UTC]",
   "appAppleId" : 6757963838,
   "cfBundleShortVersion" : "1.0.0",
-  "cfBundleVersion" : "3",
+  "cfBundleVersion" : "21",
   "deviceModel" : "iPhone18,2",
   "osVersion" : "26.2",
   "locale" : "en-US",
@@ -13,12 +13,12 @@
   "connectionStatus" : "WI_FI",
   "pairedAppleWatch" : "",
   "appUptimeMillis" : null,
-  "availableDiskBytes" : 278261415936,
+  "availableDiskBytes" : 274669449216,
   "totalDiskBytes" : 511360323584,
   "networkType" : null,
-  "batteryPercentage" : 85,
+  "batteryPercentage" : 55,
   "screenWidth" : 440,
   "screenHeight" : 956,
   "emailAddress" : "finnman81@gmail.com",
-  "comment" : "fail"
+  "comment" : "crash on sync."
 }

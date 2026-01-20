@@ -3,6 +3,7 @@ import { FlatList, Image, ScrollView, View } from 'react-native';
 import { Avatar, Button, Card, Divider, IconButton, List, SegmentedButtons, Text, useTheme } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { collection, doc, limit, onSnapshot, orderBy, query, where } from 'firebase/firestore';
+import { Swipeable } from 'react-native-gesture-handler';
 
 import Screen from '../components/layout/Screen';
 import PrimaryButton from '../components/ui/PrimaryButton';
@@ -970,84 +971,89 @@ export default function GroupDetailScreen({ route, navigation }: Props) {
           const note = logNote(l);
           const ts = formatLogDateTime(l);
           const canEdit = Boolean(user?.uid && l.uid === user.uid && l.type !== 'photo');
+          const handleDelete = async () => {
+            try {
+              const { deleteLog } = await import('../services/logs');
+              await deleteLog(groupId, l.id);
+            } catch (error) {
+              console.error('Failed to delete log:', error);
+            }
+          };
+
+          const handleEdit = () => {
+            if (l.type === 'calories') {
+              const c = Number((l.payload as any)?.calories);
+              const meal = ((l.payload as any)?.meal ?? 'all') as any;
+              const n = (l.payload as any)?.note ?? null;
+              if (!Number.isFinite(c) || c <= 0) return;
+              navigation.navigate('AddCalories', { groupId, edit: { logId: l.id, date: l.date, calories: c, meal, note: n } });
+              return;
+            }
+            if (l.type === 'workout') {
+              const workoutType = ((l.payload as any)?.workoutType ?? 'weightLifting') as any;
+              const mins = Number((l.payload as any)?.durationMinutes);
+              const n = (l.payload as any)?.note ?? null;
+              if (!Number.isFinite(mins) || mins <= 0) return;
+              navigation.navigate('AddWorkout', {
+                groupId,
+                edit: { logId: l.id, date: l.date, workoutType, durationMinutes: mins, note: n },
+              });
+              return;
+            }
+            if (l.type === 'weight') {
+              const w = Number((l.payload as any)?.weight);
+              const n = (l.payload as any)?.note ?? null;
+              if (!Number.isFinite(w) || w <= 0) return;
+              navigation.navigate('AddWeight', { groupId, edit: { logId: l.id, date: l.date, weight: w, note: n } });
+            }
+          };
+
           return (
-            <List.Item
+            <Swipeable
               key={l.id}
-              title={meta.title}
-              description={
-                <View style={{ gap: 2 }}>
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' }}>
-                    <Text variant="bodySmall" style={{ opacity: 0.85 }}>
-                      {meta.subtitle}
-                    </Text>
-                    <Text variant="bodySmall" style={{ opacity: 0.5 }}>
-                      {'  ·  '}
-                    </Text>
-                    <Text variant="bodySmall" style={{ opacity: 0.7 }}>
-                      {ts}
-                    </Text>
-                  </View>
-                  {note ? (
-                    <Text variant="bodySmall" style={{ opacity: 0.75 }}>
-                      {note}
-                    </Text>
-                  ) : null}
-                </View>
-              }
-              left={() => (
-                <View style={{ marginLeft: 8, justifyContent: 'center' }}>
-                  <RecentAvatar uid={l.uid} />
-                </View>
-              )}
-              right={() =>
+              enabled={canEdit}
+              renderRightActions={() =>
                 canEdit ? (
-                  <View style={{ flexDirection: 'row' }}>
-                    <IconButton
-                      icon="delete"
-                      iconColor={theme.colors.error}
-                      onPress={async () => {
-                        try {
-                          const { deleteLog } = await import('../services/logs');
-                          await deleteLog(groupId, l.id);
-                        } catch (error) {
-                          console.error('Failed to delete log:', error);
-                        }
-                      }}
-                    />
-                    <IconButton
-                      icon="pencil"
-                      onPress={() => {
-                        if (l.type === 'calories') {
-                          const c = Number((l.payload as any)?.calories);
-                          const meal = ((l.payload as any)?.meal ?? 'all') as any;
-                          const n = (l.payload as any)?.note ?? null;
-                          if (!Number.isFinite(c) || c <= 0) return;
-                          navigation.navigate('AddCalories', { groupId, edit: { logId: l.id, date: l.date, calories: c, meal, note: n } });
-                          return;
-                        }
-                        if (l.type === 'workout') {
-                          const workoutType = ((l.payload as any)?.workoutType ?? 'weightLifting') as any;
-                          const mins = Number((l.payload as any)?.durationMinutes);
-                          const n = (l.payload as any)?.note ?? null;
-                          if (!Number.isFinite(mins) || mins <= 0) return;
-                          navigation.navigate('AddWorkout', {
-                            groupId,
-                            edit: { logId: l.id, date: l.date, workoutType, durationMinutes: mins, note: n },
-                          });
-                          return;
-                        }
-                        if (l.type === 'weight') {
-                          const w = Number((l.payload as any)?.weight);
-                          const n = (l.payload as any)?.note ?? null;
-                          if (!Number.isFinite(w) || w <= 0) return;
-                          navigation.navigate('AddWeight', { groupId, edit: { logId: l.id, date: l.date, weight: w, note: n } });
-                        }
-                      }}
-                    />
+                  <View style={{ justifyContent: 'center', paddingRight: 12 }}>
+                    <IconButton icon="delete" iconColor={theme.colors.error} onPress={handleDelete} />
                   </View>
                 ) : null
               }
-            />
+            >
+              <List.Item
+                title={meta.title}
+                description={
+                  <View style={{ gap: 2 }}>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' }}>
+                      <Text variant="bodySmall" style={{ opacity: 0.85 }}>
+                        {meta.subtitle}
+                      </Text>
+                      <Text variant="bodySmall" style={{ opacity: 0.5 }}>
+                        {'  ·  '}
+                      </Text>
+                      <Text variant="bodySmall" style={{ opacity: 0.7 }}>
+                        {ts}
+                      </Text>
+                    </View>
+                    {note ? (
+                      <Text variant="bodySmall" style={{ opacity: 0.75 }}>
+                        {note}
+                      </Text>
+                    ) : null}
+                  </View>
+                }
+                left={() => (
+                  <View style={{ marginLeft: 8, justifyContent: 'center' }}>
+                    <RecentAvatar uid={l.uid} />
+                  </View>
+                )}
+                right={() =>
+                  canEdit ? (
+                    <IconButton icon="pencil" onPress={handleEdit} />
+                  ) : null
+                }
+              />
+            </Swipeable>
           );
         })}
         {logs.length > RECENT_LIMIT ? (

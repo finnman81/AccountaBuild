@@ -4,17 +4,26 @@ import { Card, Text } from 'react-native-paper';
 import { colors } from '../../theme/colors';
 import { spacing } from '../../theme/spacing';
 import { radius } from '../../theme/radius';
-import { formatMinutesHM } from '../../utils/formatters';
 
 type Props = {
+  title: string;
   activeDays: number;
   totalDays: number;
   streakDots: number[]; // Array of 0 or 1 for each day
-  totalMinutes: number;
+  countLabel?: string;
+  footerText?: string;
   onPress?: () => void;
 };
 
-export default function ConsistencyStrip({ activeDays, totalDays, streakDots, totalMinutes, onPress }: Props) {
+export default function ConsistencyStrip({
+  title,
+  activeDays,
+  totalDays,
+  streakDots,
+  countLabel = 'active days',
+  footerText,
+  onPress,
+}: Props) {
   return (
     <Card>
       <Card.Content>
@@ -26,17 +35,17 @@ export default function ConsistencyStrip({ activeDays, totalDays, streakDots, to
         >
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
             <Text variant="titleMedium" style={{ color: colors.textPrimary, fontWeight: '600' }}>
-              Workouts
+              {title}
             </Text>
             <Text variant="bodyMedium" style={{ color: colors.textSecondary }}>
-              {activeDays} / {totalDays} active days
+              {activeDays} / {totalDays} {countLabel}
             </Text>
           </View>
 
-          {/* Streak dots with day labels */}
+          {/* Streak dots with day labels - Monday first */}
           <View style={{ flexDirection: 'row', gap: spacing.xs, alignItems: 'flex-start', justifyContent: 'space-between' }}>
             {streakDots.map((filled, idx) => {
-              const dayLabels = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+              const dayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
               return (
                 <View key={idx} style={{ alignItems: 'center', flex: 1 }}>
                   <View
@@ -56,9 +65,11 @@ export default function ConsistencyStrip({ activeDays, totalDays, streakDots, to
             })}
           </View>
 
-          <Text variant="bodySmall" style={{ color: colors.textSecondary }}>
-            Total time this week: {formatMinutesHM(totalMinutes)}
-          </Text>
+          {footerText ? (
+            <Text variant="bodySmall" style={{ color: colors.textSecondary }}>
+              {footerText}
+            </Text>
+          ) : null}
         </TouchableOpacity>
       </Card.Content>
     </Card>
