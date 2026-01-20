@@ -2,6 +2,7 @@ import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebase/firebase';
 import { todayYYYYMMDD } from '../utils/dates';
 import { addCaloriesLog, addWorkoutLog, addWeightLog, type WorkoutType } from './logs';
+import { upsertUserWeightHistoryFromGroupLog } from './logEdits';
 import * as HealthService from './health/healthService';
 import type { HealthSettings } from './healthSettings';
 
@@ -193,7 +194,7 @@ export async function syncHealthData(
       console.log('[HealthSync] Syncing workouts...');
       try {
         const workouts = await HealthService.readTodayWorkouts();
-        console.log('[HealthSync] Workouts from Health:', workouts.length, workouts);
+        console.log('[HealthSync] Workouts from Health:', workouts.length);
         
         const healthSource = platform === 'ios' ? 'apple_health' : 'google_fit';
         let syncedCount = 0;
@@ -230,7 +231,6 @@ export async function syncHealthData(
             );
             
             if (alreadyExists) {
-              console.log('[HealthSync] Skipping workout - already exists:', workout.workoutType, workout.durationMinutes, 'minutes');
               skippedDuplicates += 1;
               continue;
             }
@@ -246,7 +246,9 @@ export async function syncHealthData(
             });
             syncedCount++;
             result.workoutsSynced++;
-            console.log('[HealthSync] Synced workout:', workout.workoutType, workout.durationMinutes, 'minutes');
+            if (syncedCount <= 3) {
+              console.log('[HealthSync] Synced workout:', workout.workoutType, workout.durationMinutes, 'minutes');
+            }
           } catch (error) {
             console.error('[HealthSync] Failed to sync workout:', error);
             result.errors.push(`Failed to sync workout: ${error}`);
@@ -293,7 +295,7 @@ export async function syncHealthData(
         // Read individual calorie entries (with meal types)
         console.log('[HealthSync] Calling readTodayCalorieEntries()...');
         const calorieEntries = await HealthService.readTodayCalorieEntries();
-        console.log('[HealthSync] Calorie entries from Health:', calorieEntries.length, 'entries:', JSON.stringify(calorieEntries, null, 2));
+        console.log('[HealthSync] Calorie entries from Health:', calorieEntries.length);
         
         // Also get total for diagnostics (fallback)
         const caloriesTotal = await HealthService.readTodayCalories();
@@ -335,7 +337,6 @@ export async function syncHealthData(
               );
               
               if (alreadyExists) {
-                console.log('[HealthSync] Skipping calorie entry - already exists:', entry.calories, 'calories for', entry.meal);
                 skippedDuplicates += 1;
                 continue;
               }
@@ -354,7 +355,9 @@ export async function syncHealthData(
                 source: healthSource,
               });
               syncedCount++;
-              console.log('[HealthSync] Synced calorie entry:', entry.calories, 'calories for', entry.meal);
+              if (syncedCount <= 3) {
+                console.log('[HealthSync] Synced calorie entry:', entry.calories, 'calories for', entry.meal);
+              }
             } catch (error) {
               console.error('[HealthSync] Failed to sync individual calorie entry:', error);
               result.errors.push(`Failed to sync calorie entry: ${error}`);
@@ -427,13 +430,20 @@ export async function syncHealthData(
             result.diagnostics!.weight.reason = `Weight ${weight.weight} lb already synced today from ${healthSource}`;
             console.log('[HealthSync] Skipping weight - already exists:', weight.weight);
           } else {
-            await addWeightLog({
+            const res = await addWeightLog({
               groupId,
               uid,
               weight: weight.weight,
               date: todayYYYYMMDD(),
               note: `Synced from ${platform === 'ios' ? 'Apple Health' : 'Google Fit'}`,
               source: healthSource,
+            });
+            await upsertUserWeightHistoryFromGroupLog({
+              uid,
+              groupId,
+              groupLogId: res.id,
+              date: todayYYYYMMDD(),
+              weight: weight.weight,
             });
             result.weightSynced = true;
             console.log('[HealthSync] Synced weight:', weight.weight);

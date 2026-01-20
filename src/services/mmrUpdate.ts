@@ -80,6 +80,7 @@ async function countCalorieDaysHit(uid: string, weekDates: string[]): Promise<nu
 async function getWeekWorkoutTotals(uid: string, groupIds: string[], weekStart: string, weekEnd: string) {
   let workoutsDone = 0;
   let minutesDone = 0;
+  let caloriesLogged = 0;
   // Beta-friendly approach: read last N logs per group (no composite indexes), then filter client-side.
   await Promise.all(
     groupIds.map(async (groupId) => {
@@ -96,12 +97,53 @@ async function getWeekWorkoutTotals(uid: string, groupIds: string[], weekStart: 
           const mins = Number(data?.payload?.durationMinutes);
           if (Number.isFinite(mins) && mins > 0) minutesDone += mins;
         }
+        if (type === 'calories') {
+          const cals = Number(data?.payload?.calories);
+          if (Number.isFinite(cals) && cals > 0) caloriesLogged += cals;
+        }
       }
     }),
   );
-  return { workoutsDone, minutesDone };
+  return { workoutsDone, minutesDone, caloriesLogged };
 }
 
+async function getWeekCalorieTotalsFromLogs(
+  uid: string,
+  groupIds: string[],
+  weekStart: string,
+  weekEnd: string,
+): Promise<{ totalsByDate: Record<string, number>; totalCalories: number }> {
+  const totalsByDate: Record<string, number> = {};
+  let totalCalories = 0;
+  await Promise.all(
+    groupIds.map(async (groupId) => {
+      const ref = query(collection(db, 'groups', groupId, 'logs'), orderBy('ts', 'desc'), limit(800));
+      const snap = await getDocs(ref);
+      for (const d of snap.docs) {
+        const data = d.data() as any;
+        if (String(data?.uid ?? '') !== uid) continue;
+        const date = String(data?.date ?? '').trim();
+        if (!date || date < weekStart || date > weekEnd) continue;
+        if (String(data?.type ?? '') !== 'calories') continue;
+        const cals = Number(data?.payload?.calories);
+        if (!Number.isFinite(cals) || cals <= 0) continue;
+        totalsByDate[date] = (totalsByDate[date] ?? 0) + cals;
+        totalCalories += cals;
+      }
+    }),
+  );
+  return { totalsByDate, totalCalories };
+}
+
+function countCalorieDaysHitFromTotals(
+  totalsByDate: Record<string, number>,
+  dailyCalorieGoal: number | null,
+): number {
+  if (!Number.isFinite(dailyCalorieGoal) || !dailyCalorieGoal || dailyCalorieGoal <= 0) return 0;
+  const min = dailyCalorieGoal * 0.75;
+  const max = dailyCalorieGoal * 1.25;
+  return Object.values(totalsByDate).reduce((sum, total) => (total >= min && total <= max ? sum + 1 : sum), 0);
+}
 function pickWeeklyWeights(weights: Array<{ date: string; weight: number; tsMs: number | null }>, start: string, end: string) {
   // We want "latest weigh-in per day" (same logic as Profile chart dedupe).
   // Also treat pending timestamps (tsMs=null) as newest so same-day updates show immediately.
@@ -168,6 +210,12 @@ export async function updateGlobalMmrUpToCurrentWeek(uid: string) {
   const now = new Date();
   const currentWeekId = isoWeekIdInTz(now, DEFAULT_TZ);
   const currentStart = isoWeekRangeInTz(currentWeekId, DEFAULT_TZ).start;
+  const prevWeekId = (() => {
+    const startUtc = zonedNoonUtcFromYmd(currentStart, DEFAULT_TZ);
+    const prev = new Date(startUtc);
+    prev.setUTCDate(prev.getUTCDate() - 7);
+    return isoWeekIdInTz(prev, DEFAULT_TZ);
+  })();
 
   try {
     const userSnap = await getDoc(doc(db, 'users', uid));
@@ -179,7 +227,11 @@ export async function updateGlobalMmrUpToCurrentWeek(uid: string) {
     // Important: always recompute the current week at least once (idempotent),
     // even if the user is already "up to date". This keeps the public mirror and
     // weekly summary consistent after fixes or manual data edits.
-    let wk = !last ? currentWeekId : last === currentWeekId ? currentWeekId : nextIsoWeekId(last, DEFAULT_TZ);
+    let wk = !last
+      ? currentWeekId
+      : last === currentWeekId
+        ? prevWeekId
+        : nextIsoWeekId(last, DEFAULT_TZ);
     
     // If firstWeekId is set, don't process weeks before it (user wasn't participating yet)
     if (firstWeekId != null && wk < firstWeekId) {
@@ -216,20 +268,44 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
   const seasonId = params.seasonId ?? seasonIdFromDate(new Date(), DEFAULT_TZ);
   const { start, end, dates } = isoWeekRangeInTz(weekId, DEFAULT_TZ);
 
-  let goals, groupIds, weights, workoutsDone, minutesDone, calorieDaysHit;
+  let goals, groupIds, weights, workoutsDone, minutesDone, calorieDaysHit, caloriesLogged;
+  let calorieTotalsByDate: Record<string, number> = {};
+  let totalCaloriesLogged = 0;
+  let dailyCalorieGoal: number | null = null;
   
   try {
-    [goals, groupIds, weights] = await Promise.all([getMyGlobalGoals(uid), getMyGroupIds(uid), getMyWeights(uid)]);
+    const [goalsResult, groupIdsResult, weightsResult, userSnap] = await Promise.all([
+      getMyGlobalGoals(uid),
+      getMyGroupIds(uid),
+      getMyWeights(uid),
+      getDoc(doc(db, 'users', uid)),
+    ]);
+    goals = goalsResult;
+    groupIds = groupIdsResult;
+    weights = weightsResult;
+    const userData = userSnap.exists() ? (userSnap.data() as any) : {};
+    dailyCalorieGoal = typeof userData?.dailyCalorieGoal === 'number' ? Number(userData.dailyCalorieGoal) : null;
   } catch (error) {
     console.error('[MMR Update] Error fetching user data:', error);
     throw new Error(`Failed to fetch user data: ${error instanceof Error ? error.message : String(error)}`);
   }
   
   try {
-    [{ workoutsDone, minutesDone }, calorieDaysHit] = await Promise.all([
+    const [workoutTotals, calorieDayHits, calorieTotals] = await Promise.all([
       getWeekWorkoutTotals(uid, groupIds, start, end),
       countCalorieDaysHit(uid, dates),
+      getWeekCalorieTotalsFromLogs(uid, groupIds, start, end),
     ]);
+    workoutsDone = workoutTotals.workoutsDone;
+    minutesDone = workoutTotals.minutesDone;
+    caloriesLogged = workoutTotals.caloriesLogged;
+    calorieDaysHit = calorieDayHits;
+    calorieTotalsByDate = calorieTotals.totalsByDate;
+    totalCaloriesLogged = calorieTotals.totalCalories;
+    const calorieDaysFromLogs = countCalorieDaysHitFromTotals(calorieTotalsByDate, dailyCalorieGoal);
+    if (calorieDaysFromLogs > calorieDaysHit) {
+      calorieDaysHit = calorieDaysFromLogs;
+    }
   } catch (error) {
     console.error('[MMR Update] Error fetching week data:', error);
     throw new Error(`Failed to fetch week data: ${error instanceof Error ? error.message : String(error)}`);
@@ -326,7 +402,13 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
   }
 
   const A_total = active.length ? avg(active.map((g) => g.A)) : 0;
-  const anyActivity = workoutsDone > 0 || minutesDone > 0 || calorieDaysHit > 0 || weighInsDone > 0;
+  const anyActivity =
+    workoutsDone > 0 ||
+    minutesDone > 0 ||
+    calorieDaysHit > 0 ||
+    weighInsDone > 0 ||
+    (Number.isFinite(caloriesLogged) && (caloriesLogged ?? 0) > 0) ||
+    totalCaloriesLogged > 0;
   const completedWeek = A_total >= 0.7;
   // Don't mark current week as "missed" - it's still in progress
   // Only mark past weeks as missed if they had no activity

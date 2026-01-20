@@ -1,9 +1,9 @@
 {
-  "id" : "AMzx93U_twkxky8B78lgHW8",
-  "timestamp" : "2026-01-20T02:57:16.629Z[UTC]",
+  "id" : "AFKyBN2NFhF3FdWDeyZZLVc",
+  "timestamp" : "2026-01-20T14:30:22.349Z[UTC]",
   "appAppleId" : 6757963838,
   "cfBundleShortVersion" : "1.0.0",
-  "cfBundleVersion" : "21",
+  "cfBundleVersion" : "22",
   "deviceModel" : "iPhone18,2",
   "osVersion" : "26.2",
   "locale" : "en-US",
@@ -13,12 +13,12 @@
   "connectionStatus" : "WI_FI",
   "pairedAppleWatch" : "",
   "appUptimeMillis" : null,
-  "availableDiskBytes" : 274669449216,
+  "availableDiskBytes" : 276485509120,
   "totalDiskBytes" : 511360323584,
   "networkType" : null,
-  "batteryPercentage" : 55,
+  "batteryPercentage" : 95,
   "screenWidth" : 440,
   "screenHeight" : 956,
   "emailAddress" : "finnman81@gmail.com",
-  "comment" : "crash on sync."
+  "comment" : "leaderboard crashes app"
 }

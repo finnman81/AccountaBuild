@@ -12,7 +12,7 @@ import {
 } from '@kingstinct/react-native-healthkit';
 import { mapHealthKitWorkoutType } from './workoutMapper';
 import { WorkoutType } from '../logs';
-import { todayYYYYMMDD } from '../../utils/dates';
+import { formatYYYYMMDDLocal, todayYYYYMMDD } from '../../utils/dates';
 
 export type HealthKitWorkout = {
   workoutType: WorkoutType;
@@ -48,7 +48,9 @@ function deriveWorkoutDurationMinutes(workout: any): number {
   const durationSeconds = coerceNumber(workout?.duration) ||
     coerceNumber(workout?.durationSeconds) ||
     coerceNumber(workout?.totalDuration) ||
-    coerceNumber(workout?.totalDurationSeconds);
+    coerceNumber(workout?.totalDurationSeconds) ||
+    coerceNumber(workout?.duration?.quantity) ||
+    coerceNumber(workout?.duration?.value);
 
   if (durationSeconds > 0) {
     return Math.max(1, Math.round(durationSeconds / 60));
@@ -80,11 +82,16 @@ const HKQuantityTypeIdentifierDietaryEnergyConsumed = 'HKQuantityTypeIdentifierD
 const HKQuantityTypeIdentifierBodyMass = 'HKQuantityTypeIdentifierBodyMass';
 const HKCorrelationTypeIdentifierFood = 'HKCorrelationTypeIdentifierFood';
 
+// NOTE:
+// We intentionally do NOT request the Food correlation type during the permission prompt.
+// Some iOS versions/devices can throw an Objective‑C exception when requesting correlation
+// types (the native module may not catch it), which would crash the app at auth time.
+// For calories we request the Dietary Energy quantity type; correlation reads are attempted
+// later on a best-effort basis and are already wrapped in try/catch.
 const READ_TYPES = [
   HKWorkoutTypeIdentifier,
   HKQuantityTypeIdentifierDietaryEnergyConsumed,
   HKQuantityTypeIdentifierBodyMass,
-  HKCorrelationTypeIdentifierFood,
 ] as const;
 
 /**
@@ -251,7 +258,8 @@ export async function readTodayWorkouts(): Promise<HealthKitWorkout[]> {
           endDate,
         };
       })
-      .filter((w: HealthKitWorkout | null): w is HealthKitWorkout => w !== null);
+      .filter((w: HealthKitWorkout | null): w is HealthKitWorkout => w !== null)
+      .filter((w: HealthKitWorkout) => w.startDate >= startOfToday && w.startDate <= now);
   } catch (error) {
     console.error('Error reading HealthKit workouts:', error);
     return [];
@@ -280,7 +288,12 @@ function extractMealType(sample: any): 'breakfast' | 'lunch' | 'dinner' | 'snack
   const metadata = sample.metadata || {};
   
   // Check for custom meal type metadata (common keys used by apps)
-  const mealType = metadata.MealType || metadata.meal || metadata.mealType || metadata['HKFoodMeal'];
+  const mealType =
+    metadata.Meal ||
+    metadata.MealType ||
+    metadata.meal ||
+    metadata.mealType ||
+    metadata['HKFoodMeal'];
   if (mealType) {
     const mealLower = String(mealType).toLowerCase();
     if (mealLower.includes('breakfast')) return 'breakfast';
@@ -329,8 +342,15 @@ export async function readTodayCalorieEntries(): Promise<HealthKitCalorieEntry[]
     }
 
     // Handle both array response and object with samples property
-    const samples = Array.isArray(result) ? result : (result?.samples || []);
+    let samples = Array.isArray(result) ? result : (result?.samples || []);
     console.log('[HealthKit] Processed samples count:', samples.length);
+
+    // Guard against HealthKit returning samples outside the requested window.
+    samples = samples.filter((sample: any) => {
+      const sampleDate = sample?.startDate ? new Date(sample.startDate) : null;
+      if (!sampleDate || Number.isNaN(sampleDate.valueOf())) return false;
+      return sampleDate >= startOfToday && sampleDate <= now;
+    });
 
     if (samples.length === 0) {
       console.log('[HealthKit] No calorie samples found for today - trying food correlations...');
@@ -352,6 +372,7 @@ export async function readTodayCalorieEntries(): Promise<HealthKitCalorieEntry[]
           const corr = correlations[i];
           const objects = Array.isArray(corr?.objects) ? corr.objects : [];
           const corrStart = corr?.startDate ? new Date(corr.startDate) : new Date();
+          if (corrStart < startOfToday || corrStart > now) continue;
 
           const corrAny = corr as any;
           for (const obj of objects) {
@@ -423,7 +444,6 @@ export async function readTodayCalorieEntries(): Promise<HealthKitCalorieEntry[]
 
     // Convert each sample to an entry
     const entries: HealthKitCalorieEntry[] = [];
-    const today = todayYYYYMMDD();
 
     console.log('[HealthKit] Processing', samples.length, 'samples into entries...');
     for (let i = 0; i < samples.length; i++) {
@@ -449,12 +469,16 @@ export async function readTodayCalorieEntries(): Promise<HealthKitCalorieEntry[]
       }
 
       const startDate = sample.startDate ? new Date(sample.startDate) : (sample.startTime ? new Date(sample.startTime) : new Date());
+      if (startDate < startOfToday || startDate > now) {
+        continue;
+      }
       const meal = extractMealType(sample);
       const source = sample.source?.name || sample.sourceRevision?.source?.name || sample.sourceName || undefined;
+      const entryDate = formatYYYYMMDDLocal(startDate);
 
       entries.push({
         calories: Math.round(qty),
-        date: today,
+        date: entryDate,
         meal,
         timestamp: startDate,
         source,
@@ -579,6 +603,7 @@ export async function readTodayWeight(): Promise<HealthKitWeight | null> {
 export async function runHealthKitDiagnostics(): Promise<string> {
   const out: string[] = [];
   const timestamp = new Date().toISOString();
+  const maxSamplesToInclude = 50;
   
   out.push('=== HealthKit Diagnostics ===');
   out.push(`Timestamp: ${timestamp}`);
@@ -619,7 +644,7 @@ export async function runHealthKitDiagnostics(): Promise<string> {
     out.push('');
 
     // Step 3: Try querying workouts
-    out.push('3. Querying workout samples (limit: 1)...');
+    out.push('3. Querying workout samples (limit: 0)...');
     try {
       const now = new Date();
       const startOfToday = new Date(now);
@@ -628,13 +653,16 @@ export async function runHealthKitDiagnostics(): Promise<string> {
       const result: any = await queryWorkoutSamples({
         startDate: startOfToday,
         endDate: now,
-        limit: 1,
+        limit: 0,
       } as any);
       
       const workouts = Array.isArray(result) ? result : (result?.samples || []);
       out.push(`   queryWorkoutSamples: OK`);
       out.push(`   Result type: ${Array.isArray(result) ? 'array' : typeof result}`);
       out.push(`   Samples count: ${workouts.length}`);
+      const workoutSamplesToShow = workouts.slice(0, maxSamplesToInclude);
+      out.push(`   Samples (showing ${workoutSamplesToShow.length}${workouts.length > maxSamplesToInclude ? ` of ${workouts.length}` : ''}):`);
+      out.push(JSON.stringify(workoutSamplesToShow, null, 2));
       if (result && typeof result === 'object' && !Array.isArray(result)) {
         out.push(`   Has samples property: ${'samples' in result}`);
         out.push(`   Has deletedSamples: ${'deletedSamples' in result}`);
@@ -649,7 +677,7 @@ export async function runHealthKitDiagnostics(): Promise<string> {
     out.push('');
 
     // Step 4: Try querying calories
-    out.push('4. Querying dietary energy samples (limit: 1)...');
+    out.push('4. Querying dietary energy samples (limit: 0)...');
     try {
       const now = new Date();
       const startOfToday = new Date(now);
@@ -658,13 +686,17 @@ export async function runHealthKitDiagnostics(): Promise<string> {
       const result: any = await queryQuantitySamples(HKQuantityTypeIdentifierDietaryEnergyConsumed, {
         startDate: startOfToday,
         endDate: now,
-        limit: 1,
+        limit: 0,
+        unit: 'kcal',
       } as any);
       
       const samples = Array.isArray(result) ? result : (result?.samples || []);
       out.push(`   queryQuantitySamples: OK`);
       out.push(`   Result type: ${Array.isArray(result) ? 'array' : typeof result}`);
       out.push(`   Samples count: ${samples.length}`);
+      const calorieSamplesToShow = samples.slice(0, maxSamplesToInclude);
+      out.push(`   Samples (showing ${calorieSamplesToShow.length}${samples.length > maxSamplesToInclude ? ` of ${samples.length}` : ''}):`);
+      out.push(JSON.stringify(calorieSamplesToShow, null, 2));
     } catch (e: any) {
       out.push(`   ERROR: ${e?.message ?? String(e)}`);
       out.push(`   Code: ${e?.code ?? 'N/A'}`);

@@ -10,6 +10,7 @@ import { AuthProvider } from './src/store/AuthContext';
 import { ActiveGroupProvider } from './src/store/ActiveGroupContext';
 import { NotificationProvider } from './src/components/notifications/NotificationProvider';
 import HealthAutoSync from './src/components/health/HealthAutoSync';
+import SafeUpdateChecker from './src/components/state/SafeUpdateChecker';
 import { appTheme } from './src/theme/theme';
 
 export default function App() {
@@ -34,6 +35,7 @@ export default function App() {
           <PaperProvider theme={appTheme}>
             <AppNavigator />
             <HealthAutoSync />
+            <SafeUpdateChecker />
             <StatusBar style="light" />
           </PaperProvider>
         </NotificationProvider>

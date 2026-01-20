@@ -20,7 +20,29 @@ module.exports = ({ config }) => {
 
   return {
     ...config,
-    plugins: [...filteredPlugins, healthKitPlugin],
+    updates: {
+      ...(config.updates ?? {}),
+      checkAutomatically: 'NEVER',
+      fallbackToCacheTimeout: 0,
+    },
+    plugins: [
+      ...filteredPlugins,
+      [
+        'expo-build-properties',
+        {
+          android: {
+            minSdkVersion: 26,
+            compileSdkVersion: 35,
+            targetSdkVersion: 35,
+          },
+        },
+      ],
+      healthKitPlugin,
+    ],
+    android: {
+      ...config.android,
+      // Permissions are defined in app.json
+    },
     ios: {
       ...config.ios,
       entitlements: {

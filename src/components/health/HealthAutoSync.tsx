@@ -16,8 +16,34 @@ export default function HealthAutoSync() {
   const appState = useRef(AppState.currentState);
   const settingsRef = useRef<HealthSettings | null>(null);
   const lastSyncTimeRef = useRef<number>(0);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const isExpoGo = Constants.appOwnership === 'expo';
   const SYNC_COOLDOWN_MS = 30000; // 30 seconds minimum between auto-syncs
+  const SYNC_INTERVAL_MS = 60 * 60 * 1000; // 1 hour when app is open
+
+  const triggerSync = (reason: 'foreground' | 'interval') => {
+    if (!user || !activeGroupId || !settingsRef.current) return;
+    const settings = settingsRef.current;
+    const hasAnySyncEnabled = settings.syncWorkouts || settings.syncCalories || settings.syncWeight;
+    if (!hasAnySyncEnabled) return;
+
+    const now = Date.now();
+    const timeSinceLastSync = now - lastSyncTimeRef.current;
+    if (timeSinceLastSync < SYNC_COOLDOWN_MS) {
+      console.log(
+        `[HealthAutoSync] Skipping auto-sync (${reason}) - cooldown active (${Math.round((SYNC_COOLDOWN_MS - timeSinceLastSync) / 1000)}s remaining)`,
+      );
+      return;
+    }
+
+    lastSyncTimeRef.current = now;
+    console.log(`[HealthAutoSync] Triggering auto-sync (${reason})`);
+    void import('../../services/healthSync')
+      .then(({ syncHealthData }) => syncHealthData(user.uid, activeGroupId, settings))
+      .catch((err) => {
+        console.error('Auto-sync failed:', err);
+      });
+  };
 
   // Subscribe to health settings
   useEffect(() => {
@@ -46,33 +72,36 @@ export default function HealthAutoSync() {
         settingsRef.current
       ) {
         // App has come to foreground
-        const settings = settingsRef.current;
-        const hasAnySyncEnabled = settings.syncWorkouts || settings.syncCalories || settings.syncWeight;
-        
-        if (hasAnySyncEnabled) {
-          const now = Date.now();
-          const timeSinceLastSync = now - lastSyncTimeRef.current;
-          
-          // Only sync if enough time has passed since last sync (cooldown)
-          if (timeSinceLastSync >= SYNC_COOLDOWN_MS) {
-            lastSyncTimeRef.current = now;
-            console.log('[HealthAutoSync] Triggering auto-sync (cooldown passed)');
-            // Trigger sync in background (don't await to avoid blocking)
-            void import('../../services/healthSync')
-              .then(({ syncHealthData }) => syncHealthData(user.uid, activeGroupId, settings))
-              .catch((err) => {
-                console.error('Auto-sync failed:', err);
-              });
-          } else {
-            console.log(`[HealthAutoSync] Skipping auto-sync - cooldown active (${Math.round((SYNC_COOLDOWN_MS - timeSinceLastSync) / 1000)}s remaining)`);
-          }
-        }
+        triggerSync('foreground');
       }
       appState.current = nextAppState;
     });
 
     return () => {
       subscription.remove();
+    };
+  }, [user, activeGroupId, isExpoGo]);
+
+  // Interval sync while app stays open
+  useEffect(() => {
+    if (isExpoGo) return;
+    if (!user || !activeGroupId) return;
+
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+    }
+
+    intervalRef.current = setInterval(() => {
+      if (appState.current === 'active') {
+        triggerSync('interval');
+      }
+    }, SYNC_INTERVAL_MS);
+
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
     };
   }, [user, activeGroupId, isExpoGo]);
 
