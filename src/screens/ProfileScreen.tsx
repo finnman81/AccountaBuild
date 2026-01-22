@@ -154,20 +154,12 @@ export default function ProfileScreen() {
     return out;
   }, []);
 
-<<<<<<< HEAD
   const calorieTotalsByDate = useMemo(() => {
     if (!user) return {} as Record<string, number>;
     const weekStart = weekStartMondayLocal();
     const totals: Record<string, number> = {};
-=======
-  // Track calorie logs from all groups (automatic, not manual)
-  useEffect(() => {
-    if (!user) return;
-    const weekStart = weekStartMondayLocal();
-    const dates = new Set<string>();
     
     // Check all group logs for calorie entries by this user
->>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
     for (const l of groupLogs) {
       if (l.uid !== user.uid || l.type !== 'calories') continue;
       const dt = parseYYYYMMDDLocal(l.date);
@@ -279,18 +271,13 @@ export default function ProfileScreen() {
 
   const dailyCalorieGoal = Number(profile?.dailyCalorieGoal ?? 0);
   const calorieDayDots = useMemo(() => {
-    if (!Number.isFinite(dailyCalorieGoal) || dailyCalorieGoal <= 0) {
-      return weekDates.map(() => 0);
-    }
-    const min = dailyCalorieGoal * 0.75;
-    const max = dailyCalorieGoal * 1.25;
     return weekDates.map((d) => {
       const total = calorieTotalsByDate[d] ?? 0;
-      return total >= min && total <= max ? 1 : 0;
+      return total > 0 ? 1 : 0;
     });
-  }, [calorieTotalsByDate, dailyCalorieGoal, weekDates]);
+  }, [calorieTotalsByDate, weekDates]);
 
-  const calorieDaysMet = useMemo(
+  const calorieDaysLogged = useMemo(
     () => calorieDayDots.reduce((sum, v) => sum + (v ? 1 : 0), 0),
     [calorieDayDots],
   );
@@ -439,9 +426,9 @@ export default function ProfileScreen() {
       {/* Section 4: Consistency */}
       <ConsistencyStrip
         title="Workouts"
-        activeDays={weekStreakCount}
+        activeDays={weekWorkoutDays.reduce((sum, v) => sum + v, 0)}
         totalDays={7}
-        streakDots={[weekStreak[1], weekStreak[2], weekStreak[3], weekStreak[4], weekStreak[5], weekStreak[6], weekStreak[0]]} // Reorder: Monday first
+        streakDots={[weekWorkoutDays[1], weekWorkoutDays[2], weekWorkoutDays[3], weekWorkoutDays[4], weekWorkoutDays[5], weekWorkoutDays[6], weekWorkoutDays[0]]} // Reorder: Monday first
         countLabel="active days"
         footerText={`Total time this week: ${formatMinutesHM(weekMinutes)}`}
         onPress={() => {
@@ -457,11 +444,10 @@ export default function ProfileScreen() {
       {/* Section 5: Calorie Goals */}
       <ConsistencyStrip
         title="Calorie goals"
-        activeDays={calorieDaysMet}
+        activeDays={calorieDaysLogged}
         totalDays={7}
         streakDots={calorieDayDots}
-        countLabel="days met"
-        footerText="Counts if within 25% of goal"
+        countLabel="days logged"
       />
 
       <View style={{ height: spacing.base }} />
