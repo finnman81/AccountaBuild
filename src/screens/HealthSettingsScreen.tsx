@@ -14,10 +14,7 @@ import * as HealthService from '../services/health/healthService';
 import { syncHealthData } from '../services/healthSync';
 import { db } from '../firebase/firebase';
 import * as HealthKitService from '../services/health/healthKitService';
-<<<<<<< HEAD
 import { todayYYYYMMDD } from '../utils/dates';
-=======
->>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
 
 export default function HealthSettingsScreen() {
   const { user } = useContext(AuthContext);
@@ -178,11 +175,7 @@ export default function HealthSettingsScreen() {
       addLog(`Permissions: workouts=${permissions.workouts}, calories=${permissions.calories}, weight=${permissions.weight}`);
 
       // Check for manual logs
-<<<<<<< HEAD
       const today = todayYYYYMMDD();
-=======
-      const today = new Date().toISOString().split('T')[0].replace(/-/g, '');
->>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
       addLog(`Today's date: ${today}`);
       
       const result = await syncHealthData(user.uid, activeGroupId, settings);
@@ -196,7 +189,6 @@ export default function HealthSettingsScreen() {
       if (result.diagnostics) {
         if (result.diagnostics.calories) {
           const cal = result.diagnostics.calories;
-<<<<<<< HEAD
           const calData = cal.dataFromHealth || {};
           const calSummary = {
             entriesCount: calData.entriesCount ?? calData.entries?.length ?? 0,
@@ -217,9 +209,6 @@ export default function HealthSettingsScreen() {
             sampleItems: Array.isArray(wktData.items) ? wktData.items.slice(0, 3) : [],
           };
           addLog(`Workouts: hasManualLog=${wkt.hasManualLog}, data=${JSON.stringify(wktSummary)}, reason=${wkt.reason || 'N/A'}`);
-=======
-          addLog(`Calories: hasManualLog=${cal.hasManualLog}, data=${JSON.stringify(cal.dataFromHealth)}, reason=${cal.reason || 'N/A'}`);
->>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
         }
         if (result.diagnostics.weight) {
           const w = result.diagnostics.weight;
@@ -227,11 +216,7 @@ export default function HealthSettingsScreen() {
         }
       }
 
-<<<<<<< HEAD
       addLog(`Sync result: workoutsSynced=${result.workoutsSynced}, caloriesSynced=${result.caloriesSynced}, weightSynced=${result.weightSynced}, errors=${result.errors.length}`);
-=======
-      addLog(`Sync result: ${JSON.stringify(result, null, 2)}`);
->>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
 
       const messages: string[] = [];
       if (result.workoutsSynced > 0) {

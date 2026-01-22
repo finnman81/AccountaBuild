@@ -28,7 +28,8 @@ export default function JoinGroupScreen({ navigation }: Props) {
       });
       navigation.replace('GroupDetail', { groupId: res.groupId });
     } catch (e) {
-      setError('Invalid code or join failed.');
+      const errorMessage = e instanceof Error ? e.message : 'Invalid code or join failed.';
+      setError(errorMessage);
     } finally {
       setIsSubmitting(false);
     }

@@ -152,19 +152,54 @@ export async function joinGroupByCode(params: {
   joinCode: string;
 }): Promise<{ groupId: string }> {
   const code = normalizeJoinCode(params.joinCode);
+  if (!code || code.length !== 6) {
+    throw new Error('Join code must be 6 characters');
+  }
   const joinRef = doc(db, 'joinCodes', code);
   const joinSnap = await getDoc(joinRef);
-  if (!joinSnap.exists()) throw new Error('Invalid join code');
+  
+  if (!joinSnap.exists()) {
+    throw new Error(
+      `Join code "${code}" not found. The group admin may need to regenerate the join code. ` +
+      `If you're the admin, try viewing the group details to backfill the join code mapping.`
+    );
+  }
 
   const join = joinSnap.data() as { groupId: string; name?: string; description?: string | null; joinCode?: string };
   const groupId = join.groupId;
   const name = join.name ?? 'Group';
   const description = join.description ?? null;
+  const joinCodeFromDoc = join.joinCode ?? code;
 
   // Guard against stale join codes pointing at deleted groups.
   const groupSnap = await getDoc(doc(db, 'groups', groupId));
   if (!groupSnap.exists()) throw new Error('Group no longer exists');
 
+  // Check if user is already a member
+  const memberRef = doc(db, 'groups', groupId, 'members', params.uid);
+  const memberSnap = await getDoc(memberRef);
+  const isAlreadyMember = memberSnap.exists();
+
+  if (isAlreadyMember) {
+    // User is already a member, just update their user groups reference if needed
+    await setDoc(
+      doc(db, 'users', params.uid, 'groups', groupId),
+      {
+        groupId,
+        name,
+        description,
+        joinCode: joinCodeFromDoc,
+        role: memberSnap.data()?.role ?? 'member',
+        joinedAt: memberSnap.data()?.joinedAt ?? serverTimestamp(),
+        chatLastSeenAt: serverTimestamp(),
+        photosLastSeenAt: serverTimestamp(),
+      },
+      { merge: true },
+    );
+    return { groupId };
+  }
+
+  // User is not a member, join them
   await Promise.all([
     setDoc(
       doc(db, 'groups', groupId, 'members', params.uid),
@@ -178,7 +213,7 @@ export async function joinGroupByCode(params: {
         groupId,
         name,
         description,
-        joinCode: join.joinCode ?? code,
+        joinCode: joinCodeFromDoc,
         role: 'member',
         joinedAt: serverTimestamp(),
         chatLastSeenAt: serverTimestamp(),

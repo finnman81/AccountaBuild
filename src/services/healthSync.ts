@@ -2,10 +2,7 @@ import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebase/firebase';
 import { todayYYYYMMDD } from '../utils/dates';
 import { addCaloriesLog, addWorkoutLog, addWeightLog, type WorkoutType } from './logs';
-<<<<<<< HEAD
 import { upsertUserWeightHistoryFromGroupLog } from './logEdits';
-=======
->>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
 import * as HealthService from './health/healthService';
 import type { HealthSettings } from './healthSettings';
 
@@ -55,13 +52,10 @@ async function hasManualLogForToday(
   return !snapshot.empty;
 }
 
-<<<<<<< HEAD
 // Sync lock to prevent concurrent syncs
 let syncInProgress = false;
 let syncPromise: Promise<SyncResult> | null = null;
 
-=======
->>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
 /**
  * Check if a synced log already exists for today with the same value
  * This prevents duplicate entries when syncing multiple times
@@ -72,11 +66,7 @@ async function hasSyncedLogForToday(
   logType: 'calories' | 'workout' | 'weight',
   value: number,
   source: 'apple_health' | 'google_fit',
-<<<<<<< HEAD
   additionalData?: { workoutType?: string; durationMinutes?: number; meal?: string },
-=======
-  additionalData?: { workoutType?: string; durationMinutes?: number },
->>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
 ): Promise<boolean> {
   const today = todayYYYYMMDD();
   const logsRef = collection(db, 'groups', groupId, 'logs');
@@ -104,14 +94,9 @@ async function hasSyncedLogForToday(
     return false;
   }
   
-<<<<<<< HEAD
   // For calories, check if same calorie value AND meal type already exists from same source
   if (logType === 'calories') {
     const meal = additionalData?.meal;
-=======
-  // For calories, check if same calorie value already exists from same source
-  if (logType === 'calories') {
->>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
     const q = query(
       logsRef,
       where('uid', '==', uid),
@@ -120,7 +105,6 @@ async function hasSyncedLogForToday(
       where('source', '==', source),
     );
     const snapshot = await getDocs(q);
-<<<<<<< HEAD
     // Check if any existing log has the same calorie value AND meal type
     for (const doc of snapshot.docs) {
       const data = doc.data();
@@ -129,15 +113,6 @@ async function hasSyncedLogForToday(
       // If calories match exactly AND meal type matches, consider it a duplicate
       if (existingCalories === value && existingMeal === meal) {
         console.log('[HealthSync] Duplicate calories detected:', existingCalories, 'calories for', existingMeal, 'vs', value, 'calories for', meal);
-=======
-    // Check if any existing log has the same calorie value
-    for (const doc of snapshot.docs) {
-      const data = doc.data();
-      const existingCalories = Number((data.payload as any)?.calories);
-      // If calories match exactly, consider it a duplicate
-      if (existingCalories === value) {
-        console.log('[HealthSync] Duplicate calories detected:', existingCalories, 'vs', value);
->>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
         return true;
       }
     }
@@ -179,18 +154,14 @@ async function hasSyncedLogForToday(
  * TODO: Consider adding duplicate detection or manual log priority in the future.
  * 
  * Syncs all data from start of today (00:00:00) to now.
-<<<<<<< HEAD
  * 
  * Uses a sync lock to prevent concurrent syncs from running simultaneously.
-=======
->>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
  */
 export async function syncHealthData(
   uid: string,
   groupId: string,
   settings: HealthSettings,
 ): Promise<SyncResult> {
-<<<<<<< HEAD
   // If sync is already in progress, return the existing promise
   if (syncInProgress && syncPromise) {
     console.log('[HealthSync] Sync already in progress, returning existing promise');
@@ -210,18 +181,6 @@ export async function syncHealthData(
 
     try {
       console.log('[HealthSync] Starting sync...', { uid, groupId, settings });
-=======
-  const result: SyncResult = {
-    workoutsSynced: 0,
-    caloriesSynced: false,
-    weightSynced: false,
-    errors: [],
-    diagnostics: {},
-  };
-
-  try {
-    console.log('[HealthSync] Starting sync...', { uid, groupId, settings });
->>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
     
     // Check permissions first
     const permissions = await HealthService.checkHealthPermissions();
@@ -235,7 +194,6 @@ export async function syncHealthData(
       console.log('[HealthSync] Syncing workouts...');
       try {
         const workouts = await HealthService.readTodayWorkouts();
-<<<<<<< HEAD
         console.log('[HealthSync] Workouts from Health:', workouts.length);
         
         const healthSource = platform === 'ios' ? 'apple_health' : 'google_fit';
@@ -256,12 +214,6 @@ export async function syncHealthData(
             items: workoutSummaries,
           },
         };
-=======
-        console.log('[HealthSync] Workouts from Health:', workouts.length, workouts);
-        
-        const healthSource = platform === 'ios' ? 'apple_health' : 'google_fit';
-        let syncedCount = 0;
->>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
         
         for (const workout of workouts) {
           try {
@@ -279,11 +231,7 @@ export async function syncHealthData(
             );
             
             if (alreadyExists) {
-<<<<<<< HEAD
               skippedDuplicates += 1;
-=======
-              console.log('[HealthSync] Skipping workout - already exists:', workout.workoutType, workout.durationMinutes, 'minutes');
->>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
               continue;
             }
             
@@ -298,20 +246,15 @@ export async function syncHealthData(
             });
             syncedCount++;
             result.workoutsSynced++;
-<<<<<<< HEAD
             if (syncedCount <= 3) {
               console.log('[HealthSync] Synced workout:', workout.workoutType, workout.durationMinutes, 'minutes');
             }
-=======
-            console.log('[HealthSync] Synced workout:', workout.workoutType, workout.durationMinutes, 'minutes');
->>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
           } catch (error) {
             console.error('[HealthSync] Failed to sync workout:', error);
             result.errors.push(`Failed to sync workout: ${error}`);
           }
         }
         
-<<<<<<< HEAD
         result.diagnostics!.workouts = {
           hasManualLog: false,
           dataFromHealth: {
@@ -323,34 +266,26 @@ export async function syncHealthData(
           },
         };
 
-=======
->>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
         console.log('[HealthSync] Synced', syncedCount, 'out of', workouts.length, 'workouts');
       } catch (error) {
         console.error('[HealthSync] Failed to read workouts:', error);
         result.errors.push(`Failed to read workouts: ${error}`);
-<<<<<<< HEAD
         result.diagnostics!.workouts = {
           hasManualLog: false,
           dataFromHealth: null,
           reason: `Error: ${error}`,
         };
-=======
->>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
       }
     } else {
       console.log('[HealthSync] Skipping workouts -', { 
         syncEnabled: settings.syncWorkouts, 
         hasPermission: permissions.workouts 
       });
-<<<<<<< HEAD
       result.diagnostics!.workouts = {
         hasManualLog: false,
         dataFromHealth: null,
         reason: `Sync disabled (syncEnabled: ${settings.syncWorkouts}, hasPermission: ${permissions.workouts})`,
       };
-=======
->>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
     }
 
     // Sync calories
@@ -360,11 +295,7 @@ export async function syncHealthData(
         // Read individual calorie entries (with meal types)
         console.log('[HealthSync] Calling readTodayCalorieEntries()...');
         const calorieEntries = await HealthService.readTodayCalorieEntries();
-<<<<<<< HEAD
         console.log('[HealthSync] Calorie entries from Health:', calorieEntries.length);
-=======
-        console.log('[HealthSync] Calorie entries from Health:', calorieEntries.length, 'entries:', JSON.stringify(calorieEntries, null, 2));
->>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
         
         // Also get total for diagnostics (fallback)
         const caloriesTotal = await HealthService.readTodayCalories();
@@ -372,7 +303,6 @@ export async function syncHealthData(
         
         result.diagnostics!.calories = {
           hasManualLog: false, // No longer checking - allowing both manual and synced
-<<<<<<< HEAD
           dataFromHealth: {
             entries: calorieEntries,
             entriesDetailed: calorieEntries.map((e) => ({
@@ -385,24 +315,17 @@ export async function syncHealthData(
             total: caloriesTotal,
             entriesCount: calorieEntries.length,
           },
-=======
-          dataFromHealth: { entries: calorieEntries, total: caloriesTotal, entriesCount: calorieEntries.length },
->>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
         };
         
         if (calorieEntries.length > 0) {
           // Create a separate log entry for each calorie entry
           let syncedCount = 0;
           const healthSource = platform === 'ios' ? 'apple_health' : 'google_fit';
-<<<<<<< HEAD
           let skippedDuplicates = 0;
-=======
->>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
           
           for (const entry of calorieEntries) {
             try {
               // Check if this exact calorie entry already exists from this source today
-<<<<<<< HEAD
               // Must match both calories AND meal type to be considered a duplicate
               const alreadyExists = await hasSyncedLogForToday(
                 groupId, 
@@ -415,12 +338,6 @@ export async function syncHealthData(
               
               if (alreadyExists) {
                 skippedDuplicates += 1;
-=======
-              const alreadyExists = await hasSyncedLogForToday(groupId, uid, 'calories', entry.calories, healthSource);
-              
-              if (alreadyExists) {
-                console.log('[HealthSync] Skipping calorie entry - already exists:', entry.calories, 'calories for', entry.meal);
->>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
                 continue;
               }
               
@@ -438,13 +355,9 @@ export async function syncHealthData(
                 source: healthSource,
               });
               syncedCount++;
-<<<<<<< HEAD
               if (syncedCount <= 3) {
                 console.log('[HealthSync] Synced calorie entry:', entry.calories, 'calories for', entry.meal);
               }
-=======
-              console.log('[HealthSync] Synced calorie entry:', entry.calories, 'calories for', entry.meal);
->>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
             } catch (error) {
               console.error('[HealthSync] Failed to sync individual calorie entry:', error);
               result.errors.push(`Failed to sync calorie entry: ${error}`);
@@ -457,7 +370,6 @@ export async function syncHealthData(
           } else {
             result.diagnostics!.calories.reason = 'Failed to sync any entries';
           }
-<<<<<<< HEAD
 
           result.diagnostics!.calories.dataFromHealth = {
             ...result.diagnostics!.calories.dataFromHealth,
@@ -465,8 +377,6 @@ export async function syncHealthData(
             skippedDuplicates,
             source: healthSource,
           };
-=======
->>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
         } else {
           const reason = caloriesTotal === null 
             ? 'No data returned from HealthKit' 
@@ -520,11 +430,7 @@ export async function syncHealthData(
             result.diagnostics!.weight.reason = `Weight ${weight.weight} lb already synced today from ${healthSource}`;
             console.log('[HealthSync] Skipping weight - already exists:', weight.weight);
           } else {
-<<<<<<< HEAD
             const res = await addWeightLog({
-=======
-            await addWeightLog({
->>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
               groupId,
               uid,
               weight: weight.weight,
@@ -532,7 +438,6 @@ export async function syncHealthData(
               note: `Synced from ${platform === 'ios' ? 'Apple Health' : 'Google Fit'}`,
               source: healthSource,
             });
-<<<<<<< HEAD
             await upsertUserWeightHistoryFromGroupLog({
               uid,
               groupId,
@@ -540,8 +445,6 @@ export async function syncHealthData(
               date: todayYYYYMMDD(),
               weight: weight.weight,
             });
-=======
->>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
             result.weightSynced = true;
             console.log('[HealthSync] Synced weight:', weight.weight);
           }
@@ -577,7 +480,6 @@ export async function syncHealthData(
     }
     
     console.log('[HealthSync] Sync complete:', result);
-<<<<<<< HEAD
     } catch (error) {
       console.error('[HealthSync] Sync failed:', error);
       result.errors.push(`Sync failed: ${error}`);
@@ -591,12 +493,4 @@ export async function syncHealthData(
   })();
 
   return syncPromise;
-=======
-  } catch (error) {
-    console.error('[HealthSync] Sync failed:', error);
-    result.errors.push(`Sync failed: ${error}`);
-  }
-
-  return result;
->>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
 }

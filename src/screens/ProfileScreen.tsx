@@ -172,32 +172,34 @@ export default function ProfileScreen() {
   }, [groupLogs, user]);
 
   useEffect(() => {
-    if (!user) return;
-    const ref = query(collection(db, 'users', user.uid, 'workouts'), orderBy('ts', 'desc'), limit(100));
-    return onSnapshot(ref, (snap) => {
-      const weekStart = weekStartMondayLocal();
-      const seen = new Set<string>();
-      let total = 0;
-      for (const d of snap.docs) {
-        const data = d.data() as any;
-        const date = String(data?.date ?? '');
-        if (!date) continue;
-        const dt = parseYYYYMMDDLocal(date);
-        if (Number.isNaN(dt.valueOf()) || dt < weekStart) continue;
-        seen.add(date);
-        const mins = Number(data?.durationMinutes);
-        if (Number.isFinite(mins) && mins > 0) total += mins;
-      }
-      const days = Array(7).fill(0);
-      for (const dateStr of seen.values()) {
-        const dt = parseYYYYMMDDLocal(dateStr);
-        const idx = dt.getDay();
-        days[idx] = 1;
-      }
-      setWeekWorkoutDays(days);
-      setWeekMinutes(Math.round(total));
-    });
-  }, [user]);
+    if (!user || !activeGroupId) {
+      setWeekWorkoutDays(Array(7).fill(0));
+      setWeekMinutes(0);
+      return;
+    }
+    const weekStart = weekStartMondayLocal();
+    const seen = new Set<string>();
+    let total = 0;
+    
+    // Count workouts from group logs only (workout type)
+    for (const l of groupLogs) {
+      if (l.uid !== user.uid || l.type !== 'workout') continue;
+      const dt = parseYYYYMMDDLocal(l.date);
+      if (Number.isNaN(dt.valueOf()) || dt < weekStart) continue;
+      seen.add(l.date);
+      const mins = Number((l.payload as any)?.durationMinutes);
+      if (Number.isFinite(mins) && mins > 0) total += mins;
+    }
+    
+    const days = Array(7).fill(0);
+    for (const dateStr of seen.values()) {
+      const dt = parseYYYYMMDDLocal(dateStr);
+      const idx = dt.getDay();
+      days[idx] = 1;
+    }
+    setWeekWorkoutDays(days);
+    setWeekMinutes(Math.round(total));
+  }, [user, activeGroupId, groupLogs]);
 
   useEffect(() => {
     if (!activeGroupId) {

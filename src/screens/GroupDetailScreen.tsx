@@ -1014,54 +1014,8 @@ export default function GroupDetailScreen({ route, navigation }: Props) {
               enabled={canEdit}
               renderRightActions={() =>
                 canEdit ? (
-<<<<<<< HEAD
                   <View style={{ justifyContent: 'center', paddingRight: 12 }}>
                     <IconButton icon="delete" iconColor={theme.colors.error} onPress={handleDelete} />
-=======
-                  <View style={{ flexDirection: 'row' }}>
-                    <IconButton
-                      icon="delete"
-                      iconColor={theme.colors.error}
-                      onPress={async () => {
-                        try {
-                          const { deleteLog } = await import('../services/logs');
-                          await deleteLog(groupId, l.id);
-                        } catch (error) {
-                          console.error('Failed to delete log:', error);
-                        }
-                      }}
-                    />
-                    <IconButton
-                      icon="pencil"
-                      onPress={() => {
-                        if (l.type === 'calories') {
-                          const c = Number((l.payload as any)?.calories);
-                          const meal = ((l.payload as any)?.meal ?? 'all') as any;
-                          const n = (l.payload as any)?.note ?? null;
-                          if (!Number.isFinite(c) || c <= 0) return;
-                          navigation.navigate('AddCalories', { groupId, edit: { logId: l.id, date: l.date, calories: c, meal, note: n } });
-                          return;
-                        }
-                        if (l.type === 'workout') {
-                          const workoutType = ((l.payload as any)?.workoutType ?? 'weightLifting') as any;
-                          const mins = Number((l.payload as any)?.durationMinutes);
-                          const n = (l.payload as any)?.note ?? null;
-                          if (!Number.isFinite(mins) || mins <= 0) return;
-                          navigation.navigate('AddWorkout', {
-                            groupId,
-                            edit: { logId: l.id, date: l.date, workoutType, durationMinutes: mins, note: n },
-                          });
-                          return;
-                        }
-                        if (l.type === 'weight') {
-                          const w = Number((l.payload as any)?.weight);
-                          const n = (l.payload as any)?.note ?? null;
-                          if (!Number.isFinite(w) || w <= 0) return;
-                          navigation.navigate('AddWeight', { groupId, edit: { logId: l.id, date: l.date, weight: w, note: n } });
-                        }
-                      }}
-                    />
->>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
                   </View>
                 ) : null
               }

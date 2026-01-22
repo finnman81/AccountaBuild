@@ -149,7 +149,6 @@ export async function readTodayCalorieEntries(): Promise<HealthCalorieEntry[]> {
   return [];
 }
 
-<<<<<<< HEAD
 export async function readCalorieDiagnostics(): Promise<{ sources: any[]; statsBySource: any[] }> {
   if (Platform.OS === 'ios') {
     const service = await getHealthKitService();
@@ -172,8 +171,6 @@ export async function readWorkoutDiagnostics(): Promise<{ sources: any[] }> {
   return { sources: [] };
 }
 
-=======
->>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
 /**
  * Read total calories consumed for today
  */

@@ -15,7 +15,6 @@ export default function HealthAutoSync() {
   const { activeGroupId } = useActiveGroup();
   const appState = useRef(AppState.currentState);
   const settingsRef = useRef<HealthSettings | null>(null);
-<<<<<<< HEAD
   const lastSyncTimeRef = useRef<number>(0);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const isExpoGo = Constants.appOwnership === 'expo';
@@ -45,9 +44,6 @@ export default function HealthAutoSync() {
         console.error('Auto-sync failed:', err);
       });
   };
-=======
-  const isExpoGo = Constants.appOwnership === 'expo';
->>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
 
   // Subscribe to health settings
   useEffect(() => {
@@ -76,21 +72,7 @@ export default function HealthAutoSync() {
         settingsRef.current
       ) {
         // App has come to foreground
-<<<<<<< HEAD
         triggerSync('foreground');
-=======
-        const settings = settingsRef.current;
-        const hasAnySyncEnabled = settings.syncWorkouts || settings.syncCalories || settings.syncWeight;
-        
-        if (hasAnySyncEnabled) {
-          // Trigger sync in background (don't await to avoid blocking)
-          void import('../../services/healthSync')
-            .then(({ syncHealthData }) => syncHealthData(user.uid, activeGroupId, settings))
-            .catch((err) => {
-              console.error('Auto-sync failed:', err);
-            });
-        }
->>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
       }
       appState.current = nextAppState;
     });
@@ -100,7 +82,6 @@ export default function HealthAutoSync() {
     };
   }, [user, activeGroupId, isExpoGo]);
 
-<<<<<<< HEAD
   // Interval sync while app stays open
   useEffect(() => {
     if (isExpoGo) return;
@@ -124,7 +105,5 @@ export default function HealthAutoSync() {
     };
   }, [user, activeGroupId, isExpoGo]);
 
-=======
->>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
   return null; // This component doesn't render anything
 }

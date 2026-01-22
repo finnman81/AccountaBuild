@@ -22,10 +22,7 @@ export function mapHealthKitWorkoutType(healthKitType: string | number | unknown
   // Strength training variations
   if (
     normalized.includes('strength') ||
-<<<<<<< HEAD
     normalized.includes('traditionalstrengthtraining') ||
-=======
->>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
     normalized.includes('weightlifting') ||
     normalized.includes('weightlifting') ||
     normalized.includes('resistance') ||
