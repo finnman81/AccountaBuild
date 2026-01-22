@@ -31,3 +31,24 @@ export function isFutureYYYYMMDD(dateYYYYMMDD: string) {
   return s > todayYYYYMMDD();
 }
 
+/**
+ * Calculate week progress (0-1) where 0 = start of week (Monday), 1 = end of week (Sunday)
+ * Returns how far through the current week we are
+ */
+export function getWeekProgress(): number {
+  const now = new Date();
+  const weekStart = new Date(now);
+  // Get Monday of current week
+  const dayOfWeek = weekStart.getDay();
+  const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // Monday = 1, Sunday = 0
+  weekStart.setDate(weekStart.getDate() + diff);
+  weekStart.setHours(0, 0, 0, 0);
+  
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekEnd.getDate() + 7);
+  
+  const totalMs = weekEnd.getTime() - weekStart.getTime();
+  const elapsedMs = now.getTime() - weekStart.getTime();
+  return Math.min(1, Math.max(0, elapsedMs / totalMs));
+}
+

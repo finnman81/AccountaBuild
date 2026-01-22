@@ -24,6 +24,7 @@ import { ensureSeasonRollover } from '../services/mmrSeason';
 import { subscribeMyBadges, type EarnedBadge } from '../services/mmrBadges';
 import { ensureGlobalSeasonDoc } from '../services/mmrGlobalSeasons';
 import { subscribeMyMmrProjection, type MmrProjection } from '../services/mmrProjection';
+import { subscribeMyMmrGoals } from '../services/mmrGoals';
 import RankHeroCard from '../components/profile/RankHeroCard';
 import WeeklyTrajectoryCard from '../components/profile/WeeklyTrajectoryCard';
 import RiskBanner from '../components/profile/RiskBanner';
@@ -68,6 +69,7 @@ export default function ProfileScreen() {
   const [groupLogs, setGroupLogs] = useState<GroupLog[]>([]);
   const [rankDetailsVisible, setRankDetailsVisible] = useState(false);
   const [projectionDetailsVisible, setProjectionDetailsVisible] = useState(false);
+  const [mmrGoals, setMmrGoals] = useState<Record<string, any>>({});
 
   useEffect(() => {
     if (!user) return;
@@ -92,6 +94,11 @@ export default function ProfileScreen() {
   useEffect(() => {
     if (!user) return;
     return subscribeMyMmrProjection(user.uid, setProjection);
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    return subscribeMyMmrGoals(user.uid, setMmrGoals);
   }, [user]);
 
   useEffect(() => {
@@ -421,7 +428,7 @@ export default function ProfileScreen() {
       <View style={{ height: spacing.base }} />
 
       {/* Section 3: Risk / Safety State */}
-      <RiskBanner mmrState={mmrState} latestWeekly={latestWeekly} />
+      <RiskBanner mmrState={mmrState} latestWeekly={latestWeekly} projection={projection} />
 
       <View style={{ height: spacing.base }} />
 
@@ -443,14 +450,19 @@ export default function ProfileScreen() {
 
       <View style={{ height: spacing.base }} />
 
-      {/* Section 5: Calorie Goals */}
-      <ConsistencyStrip
-        title="Calorie goals"
-        activeDays={calorieDaysLogged}
-        totalDays={7}
-        streakDots={calorieDayDots}
-        countLabel="days logged"
-      />
+      {/* Section 5: Calorie Goals (only show if calories goal is enabled) */}
+      {(mmrGoals.calorieDays?.status ?? 'active') === 'active' && (
+        <>
+          <ConsistencyStrip
+            title="Calorie goals"
+            activeDays={calorieDaysLogged}
+            totalDays={7}
+            streakDots={calorieDayDots}
+            countLabel="days logged"
+          />
+          <View style={{ height: spacing.base }} />
+        </>
+      )}
 
       <View style={{ height: spacing.base }} />
 
