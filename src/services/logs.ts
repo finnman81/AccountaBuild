@@ -1,6 +1,8 @@
 import {
   addDoc,
   collection,
+  deleteDoc,
+  doc,
   limit,
   onSnapshot,
   orderBy,
@@ -51,13 +53,14 @@ export async function addCaloriesLog(params: {
   meal: MealType;
   note?: string;
   date?: string; // YYYY-MM-DD
+  source?: 'self_reported' | 'apple_health' | 'google_fit' | 'mixed' | string;
 }) {
   const res = await addDoc(collection(db, 'groups', params.groupId, 'logs'), {
     uid: params.uid,
     type: 'calories',
     date: normalizeLogDate(params.date),
     ts: serverTimestamp(),
-    source: 'self_reported',
+    source: params.source ?? 'self_reported',
     payload: {
       calories: params.calories,
       meal: params.meal,
@@ -75,13 +78,14 @@ export async function addWorkoutLog(params: {
   durationMinutes: number;
   note?: string;
   date?: string; // YYYY-MM-DD
+  source?: 'self_reported' | 'apple_health' | 'google_fit' | 'mixed' | string;
 }) {
   const res = await addDoc(collection(db, 'groups', params.groupId, 'logs'), {
     uid: params.uid,
     type: 'workout',
     date: normalizeLogDate(params.date),
     ts: serverTimestamp(),
-    source: 'self_reported',
+    source: params.source ?? 'self_reported',
     payload: {
       workoutType: params.workoutType,
       durationMinutes: params.durationMinutes,
@@ -98,13 +102,14 @@ export async function addWeightLog(params: {
   weight: number;
   note?: string;
   date?: string; // YYYY-MM-DD
+  source?: 'self_reported' | 'apple_health' | 'google_fit' | 'mixed' | string;
 }) {
   const res = await addDoc(collection(db, 'groups', params.groupId, 'logs'), {
     uid: params.uid,
     type: 'weight',
     date: normalizeLogDate(params.date),
     ts: serverTimestamp(),
-    source: 'self_reported',
+    source: params.source ?? 'self_reported',
     payload: {
       weight: params.weight,
       note: params.note?.trim() || null,
@@ -182,6 +187,18 @@ export function subscribeGroupPhotoLogs(
     },
     onError,
   );
+}
+
+/**
+ * Delete a log entry
+ */
+export async function deleteLog(groupId: string, logId: string): Promise<void> {
+  if (!db) {
+    throw new Error('Firebase database not initialized');
+  }
+  const logRef = doc(db, 'groups', groupId, 'logs', logId);
+  await deleteDoc(logRef);
+  await touchGroupActivity(groupId);
 }
 
 

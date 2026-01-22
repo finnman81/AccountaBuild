@@ -27,11 +27,12 @@ function parseYYYYMMDDLocal(dateYYYYMMDD: string) {
   return new Date(`${dateYYYYMMDD}T00:00:00`);
 }
 
-function weekStartSundayLocal() {
+function weekStartMondayLocal() {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
   const day = d.getDay(); // 0 = Sunday
-  d.setDate(d.getDate() - day);
+  const offset = (day + 6) % 7; // Monday = 0
+  d.setDate(d.getDate() - offset);
   return d;
 }
 
@@ -132,7 +133,7 @@ export default function ProgressScreen({ navigation }: Props) {
   const photoStrip = useMemo(() => photoLogs.slice(0, 12), [photoLogs]);
 
   const weekDates = useMemo(() => {
-    const start = weekStartSundayLocal();
+    const start = weekStartMondayLocal();
     const out: string[] = [];
     for (let i = 0; i < 7; i += 1) {
       const d = new Date(start);
@@ -154,7 +155,7 @@ export default function ProgressScreen({ navigation }: Props) {
         loggingConsistencyDelta: null as number | null,
       };
     }
-    const weekStart = weekStartSundayLocal();
+    const weekStart = weekStartMondayLocal();
     const memberCount = memberUids.length || groupMeta?.memberCount || 0;
     
     // Calculate total training minutes this week
@@ -247,7 +248,7 @@ export default function ProgressScreen({ navigation }: Props) {
 
   const aggregates = useMemo(() => {
     if (!activeGroupId) return { series: [] as number[], history: [] as any[], yLabel: '', title: '' };
-    const weekStart = weekStartSundayLocal();
+    const weekStart = weekStartMondayLocal();
     const memberCount = memberUids.length || groupMeta?.memberCount || 0;
     const divisor = Math.max(1, memberCount);
 

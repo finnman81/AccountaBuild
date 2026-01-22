@@ -1,0 +1,43 @@
+{
+<<<<<<< HEAD
+  "id" : "AFKyBN2NFhF3FdWDeyZZLVc",
+  "timestamp" : "2026-01-20T14:30:22.349Z[UTC]",
+  "appAppleId" : 6757963838,
+  "cfBundleShortVersion" : "1.0.0",
+  "cfBundleVersion" : "22",
+=======
+  "id" : "AOg5PyziFur6_6dGgFjOd18",
+  "timestamp" : "2026-01-17T21:24:43.652Z[UTC]",
+  "appAppleId" : 6757963838,
+  "cfBundleShortVersion" : "1.0.0",
+  "cfBundleVersion" : "3",
+>>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
+  "deviceModel" : "iPhone18,2",
+  "osVersion" : "26.2",
+  "locale" : "en-US",
+  "carrier" : null,
+  "timezone" : "America/New_York",
+  "architecture" : "arm64e",
+  "connectionStatus" : "WI_FI",
+  "pairedAppleWatch" : "",
+  "appUptimeMillis" : null,
+<<<<<<< HEAD
+  "availableDiskBytes" : 276485509120,
+  "totalDiskBytes" : 511360323584,
+  "networkType" : null,
+  "batteryPercentage" : 95,
+  "screenWidth" : 440,
+  "screenHeight" : 956,
+  "emailAddress" : "finnman81@gmail.com",
+  "comment" : "leaderboard crashes app"
+=======
+  "availableDiskBytes" : 278261415936,
+  "totalDiskBytes" : 511360323584,
+  "networkType" : null,
+  "batteryPercentage" : 85,
+  "screenWidth" : 440,
+  "screenHeight" : 956,
+  "emailAddress" : "finnman81@gmail.com",
+  "comment" : "fail"
+>>>>>>> c5553540f80b2245b2110786d7bbde4391e5503d
+}

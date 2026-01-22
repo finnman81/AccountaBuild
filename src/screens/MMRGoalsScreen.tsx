@@ -1,6 +1,6 @@
 import React, { useContext, useEffect, useMemo, useState } from 'react';
 import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, TouchableWithoutFeedback, View } from 'react-native';
-import { Button, Card, SegmentedButtons, Text, TextInput } from 'react-native-paper';
+import { Button, Card, SegmentedButtons, Switch, Text, TextInput } from 'react-native-paper';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -34,6 +34,11 @@ export default function MMRGoalsScreen() {
   const [dailyCalorieGoal, setDailyCalorieGoal] = useState('2500');
   const [logWeightDaysPerWeek, setLogWeightDaysPerWeek] = useState('5');
 
+  // Goal enable/disable toggles
+  const [workoutsEnabled, setWorkoutsEnabled] = useState(true);
+  const [minutesEnabled, setMinutesEnabled] = useState(true);
+  const [caloriesEnabled, setCaloriesEnabled] = useState(true);
+
   const [weightMode, setWeightMode] = useState<'loss' | 'gain'>('loss');
   const [weightStart, setWeightStart] = useState('');
   const [weightGoal, setWeightGoal] = useState('');
@@ -62,10 +67,15 @@ export default function MMRGoalsScreen() {
     // Hydrate from Firestore if present.
     const w = raw.workouts;
     if (w?.targetWorkoutsPerWeek != null) setWorkoutsPerWeek(String(w.targetWorkoutsPerWeek));
+    setWorkoutsEnabled((w?.status ?? 'active') === 'active');
+    
     const m = raw.minutes;
     if (m?.targetMinutesPerWeek != null) setMinutesPerWeek(String(m.targetMinutesPerWeek));
+    setMinutesEnabled((m?.status ?? 'active') === 'active');
+    
     const c = raw.calorieDays;
     if (c?.targetDaysPerWeek != null) setCalorieDaysPerWeek(String(c.targetDaysPerWeek));
+    setCaloriesEnabled((c?.status ?? 'active') === 'active');
 
     const wl = raw.weightLoss;
     const wg = raw.weightGain;
@@ -88,29 +98,76 @@ export default function MMRGoalsScreen() {
     setSaved(null);
     setSaving(true);
     try {
-      const w = toNumberOrNull(workoutsPerWeek);
-      const m = toNumberOrNull(minutesPerWeek);
-      const c = toNumberOrNull(calorieDaysPerWeek);
-      const dcg = toNumberOrNull(dailyCalorieGoal);
+      // Validate enabled goals
+      if (workoutsEnabled) {
+        const w = toNumberOrNull(workoutsPerWeek);
+        if (w == null || w <= 0 || w > 7) throw new Error('Workouts/week must be 1–7.');
+      }
+      if (minutesEnabled) {
+        const m = toNumberOrNull(minutesPerWeek);
+        if (m == null || m <= 0) throw new Error('Minutes/week must be a positive number.');
+      }
+      if (caloriesEnabled) {
+        const c = toNumberOrNull(calorieDaysPerWeek);
+        if (c == null || c <= 0 || c > 7) throw new Error('Calorie days/week must be 1–7.');
+        const dcg = toNumberOrNull(dailyCalorieGoal);
+        if (dcg == null || dcg < 0 || dcg > 20000) throw new Error('Daily calorie goal must be between 0 and 20000.');
+      }
       const wDays = toNumberOrNull(logWeightDaysPerWeek);
-      if (w == null || w <= 0 || w > 7) throw new Error('Workouts/week must be 1–7.');
-      if (m == null || m <= 0) throw new Error('Minutes/week must be a positive number.');
-      if (c == null || c <= 0 || c > 7) throw new Error('Calorie days/week must be 1–7.');
-      if (dcg == null || dcg < 0 || dcg > 20000) throw new Error('Daily calorie goal must be between 0 and 20000.');
       if (wDays == null || wDays < 0 || wDays > 7) throw new Error('Weight log days/week must be 0–7.');
 
-      await upsertGoal(user.uid, 'workouts', { type: 'workouts', status: 'active', targetWorkoutsPerWeek: Math.round(w) });
-      await upsertGoal(user.uid, 'minutes', { type: 'minutes', status: 'active', targetMinutesPerWeek: Math.round(m) });
-      await upsertGoal(user.uid, 'calorieDays', { type: 'calorieDays', status: 'active', targetDaysPerWeek: Math.round(c) });
+      // Ensure at least one goal is enabled
+      if (!workoutsEnabled && !minutesEnabled && !caloriesEnabled) {
+        throw new Error('At least one goal (workouts, minutes, or calories) must be enabled.');
+      }
+
+      // Save workouts goal
+      if (workoutsEnabled) {
+        const w = toNumberOrNull(workoutsPerWeek);
+        await upsertGoal(user.uid, 'workouts', { 
+          type: 'workouts', 
+          status: 'active', 
+          targetWorkoutsPerWeek: Math.round(w!) 
+        });
+      } else {
+        await upsertGoal(user.uid, 'workouts', { type: 'workouts', status: 'paused' });
+      }
+
+      // Save minutes goal
+      if (minutesEnabled) {
+        const m = toNumberOrNull(minutesPerWeek);
+        await upsertGoal(user.uid, 'minutes', { 
+          type: 'minutes', 
+          status: 'active', 
+          targetMinutesPerWeek: Math.round(m!) 
+        });
+      } else {
+        await upsertGoal(user.uid, 'minutes', { type: 'minutes', status: 'paused' });
+      }
+
+      // Save calorie days goal
+      if (caloriesEnabled) {
+        const c = toNumberOrNull(calorieDaysPerWeek);
+        await upsertGoal(user.uid, 'calorieDays', { 
+          type: 'calorieDays', 
+          status: 'active', 
+          targetDaysPerWeek: Math.round(c!) 
+        });
+      } else {
+        await upsertGoal(user.uid, 'calorieDays', { type: 'calorieDays', status: 'paused' });
+      }
 
       // Mirror key goal inputs into the user profile so they persist across groups
       // and can be surfaced in group dashboards/charts via `publicUsers/{uid}`.
+      const dcg = toNumberOrNull(dailyCalorieGoal);
+      const w = toNumberOrNull(workoutsPerWeek);
+      const c = toNumberOrNull(calorieDaysPerWeek);
       await updateMyProfile({
         uid: user.uid,
-        dailyCalorieGoal: Math.round(dcg),
-        workoutsPerWeek: Math.round(w),
-        logCaloriesDaysPerWeek: Math.round(c),
-        logWeightDaysPerWeek: Math.round(wDays),
+        dailyCalorieGoal: caloriesEnabled && dcg != null ? Math.round(dcg) : null,
+        workoutsPerWeek: workoutsEnabled && w != null ? Math.round(w) : null,
+        logCaloriesDaysPerWeek: caloriesEnabled && c != null ? Math.round(c) : null,
+        logWeightDaysPerWeek: Math.round(wDays!),
       });
 
       // Weight goal is optional, but if any field is provided we require all.
@@ -177,38 +234,65 @@ export default function MMRGoalsScreen() {
           <Card>
             <Card.Title title="Goals (global)" subtitle="Used for weekly scoring + group dashboards" />
             <Card.Content>
-              <TextInput
-                label="Workouts per week (1–7)"
-                keyboardType="number-pad"
-                value={workoutsPerWeek}
-                onChangeText={setWorkoutsPerWeek}
-                disabled={!canSave}
-              />
-              <View style={{ height: 12 }} />
-              <TextInput
-                label="Minutes per week"
-                keyboardType="number-pad"
-                value={minutesPerWeek}
-                onChangeText={setMinutesPerWeek}
-                disabled={!canSave}
-              />
-              <View style={{ height: 12 }} />
-              <TextInput
-                label="Calorie adherence days per week (1–7)"
-                keyboardType="number-pad"
-                value={calorieDaysPerWeek}
-                onChangeText={setCalorieDaysPerWeek}
-                disabled={!canSave}
-              />
-              <View style={{ height: 12 }} />
-              <TextInput
-                label="Daily calorie goal (0–20000)"
-                keyboardType="number-pad"
-                value={dailyCalorieGoal}
-                onChangeText={setDailyCalorieGoal}
-                disabled={!canSave}
-              />
-              <View style={{ height: 12 }} />
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <Text variant="bodyMedium" style={{ flex: 1 }}>Track Workouts</Text>
+                <Switch value={workoutsEnabled} onValueChange={setWorkoutsEnabled} disabled={!canSave} />
+              </View>
+              {workoutsEnabled && (
+                <>
+                  <TextInput
+                    label="Workouts per week (1–7)"
+                    keyboardType="number-pad"
+                    value={workoutsPerWeek}
+                    onChangeText={setWorkoutsPerWeek}
+                    disabled={!canSave}
+                  />
+                  <View style={{ height: 12 }} />
+                </>
+              )}
+
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <Text variant="bodyMedium" style={{ flex: 1 }}>Track Minutes</Text>
+                <Switch value={minutesEnabled} onValueChange={setMinutesEnabled} disabled={!canSave} />
+              </View>
+              {minutesEnabled && (
+                <>
+                  <TextInput
+                    label="Minutes per week"
+                    keyboardType="number-pad"
+                    value={minutesPerWeek}
+                    onChangeText={setMinutesPerWeek}
+                    disabled={!canSave}
+                  />
+                  <View style={{ height: 12 }} />
+                </>
+              )}
+
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <Text variant="bodyMedium" style={{ flex: 1 }}>Track Calories</Text>
+                <Switch value={caloriesEnabled} onValueChange={setCaloriesEnabled} disabled={!canSave} />
+              </View>
+              {caloriesEnabled && (
+                <>
+                  <TextInput
+                    label="Calorie adherence days per week (1–7)"
+                    keyboardType="number-pad"
+                    value={calorieDaysPerWeek}
+                    onChangeText={setCalorieDaysPerWeek}
+                    disabled={!canSave}
+                  />
+                  <View style={{ height: 12 }} />
+                  <TextInput
+                    label="Daily calorie goal (0–20000)"
+                    keyboardType="number-pad"
+                    value={dailyCalorieGoal}
+                    onChangeText={setDailyCalorieGoal}
+                    disabled={!canSave}
+                  />
+                  <View style={{ height: 12 }} />
+                </>
+              )}
+
               <TextInput
                 label="Weight log days per week (0–7)"
                 keyboardType="number-pad"

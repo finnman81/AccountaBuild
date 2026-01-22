@@ -10,9 +10,19 @@ export function demotionRisk(params: {
   consecutiveMissedWeeks: number;
   tierShieldWeeksRemaining: number;
   missedLastWeek: boolean;
+  weekProgress?: number; // 0-1, where 1 = end of week (optional, defaults to showing immediately)
+  weekCompletion?: number; // 0-1, current completion % (optional)
 }): DemotionRisk {
-  const { mmr, consecutiveMissedWeeks, tierShieldWeeksRemaining, missedLastWeek } = params;
+  const { 
+    mmr, 
+    consecutiveMissedWeeks, 
+    tierShieldWeeksRemaining, 
+    missedLastWeek,
+    weekProgress = 1, // Default to end of week (always show) for backward compatibility
+    weekCompletion = 1, // Default to 100% (no warning) for backward compatibility
+  } = params;
 
+  // Always show warnings for missed weeks (these are critical)
   if (missedLastWeek) {
     return { level: 'danger', message: 'Missed last week. Log this week to avoid further penalty and demotion risk.' };
   }
@@ -28,8 +38,18 @@ export function demotionRisk(params: {
   const dist = Math.round(mmr - threshold);
 
   // Within this window, show a warning.
+  // But only if: (1) later in the week (Thursday+), AND (2) user hasn't hit any targets yet
   const window = 80;
   if (dist <= window) {
+    // Only show warning later in the week (60% = ~Thursday) if user has 0% completion
+    const isLaterInWeek = weekProgress >= 0.6; // Thursday or later
+    const hasNoProgress = weekCompletion === 0;
+    
+    // If it's early in the week OR user has made progress, don't show the warning
+    if (!isLaterInWeek || !hasNoProgress) {
+      return { level: 'none', message: '' };
+    }
+
     const below = bandBelowFor(band);
     const isTierBoundary = below ? below.tier !== band.tier : false;
     const shieldNote = isTierBoundary && tierShieldWeeksRemaining > 0 ? ` (Tier shield: ${tierShieldWeeksRemaining}w)` : '';

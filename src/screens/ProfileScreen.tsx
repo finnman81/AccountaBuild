@@ -11,11 +11,12 @@ import NavList from '../components/ui/NavList';
 import { AuthContext } from '../store/AuthContext';
 import { subscribeMyProfile } from '../services/profile';
 import { db } from '../firebase/firebase';
-import { formatHeightInches, formatWeightLb } from '../utils/formatters';
+import { formatHeightInches, formatMinutesHM, formatWeightLb } from '../utils/formatters';
 import { useActiveGroup } from '../store/ActiveGroupContext';
 import { subscribeGroupLogs, type GroupLog } from '../services/logs';
 import type { RootStackParamList } from '../navigation/types';
-import { DEFAULT_TZ, isoWeekIdInTz, yyyyMmDdInTz } from '../mmr/time';
+import { DEFAULT_TZ, isoWeekIdInTz } from '../mmr/time';
+import { formatYYYYMMDDLocal } from '../utils/dates';
 import { subscribeMyMmrState, type MmrState } from '../services/mmrState';
 import { updateGlobalMmrUpToCurrentWeek } from '../services/mmrUpdate';
 import { subscribeLatestMmrWeeklySummary, type MmrWeeklySummary } from '../services/mmrWeekly';
@@ -23,30 +24,27 @@ import { ensureSeasonRollover } from '../services/mmrSeason';
 import { subscribeMyBadges, type EarnedBadge } from '../services/mmrBadges';
 import { ensureGlobalSeasonDoc } from '../services/mmrGlobalSeasons';
 import { subscribeMyMmrProjection, type MmrProjection } from '../services/mmrProjection';
+import { subscribeMyMmrGoals } from '../services/mmrGoals';
 import RankHeroCard from '../components/profile/RankHeroCard';
 import WeeklyTrajectoryCard from '../components/profile/WeeklyTrajectoryCard';
 import RiskBanner from '../components/profile/RiskBanner';
 import ConsistencyStrip from '../components/profile/ConsistencyStrip';
-import GoalSummaryRow from '../components/profile/GoalSummaryRow';
 import TrendPreviewSparkline from '../components/profile/TrendPreviewSparkline';
 import RankDetailsModal from '../components/profile/RankDetailsModal';
 import ProjectionDetailsModal from '../components/profile/ProjectionDetailsModal';
 import { spacing } from '../theme/spacing';
 
-function weekStartSundayLocal() {
+function weekStartMondayLocal() {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
   const day = d.getDay(); // 0 = Sunday
-  d.setDate(d.getDate() - day);
+  const offset = (day + 6) % 7; // Monday = 0
+  d.setDate(d.getDate() - offset);
   return d;
 }
 
 function parseYYYYMMDDLocal(dateYYYYMMDD: string) {
   return new Date(`${dateYYYYMMDD}T00:00:00`);
-}
-
-function weekdayShort(idx: number) {
-  return ['S', 'M', 'T', 'W', 'T', 'F', 'S'][idx] ?? '';
 }
 
 export default function ProfileScreen() {
@@ -65,13 +63,13 @@ export default function ProfileScreen() {
   const [projection, setProjection] = useState<MmrProjection | null>(null);
 
   const [weightEntries, setWeightEntries] = useState<{ date: string; weight: number; tsMs: number | null }[]>([]);
-  const [calorieLogDates, setCalorieLogDates] = useState<Set<string>>(new Set()); // Dates where user logged calories
   const [weekWorkoutDays, setWeekWorkoutDays] = useState<number[]>(Array(7).fill(0)); // circles
   const [weekMinutes, setWeekMinutes] = useState(0);
   const [group, setGroup] = useState<{ streakRule?: 'workout' | 'any'; name?: string } | null>(null);
   const [groupLogs, setGroupLogs] = useState<GroupLog[]>([]);
   const [rankDetailsVisible, setRankDetailsVisible] = useState(false);
   const [projectionDetailsVisible, setProjectionDetailsVisible] = useState(false);
+  const [mmrGoals, setMmrGoals] = useState<Record<string, any>>({});
 
   useEffect(() => {
     if (!user) return;
@@ -99,6 +97,11 @@ export default function ProfileScreen() {
   }, [user]);
 
   useEffect(() => {
+    if (!user) return;
+    return subscribeMyMmrGoals(user.uid, setMmrGoals);
+  }, [user]);
+
+  useEffect(() => {
     if (!user?.uid) return;
     if (!mmrState?.currentSeasonId) return;
     // Best-effort initialize global season doc for countdown UI.
@@ -121,7 +124,11 @@ export default function ProfileScreen() {
         if (mmrState.lastWeekIdUpdated === currentWeekId) return;
         return updateGlobalMmrUpToCurrentWeek(user.uid);
       })
-      .catch(() => setMmrError('Failed to update MMR.'))
+      .catch((err) => {
+        console.error('[MMR Auto-Update Error]', err);
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        setMmrError(`Failed to update MMR: ${errorMessage}`);
+      })
       .finally(() => setMmrBusy(false));
   }, [mmrBusy, mmrState, refreshing, user]);
 
@@ -143,61 +150,63 @@ export default function ProfileScreen() {
     });
   }, [user]);
 
-  const last7DatesNY = useMemo(() => {
+  const weekDates = useMemo(() => {
     const out: string[] = [];
-    const now = new Date();
-    for (let i = 6; i >= 0; i -= 1) {
-      const d = new Date(now);
-      d.setDate(d.getDate() - i);
-      out.push(yyyyMmDdInTz(d));
+    const start = weekStartMondayLocal();
+    for (let i = 0; i < 7; i += 1) {
+      const d = new Date(start);
+      d.setDate(d.getDate() + i);
+      out.push(formatYYYYMMDDLocal(d));
     }
     return out;
   }, []);
 
-  // Track calorie logs from all groups (automatic, not manual)
-  useEffect(() => {
-    if (!user) return;
-    const weekStart = weekStartSundayLocal();
-    const dates = new Set<string>();
+  const calorieTotalsByDate = useMemo(() => {
+    if (!user) return {} as Record<string, number>;
+    const weekStart = weekStartMondayLocal();
+    const totals: Record<string, number> = {};
     
     // Check all group logs for calorie entries by this user
     for (const l of groupLogs) {
       if (l.uid !== user.uid || l.type !== 'calories') continue;
       const dt = parseYYYYMMDDLocal(l.date);
       if (Number.isNaN(dt.valueOf()) || dt < weekStart) continue;
-      dates.add(l.date);
+      const cals = Number((l.payload as any)?.calories);
+      if (!Number.isFinite(cals) || cals <= 0) continue;
+      totals[l.date] = (totals[l.date] ?? 0) + cals;
     }
-    
-    setCalorieLogDates(dates);
+    return totals;
   }, [groupLogs, user]);
 
   useEffect(() => {
-    if (!user) return;
-    const ref = query(collection(db, 'users', user.uid, 'workouts'), orderBy('ts', 'desc'), limit(100));
-    return onSnapshot(ref, (snap) => {
-      const weekStart = weekStartSundayLocal();
-      const seen = new Set<string>();
-      let total = 0;
-      for (const d of snap.docs) {
-        const data = d.data() as any;
-        const date = String(data?.date ?? '');
-        if (!date) continue;
-        const dt = parseYYYYMMDDLocal(date);
-        if (Number.isNaN(dt.valueOf()) || dt < weekStart) continue;
-        seen.add(date);
-        const mins = Number(data?.durationMinutes);
-        if (Number.isFinite(mins) && mins > 0) total += mins;
-      }
-      const days = Array(7).fill(0);
-      for (const dateStr of seen.values()) {
-        const dt = parseYYYYMMDDLocal(dateStr);
-        const idx = dt.getDay();
-        days[idx] = 1;
-      }
-      setWeekWorkoutDays(days);
-      setWeekMinutes(Math.round(total));
-    });
-  }, [user]);
+    if (!user || !activeGroupId) {
+      setWeekWorkoutDays(Array(7).fill(0));
+      setWeekMinutes(0);
+      return;
+    }
+    const weekStart = weekStartMondayLocal();
+    const seen = new Set<string>();
+    let total = 0;
+    
+    // Count workouts from group logs only (workout type)
+    for (const l of groupLogs) {
+      if (l.uid !== user.uid || l.type !== 'workout') continue;
+      const dt = parseYYYYMMDDLocal(l.date);
+      if (Number.isNaN(dt.valueOf()) || dt < weekStart) continue;
+      seen.add(l.date);
+      const mins = Number((l.payload as any)?.durationMinutes);
+      if (Number.isFinite(mins) && mins > 0) total += mins;
+    }
+    
+    const days = Array(7).fill(0);
+    for (const dateStr of seen.values()) {
+      const dt = parseYYYYMMDDLocal(dateStr);
+      const idx = dt.getDay();
+      days[idx] = 1;
+    }
+    setWeekWorkoutDays(days);
+    setWeekMinutes(Math.round(total));
+  }, [user, activeGroupId, groupLogs]);
 
   useEffect(() => {
     if (!activeGroupId) {
@@ -222,7 +231,7 @@ export default function ProfileScreen() {
   const weekStreak = useMemo(() => {
     if (!user) return Array(7).fill(0);
     if (!activeGroupId) return Array(7).fill(0);
-    const weekStart = weekStartSundayLocal();
+    const weekStart = weekStartMondayLocal();
     const allowed = streakRule === 'any' ? new Set(['workout', 'calories', 'weight', 'photo']) : new Set(['workout']);
     const dateSet = new Set<string>();
     for (const l of groupLogs) {
@@ -269,14 +278,18 @@ export default function ProfileScreen() {
     return last - first;
   }, [dailyWeightEntries]);
 
-  // Calculate calorie days met (binary: if user logged anything that day, it counts)
-  const calorieDaysMet = useMemo(() => {
-    return last7DatesNY.filter((d) => calorieLogDates.has(d)).length;
-  }, [last7DatesNY, calorieLogDates]);
-
+  const dailyCalorieGoal = Number(profile?.dailyCalorieGoal ?? 0);
   const calorieDayDots = useMemo(() => {
-    return last7DatesNY.map((d) => calorieLogDates.has(d));
-  }, [last7DatesNY, calorieLogDates]);
+    return weekDates.map((d) => {
+      const total = calorieTotalsByDate[d] ?? 0;
+      return total > 0 ? 1 : 0;
+    });
+  }, [calorieTotalsByDate, weekDates]);
+
+  const calorieDaysLogged = useMemo(
+    () => calorieDayDots.reduce((sum, v) => sum + (v ? 1 : 0), 0),
+    [calorieDayDots],
+  );
 
   if (!user) {
     return (
@@ -323,7 +336,11 @@ export default function ProfileScreen() {
         setRefreshing(true);
         void ensureSeasonRollover(user.uid)
           .then(() => updateGlobalMmrUpToCurrentWeek(user.uid))
-          .catch(() => setMmrError('Failed to refresh MMR.'))
+          .catch((err) => {
+            console.error('[MMR Refresh Error]', err);
+            const errorMessage = err instanceof Error ? err.message : String(err);
+            setMmrError(`Failed to refresh MMR: ${errorMessage}`);
+          })
           .finally(() => setRefreshing(false));
       }}
     >
@@ -411,16 +428,18 @@ export default function ProfileScreen() {
       <View style={{ height: spacing.base }} />
 
       {/* Section 3: Risk / Safety State */}
-      <RiskBanner mmrState={mmrState} latestWeekly={latestWeekly} />
+      <RiskBanner mmrState={mmrState} latestWeekly={latestWeekly} projection={projection} />
 
       <View style={{ height: spacing.base }} />
 
       {/* Section 4: Consistency */}
       <ConsistencyStrip
-        activeDays={weekStreakCount}
+        title="Workouts"
+        activeDays={weekWorkoutDays.reduce((sum, v) => sum + v, 0)}
         totalDays={7}
-        streakDots={weekStreak}
-        totalMinutes={weekMinutes}
+        streakDots={[weekWorkoutDays[1], weekWorkoutDays[2], weekWorkoutDays[3], weekWorkoutDays[4], weekWorkoutDays[5], weekWorkoutDays[6], weekWorkoutDays[0]]} // Reorder: Monday first
+        countLabel="active days"
+        footerText={`Total time this week: ${formatMinutesHM(weekMinutes)}`}
         onPress={() => {
           nav.navigate('MainTabs' as any, {
             screen: 'ProgressTab',
@@ -431,14 +450,19 @@ export default function ProfileScreen() {
 
       <View style={{ height: spacing.base }} />
 
-      {/* Section 5: Goal Compliance */}
-      <GoalSummaryRow
-        label="Calorie goals"
-        met={calorieDaysMet}
-        total={7}
-        dayDots={calorieDayDots}
-        dayLabels={last7DatesNY.map((d) => weekdayShort(parseYYYYMMDDLocal(d).getDay()))}
-      />
+      {/* Section 5: Calorie Goals (only show if calories goal is enabled) */}
+      {(mmrGoals.calorieDays?.status ?? 'active') === 'active' && (
+        <>
+          <ConsistencyStrip
+            title="Calorie goals"
+            activeDays={calorieDaysLogged}
+            totalDays={7}
+            streakDots={calorieDayDots}
+            countLabel="days logged"
+          />
+          <View style={{ height: spacing.base }} />
+        </>
+      )}
 
       <View style={{ height: spacing.base }} />
 
@@ -499,10 +523,12 @@ export default function ProfileScreen() {
               {
                 title: 'Notifications',
                 icon: 'bell',
-                description: 'Coming soon',
-                onPress: async () => {
-                  await Haptics.selectionAsync();
-                },
+                onPress: () => nav.navigate('Notifications', undefined),
+              },
+              {
+                title: 'Health & Fitness',
+                icon: 'heart-pulse',
+                onPress: () => (nav as any).navigate('HealthSettings'),
               },
               {
                 title: 'Units',

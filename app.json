@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -14,14 +14,30 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.accountabuild.app"
+      "bundleIdentifier": "com.accountabuild.app",
+      "entitlements": {
+        "com.apple.developer.healthkit": true
+      },
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSHealthShareUsageDescription": "AccountaBuild needs access to your health data to automatically sync workouts, calories, and weight from Apple Health.",
+        "NSHealthUpdateUsageDescription": "AccountaBuild needs permission to read your health data from Apple Health."
+      },
+      "notificationMode": "production"
     },
     "android": {
       "package": "com.accountabuild.app",
+      "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#0d1b2a"
       },
+      "permissions": [
+        "android.permission.ACTIVITY_RECOGNITION",
+        "android.permission.BODY_SENSORS",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.POST_NOTIFICATIONS"
+      ],
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
@@ -29,7 +45,29 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-font"
+      "expo-font",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#ffffff",
+          "sounds": []
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "AccountaBuild needs access to your photos to upload progress photos and profile pictures.",
+          "cameraPermission": "AccountaBuild needs access to your camera to take photos for your progress logs."
+        }
+      ],
+      [
+        "@kingstinct/react-native-healthkit",
+        {
+          "healthSharePermission": "AccountaBuild needs access to your health data to automatically sync workouts, calories, and weight from Apple Health.",
+          "healthUpdatePermission": "AccountaBuild needs permission to read your health data from Apple Health."
+        }
+      ]
     ],
     "extra": {
       "eas": {

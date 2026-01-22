@@ -9,10 +9,29 @@ import {
   updateProfile,
 } from 'firebase/auth';
 import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { auth, db, isFirebaseConfigured } from '../firebase/firebase';
+import { auth, db, firebaseInitError, isFirebaseConfigured } from '../firebase/firebase';
 import { syncMyMemberProfileToAllGroups } from '../services/profile';
 import { syncMyVisibilityIndex } from '../services/visibility';
+
+// Debug: Check AsyncStorage for Firebase auth data
+async function debugAsyncStorage() {
+  try {
+    const allKeys = await AsyncStorage.getAllKeys();
+    const firebaseKeys = allKeys.filter((k) => k.includes('firebase') || k.includes('auth'));
+    console.log('[Auth Debug] AsyncStorage keys (Firebase-related):', firebaseKeys);
+    
+    if (firebaseKeys.length > 0) {
+      const values = await AsyncStorage.multiGet(firebaseKeys);
+      console.log('[Auth Debug] AsyncStorage values:', values.map(([k, v]) => [k, v?.substring(0, 50)]));
+    } else {
+      console.warn('[Auth Debug] ⚠️ No Firebase auth keys found in AsyncStorage');
+    }
+  } catch (error) {
+    console.error('[Auth Debug] Error checking AsyncStorage:', error);
+  }
+}
 
 export type AuthUser = {
   uid: string;
@@ -41,13 +60,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [didSyncMemberProfile, setDidSyncMemberProfile] = useState(false);
 
   useEffect(() => {
-    if (!isFirebaseConfigured()) {
+    console.log('[Auth Debug] Setting up auth state listener...');
+    console.log('[Auth Debug] Firebase configured:', isFirebaseConfigured());
+    console.log('[Auth Debug] Firebase init error:', firebaseInitError);
+    console.log('[Auth Debug] Auth instance:', !!auth);
+    
+    if (!isFirebaseConfigured() || firebaseInitError || !auth) {
+      console.warn('[Auth Debug] ⚠️ Skipping auth listener - Firebase not ready');
       setIsLoading(false);
       setUser(null);
       return;
     }
 
+    console.log('[Auth Debug] ✅ Setting up onAuthStateChanged listener');
+    
+    // Debug: Check AsyncStorage on mount
+    void debugAsyncStorage();
+    
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      console.log('[Auth Debug] 🔔 Auth state changed:', {
+        hasUser: !!firebaseUser,
+        uid: firebaseUser?.uid,
+        email: firebaseUser?.email,
+        timestamp: new Date().toISOString(),
+      });
+      
+      // Debug: Check AsyncStorage after auth state change
+      if (firebaseUser) {
+        void debugAsyncStorage();
+      }
+      
       setUser(firebaseUser ? toAuthUser(firebaseUser) : null);
       setIsLoading(false);
     });
@@ -74,9 +116,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user,
       isLoading,
       login: async (email: string, password: string) => {
+        if (!auth) {
+          throw new Error('Firebase is not initialized.');
+        }
+        console.log('[Auth Debug] 🔐 Attempting login for:', email.trim());
         await signInWithEmailAndPassword(auth, email.trim(), password);
+        console.log('[Auth Debug] ✅ Login successful');
       },
       register: async (displayName: string, email: string, password: string) => {
+        if (!auth || !db) {
+          throw new Error('Firebase is not initialized.');
+        }
         const credential = await createUserWithEmailAndPassword(
           auth,
           email.trim(),
@@ -104,10 +154,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // If they join groups later, the login-time sync will populate group member profiles.
       },
       resetPassword: async (email: string) => {
+        if (!auth) {
+          throw new Error('Firebase is not initialized.');
+        }
         await sendPasswordResetEmail(auth, email.trim());
       },
       logout: async () => {
+        if (!auth) {
+          throw new Error('Firebase is not initialized.');
+        }
+        console.log('[Auth Debug] 🚪 Logging out user');
         await signOut(auth);
+        console.log('[Auth Debug] ✅ Logout complete');
       },
     }),
     [isLoading, user],
