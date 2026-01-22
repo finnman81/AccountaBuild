@@ -2,7 +2,7 @@ import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebase/firebase';
 import { todayYYYYMMDD } from '../utils/dates';
 import { addCaloriesLog, addWorkoutLog, addWeightLog, type WorkoutType } from './logs';
-import { upsertUserWeightHistoryFromGroupLog } from './logEdits';
+import { updateGroupLog, upsertUserWeightHistoryFromGroupLog } from './logEdits';
 import * as HealthService from './health/healthService';
 import type { HealthSettings } from './healthSettings';
 
@@ -145,6 +145,42 @@ async function hasSyncedLogForToday(
   }
   
   return false;
+}
+
+/**
+ * Find existing calorie log for the same meal type from the same source today
+ * Returns the log document ID and existing calories if found, null otherwise
+ */
+async function findExistingCalorieLogForMeal(
+  groupId: string,
+  uid: string,
+  meal: string,
+  source: 'apple_health' | 'google_fit',
+): Promise<{ docId: string; existingCalories: number } | null> {
+  const today = todayYYYYMMDD();
+  const logsRef = collection(db, 'groups', groupId, 'logs');
+  const q = query(
+    logsRef,
+    where('uid', '==', uid),
+    where('type', '==', 'calories'),
+    where('date', '==', today),
+    where('source', '==', source),
+  );
+  const snapshot = await getDocs(q);
+  
+  // Check if any existing log has the same meal type
+  for (const doc of snapshot.docs) {
+    const data = doc.data();
+    const existingMeal = String((data.payload as any)?.meal ?? '');
+    if (existingMeal === meal) {
+      return {
+        docId: doc.id,
+        existingCalories: Number((data.payload as any)?.calories ?? 0),
+      };
+    }
+  }
+  
+  return null;
 }
 
 /**
@@ -325,38 +361,56 @@ export async function syncHealthData(
           
           for (const entry of calorieEntries) {
             try {
-              // Check if this exact calorie entry already exists from this source today
-              // Must match both calories AND meal type to be considered a duplicate
-              const alreadyExists = await hasSyncedLogForToday(
+              // Check if a log for this meal type already exists from this source today
+              // If it exists, we'll update it instead of creating a duplicate
+              const existingLog = await findExistingCalorieLogForMeal(
                 groupId, 
                 uid, 
-                'calories', 
-                entry.calories, 
-                healthSource,
-                { meal: entry.meal }
+                entry.meal,
+                healthSource
               );
-              
-              if (alreadyExists) {
-                skippedDuplicates += 1;
-                continue;
-              }
               
               const sourceNote = entry.source 
                 ? `Synced from ${platform === 'ios' ? 'Apple Health' : 'Google Fit'} (${entry.source})`
                 : `Synced from ${platform === 'ios' ? 'Apple Health' : 'Google Fit'}`;
               
-              await addCaloriesLog({
-                groupId,
-                uid,
-                calories: entry.calories,
-                meal: entry.meal,
-                date: entry.date,
-                note: sourceNote,
-                source: healthSource,
-              });
-              syncedCount++;
-              if (syncedCount <= 3) {
-                console.log('[HealthSync] Synced calorie entry:', entry.calories, 'calories for', entry.meal);
+              // If existing log found, update it instead of creating a new one
+              if (existingLog) {
+                // Only update if the calorie value is different (to avoid unnecessary updates)
+                if (existingLog.existingCalories !== entry.calories) {
+                  await updateGroupLog({
+                    groupId,
+                    logId: existingLog.docId,
+                    date: entry.date,
+                    payload: {
+                      calories: entry.calories,
+                      meal: entry.meal,
+                      note: sourceNote,
+                    },
+                  });
+                  syncedCount++;
+                  if (syncedCount <= 3) {
+                    console.log('[HealthSync] Updated calorie entry:', existingLog.existingCalories, '→', entry.calories, 'calories for', entry.meal);
+                  }
+                } else {
+                  skippedDuplicates += 1;
+                  console.log('[HealthSync] Skipping duplicate calorie entry (same value):', entry.calories, 'calories for', entry.meal);
+                }
+              } else {
+                // No existing log for this meal type, create a new one
+                await addCaloriesLog({
+                  groupId,
+                  uid,
+                  calories: entry.calories,
+                  meal: entry.meal,
+                  date: entry.date,
+                  note: sourceNote,
+                  source: healthSource,
+                });
+                syncedCount++;
+                if (syncedCount <= 3) {
+                  console.log('[HealthSync] Synced calorie entry:', entry.calories, 'calories for', entry.meal);
+                }
               }
             } catch (error) {
               console.error('[HealthSync] Failed to sync individual calorie entry:', error);

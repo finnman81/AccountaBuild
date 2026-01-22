@@ -243,13 +243,95 @@ export async function readTodayWorkouts(): Promise<HealthKitWorkout[]> {
 
     return workouts
       .map((w: any) => {
-        const workoutType = mapHealthKitWorkoutType(w.workoutActivityType);
+        // Enhanced workout type detection using multiple signals
+        let workoutType = mapHealthKitWorkoutType(w.workoutActivityType);
+        
+        // Special handling for ambiguous type 52 (can be Walking OR TraditionalStrengthTraining)
+        const rawType = w.workoutActivityType;
+        if (rawType === 52 || rawType === '52') {
+          // Check for distance - strength training typically doesn't have distance
+          const distance = w.totalDistance || w.distance || w.totalDistanceValue;
+          const hasDistance = distance && typeof distance === 'number' && distance > 0;
+          
+          // Check source app
+          const sourceName = (w.source?.name || w.sourceRevision?.source?.name || w.sourceName || '').toLowerCase();
+          const isStrengthApp = sourceName.includes('strong') || sourceName.includes('jefit') || 
+                               sourceName.includes('gym') || sourceName.includes('weight');
+          
+          // Check metadata
+          const metadata = w.metadata || {};
+          const metadataType = String(metadata.HKWorkoutActivityType || metadata.workoutType || '').toLowerCase();
+          
+          if (hasDistance || metadataType.includes('walk') || metadataType.includes('run')) {
+            // Has distance or metadata suggests walking/running
+            workoutType = 'jogging';
+            console.log('[HealthKit] Resolved ambiguous type 52 to jogging (has distance or walk/run metadata)');
+          } else if (isStrengthApp || metadataType.includes('strength') || metadataType.includes('weight')) {
+            // Source or metadata suggests strength training
+            workoutType = 'weightLifting';
+            console.log('[HealthKit] Resolved ambiguous type 52 to weightLifting (strength app/metadata)');
+          }
+          // Otherwise keep as jogging (default for 52)
+        }
+        
+        // If we got weightLifting as default, try to infer from metadata/distance
+        if (workoutType === 'weightLifting') {
+          // Check for distance data - running/jogging typically have distance
+          const distance = w.totalDistance || w.distance || w.totalDistanceValue;
+          const hasDistance = distance && typeof distance === 'number' && distance > 0;
+          
+          // Check source app name for clues
+          const sourceName = (w.source?.name || w.sourceRevision?.source?.name || w.sourceName || '').toLowerCase();
+          const isRunningApp = sourceName.includes('runna') || sourceName.includes('nike') || 
+                              sourceName.includes('strava') || sourceName.includes('runkeeper') ||
+                              sourceName.includes('runtastic') || sourceName.includes('garmin');
+          
+          // Check metadata for workout type hints
+          const metadata = w.metadata || {};
+          const metadataType = String(metadata.HKWorkoutActivityType || metadata.workoutType || '').toLowerCase();
+          
+          // If we have distance and it's from a running app, it's likely running/jogging
+          if (hasDistance && (isRunningApp || metadataType.includes('run'))) {
+            // Determine running vs jogging based on pace (if available)
+            const durationSeconds = deriveWorkoutDurationMinutes(w) * 60;
+            const pace = durationSeconds > 0 && distance > 0 ? (durationSeconds / 60) / (distance / 1609.34) : null; // minutes per mile
+            // If pace is reasonable for running (< 12 min/mile), classify as running
+            // Otherwise, classify as jogging
+            workoutType = (pace && pace < 12) ? 'running' : 'jogging';
+            console.log('[HealthKit] Inferred workout type from distance/source:', {
+              originalType: w.workoutActivityType,
+              inferredType: workoutType,
+              distance,
+              sourceName,
+              pace,
+            });
+          } else if (hasDistance && !isRunningApp) {
+            // Has distance but not from running app - could still be running/jogging
+            workoutType = 'jogging'; // Default to jogging for unknown distance-based workouts
+            console.log('[HealthKit] Inferred jogging from distance:', {
+              originalType: w.workoutActivityType,
+              distance,
+              sourceName,
+            });
+          }
+        }
+        
         if (!workoutType) return null;
 
         const durationMinutes = deriveWorkoutDurationMinutes(w);
 
         const startDate = w.startDate instanceof Date ? w.startDate : new Date(w.startDate);
         const endDate = w.endDate instanceof Date ? w.endDate : new Date(w.endDate);
+
+        // Log workout details for debugging
+        console.log('[HealthKit] Mapped workout:', {
+          workoutActivityType: w.workoutActivityType,
+          mappedType: workoutType,
+          durationMinutes,
+          source: w.source?.name || w.sourceRevision?.source?.name || w.sourceName,
+          distance: w.totalDistance || w.distance || w.totalDistanceValue,
+          metadata: w.metadata ? Object.keys(w.metadata).slice(0, 5) : [],
+        });
 
         return {
           workoutType,

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 import { useContext } from 'react';
 import Constants from 'expo-constants';
@@ -14,7 +14,7 @@ export default function HealthAutoSync() {
   const { user } = useContext(AuthContext);
   const { activeGroupId } = useActiveGroup();
   const appState = useRef(AppState.currentState);
-  const settingsRef = useRef<HealthSettings | null>(null);
+  const [settings, setSettings] = useState<HealthSettings | null>(null);
   const lastSyncTimeRef = useRef<number>(0);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const isExpoGo = Constants.appOwnership === 'expo';
@@ -22,10 +22,20 @@ export default function HealthAutoSync() {
   const SYNC_INTERVAL_MS = 60 * 60 * 1000; // 1 hour when app is open
 
   const triggerSync = (reason: 'foreground' | 'interval') => {
-    if (!user || !activeGroupId || !settingsRef.current) return;
-    const settings = settingsRef.current;
+    if (!user || !activeGroupId || !settings) {
+      console.log(`[HealthAutoSync] Skipping auto-sync (${reason}) - missing requirements:`, {
+        hasUser: !!user,
+        hasActiveGroupId: !!activeGroupId,
+        hasSettings: !!settings,
+      });
+      return;
+    }
+    
     const hasAnySyncEnabled = settings.syncWorkouts || settings.syncCalories || settings.syncWeight;
-    if (!hasAnySyncEnabled) return;
+    if (!hasAnySyncEnabled) {
+      console.log(`[HealthAutoSync] Skipping auto-sync (${reason}) - no sync types enabled`);
+      return;
+    }
 
     const now = Date.now();
     const timeSinceLastSync = now - lastSyncTimeRef.current;
@@ -37,73 +47,119 @@ export default function HealthAutoSync() {
     }
 
     lastSyncTimeRef.current = now;
-    console.log(`[HealthAutoSync] Triggering auto-sync (${reason})`);
+    console.log(`[HealthAutoSync] Triggering auto-sync (${reason})`, {
+      syncWorkouts: settings.syncWorkouts,
+      syncCalories: settings.syncCalories,
+      syncWeight: settings.syncWeight,
+    });
     void import('../../services/healthSync')
       .then(({ syncHealthData }) => syncHealthData(user.uid, activeGroupId, settings))
       .catch((err) => {
-        console.error('Auto-sync failed:', err);
+        console.error('[HealthAutoSync] Auto-sync failed:', err);
       });
   };
 
   // Subscribe to health settings
   useEffect(() => {
-    if (isExpoGo) return;
-    if (!user) return;
+    if (isExpoGo) {
+      console.log('[HealthAutoSync] Skipping - running in Expo Go');
+      return;
+    }
+    if (!user) {
+      console.log('[HealthAutoSync] No user, clearing settings');
+      setSettings(null);
+      return;
+    }
+    
+    console.log('[HealthAutoSync] Subscribing to health settings for user:', user.uid);
     return subscribeHealthSettings(
       user.uid,
-      (settings) => {
-        settingsRef.current = settings;
+      (newSettings) => {
+        console.log('[HealthAutoSync] Settings loaded:', {
+          syncWorkouts: newSettings.syncWorkouts,
+          syncCalories: newSettings.syncCalories,
+          syncWeight: newSettings.syncWeight,
+        });
+        setSettings(newSettings);
       },
       (err) => {
-        console.error('Error loading health settings for auto-sync:', err);
+        console.error('[HealthAutoSync] Error loading health settings:', err);
+        setSettings(null);
       },
     );
-  }, [user]);
+  }, [user, isExpoGo]);
 
   // Handle app state changes
   useEffect(() => {
     if (isExpoGo) return;
+    if (!user || !activeGroupId) return;
+    
+    console.log('[HealthAutoSync] Setting up AppState listener');
     const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
+      console.log('[HealthAutoSync] AppState changed:', {
+        from: appState.current,
+        to: nextAppState,
+        hasUser: !!user,
+        hasActiveGroupId: !!activeGroupId,
+        hasSettings: !!settings,
+      });
+      
       if (
         appState.current.match(/inactive|background/) &&
         nextAppState === 'active' &&
         user &&
         activeGroupId &&
-        settingsRef.current
+        settings
       ) {
         // App has come to foreground
+        console.log('[HealthAutoSync] App came to foreground, triggering sync');
         triggerSync('foreground');
       }
       appState.current = nextAppState;
     });
 
     return () => {
+      console.log('[HealthAutoSync] Cleaning up AppState listener');
       subscription.remove();
     };
-  }, [user, activeGroupId, isExpoGo]);
+  }, [user, activeGroupId, settings, isExpoGo]);
 
   // Interval sync while app stays open
   useEffect(() => {
     if (isExpoGo) return;
-    if (!user || !activeGroupId) return;
+    if (!user || !activeGroupId || !settings) {
+      // Clear interval if requirements not met
+      if (intervalRef.current) {
+        console.log('[HealthAutoSync] Clearing interval - requirements not met');
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      return;
+    }
 
+    // Clear existing interval
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
     }
 
+    console.log('[HealthAutoSync] Setting up interval sync (1 hour)');
     intervalRef.current = setInterval(() => {
-      if (appState.current === 'active') {
+      if (appState.current === 'active' && user && activeGroupId && settings) {
+        console.log('[HealthAutoSync] Interval triggered, checking if app is active');
         triggerSync('interval');
+      } else {
+        console.log('[HealthAutoSync] Interval triggered but app not active or requirements not met');
       }
     }, SYNC_INTERVAL_MS);
 
     return () => {
       if (intervalRef.current) {
+        console.log('[HealthAutoSync] Cleaning up interval');
         clearInterval(intervalRef.current);
         intervalRef.current = null;
       }
     };
-  }, [user, activeGroupId, isExpoGo]);
+  }, [user, activeGroupId, settings, isExpoGo]);
 
   return null; // This component doesn't render anything
 }

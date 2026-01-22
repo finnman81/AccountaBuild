@@ -27,7 +27,12 @@ export type WorkoutType =
   | 'rowing'
   | 'elliptical'
   | 'hiit'
-  | 'yoga';
+  | 'yoga'
+  | 'stretching'
+  | 'meditation'
+  | 'pilates'
+  | 'taiChi'
+  | 'walking';
 export type LogType = 'calories' | 'workout' | 'weight' | 'photo';
 export type MealType = 'all' | 'breakfast' | 'lunch' | 'dinner' | 'snack';
 

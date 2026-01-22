@@ -376,6 +376,16 @@ export default function GroupDetailScreen({ route, navigation }: Props) {
         return 'HIIT';
       case 'yoga':
         return 'Yoga';
+      case 'stretching':
+        return 'Stretching';
+      case 'meditation':
+        return 'Meditation';
+      case 'pilates':
+        return 'Pilates';
+      case 'taiChi':
+        return 'Tai Chi';
+      case 'walking':
+        return 'Walking';
       default:
         return 'Workout';
     }

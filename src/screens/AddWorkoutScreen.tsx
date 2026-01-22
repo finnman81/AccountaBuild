@@ -30,6 +30,11 @@ const workoutTypes: { label: string; value: WorkoutType }[] = [
   { label: 'Elliptical', value: 'elliptical' },
   { label: 'HIIT', value: 'hiit' },
   { label: 'Yoga', value: 'yoga' },
+  { label: 'Stretching', value: 'stretching' },
+  { label: 'Meditation', value: 'meditation' },
+  { label: 'Pilates', value: 'pilates' },
+  { label: 'Tai Chi', value: 'taiChi' },
+  { label: 'Walking', value: 'walking' },
 ];
 
 export default function AddWorkoutScreen({ route, navigation }: Props) {
