@@ -171,9 +171,10 @@ export async function joinGroupByCode(params: {
   const description = join.description ?? null;
   const joinCodeFromDoc = join.joinCode ?? code;
 
-  // Guard against stale join codes pointing at deleted groups.
-  const groupSnap = await getDoc(doc(db, 'groups', groupId));
-  if (!groupSnap.exists()) throw new Error('Group no longer exists');
+  // Note: We don't check if the group exists here because Firestore rules require
+  // membership to read group documents. If the join code exists, the group exists
+  // (join codes are cleaned up when groups are deleted). The membership creation
+  // will fail gracefully if the group was deleted.
 
   // Check if user is already a member
   const memberRef = doc(db, 'groups', groupId, 'members', params.uid);
