@@ -475,7 +475,25 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
     // Don't apply penalties for the current week (it's still in progress)
     // Only apply penalties for past weeks that were actually missed
     const penalty = isCurrentWeek ? 0 : (missedWeek ? missedWeekPenalty(mmrBefore) : partialWeek ? partialWeekPenalty(mmrBefore) : 0);
-    const bonus = weightBonus;
+    
+    // Lower tier progression bonus: Give bonus MMR for completed weeks in lower tiers to ensure ~1 division progress per week
+    // Completed week = A_total >= 0.7 (user hit all their marks)
+    const lowerTierBonus = (() => {
+      if (!completedWeek) return 0;
+      const tier = oldBand.tier;
+      // Only apply to lower tiers: Iron, Bronze, Silver, Gold
+      if (tier === 'Iron' || tier === 'Bronze' || tier === 'Silver' || tier === 'Gold') {
+        // Calculate how much MMR is needed to reach the next division
+        // Each division is roughly 200-250 MMR wide
+        // We want to give enough bonus to guarantee at least 1 division progress
+        const divisionWidth = oldBand.max - oldBand.min + 1; // e.g., 250 for Iron IV, 200 for Bronze IV
+        // Give bonus equal to division width to ensure promotion to next division
+        return divisionWidth;
+      }
+      return 0;
+    })();
+    
+    const bonus = weightBonus + lowerTierBonus;
     const deltaMMR = weekScore * S - penalty + bonus;
     // Ensure MMR never goes below 0 (safety check)
     const newMMR = Math.max(0, Math.round(mmrBefore + deltaMMR));

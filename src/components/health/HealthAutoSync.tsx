@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 import { useContext } from 'react';
 import Constants from 'expo-constants';
@@ -21,7 +21,7 @@ export default function HealthAutoSync() {
   const SYNC_COOLDOWN_MS = 30000; // 30 seconds minimum between auto-syncs
   const SYNC_INTERVAL_MS = 60 * 60 * 1000; // 1 hour when app is open
 
-  const triggerSync = (reason: 'foreground' | 'interval') => {
+  const triggerSync = useCallback((reason: 'foreground' | 'interval' | 'initial') => {
     if (!user || !activeGroupId || !settings) {
       console.log(`[HealthAutoSync] Skipping auto-sync (${reason}) - missing requirements:`, {
         hasUser: !!user,
@@ -57,7 +57,7 @@ export default function HealthAutoSync() {
       .catch((err) => {
         console.error('[HealthAutoSync] Auto-sync failed:', err);
       });
-  };
+  }, [user, activeGroupId, settings]);
 
   // Subscribe to health settings
   useEffect(() => {
@@ -89,6 +89,23 @@ export default function HealthAutoSync() {
     );
   }, [user, isExpoGo]);
 
+  // Initial sync when all requirements are met (app first opens)
+  useEffect(() => {
+    if (isExpoGo) return;
+    if (!user || !activeGroupId || !settings) return;
+    
+    // Only trigger initial sync if app is already active (not coming from background)
+    if (appState.current === 'active') {
+      // Small delay to ensure everything is initialized
+      const timeoutId = setTimeout(() => {
+        console.log('[HealthAutoSync] Triggering initial sync on mount');
+        triggerSync('initial');
+      }, 2000); // 2 second delay to let everything initialize
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [user, activeGroupId, settings, isExpoGo, triggerSync]);
+
   // Handle app state changes
   useEffect(() => {
     if (isExpoGo) return;
@@ -104,14 +121,8 @@ export default function HealthAutoSync() {
         hasSettings: !!settings,
       });
       
-      if (
-        appState.current.match(/inactive|background/) &&
-        nextAppState === 'active' &&
-        user &&
-        activeGroupId &&
-        settings
-      ) {
-        // App has come to foreground
+      // App has come to foreground - triggerSync will check all requirements
+      if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
         console.log('[HealthAutoSync] App came to foreground, triggering sync');
         triggerSync('foreground');
       }
@@ -122,7 +133,7 @@ export default function HealthAutoSync() {
       console.log('[HealthAutoSync] Cleaning up AppState listener');
       subscription.remove();
     };
-  }, [user, activeGroupId, settings, isExpoGo]);
+  }, [user, activeGroupId, settings, isExpoGo, triggerSync]);
 
   // Interval sync while app stays open
   useEffect(() => {
@@ -144,11 +155,12 @@ export default function HealthAutoSync() {
 
     console.log('[HealthAutoSync] Setting up interval sync (1 hour)');
     intervalRef.current = setInterval(() => {
-      if (appState.current === 'active' && user && activeGroupId && settings) {
-        console.log('[HealthAutoSync] Interval triggered, checking if app is active');
+      // Use current values from closure (triggerSync will check requirements)
+      if (appState.current === 'active') {
+        console.log('[HealthAutoSync] Interval triggered, app is active');
         triggerSync('interval');
       } else {
-        console.log('[HealthAutoSync] Interval triggered but app not active or requirements not met');
+        console.log('[HealthAutoSync] Interval triggered but app not active (state:', appState.current, ')');
       }
     }, SYNC_INTERVAL_MS);
 
@@ -159,7 +171,7 @@ export default function HealthAutoSync() {
         intervalRef.current = null;
       }
     };
-  }, [user, activeGroupId, settings, isExpoGo]);
+  }, [user, activeGroupId, settings, isExpoGo, triggerSync]);
 
   return null; // This component doesn't render anything
 }

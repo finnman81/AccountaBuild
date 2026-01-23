@@ -183,10 +183,22 @@ function computeProjection(params: {
   const S = streakMultiplier(streakIfEndedNow);
 
   const penalty = missedIfEndedNow ? missedWeekPenalty(params.mmrBefore) : partialIfEndedNow ? partialWeekPenalty(params.mmrBefore) : 0;
-  const deltaMMRProjected = weekScore * S - penalty;
-  const mmrProjected = Math.max(0, Math.round(params.mmrBefore + deltaMMRProjected));
-
+  
+  // Lower tier progression bonus: Give bonus MMR for completed weeks in lower tiers
   const oldBand = bandForMMR(params.mmrBefore);
+  const lowerTierBonus = (() => {
+    if (!completedIfEndedNow) return 0;
+    const tier = oldBand.tier;
+    // Only apply to lower tiers: Iron, Bronze, Silver, Gold
+    if (tier === 'Iron' || tier === 'Bronze' || tier === 'Silver' || tier === 'Gold') {
+      const divisionWidth = oldBand.max - oldBand.min + 1;
+      return divisionWidth;
+    }
+    return 0;
+  })();
+  
+  const deltaMMRProjected = weekScore * S - penalty + lowerTierBonus;
+  const mmrProjected = Math.max(0, Math.round(params.mmrBefore + deltaMMRProjected));
   const ranked = applyRankWithDemotionRules({
     oldBand,
     newMMR: mmrProjected,
