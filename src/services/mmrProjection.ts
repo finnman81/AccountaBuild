@@ -1,4 +1,4 @@
-import { collection, doc, documentId, limit, onSnapshot, orderBy, query, where } from 'firebase/firestore';
+import { collection, doc, documentId, getDocs, limit, onSnapshot, orderBy, query, where } from 'firebase/firestore';
 
 import { db } from '../firebase/firebase';
 import { missedWeekPenalty, partialWeekPenalty, streakMultiplier } from '../mmr/constants';
@@ -219,7 +219,7 @@ function computeProjection(params: {
 export function subscribeMyMmrProjection(uid: string, onChange: (p: MmrProjection | null) => void) {
   const now = new Date();
   const weekId = isoWeekIdInTz(now, DEFAULT_TZ);
-  const { dates } = isoWeekRangeInTz(weekId, DEFAULT_TZ);
+  const { start, end, dates } = isoWeekRangeInTz(weekId, DEFAULT_TZ);
 
   let userMmr: number | null = null;
   let userMp: number | null = null;
@@ -230,12 +230,42 @@ export function subscribeMyMmrProjection(uid: string, onChange: (p: MmrProjectio
   let workouts: Array<{ date: string; durationMinutes: number }> = [];
   let weights: Array<{ date: string; weight: number; tsMs: number | null }> = [];
   let calorieDaysMet: Set<string> = new Set();
+  let groupIds: string[] = [];
+  let groupWorkouts: Array<{ date: string; durationMinutes: number }> = [];
+  let groupCalorieDays: Set<string> = new Set();
 
   const emit = () => {
     if (userMmr == null || userMp == null) {
       onChange(null);
       return;
     }
+    
+    // Merge user workouts with group workouts (dedupe by date, prefer group logs)
+    const workoutMap = new Map<string, number>();
+    for (const w of workouts) {
+      if (w.date >= start && w.date <= end) {
+        workoutMap.set(w.date, (workoutMap.get(w.date) ?? 0) + w.durationMinutes);
+      }
+    }
+    for (const w of groupWorkouts) {
+      if (w.date >= start && w.date <= end) {
+        workoutMap.set(w.date, (workoutMap.get(w.date) ?? 0) + w.durationMinutes);
+      }
+    }
+    const mergedWorkouts = Array.from(workoutMap.entries()).map(([date, durationMinutes]) => ({
+      date,
+      durationMinutes,
+    }));
+    
+    // Merge calorie days: user calorieDays + group logs
+    const mergedCalorieDays = new Set<string>();
+    for (const d of calorieDaysMet) {
+      if (d >= start && d <= end) mergedCalorieDays.add(d);
+    }
+    for (const d of groupCalorieDays) {
+      if (d >= start && d <= end) mergedCalorieDays.add(d);
+    }
+    
     onChange(
       computeProjection({
         weekId,
@@ -245,9 +275,9 @@ export function subscribeMyMmrProjection(uid: string, onChange: (p: MmrProjectio
         streakWeeks,
         tierShieldWeeksRemaining,
         goals,
-        workouts,
+        workouts: mergedWorkouts,
         weights,
-        calorieDaysMet,
+        calorieDaysMet: mergedCalorieDays,
       }),
     );
   };
@@ -351,6 +381,99 @@ export function subscribeMyMmrProjection(uid: string, onChange: (p: MmrProjectio
     ),
   );
 
-  return () => unsubs.forEach((u) => u());
+  // Track group log data per group
+  const groupLogData = new Map<string, { workouts: Array<{ date: string; durationMinutes: number }>; calorieDays: Set<string> }>();
+  // Track group log subscriptions
+  const groupLogUnsubs = new Map<string, () => void>();
+
+  const rebuildGroupData = () => {
+    groupWorkouts = [];
+    groupCalorieDays = new Set();
+    for (const data of groupLogData.values()) {
+      groupWorkouts.push(...data.workouts);
+      for (const d of data.calorieDays) {
+        groupCalorieDays.add(d);
+      }
+    }
+    emit();
+  };
+
+  // Subscribe to user's groups to get group IDs
+  unsubs.push(
+    onSnapshot(
+      collection(db, 'users', uid, 'groups'),
+      (snap) => {
+        const newGroupIds = snap.docs
+          .map((d) => String((d.data() as any)?.groupId ?? d.id))
+          .filter(Boolean);
+        
+        // Unsubscribe from groups we're no longer in
+        const removedGroups = groupIds.filter((id) => !newGroupIds.includes(id));
+        for (const groupId of removedGroups) {
+          const unsub = groupLogUnsubs.get(groupId);
+          if (unsub) {
+            unsub();
+            groupLogUnsubs.delete(groupId);
+            groupLogData.delete(groupId);
+          }
+        }
+        
+        // Subscribe to new groups
+        const addedGroups = newGroupIds.filter((id) => !groupIds.includes(id));
+        for (const groupId of addedGroups) {
+          const logsUnsub = onSnapshot(
+            query(collection(db, 'groups', groupId, 'logs'), orderBy('ts', 'desc'), limit(800)),
+            (snap) => {
+              const workouts: Array<{ date: string; durationMinutes: number }> = [];
+              const calorieDays = new Set<string>();
+              
+              for (const d of snap.docs) {
+                const data = d.data() as any;
+                if (String(data?.uid ?? '') !== uid) continue;
+                const date = String(data?.date ?? '').trim();
+                if (!date || date < start || date > end) continue;
+                const type = String(data?.type ?? '');
+
+                if (type === 'workout') {
+                  const mins = Number(data?.payload?.durationMinutes);
+                  if (Number.isFinite(mins) && mins > 0) {
+                    workouts.push({ date, durationMinutes: mins });
+                  }
+                } else if (type === 'calories') {
+                  const cals = Number(data?.payload?.calories);
+                  if (Number.isFinite(cals) && cals > 0) {
+                    calorieDays.add(date);
+                  }
+                }
+              }
+              
+              groupLogData.set(groupId, { workouts, calorieDays });
+              rebuildGroupData();
+            },
+            () => {
+              groupLogData.delete(groupId);
+              rebuildGroupData();
+            },
+          );
+          groupLogUnsubs.set(groupId, logsUnsub);
+        }
+        
+        groupIds = newGroupIds;
+        rebuildGroupData();
+      },
+      () => {
+        groupIds = [];
+        groupLogUnsubs.forEach((u) => u());
+        groupLogUnsubs.clear();
+        groupLogData.clear();
+        rebuildGroupData();
+      },
+    ),
+  );
+
+  return () => {
+    unsubs.forEach((u) => u());
+    groupLogUnsubs.forEach((u) => u());
+  };
 }
 
