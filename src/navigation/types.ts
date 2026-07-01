@@ -2,6 +2,7 @@ export type RootStackParamList = {
   Login: undefined;
   Register: undefined;
   ForgotPassword: undefined;
+  Onboarding: undefined;
   MainTabs: undefined;
   LogToday: { groupId: string };
   AddCalories: {
@@ -24,6 +25,14 @@ export type RootStackParamList = {
     | { focusField?: 'displayName' | 'height' | 'age' | 'weightCurrent' | 'weightGoal' | 'weightTargetDate' | 'units' }
     | undefined;
   MMRGoals: undefined;
+};
+
+export type OnboardingStackParamList = {
+  Welcome: undefined;
+  BasicInfo: undefined;
+  Accountability: undefined;
+  Goals: undefined;
+  Finish: undefined;
 };
 
 export type HomeStackParamList = {

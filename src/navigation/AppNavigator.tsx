@@ -6,6 +6,7 @@ import { IconButton, useTheme } from 'react-native-paper';
 
 import { firebaseInitError, isFirebaseConfigured } from '../firebase/firebase';
 import { AuthContext } from '../store/AuthContext';
+import { useOnboardingStatus } from '../hooks/useOnboardingStatus';
 import FirebaseConfigErrorScreen from '../screens/FirebaseConfigErrorScreen';
 import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
 import CreateGroupScreen from '../screens/CreateGroupScreen';
@@ -20,18 +21,20 @@ import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
 import { RootStackParamList } from './types';
 import TabsNavigator from './TabsNavigator';
+import OnboardingNavigator from './OnboardingNavigator';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function AppNavigator() {
   const { user, isLoading } = useContext(AuthContext);
   const theme = useTheme();
+  const { isCompleted: onboardingCompleted, isLoading: onboardingLoading } = useOnboardingStatus(user?.uid ?? null);
 
   if (!isFirebaseConfigured() || firebaseInitError) {
     return <FirebaseConfigErrorScreen />;
   }
 
-  if (isLoading) {
+  if (isLoading || onboardingLoading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator />
@@ -61,7 +64,23 @@ export default function AppNavigator() {
           headerTitleStyle: { color: theme.colors.onSurface },
         }}
       >
-        {user ? (
+        {!user ? (
+          <>
+            <Stack.Screen name="Login" component={LoginScreen} options={{ title: 'Login' }} />
+            <Stack.Screen
+              name="Register"
+              component={RegisterScreen}
+              options={{ title: 'Create Account' }}
+            />
+            <Stack.Screen
+              name="ForgotPassword"
+              component={ForgotPasswordScreen}
+              options={{ title: 'Reset Password' }}
+            />
+          </>
+        ) : !onboardingCompleted ? (
+          <Stack.Screen name="Onboarding" component={OnboardingNavigator} options={{ headerShown: false }} />
+        ) : (
           <>
             <Stack.Screen name="MainTabs" component={TabsNavigator} options={{ headerShown: false }} />
 
@@ -83,20 +102,6 @@ export default function AppNavigator() {
               options={{ title: 'Edit profile', presentation: 'modal' }}
             />
             <Stack.Screen name="MMRGoals" component={MMRGoalsScreen} options={{ title: 'Goals', presentation: 'modal' }} />
-          </>
-        ) : (
-          <>
-            <Stack.Screen name="Login" component={LoginScreen} options={{ title: 'Login' }} />
-            <Stack.Screen
-              name="Register"
-              component={RegisterScreen}
-              options={{ title: 'Create Account' }}
-            />
-            <Stack.Screen
-              name="ForgotPassword"
-              component={ForgotPasswordScreen}
-              options={{ title: 'Reset Password' }}
-            />
           </>
         )}
       </Stack.Navigator>

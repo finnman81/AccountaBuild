@@ -17,6 +17,12 @@ service cloud.firestore {
         get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.role == 'admin';
     }
 
+    // User profile documents: users/{uid}
+    // Contains profile data, onboarding status, goals, and preferences.
+    // Onboarding fields: onboarding.completed, onboarding.version, onboarding.startedAt, onboarding.completedAt, onboarding.lastStep
+    // Profile fields: displayName, username, sex, age, height, weightCurrent, weightGoal, weightTargetDate, units, goalMode
+    // Goal fields: dailyCalorieGoal, workoutsPerWeek (can be null if workouts disabled)
+    // Tracking preferences: logCaloriesDaysPerWeek, logWeightDaysPerWeek (can be null if tracking disabled)
     match /users/{uid} {
       allow read, write: if signedIn() && request.auth.uid == uid;
       match /groups/{groupId} {
@@ -82,6 +88,14 @@ service cloud.firestore {
       allow read: if signedIn();
       allow create, update: if signedIn() && request.auth.uid == request.resource.data.createdBy;
       allow delete: if signedIn() && request.auth.uid == resource.data.createdBy;
+    }
+
+    // Username uniqueness collection: usernames/{normalizedUsername}
+    // Users can create a username if it doesn't exist, and read their own username.
+    match /usernames/{normalizedUsername} {
+      allow read: if signedIn() && request.auth.uid == resource.data.uid;
+      allow create: if signedIn() && request.auth.uid == request.resource.data.uid;
+      // Username updates/deletes are not allowed (usernames are permanent)
     }
 
     match /groups/{groupId} {
