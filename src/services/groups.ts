@@ -152,13 +152,59 @@ export async function joinGroupByCode(params: {
   joinCode: string;
 }): Promise<{ groupId: string }> {
   const code = normalizeJoinCode(params.joinCode);
+  const maskedCode = code.length >= 4 ? `${code.slice(0, 2)}...${code.slice(-2)}` : code;
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/d78cd2b8-8a4c-4720-ac47-838b1499e885', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      sessionId: 'debug-session',
+      runId: 'pre-fix',
+      hypothesisId: 'H1',
+      location: 'services/groups.ts:154',
+      message: 'joinGroupByCode entry',
+      data: { joinCodeLen: code.length, maskedCode, hasDisplayName: !!params.displayName },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
   if (!code || code.length !== 6) {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/d78cd2b8-8a4c-4720-ac47-838b1499e885', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionId: 'debug-session',
+        runId: 'pre-fix',
+        hypothesisId: 'H5',
+        location: 'services/groups.ts:155',
+        message: 'join code invalid length',
+        data: { joinCodeLen: code.length, maskedCode },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
     throw new Error('Join code must be 6 characters');
   }
   const joinRef = doc(db, 'joinCodes', code);
   const joinSnap = await getDoc(joinRef);
   
   if (!joinSnap.exists()) {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/d78cd2b8-8a4c-4720-ac47-838b1499e885', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionId: 'debug-session',
+        runId: 'pre-fix',
+        hypothesisId: 'H1',
+        location: 'services/groups.ts:161',
+        message: 'join code lookup missing',
+        data: { maskedCode },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
     throw new Error(
       `Join code "${code}" not found. The group admin may need to regenerate the join code. ` +
       `If you're the admin, try viewing the group details to backfill the join code mapping.`
@@ -170,6 +216,21 @@ export async function joinGroupByCode(params: {
   const name = join.name ?? 'Group';
   const description = join.description ?? null;
   const joinCodeFromDoc = join.joinCode ?? code;
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/d78cd2b8-8a4c-4720-ac47-838b1499e885', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      sessionId: 'debug-session',
+      runId: 'pre-fix',
+      hypothesisId: 'H1',
+      location: 'services/groups.ts:168',
+      message: 'join code lookup found',
+      data: { maskedCode, groupId, joinCodeFromDoc: joinCodeFromDoc ? `${joinCodeFromDoc.slice(0, 2)}...${joinCodeFromDoc.slice(-2)}` : null },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
 
   // Note: We don't check if the group exists here because Firestore rules require
   // membership to read group documents. If the join code exists, the group exists
@@ -180,6 +241,21 @@ export async function joinGroupByCode(params: {
   const memberRef = doc(db, 'groups', groupId, 'members', params.uid);
   const memberSnap = await getDoc(memberRef);
   const isAlreadyMember = memberSnap.exists();
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/d78cd2b8-8a4c-4720-ac47-838b1499e885', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      sessionId: 'debug-session',
+      runId: 'pre-fix',
+      hypothesisId: 'H2',
+      location: 'services/groups.ts:182',
+      message: 'member lookup result',
+      data: { groupId, isAlreadyMember },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
 
   if (isAlreadyMember) {
     // User is already a member, just update their user groups reference if needed
@@ -201,28 +277,79 @@ export async function joinGroupByCode(params: {
   }
 
   // User is not a member, join them
-  await Promise.all([
-    setDoc(
-      doc(db, 'groups', groupId, 'members', params.uid),
-      { uid: params.uid, role: 'member', joinedAt: serverTimestamp() },
-      { merge: true },
-    ),
-    updateDoc(doc(db, 'groups', groupId), { memberCount: increment(1), lastActivityAt: serverTimestamp(), updatedAt: serverTimestamp() }),
-    setDoc(
-      doc(db, 'users', params.uid, 'groups', groupId),
-      {
-        groupId,
-        name,
-        description,
-        joinCode: joinCodeFromDoc,
-        role: 'member',
-        joinedAt: serverTimestamp(),
-        chatLastSeenAt: serverTimestamp(),
-        photosLastSeenAt: serverTimestamp(),
-      },
-      { merge: true },
-    ),
-  ]);
+  // Ensure user document exists first (in case it wasn't created during registration)
+  try {
+    const userRef = doc(db, 'users', params.uid);
+    const userSnap = await getDoc(userRef);
+    if (!userSnap.exists()) {
+      // Create minimal user document if it doesn't exist
+      await setDoc(
+        userRef,
+        {
+          email: null, // Will be populated by auth sync
+          displayName: params.displayName ?? null,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true },
+      );
+    }
+  } catch (userDocError) {
+    console.error('[Groups] Error ensuring user document exists:', userDocError);
+    // Continue anyway - the write might still work
+  }
+
+  try {
+    await Promise.all([
+      setDoc(
+        doc(db, 'groups', groupId, 'members', params.uid),
+        { uid: params.uid, role: 'member', joinedAt: serverTimestamp() },
+        { merge: true },
+      ),
+      updateDoc(doc(db, 'groups', groupId), { memberCount: increment(1), lastActivityAt: serverTimestamp(), updatedAt: serverTimestamp() }),
+      setDoc(
+        doc(db, 'users', params.uid, 'groups', groupId),
+        {
+          groupId,
+          name,
+          description,
+          joinCode: joinCodeFromDoc,
+          role: 'member',
+          joinedAt: serverTimestamp(),
+          chatLastSeenAt: serverTimestamp(),
+          photosLastSeenAt: serverTimestamp(),
+        },
+        { merge: true },
+      ),
+    ]);
+  } catch (joinError: any) {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/d78cd2b8-8a4c-4720-ac47-838b1499e885', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionId: 'debug-session',
+        runId: 'pre-fix',
+        hypothesisId: 'H3',
+        location: 'services/groups.ts:249',
+        message: 'join group write failed',
+        data: { groupId, maskedCode, errorCode: joinError?.code || null, errorMessage: joinError?.message || String(joinError) },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
+    console.error('[Groups] Error joining group:', {
+      uid: params.uid,
+      groupId,
+      joinCode: code,
+      error: joinError?.message || joinError,
+      code: joinError?.code,
+    });
+    throw new Error(
+      `Failed to join group: ${joinError?.message || 'Unknown error'}. ` +
+      `If this persists, please check that your account was created properly.`
+    );
+  }
 
   return { groupId };
 }
@@ -354,6 +481,21 @@ export async function setGroupStreakRule(params: { groupId: string; streakRule: 
     streakRule: params.streakRule,
     updatedAt: serverTimestamp(),
   });
+}
+
+export async function leaveGroup(params: { uid: string; groupId: string }) {
+  // Update group metadata first (while user is still a member, so rules allow it)
+  await updateDoc(doc(db, 'groups', params.groupId), {
+    memberCount: increment(-1),
+    lastActivityAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+
+  // Then remove membership from both locations
+  await Promise.all([
+    deleteDoc(doc(db, 'groups', params.groupId, 'members', params.uid)),
+    deleteDoc(doc(db, 'users', params.uid, 'groups', params.groupId)),
+  ]);
 }
 
 

@@ -1,9 +1,10 @@
 import React, { useContext, useEffect, useMemo, useState } from 'react';
 import { Image, View } from 'react-native';
-import { Button, Card, Divider, List, Text, useTheme } from 'react-native-paper';
+import { Button, Card, Dialog, Divider, IconButton, List, Menu, Portal, Snackbar, Text, useTheme } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
+import * as Haptics from 'expo-haptics';
 
 import Screen from '../components/layout/Screen';
 import PrimaryButton from '../components/ui/PrimaryButton';
@@ -13,7 +14,7 @@ import ErrorState from '../components/state/ErrorState';
 import { GroupsStackParamList } from '../navigation/types';
 import type { RootStackParamList } from '../navigation/types';
 import { AuthContext } from '../store/AuthContext';
-import { subscribeMyGroups, UserGroupListItem } from '../services/groups';
+import { leaveGroup, subscribeMyGroups, UserGroupListItem } from '../services/groups';
 import { subscribeMyProfile } from '../services/profile';
 import { friendlyNameFromDisplayName, formatTimeAgo } from '../utils/formatters';
 import { useActiveGroup } from '../store/ActiveGroupContext';
@@ -30,6 +31,11 @@ export default function GroupListScreen({ navigation }: Props) {
   const [isLoading, setIsLoading] = useState(true);
   const [retryKey, setRetryKey] = useState(0);
   const [myPhotoURL, setMyPhotoURL] = useState<string | null>(null);
+  const [leaveDialogVisible, setLeaveDialogVisible] = useState(false);
+  const [leavingGroupId, setLeavingGroupId] = useState<string | null>(null);
+  const [isLeaving, setIsLeaving] = useState(false);
+  const [menuVisible, setMenuVisible] = useState<Record<string, boolean>>({});
+  const [showSuccess, setShowSuccess] = useState(false);
 
   const username = useMemo(() => {
     return friendlyNameFromDisplayName(user?.displayName ?? user?.email ?? null, user?.uid);
@@ -70,8 +76,54 @@ export default function GroupListScreen({ navigation }: Props) {
     return d ? d.getTime() : null;
   };
 
+  const handleLeaveGroup = (groupId: string) => {
+    setLeavingGroupId(groupId);
+    setLeaveDialogVisible(true);
+    setMenuVisible({});
+  };
+
+  const confirmLeaveGroup = async () => {
+    if (!user || !leavingGroupId) return;
+    
+    setIsLeaving(true);
+    try {
+      await leaveGroup({ uid: user.uid, groupId: leavingGroupId });
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setShowSuccess(true);
+      setLeaveDialogVisible(false);
+      setLeavingGroupId(null);
+      
+      // If this was the active group, clear it
+      if (groups.find(g => g.groupId === leavingGroupId)) {
+        void setActiveGroupId(null);
+      }
+    } catch (e) {
+      console.error('[GroupList] Error leaving group:', e);
+      setError(e instanceof Error ? e.message : 'Failed to leave group.');
+    } finally {
+      setIsLeaving(false);
+    }
+  };
+
   return (
     <Screen>
+      <Portal>
+        <Dialog visible={leaveDialogVisible} onDismiss={() => !isLeaving && setLeaveDialogVisible(false)}>
+          <Dialog.Title>Leave group?</Dialog.Title>
+          <Dialog.Content>
+            <Text>You will no longer be able to access this group or see its members. You can rejoin later with the join code.</Text>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={() => setLeaveDialogVisible(false)} disabled={isLeaving}>
+              Cancel
+            </Button>
+            <Button onPress={confirmLeaveGroup} loading={isLeaving} disabled={isLeaving} textColor={theme.colors.error}>
+              Leave
+            </Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
+
       <Card>
         <Card.Title
           title={username}
@@ -179,7 +231,28 @@ export default function GroupListScreen({ navigation }: Props) {
                         )}
                       </View>
                     }
-                    right={(props) => <List.Icon {...props} icon="chevron-right" />}
+                    right={() => (
+                      <Menu
+                        visible={menuVisible[g.groupId] ?? false}
+                        onDismiss={() => setMenuVisible({ ...menuVisible, [g.groupId]: false })}
+                        anchor={
+                          <IconButton
+                            icon="dots-vertical"
+                            size={20}
+                            onPress={() => setMenuVisible({ ...menuVisible, [g.groupId]: true })}
+                          />
+                        }
+                      >
+                        <Menu.Item
+                          onPress={() => {
+                            setMenuVisible({ ...menuVisible, [g.groupId]: false });
+                            handleLeaveGroup(g.groupId);
+                          }}
+                          title="Leave group"
+                          leadingIcon="exit-run"
+                        />
+                      </Menu>
+                    )}
                   />
                   <Divider />
                 </React.Fragment>
@@ -193,6 +266,16 @@ export default function GroupListScreen({ navigation }: Props) {
       <Button mode="text" onPress={logout}>
         Sign out
       </Button>
+
+      <Snackbar
+        visible={showSuccess}
+        onDismiss={() => setShowSuccess(false)}
+        duration={2000}
+        style={{ backgroundColor: '#22C55E' }}
+        theme={{ colors: { onSurface: '#FFFFFF' } }}
+      >
+        Successfully left group
+      </Snackbar>
     </Screen>
   );
 }
