@@ -5,7 +5,10 @@ import { getNotificationPreferences, type NotificationPreferences } from './noti
 // Configure notification behavior
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,
+    // expo-notifications 0.32 replaced `shouldShowAlert` with `shouldShowBanner`
+    // (heads-up banner) + `shouldShowList` (notification center).
+    shouldShowBanner: true,
+    shouldShowList: true,
     shouldPlaySound: true,
     shouldSetBadge: true,
   }),
