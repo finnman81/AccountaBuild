@@ -3,12 +3,12 @@ import { KeyboardAvoidingView, Platform, View } from 'react-native';
 import { Button, Card, Text, TextInput } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 
-import { RootStackParamList } from '../navigation/types';
+import { GroupsStackParamList } from '../navigation/types';
 import { AuthContext } from '../store/AuthContext';
 import { createGroup } from '../services/groups';
 import { friendlyNameFromDisplayName } from '../utils/formatters';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'CreateGroup'>;
+type Props = NativeStackScreenProps<GroupsStackParamList, 'CreateGroup'>;
 
 export default function CreateGroupScreen({ navigation }: Props) {
   const { user } = useContext(AuthContext);
@@ -32,7 +32,8 @@ export default function CreateGroupScreen({ navigation }: Props) {
         name,
         description,
       });
-      navigation.replace('GroupDetail', { groupId: res.groupId });
+      // GroupDetail lives in the Home tab's stack; cross-tab replace resolves at runtime.
+      (navigation as any).replace('GroupDetail', { groupId: res.groupId });
     } catch (e) {
       setError('Failed to create group.');
     } finally {

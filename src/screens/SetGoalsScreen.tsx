@@ -3,11 +3,11 @@ import { KeyboardAvoidingView, Platform, View } from 'react-native';
 import { Button, Card, Text, TextInput } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 
-import { RootStackParamList } from '../navigation/types';
+import { HomeStackParamList } from '../navigation/types';
 import { AuthContext } from '../store/AuthContext';
 import { subscribeMyGoals, upsertUserGoals } from '../services/goals';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'SetGoals'>;
+type Props = NativeStackScreenProps<HomeStackParamList, 'SetGoals'>;
 
 export default function SetGoalsScreen({ route, navigation }: Props) {
   const { user } = useContext(AuthContext);

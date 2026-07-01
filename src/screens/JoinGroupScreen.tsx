@@ -4,12 +4,12 @@ import { Button, Card, Text, TextInput, Snackbar, useTheme } from 'react-native-
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as Haptics from 'expo-haptics';
 
-import { RootStackParamList } from '../navigation/types';
+import { GroupsStackParamList } from '../navigation/types';
 import { AuthContext } from '../store/AuthContext';
 import { joinGroupByCode } from '../services/groups';
 import { friendlyNameFromDisplayName } from '../utils/formatters';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'JoinGroup'>;
+type Props = NativeStackScreenProps<GroupsStackParamList, 'JoinGroup'>;
 
 export default function JoinGroupScreen({ navigation }: Props) {
   const { user } = useContext(AuthContext);
@@ -51,7 +51,8 @@ export default function JoinGroupScreen({ navigation }: Props) {
       
       // Navigate after a brief delay so user sees the success message
       setTimeout(() => {
-        navigation.replace('GroupDetail', { groupId: res.groupId });
+        // GroupDetail lives in the Home tab's stack; cross-tab replace resolves at runtime.
+        (navigation as any).replace('GroupDetail', { groupId: res.groupId });
       }, 800);
     } catch (e) {
       console.error('[JoinGroup] Error joining group:', e);

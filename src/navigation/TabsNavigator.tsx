@@ -141,7 +141,7 @@ export default function TabsNavigator() {
             tabBarIcon: ({ color, size }) => <Icon source="plus" color={color} size={size} />,
             tabBarButton: (props) => (
               <TouchableOpacity
-                {...props}
+                {...(props as any)}
                 onPress={() => setIsLogOpen(true)}
                 style={{
                   marginTop: -18,

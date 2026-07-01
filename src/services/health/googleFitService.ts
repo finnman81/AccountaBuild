@@ -30,8 +30,8 @@ export async function isGoogleFitAvailable(): Promise<boolean> {
   try {
     // react-native-google-fit may use different method names
     // Try both isAvailable() and checking isAuthorized
-    if (typeof GoogleFit.isAvailable === 'function') {
-      return await GoogleFit.isAvailable();
+    if (typeof (GoogleFit as any).isAvailable === 'function') {
+      return await (GoogleFit as any).isAvailable();
     }
     // Fallback: check if authorized (implies available)
     return GoogleFit.isAuthorized || false;
@@ -111,13 +111,13 @@ export async function readTodayWorkouts(): Promise<GoogleFitWorkout[]> {
 
     // Try different method names that might exist in different versions
     let workouts: any[] = [];
-    if (typeof GoogleFit.getDailyWorkoutSamples === 'function') {
-      workouts = await GoogleFit.getDailyWorkoutSamples({
+    if (typeof (GoogleFit as any).getDailyWorkoutSamples === 'function') {
+      workouts = await (GoogleFit as any).getDailyWorkoutSamples({
         startDate: today.toISOString(),
         endDate: tomorrow.toISOString(),
       });
-    } else if (typeof GoogleFit.getWorkoutSamples === 'function') {
-      workouts = await GoogleFit.getWorkoutSamples({
+    } else if (typeof (GoogleFit as any).getWorkoutSamples === 'function') {
+      workouts = await (GoogleFit as any).getWorkoutSamples({
         startDate: today.toISOString(),
         endDate: tomorrow.toISOString(),
       });
@@ -156,8 +156,8 @@ export async function readTodayCalories(): Promise<GoogleFitCalories | null> {
         startDate: today.toISOString(),
         endDate: tomorrow.toISOString(),
       });
-    } else if (typeof GoogleFit.getNutritionSamples === 'function') {
-      nutritionData = await GoogleFit.getNutritionSamples({
+    } else if (typeof (GoogleFit as any).getNutritionSamples === 'function') {
+      nutritionData = await (GoogleFit as any).getNutritionSamples({
         startDate: today.toISOString(),
         endDate: tomorrow.toISOString(),
       });
@@ -204,7 +204,7 @@ export async function readTodayWeight(): Promise<GoogleFitWeight | null> {
     if (weightData.length === 0) return null;
 
     // Get the most recent weight entry
-    const latest = weightData.sort((a: any, b: any) => {
+    const latest: any = weightData.sort((a: any, b: any) => {
       const dateA = new Date(a.startDate || a.date || 0).getTime();
       const dateB = new Date(b.startDate || b.date || 0).getTime();
       return dateB - dateA;

@@ -128,7 +128,7 @@ export default function HealthSettingsScreen() {
       // Check if permissions were actually granted
       const anyGranted = perms.workouts || perms.calories || perms.weight;
       
-      if (anyGranted) {
+      if (anyGranted && user) {
         await updateHealthSettings(user.uid, {
           healthKitAuthorized: Platform.OS === 'ios' ? true : undefined,
           googleFitAuthorized: Platform.OS === 'android' ? true : undefined,

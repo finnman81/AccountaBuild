@@ -5,14 +5,14 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { collection, onSnapshot } from 'firebase/firestore';
 import Svg, { Rect, Text as SvgText } from 'react-native-svg';
 
-import { RootStackParamList } from '../navigation/types';
+import { HomeStackParamList } from '../navigation/types';
 import { db } from '../firebase/firebase';
 import { GroupLog, subscribeGroupLogs } from '../services/logs';
 import { AuthContext } from '../store/AuthContext';
 import { subscribeMyCanSeeUids } from '../services/visibility';
 import { subscribePublicUsers } from '../services/publicUsers';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'GroupCharts'>;
+type Props = NativeStackScreenProps<HomeStackParamList, 'GroupCharts'>;
 
 function parseYYYYMMDDLocal(dateYYYYMMDD: string) {
   return new Date(`${dateYYYYMMDD}T00:00:00`);
@@ -69,7 +69,7 @@ export default function GroupChartsScreen({ route }: Props) {
   }, [groupId]);
   useEffect(() => {
     if (!user) return;
-    return subscribeMyCanSeeUids(user.uid, (uids) => setCanSee(new Set(uids)), undefined);
+    return subscribeMyCanSeeUids(user.uid, (uids) => setCanSee(new Set(uids)));
   }, [user]);
   useEffect(() => {
     if (!user) return;

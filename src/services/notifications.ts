@@ -58,7 +58,7 @@ export async function getNotificationPermissionsStatus(): Promise<Notifications.
     const { status } = await Notifications.getPermissionsAsync();
     return status;
   } catch (e) {
-    return 'undetermined';
+    return 'undetermined' as Notifications.PermissionStatus;
   }
 }
 
@@ -141,6 +141,7 @@ export async function scheduleNotifications(options?: { force?: boolean; startFr
           badge: 1,
         },
         trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DATE,
           date,
         },
       });

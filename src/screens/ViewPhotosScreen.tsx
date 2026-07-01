@@ -3,9 +3,10 @@ import { FlatList, Image, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Card, Text } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import type { CompositeScreenProps } from '@react-navigation/native';
 import { collection, onSnapshot } from 'firebase/firestore';
 
-import { RootStackParamList } from '../navigation/types';
+import { HomeStackParamList, RootStackParamList } from '../navigation/types';
 import { db } from '../firebase/firebase';
 import { AuthContext } from '../store/AuthContext';
 import { GroupLog, subscribeGroupPhotoLogs } from '../services/logs';
@@ -15,7 +16,11 @@ import EmptyState from '../components/state/EmptyState';
 import { subscribePublicUsers, type PublicUser } from '../services/publicUsers';
 import { subscribeMyCanSeeUids } from '../services/visibility';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'ViewPhotos'>;
+// ViewPhotos is in the Home stack but navigates to the root-level AddPhoto modal.
+type Props = CompositeScreenProps<
+  NativeStackScreenProps<HomeStackParamList, 'ViewPhotos'>,
+  NativeStackScreenProps<RootStackParamList>
+>;
 
 export default function ViewPhotosScreen({ route, navigation }: Props) {
   const { user } = useContext(AuthContext);

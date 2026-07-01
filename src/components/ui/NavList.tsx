@@ -14,12 +14,14 @@ export default function NavList({ items }: { items: NavListItem[] }) {
   const theme = useTheme();
   return (
     <List.Section style={{ marginVertical: 0 }}>
-      {items.map((it) => (
+      {items.map((it) => {
+        const iconName = it.icon;
+        return (
         <List.Item
           key={it.title}
           title={it.title}
           description={it.description}
-          left={it.icon ? (props) => <List.Icon {...props} icon={it.icon} /> : undefined}
+          left={iconName ? (props) => <List.Icon {...props} icon={iconName} /> : undefined}
           right={(props) => {
             return (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
@@ -41,7 +43,8 @@ export default function NavList({ items }: { items: NavListItem[] }) {
           }}
           onPress={it.onPress}
         />
-      ))}
+        );
+      })}
     </List.Section>
   );
 }

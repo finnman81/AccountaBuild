@@ -45,7 +45,7 @@ export default function OnboardingGoalsScreen({ navigation }: Props) {
   useEffect(() => {
     if (!user?.uid) return;
 
-    return subscribeMyProfile(user.uid, (profile) => {
+    const unsubscribe = subscribeMyProfile(user.uid, (profile) => {
       if (profile) {
         if (profile.dailyCalorieGoal != null) setDailyCalorieGoal(String(profile.dailyCalorieGoal));
         if (profile.workoutsPerWeek != null) {
@@ -71,7 +71,8 @@ export default function OnboardingGoalsScreen({ navigation }: Props) {
       }
     });
 
-    // Also get units and goalMode
+    // Also get units and goalMode. (Previously this sat after `return
+    // subscribeMyProfile(...)`, so it was unreachable and never ran.)
     if (db) {
       getDoc(doc(db, 'users', user.uid)).then((snap) => {
         if (snap.exists()) {
@@ -83,6 +84,8 @@ export default function OnboardingGoalsScreen({ navigation }: Props) {
         }
       });
     }
+
+    return unsubscribe;
   }, [user?.uid]);
 
   useEffect(() => {

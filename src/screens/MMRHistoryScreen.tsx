@@ -102,7 +102,8 @@ export default function MMRHistoryScreen() {
             const status = w.missedWeek ? 'Missed' : w.completedWeek ? 'Completed' : 'Partial';
             const delta = Math.round(w.deltaMMR);
             const deltaTxt = `${delta >= 0 ? '+' : ''}${delta}`;
-            const deltaMP = typeof w.deltaMP === 'number' ? Math.round(w.deltaMP) : typeof w.deltaLP === 'number' ? Math.round(w.deltaLP) : null; // Backward compat
+            const legacyDeltaLP = (w as any).deltaLP;
+            const deltaMP = typeof w.deltaMP === 'number' ? Math.round(w.deltaMP) : typeof legacyDeltaLP === 'number' ? Math.round(legacyDeltaLP) : null; // Backward compat
             const deltaMPTxt = deltaMP == null ? null : `${deltaMP >= 0 ? '+' : ''}${deltaMP} MP`;
             const promo = w.promotion ? 'Promotion' : w.demotion ? 'Demotion' : null;
             return (

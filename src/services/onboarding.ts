@@ -19,8 +19,8 @@ export async function updateOnboardingStep(uid: string, step: number): Promise<v
   const userRef = doc(db, 'users', uid);
   const userDoc = await getDoc(userRef);
   const existingData = userDoc.exists() ? userDoc.data() : {};
-  const existingOnboarding = (existingData.onboarding as OnboardingData | undefined) ?? {};
-  
+  const existingOnboarding: Partial<OnboardingData> = (existingData.onboarding as Partial<OnboardingData> | undefined) ?? {};
+
   await setDoc(
     userRef,
     {

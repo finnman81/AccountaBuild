@@ -75,6 +75,10 @@ export default function HealthAutoSync() {
     return subscribeHealthSettings(
       user.uid,
       (newSettings) => {
+        if (!newSettings) {
+          setSettings(null);
+          return;
+        }
         console.log('[HealthAutoSync] Settings loaded:', {
           syncWorkouts: newSettings.syncWorkouts,
           syncCalories: newSettings.syncCalories,

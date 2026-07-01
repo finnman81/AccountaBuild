@@ -5,7 +5,7 @@ import { colors } from '../../theme/colors';
 
 type Variant = 'title' | 'body' | 'label' | 'numberLg' | 'numberMd';
 
-type AppTextProps = Omit<TextProps, 'variant'> & {
+type AppTextProps = Omit<TextProps<never>, 'variant'> & {
   variant?: Variant;
   color?: 'primary' | 'secondary' | 'muted' | 'default';
 };

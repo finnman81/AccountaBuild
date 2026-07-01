@@ -32,7 +32,7 @@ export default function WeeklyTrajectoryCard({ projection, onViewDetails }: Prop
 
     // Determine status
     let status: 'promotion' | 'holding' | 'risk' = 'holding';
-    let statusColor = colors.warning;
+    let statusColor: string = colors.warning;
     let statusText = 'Holding';
 
     if (projection.missedIfEndedNow) {

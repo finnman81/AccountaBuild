@@ -14,7 +14,7 @@ import { db } from '../firebase/firebase';
 import { formatHeightInches, formatMinutesHM, formatWeightLb } from '../utils/formatters';
 import { useActiveGroup } from '../store/ActiveGroupContext';
 import { subscribeGroupLogs, type GroupLog } from '../services/logs';
-import type { RootStackParamList } from '../navigation/types';
+import type { RootStackParamList, ProfileStackParamList } from '../navigation/types';
 import { DEFAULT_TZ, isoWeekIdInTz } from '../mmr/time';
 import { formatYYYYMMDDLocal } from '../utils/dates';
 import { subscribeMyMmrState, type MmrState } from '../services/mmrState';
@@ -50,7 +50,7 @@ function parseYYYYMMDDLocal(dateYYYYMMDD: string) {
 export default function ProfileScreen() {
   const theme = useTheme();
   const { user, logout } = useContext(AuthContext);
-  const nav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const nav = useNavigation<NativeStackNavigationProp<RootStackParamList & ProfileStackParamList>>();
   const { activeGroupId } = useActiveGroup();
 
   const [profile, setProfile] = useState<any | null>(null);
@@ -287,7 +287,7 @@ export default function ProfileScreen() {
   }, [calorieTotalsByDate, weekDates]);
 
   const calorieDaysLogged = useMemo(
-    () => calorieDayDots.reduce((sum, v) => sum + (v ? 1 : 0), 0),
+    () => calorieDayDots.reduce((sum: number, v: number) => sum + (v ? 1 : 0), 0),
     [calorieDayDots],
   );
 

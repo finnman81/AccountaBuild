@@ -8,7 +8,9 @@ import { subscribeMySeasonResults, type SeasonResult } from '../services/mmrSeas
 import { subscribeMyBadges, type EarnedBadge } from '../services/mmrBadges';
 import RankBadge from '../components/mmr/RankBadge';
 
-type SeasonRankBadge = Extract<EarnedBadge, { type: 'seasonRank' }>;
+// EarnedBadge's rank member covers both seasonRank and seasonPeak in one shape,
+// so Extract must include both literals or it collapses to never.
+type SeasonRankBadge = Extract<EarnedBadge, { type: 'seasonRank' | 'seasonPeak' }>;
 
 function rankLabel(tier: string, division?: number | null, mp?: number | null) {
   const div = division ?? null;

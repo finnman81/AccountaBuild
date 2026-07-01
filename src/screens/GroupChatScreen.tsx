@@ -7,7 +7,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { RootStackParamList } from '../navigation/types';
+import { HomeStackParamList } from '../navigation/types';
 import { db } from '../firebase/firebase';
 import { AuthContext } from '../store/AuthContext';
 import { GroupMessage, sendGroupMessage, subscribeGroupMessages } from '../services/chat';
@@ -16,7 +16,7 @@ import { friendlyNameFromDisplayName } from '../utils/formatters';
 import { subscribePublicUsers, type PublicUser } from '../services/publicUsers';
 import { subscribeMyCanSeeUids } from '../services/visibility';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'GroupChat'>;
+type Props = NativeStackScreenProps<HomeStackParamList, 'GroupChat'>;
 
 export default function GroupChatScreen({ route }: Props) {
   const { user } = useContext(AuthContext);

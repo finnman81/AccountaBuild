@@ -2,6 +2,7 @@ import React, { useContext, useEffect, useMemo, useState } from 'react';
 import { FlatList, Image, ScrollView, View } from 'react-native';
 import { Avatar, Button, Card, Divider, IconButton, List, SegmentedButtons, Text, useTheme } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import type { CompositeScreenProps } from '@react-navigation/native';
 import { collection, doc, limit, onSnapshot, orderBy, query, where } from 'firebase/firestore';
 import { Swipeable } from 'react-native-gesture-handler';
 
@@ -14,7 +15,7 @@ import AvatarStatusChip from '../components/ui/AvatarStatusChip';
 import Row from '../components/ui/Row';
 import LoadingState from '../components/state/LoadingState';
 import EmptyState from '../components/state/EmptyState';
-import { HomeStackParamList } from '../navigation/types';
+import { HomeStackParamList, RootStackParamList } from '../navigation/types';
 import { db } from '../firebase/firebase';
 import { AuthContext } from '../store/AuthContext';
 import { useActiveGroup } from '../store/ActiveGroupContext';
@@ -32,7 +33,12 @@ import { radius } from '../theme/radius';
 import { shadow } from '../theme/shadows';
 import RankBadge from '../components/mmr/RankBadge';
 
-type Props = NativeStackScreenProps<HomeStackParamList, 'GroupDetail'>;
+// GroupDetail lives in the Home stack but navigates to root-level modal routes
+// (LogToday, AddCalories, AddWorkout, AddWeight), so compose both param lists.
+type Props = CompositeScreenProps<
+  NativeStackScreenProps<HomeStackParamList, 'GroupDetail'>,
+  NativeStackScreenProps<RootStackParamList>
+>;
 
 type GroupDoc = {
   name?: string;
