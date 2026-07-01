@@ -1,0 +1,14 @@
+# Normalize line endings so Windows CRLF doesn't create phantom diffs.
+# All text files use LF in the repo; Git converts on checkout as needed.
+* text=auto eol=lf
+
+# Binary assets: never touch line endings.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ttf binary
+*.otf binary
+*.ico binary
+*.aab binary
+*.zip binary
