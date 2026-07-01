@@ -60,13 +60,6 @@
           "photosPermission": "AccountaBuild needs access to your photos to upload progress photos and profile pictures.",
           "cameraPermission": "AccountaBuild needs access to your camera to take photos for your progress logs."
         }
-      ],
-      [
-        "@kingstinct/react-native-healthkit",
-        {
-          "healthSharePermission": "AccountaBuild needs access to your health data to automatically sync workouts, calories, and weight from Apple Health.",
-          "healthUpdatePermission": "AccountaBuild needs permission to read your health data from Apple Health."
-        }
       ]
     ],
     "extra": {
