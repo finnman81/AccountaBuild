@@ -266,6 +266,10 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
   const seasonId = params.seasonId ?? seasonIdFromDate(new Date(), DEFAULT_TZ);
   const { start, end, dates } = isoWeekRangeInTz(weekId, DEFAULT_TZ);
 
+  // The in-progress week must not be scored as "missed" or penalized, since it
+  // isn't over yet. Past weeks are always eligible for missed/penalty logic.
+  const isCurrentWeek = weekId === isoWeekIdInTz(new Date(), DEFAULT_TZ);
+
   let goals, groupIds, weights, workoutsDone, minutesDone, calorieDaysHit, caloriesLogged;
   let calorieTotalsByDate: Record<string, number> = {};
   let totalCaloriesLogged = 0;
