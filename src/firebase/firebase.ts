@@ -137,8 +137,13 @@ if (firebaseApp && isFirebaseConfigured() && !firebaseInitError) {
   }
 }
 
-export const auth = authInstance;
-export const db = dbInstance;
-export const storage = storageInstance;
+// These are typed as non-null for ergonomics: the app gates all Firestore/Auth
+// usage behind the bootstrap above and renders FirebaseConfigErrorScreen when
+// Firebase is unconfigured, so by the time any service touches these they are
+// initialized. `firebaseInitError` / `isFirebaseConfigured()` remain the runtime
+// source of truth for the unconfigured case.
+export const auth = authInstance as NonNullable<typeof authInstance>;
+export const db = dbInstance as NonNullable<typeof dbInstance>;
+export const storage = storageInstance as NonNullable<typeof storageInstance>;
 
 
