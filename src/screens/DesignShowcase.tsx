@@ -12,6 +12,40 @@ import ComplianceRing from '../components/ui/ComplianceRing';
 import Avatar from '../components/ui/Avatar';
 import Card from '../components/ui/Card';
 import PrimaryButton from '../components/ui/PrimaryButton';
+import TodayHeader from '../components/today/TodayHeader';
+import TodaysLogCard from '../components/today/TodaysLogCard';
+import TeamTodayRail from '../components/today/TeamTodayRail';
+import LeaderboardPreviewCard from '../components/today/LeaderboardPreviewCard';
+import type { TeamToday, TodayChecklist, LeaderboardPreviewRow } from '../viewmodels/today';
+
+const MOCK_CHECKLIST: TodayChecklist = {
+  doneCount: 2,
+  total: 3,
+  items: [
+    { type: 'calories', title: 'Calories', logged: true, loggedAtMs: new Date(2026, 6, 1, 8, 12).getTime(), valueLine: '1,840 / 2,200 kcal' },
+    { type: 'workout', title: 'Workout', logged: true, loggedAtMs: new Date(2026, 6, 1, 7, 5).getTime(), valueLine: 'Push day · 52m' },
+    { type: 'weight', title: 'Weight', logged: false, loggedAtMs: null, valueLine: 'Not logged yet' },
+  ],
+};
+
+const MOCK_TEAM: TeamToday = {
+  loggedCount: 4,
+  total: 6,
+  members: [
+    { uid: 'marcus', name: 'Marcus', photoURL: null, status: 'logged', streakLeader: true, atRisk: false, streakDays: 14, valueLine: '14d streak' },
+    { uid: 'jules', name: 'Jules', photoURL: null, status: 'logged', streakLeader: false, atRisk: false, streakDays: 5, valueLine: '5d streak' },
+    { uid: 'sam', name: 'Sam', photoURL: null, status: 'logged', streakLeader: false, atRisk: false, streakDays: 2, valueLine: '2d streak' },
+    { uid: 'ray', name: 'Ray', photoURL: null, status: 'logged', streakLeader: false, atRisk: false, streakDays: 1, valueLine: '1d streak' },
+    { uid: 'kira', name: 'Kira', photoURL: null, status: 'notLogged', streakLeader: false, atRisk: true, streakDays: 0, valueLine: 'at risk' },
+    { uid: 'dev', name: 'Dev', photoURL: null, status: 'notLogged', streakLeader: false, atRisk: false, streakDays: 0, valueLine: '' },
+  ],
+};
+
+const MOCK_LEADERBOARD: LeaderboardPreviewRow[] = [
+  { rank: 1, uid: 'marcus', name: 'Marcus', tier: 'Gold', division: 1, mmr: 1872, isMe: false },
+  { rank: 2, uid: 'me', name: 'You', tier: 'Gold', division: 2, mmr: 1654, isMe: true },
+  { rank: 3, uid: 'jules', name: 'Jules', tier: 'Silver', division: 1, mmr: 1601, isMe: false },
+];
 
 const TIERS: Tier[] = ['Iron', 'Bronze', 'Silver', 'Gold', 'Platinum', 'Diamond', 'Master', 'Challenger'];
 
@@ -103,6 +137,22 @@ export default function DesignShowcase() {
           <View style={{ height: 10 }} />
           <PrimaryButton secondary mode="outlined" onPress={() => {}}>Skip for now</PrimaryButton>
         </Card>
+      </Section>
+
+      <Section title="Today screen · assembled">
+        <TodayHeader
+          groupName="Iron Circle"
+          userName="Danny"
+          dateLabel="Tuesday, July 1"
+          greeting="Good morning"
+          unreadCount={2}
+          onSwitchGroup={() => {}}
+          onBell={() => {}}
+        />
+        <View style={{ height: 20 }} />
+        <TodaysLogCard checklist={MOCK_CHECKLIST} onLog={() => {}} />
+        <TeamTodayRail team={MOCK_TEAM} onMemberPress={() => {}} />
+        <LeaderboardPreviewCard rows={MOCK_LEADERBOARD} onViewAll={() => {}} />
       </Section>
     </ScrollView>
   );
