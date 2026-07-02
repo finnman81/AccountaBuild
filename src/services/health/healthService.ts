@@ -36,6 +36,8 @@ export type HealthPermissions = {
   weight: boolean;
 };
 
+export type AnchoredResult<T> = { items: T[]; deletedUuids: string[]; newAnchor?: string };
+
 // NOTE: Expo Go cannot load HealthKit/Google Fit (NitroModules).
 // These dynamic imports + Expo Go guard prevent runtime crashes.
 const isExpoGo = Constants.appOwnership === 'expo';
@@ -135,6 +137,36 @@ export async function readTodayWorkouts(): Promise<HealthWorkout[]> {
     return await service.readTodayWorkouts();
   }
   return [];
+}
+
+/**
+ * Delta read of workouts since the given anchor (idempotent, honors deletions).
+ * Android has no anchored path yet, so it returns an empty passthrough.
+ */
+export async function readWorkoutsSinceAnchor(anchor?: string): Promise<AnchoredResult<HealthWorkout>> {
+  if (Platform.OS === 'ios') {
+    const service = await getHealthKitService();
+    if (!service || typeof (service as any).readWorkoutsSinceAnchor !== 'function') {
+      return { items: [], deletedUuids: [], newAnchor: anchor };
+    }
+    return await (service as any).readWorkoutsSinceAnchor(anchor);
+  }
+  return { items: [], deletedUuids: [], newAnchor: anchor };
+}
+
+/**
+ * Delta read of dietary-energy entries since the given anchor.
+ * Android has no anchored path yet, so it returns an empty passthrough.
+ */
+export async function readCalorieEntriesSinceAnchor(anchor?: string): Promise<AnchoredResult<HealthCalorieEntry>> {
+  if (Platform.OS === 'ios') {
+    const service = await getHealthKitService();
+    if (!service || typeof (service as any).readCalorieEntriesSinceAnchor !== 'function') {
+      return { items: [], deletedUuids: [], newAnchor: anchor };
+    }
+    return await (service as any).readCalorieEntriesSinceAnchor(anchor);
+  }
+  return { items: [], deletedUuids: [], newAnchor: anchor };
 }
 
 /**

@@ -1,4 +1,4 @@
-import { healthLogDocId, healthLogFallbackId, resolveHealthLogId, sanitizeId } from '../../src/services/health/healthLog';
+import { healthLogDocId, healthLogFallbackId, resolveHealthLogId, sanitizeId, isRecentImportDate } from '../../src/services/health/healthLog';
 
 describe('health/healthLog', () => {
   it('derives a stable, idempotent id from a sample UUID', () => {
@@ -28,5 +28,39 @@ describe('health/healthLog', () => {
     expect(resolveHealthLogId('UUID-1', fb)).toBe(healthLogDocId('UUID-1'));
     expect(resolveHealthLogId(null, fb)).toBe(healthLogFallbackId(fb));
     expect(resolveHealthLogId('', fb)).toBe(healthLogFallbackId(fb));
+  });
+
+  describe('isRecentImportDate (bounds anchored-sync backfill)', () => {
+    const today = '2026-07-02';
+
+    it('accepts today and yesterday with the default 1-day window', () => {
+      expect(isRecentImportDate('2026-07-02', today)).toBe(true);
+      expect(isRecentImportDate('2026-07-01', today)).toBe(true);
+    });
+
+    it('rejects anything older than the window', () => {
+      expect(isRecentImportDate('2026-06-30', today)).toBe(false);
+      expect(isRecentImportDate('2025-07-02', today)).toBe(false);
+    });
+
+    it('never imports future-dated samples', () => {
+      expect(isRecentImportDate('2026-07-03', today)).toBe(false);
+    });
+
+    it('handles month/year boundaries', () => {
+      expect(isRecentImportDate('2025-12-31', '2026-01-01')).toBe(true); // yesterday across year
+      expect(isRecentImportDate('2026-02-28', '2026-03-01')).toBe(true); // yesterday across month
+      expect(isRecentImportDate('2026-02-27', '2026-03-01')).toBe(false);
+    });
+
+    it('respects a custom daysBack window', () => {
+      expect(isRecentImportDate('2026-06-25', today, 7)).toBe(true);
+      expect(isRecentImportDate('2026-06-24', today, 7)).toBe(false);
+    });
+
+    it('rejects malformed dates', () => {
+      expect(isRecentImportDate('not-a-date', today)).toBe(false);
+      expect(isRecentImportDate('2026-07-02', 'bad')).toBe(false);
+    });
   });
 });

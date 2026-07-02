@@ -34,6 +34,29 @@ export function healthLogFallbackId(parts: { type: string; date: string; value: 
   return `hkc_${sanitizeId(parts.type)}_${parts.date.replace(/-/g, '')}_${djb2(key)}`;
 }
 
+/**
+ * Bounds which anchored samples we actually import. Anchored queries with no
+ * stored anchor return a user's ENTIRE HealthKit history; the app's model is
+ * date-scoped ("today"), so we only import samples dated within `daysBack` of
+ * today. This both preserves the today-centric behavior and caps first-run
+ * backfill to a couple of days instead of years of logs.
+ *
+ * `daysBack` = 1 imports today + yesterday (yesterday catches the just-past-
+ * midnight edge where a sample logged at 11:58pm syncs at 12:02am). Lexicographic
+ * comparison is valid for YYYY-MM-DD.
+ */
+export function isRecentImportDate(dateStr: string, todayStr: string, daysBack = 1): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr) || !/^\d{4}-\d{2}-\d{2}$/.test(todayStr)) return false;
+  if (dateStr > todayStr) return false; // never import future-dated samples
+  const earliest = new Date(`${todayStr}T00:00:00`);
+  earliest.setDate(earliest.getDate() - Math.max(0, daysBack));
+  const y = earliest.getFullYear();
+  const m = String(earliest.getMonth() + 1).padStart(2, '0');
+  const d = String(earliest.getDate()).padStart(2, '0');
+  const earliestStr = `${y}-${m}-${d}`;
+  return dateStr >= earliestStr;
+}
+
 /** Prefer a UUID-based id; fall back to a content-hash id when no UUID is present. */
 export function resolveHealthLogId(
   uuid: string | undefined | null,

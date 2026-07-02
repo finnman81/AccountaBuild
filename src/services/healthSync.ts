@@ -1,9 +1,10 @@
 import { Platform } from 'react-native';
 
-import { upsertGroupLogById, type WorkoutType } from './logs';
+import { upsertGroupLogById, deleteGroupLogById, type WorkoutType } from './logs';
 import { upsertUserWeightHistoryFromGroupLog } from './logEdits';
-import { resolveHealthLogId } from './health/healthLog';
-import { todayYYYYMMDD } from '../utils/dates';
+import { resolveHealthLogId, healthLogDocId, isRecentImportDate } from './health/healthLog';
+import { getAnchor, setAnchor } from './health/healthAnchors';
+import { formatYYYYMMDDLocal, todayYYYYMMDD } from '../utils/dates';
 import * as HealthService from './health/healthService';
 import type { HealthSettings } from './healthSettings';
 
@@ -23,13 +24,43 @@ export type SyncResult = {
 let syncInProgress = false;
 let syncPromise: Promise<SyncResult> | null = null;
 
+/** Delete the group logs for samples that were removed in Apple Health. */
+async function deleteSyncedLogs(
+  groupId: string,
+  deletedUuids: string[],
+  result: SyncResult,
+  label: string,
+): Promise<number> {
+  let removed = 0;
+  for (const uuid of deletedUuids) {
+    const id = healthLogDocId(uuid);
+    if (!id) continue;
+    try {
+      await deleteGroupLogById(groupId, id);
+      removed += 1;
+    } catch (e) {
+      result.errors.push(`${label} delete: ${e}`);
+    }
+  }
+  return removed;
+}
+
 /**
- * Sync today's Apple Health / Google Fit data into the active group's logs.
+ * Sync Apple Health / Google Fit data into the active group's logs.
  *
- * Idempotent: every synced sample is written to a deterministic doc id derived
- * from its HealthKit/Health Connect UUID (see health/healthLog.ts) via a merge
- * upsert. Re-syncing the same sample overwrites itself instead of creating a
- * duplicate, and there are no per-item dedup reads (the old N+1 pattern is gone).
+ * Idempotent + delta-based:
+ * - Every synced sample is written to a deterministic doc id derived from its
+ *   HealthKit UUID (see health/healthLog.ts) via a merge upsert. Re-syncing the
+ *   same sample overwrites itself instead of creating a duplicate, with no
+ *   per-item dedup reads (the old N+1 pattern is gone).
+ * - Workouts use anchored queries: each sync reads only what changed since the
+ *   stored anchor, and samples deleted in Health are removed from the group.
+ * - Calories import via the today read (which handles individual samples, food
+ *   correlations, and daily-statistics sources), and use an anchored query to
+ *   honor deletions. Weight imports the most recent value for today.
+ *
+ * First run (no stored anchor) skips deletion processing and just seeds the
+ * anchor, so subsequent syncs are pure deltas.
  */
 export async function syncHealthData(uid: string, groupId: string, settings: HealthSettings): Promise<SyncResult> {
   if (syncInProgress && syncPromise) {
@@ -42,23 +73,28 @@ export async function syncHealthData(uid: string, groupId: string, settings: Hea
     const result: SyncResult = { workoutsSynced: 0, caloriesSynced: false, weightSynced: false, errors: [], diagnostics: {} };
     const source = Platform.OS === 'ios' ? 'apple_health' : 'google_fit';
     const sourceLabel = Platform.OS === 'ios' ? 'Apple Health' : 'Google Fit';
+    const today = todayYYYYMMDD();
 
     try {
       const permissions = await HealthService.checkHealthPermissions();
       console.log('[HealthSync] Starting sync', { uid, groupId, settings, permissions });
 
-      // ---- Workouts ----
+      // ---- Workouts (anchored delta: import new/changed, honor deletions) ----
       if (settings.syncWorkouts && permissions.workouts) {
         try {
-          const workouts = await HealthService.readTodayWorkouts();
+          const anchor = await getAnchor(uid, 'workouts');
+          const { items, deletedUuids, newAnchor } = await HealthService.readWorkoutsSinceAnchor(anchor);
           let synced = 0;
-          for (const w of workouts) {
+          for (const w of items) {
+            const date = formatYYYYMMDDLocal(w.startDate);
+            // Bound first-run backfill to today/yesterday and keep the today-centric model.
+            if (!isRecentImportDate(date, today)) continue;
             try {
-              const logId = resolveHealthLogId(w.uuid, { type: 'workout', date: todayYYYYMMDD(), value: w.durationMinutes, source });
+              const logId = resolveHealthLogId(w.uuid, { type: 'workout', date, value: w.durationMinutes, source });
               await upsertGroupLogById(groupId, logId, {
                 uid,
                 type: 'workout',
-                date: todayYYYYMMDD(),
+                date,
                 source,
                 payload: { workoutType: w.workoutType as WorkoutType, durationMinutes: w.durationMinutes, note: `Synced from ${sourceLabel}` },
               });
@@ -68,8 +104,11 @@ export async function syncHealthData(uid: string, groupId: string, settings: Hea
               result.errors.push(`workout: ${e}`);
             }
           }
-          result.diagnostics!.workouts = { dataFromHealth: { source, totalCount: workouts.length }, syncedCount: synced };
-          console.log('[HealthSync] Workouts:', synced, 'of', workouts.length);
+          // Skip deletions on first run (no prior anchor) to avoid no-op churn.
+          const removed = anchor ? await deleteSyncedLogs(groupId, deletedUuids, result, 'workout') : 0;
+          if (newAnchor) await setAnchor(uid, 'workouts', newAnchor);
+          result.diagnostics!.workouts = { dataFromHealth: { source, deltaCount: items.length, deletedCount: removed, firstRun: !anchor }, syncedCount: synced };
+          console.log('[HealthSync] Workouts: synced', synced, 'deleted', removed, 'of delta', items.length);
         } catch (e) {
           result.errors.push(`read workouts: ${e}`);
           result.diagnostics!.workouts = { dataFromHealth: null, reason: `Error: ${e}` };
@@ -78,7 +117,7 @@ export async function syncHealthData(uid: string, groupId: string, settings: Hea
         result.diagnostics!.workouts = { dataFromHealth: null, reason: `disabled (enabled=${settings.syncWorkouts}, perm=${permissions.workouts})` };
       }
 
-      // ---- Calories (per-entry, meal-aware) ----
+      // ---- Calories (today read import for all source types; anchored deletions) ----
       if (settings.syncCalories && permissions.calories) {
         try {
           const entries = await HealthService.readTodayCalorieEntries();
@@ -99,8 +138,15 @@ export async function syncHealthData(uid: string, groupId: string, settings: Hea
             }
           }
           if (synced > 0) result.caloriesSynced = true;
-          result.diagnostics!.calories = { dataFromHealth: { source, entriesCount: entries.length }, syncedCount: synced };
-          console.log('[HealthSync] Calories:', synced, 'entries');
+
+          // Honor deletions from Apple Health via an anchored delta read.
+          const anchor = await getAnchor(uid, 'calories');
+          const { deletedUuids, newAnchor } = await HealthService.readCalorieEntriesSinceAnchor(anchor);
+          const removed = anchor ? await deleteSyncedLogs(groupId, deletedUuids, result, 'calorie') : 0;
+          if (newAnchor) await setAnchor(uid, 'calories', newAnchor);
+
+          result.diagnostics!.calories = { dataFromHealth: { source, entriesCount: entries.length, deletedCount: removed, firstRun: !anchor }, syncedCount: synced };
+          console.log('[HealthSync] Calories:', synced, 'entries, deleted', removed);
         } catch (e) {
           result.errors.push(`read calories: ${e}`);
           result.diagnostics!.calories = { dataFromHealth: null, reason: `Error: ${e}` };
@@ -114,15 +160,15 @@ export async function syncHealthData(uid: string, groupId: string, settings: Hea
         try {
           const weight = await HealthService.readTodayWeight();
           if (weight && weight.weight > 0) {
-            const logId = resolveHealthLogId(weight.uuid, { type: 'weight', date: todayYYYYMMDD(), value: weight.weight, source });
+            const logId = resolveHealthLogId(weight.uuid, { type: 'weight', date: today, value: weight.weight, source });
             await upsertGroupLogById(groupId, logId, {
               uid,
               type: 'weight',
-              date: todayYYYYMMDD(),
+              date: today,
               source,
               payload: { weight: weight.weight, note: `Synced from ${sourceLabel}` },
             });
-            await upsertUserWeightHistoryFromGroupLog({ uid, groupId, groupLogId: logId, date: todayYYYYMMDD(), weight: weight.weight });
+            await upsertUserWeightHistoryFromGroupLog({ uid, groupId, groupLogId: logId, date: today, weight: weight.weight });
             result.weightSynced = true;
             result.diagnostics!.weight = { dataFromHealth: weight, syncedCount: 1 };
             console.log('[HealthSync] Weight synced:', weight.weight);
