@@ -133,7 +133,16 @@ The `src/mmr/` engine (constants, difficulty, scoring, ranks, time, risk, badges
 
 ---
 
-## Phase 4 — God-screen refactor (3-5 days)
+## Phase 4 — "Midnight Blue" redesign (supersedes the god-screen refactor)
+
+> **DIRECTION CHANGE:** Phase 4 is now the full Midnight Blue redesign (see `Notes/` design handoff). Rebuilding each screen to the new design produces exactly the decomposition (hooks + viewmodels + card components) the refactor was going to do, so the redesign *is* the refactor. The god-screen notes below still apply as the decomposition target for each rebuilt screen.
+>
+> **STATUS 2026-07-01 — design-system foundation DONE (tsc clean, 41/41 tests, rendered live in Expo web with zero errors).**
+> - [x] Midnight Blue tokens: `theme/colors.ts` (+ `tierColors`), `radius.ts`, `spacing.ts`, `typography.ts`, `shadows.ts`. Backward-compatible (every key existing screens import is preserved), so the whole app shifts palette at once.
+> - [x] New primitives in `components/ui/`: `RankEmblem` (SVG faceted diamond — replaces the PNG `RankBadge`), `SegmentedControl` (surface + primary variants), `StatTile`, `ComplianceRing` (SVG).
+> - [x] Enhanced existing primitives: `Card` (radius 20 + hairline border), `Avatar` (status ring + at-risk dot), `PrimaryButton` (54px CTA + blue glow).
+> - [x] `screens/DesignShowcase.tsx` — unrouted dev reference for all primitives; render it via the `accountabuild-expo-web` launch config.
+> Next: rebuild screens in value order — Today → Log composer → Profile/Rank → Leaderboard → Groups → Progress → onboarding/welcome/sign-in → chat → moments (rank-up) → settings/edit. Backend features (reactions, nudges, `effectiveWeekId`, compliance %, rank-up detection) land with the screen that first needs each.
 
 Four screens carry most of the complexity: `GroupDetailScreen` (1,115), `ProgressScreen` (826), `ProfileScreen` (581), `HealthSettingsScreen` (581). The codebase **already has the right pattern**, it is just under-applied: services (`subscribeX`), a pure viewmodel layer (`viewmodels/memberSummary.ts`), stateful hooks (`hooks/useOnboardingStatus.ts`), and presentational components (`components/profile/*`). `ProfileScreen` is the closest to correct and is the reference shape. The target for each screen: guards -> one `use...Data()` hook -> pure viewmodel call(s) -> JSX composed of extracted cards.
 

@@ -13,9 +13,9 @@ type CardProps = {
   useBorder?: boolean;
 };
 
-export default function Card({ children, style, useShadow = false, useBorder = false }: CardProps) {
+export default function Card({ children, style, useShadow = false, useBorder = true }: CardProps) {
   const theme = useTheme();
-  
+
   const cardStyle: ViewStyle = {
     backgroundColor: colors.surface,
     borderRadius: radius.card,
@@ -23,7 +23,7 @@ export default function Card({ children, style, useShadow = false, useBorder = f
     ...(useShadow && shadow),
     ...(useBorder && {
       borderWidth: 1,
-      borderColor: colors.divider,
+      borderColor: colors.borderCard,
     }),
   };
 
