@@ -6,6 +6,7 @@ export type HealthWorkout = {
   durationMinutes: number;
   startDate: Date;
   endDate: Date;
+  uuid?: string;
 };
 
 export type HealthCalories = {
@@ -19,12 +20,14 @@ export type HealthCalorieEntry = {
   meal: 'breakfast' | 'lunch' | 'dinner' | 'snack' | 'all';
   timestamp: Date;
   source?: string;
+  uuid?: string;
 };
 
 export type HealthWeight = {
   weight: number;
   date: string; // YYYY-MM-DD
   timestamp: Date;
+  uuid?: string;
 };
 
 export type HealthPermissions = {

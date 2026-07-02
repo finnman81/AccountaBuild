@@ -19,6 +19,7 @@ export type HealthKitWorkout = {
   durationMinutes: number;
   startDate: Date;
   endDate: Date;
+  uuid?: string;
 };
 
 export type HealthKitCalories = {
@@ -32,12 +33,14 @@ export type HealthKitCalorieEntry = {
   meal: 'breakfast' | 'lunch' | 'dinner' | 'snack' | 'all'; // Inferred or from metadata
   timestamp: Date; // When the entry was recorded
   source?: string; // Source app name if available
+  uuid?: string;
 };
 
 export type HealthKitWeight = {
   weight: number; // in pounds
   date: string; // YYYY-MM-DD
   timestamp: Date;
+  uuid?: string;
 };
 
 function coerceNumber(value: any): number {
@@ -338,6 +341,7 @@ export async function readTodayWorkouts(): Promise<HealthKitWorkout[]> {
           durationMinutes,
           startDate,
           endDate,
+          uuid: w.uuid ? String(w.uuid) : undefined,
         };
       })
       .filter((w: HealthKitWorkout | null): w is HealthKitWorkout => w !== null)
@@ -564,6 +568,7 @@ export async function readTodayCalorieEntries(): Promise<HealthKitCalorieEntry[]
         meal,
         timestamp: startDate,
         source,
+        uuid: sample.uuid ? String(sample.uuid) : undefined,
       });
     }
 
@@ -671,6 +676,7 @@ export async function readTodayWeight(): Promise<HealthKitWeight | null> {
       weight: Math.round(weightInPounds * 10) / 10, // Round to 1 decimal place
       date: todayYYYYMMDD(),
       timestamp: sampleDate,
+      uuid: sample.uuid ? String(sample.uuid) : undefined,
     };
   } catch (error) {
     console.error('Error reading HealthKit weight:', error);

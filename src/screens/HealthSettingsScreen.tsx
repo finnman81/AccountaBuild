@@ -192,27 +192,25 @@ export default function HealthSettingsScreen() {
           const calData = cal.dataFromHealth || {};
           const calSummary = {
             entriesCount: calData.entriesCount ?? calData.entries?.length ?? 0,
-            syncedCount: calData.syncedCount ?? 0,
-            skippedDuplicates: calData.skippedDuplicates ?? 0,
+            syncedCount: cal.syncedCount ?? 0,
             sampleEntries: Array.isArray(calData.entriesDetailed) ? calData.entriesDetailed.slice(0, 3) : [],
             total: calData.total ?? null,
           };
-          addLog(`Calories: hasManualLog=${cal.hasManualLog}, data=${JSON.stringify(calSummary)}, reason=${cal.reason || 'N/A'}`);
+          addLog(`Calories: data=${JSON.stringify(calSummary)}, reason=${cal.reason || 'N/A'}`);
         }
         if (result.diagnostics.workouts) {
           const wkt = result.diagnostics.workouts;
           const wktData = wkt.dataFromHealth || {};
           const wktSummary = {
             totalCount: wktData.totalCount ?? 0,
-            syncedCount: wktData.syncedCount ?? 0,
-            skippedDuplicates: wktData.skippedDuplicates ?? 0,
+            syncedCount: wkt.syncedCount ?? 0,
             sampleItems: Array.isArray(wktData.items) ? wktData.items.slice(0, 3) : [],
           };
-          addLog(`Workouts: hasManualLog=${wkt.hasManualLog}, data=${JSON.stringify(wktSummary)}, reason=${wkt.reason || 'N/A'}`);
+          addLog(`Workouts: data=${JSON.stringify(wktSummary)}, reason=${wkt.reason || 'N/A'}`);
         }
         if (result.diagnostics.weight) {
           const w = result.diagnostics.weight;
-          addLog(`Weight: hasManualLog=${w.hasManualLog}, data=${JSON.stringify(w.dataFromHealth)}, reason=${w.reason || 'N/A'}`);
+          addLog(`Weight: data=${JSON.stringify(w.dataFromHealth)}, reason=${w.reason || 'N/A'}`);
         }
       }
 
