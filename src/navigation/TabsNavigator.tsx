@@ -26,6 +26,7 @@ import GroupListScreen from '../screens/GroupListScreen';
 import CreateGroupScreen from '../screens/CreateGroupScreen';
 import JoinGroupScreen from '../screens/JoinGroupScreen';
 import ProfileScreen from '../screens/ProfileScreen';
+import SettingsScreen from '../screens/SettingsScreen';
 import SeasonHistoryScreen from '../screens/SeasonHistoryScreen';
 import MMRHistoryScreen from '../screens/MMRHistoryScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
@@ -81,6 +82,7 @@ function ProfileStackNavigator() {
   return (
     <ProfileStack.Navigator>
       <ProfileStack.Screen name="Profile" component={ProfileScreen} options={{ headerShown: false }} />
+      <ProfileStack.Screen name="Settings" component={SettingsScreen} options={{ headerShown: false }} />
       <ProfileStack.Screen name="SeasonHistory" component={SeasonHistoryScreen} options={{ title: 'Season history' }} />
       <ProfileStack.Screen name="MMRHistory" component={MMRHistoryScreen} options={{ title: 'MMR history' }} />
       <ProfileStack.Screen name="Notifications" component={NotificationsScreen} options={{ title: 'Notifications' }} />

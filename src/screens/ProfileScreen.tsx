@@ -516,6 +516,7 @@ export default function ProfileScreen() {
         <Card.Content style={{ paddingHorizontal: 0 }}>
           <NavList
             items={[
+              { title: 'Settings', icon: 'cog', onPress: () => (nav as any).navigate('Settings') },
               { title: 'Edit profile', icon: 'account-edit', onPress: () => nav.navigate('EditProfile', undefined) },
               { title: 'Goals', icon: 'target', onPress: () => nav.navigate('MMRGoals') },
               { title: 'Season history', icon: 'trophy', onPress: () => (nav as any).navigate('SeasonHistory') },

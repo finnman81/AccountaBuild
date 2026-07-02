@@ -61,6 +61,7 @@ export type ProgressStackParamList = {
 
 export type ProfileStackParamList = {
   Profile: undefined;
+  Settings: undefined;
   SeasonHistory: undefined;
   MMRHistory: undefined;
   Notifications: undefined;

@@ -1,62 +1,47 @@
-import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { Image, Keyboard, KeyboardAvoidingView, Platform, ScrollView, TouchableWithoutFeedback, View } from 'react-native';
-import { Button, Card, Text, TextInput } from 'react-native-paper';
+import React, { useContext, useEffect, useState } from 'react';
+import { Image, KeyboardAvoidingView, Platform, ScrollView, View, StyleSheet, TouchableOpacity } from 'react-native';
+import { Icon } from 'react-native-paper';
 import { updateProfile as updateFirebaseProfile } from 'firebase/auth';
 import * as ImagePicker from 'expo-image-picker';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AuthContext } from '../store/AuthContext';
 import { subscribeMyProfile, syncMyMemberProfileToAllGroups, updateMyProfile } from '../services/profile';
-import { auth } from '../firebase/firebase';
-import { formatHeightInches, formatWeightLb } from '../utils/formatters';
+import { auth, db } from '../firebase/firebase';
 import { uploadUserAvatar } from '../services/photos';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
-import { isValidYYYYMMDD, todayYYYYMMDD } from '../utils/dates';
-import { DEFAULT_TZ, seasonIdFromDate } from '../mmr/time';
+import { DEFAULT_TZ, isoWeekIdInTz, nextIsoWeekId } from '../mmr/time';
+import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
+import AppText from '../components/ui/AppText';
+import Avatar from '../components/ui/Avatar';
+import EditRow from '../components/ui/EditRow';
+import { colors, radius, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'EditProfile'>;
 
-function toNumberOrNull(text: string) {
+function numOrNull(text: string) {
   const t = text.trim();
   if (!t) return null;
   const n = Number(t);
   return Number.isFinite(n) ? n : null;
 }
 
-export default function EditProfileScreen({ route, navigation }: Props) {
+export default function EditProfileScreen({ navigation }: Props) {
   const { user } = useContext(AuthContext);
-  const focusField = route.params?.focusField;
 
   const [displayName, setDisplayName] = useState('');
   const [height, setHeight] = useState('');
   const [age, setAge] = useState('');
-  const [weightCurrent, setWeightCurrent] = useState('');
   const [weightGoal, setWeightGoal] = useState('');
-  const [weightTargetDate, setWeightTargetDate] = useState('');
+  const [dailyCalorieGoal, setDailyCalorieGoal] = useState('');
+  const [workoutsPerWeek, setWorkoutsPerWeek] = useState('');
   const [photoURL, setPhotoURL] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState<string | null>(null);
 
-  const heightRef = useRef<any>(null);
-  const ageRef = useRef<any>(null);
-  const weightCurrentRef = useRef<any>(null);
-  const weightGoalRef = useRef<any>(null);
-  const weightTargetDateRef = useRef<any>(null);
-
-  const heightPreview = useMemo(() => {
-    const n = Number(height);
-    return Number.isFinite(n) ? formatHeightInches(n) : '—';
-  }, [height]);
-  const currentWeightPreview = useMemo(() => {
-    const n = Number(weightCurrent);
-    return Number.isFinite(n) ? formatWeightLb(n) : '—';
-  }, [weightCurrent]);
-  const goalWeightPreview = useMemo(() => {
-    const n = Number(weightGoal);
-    return Number.isFinite(n) ? formatWeightLb(n) : '—';
-  }, [weightGoal]);
+  useEffect(() => navigation.setOptions({ headerShown: false }), [navigation]);
 
   useEffect(() => {
     if (!user) return;
@@ -66,38 +51,15 @@ export default function EditProfileScreen({ route, navigation }: Props) {
       setPhotoURL((p as any).photoURL ?? null);
       setHeight(p.height == null ? '' : String(p.height));
       setAge(p.age == null ? '' : String(p.age));
-      setWeightCurrent(p.weightCurrent == null ? '' : String(p.weightCurrent));
       setWeightGoal(p.weightGoal == null ? '' : String(p.weightGoal));
-      setWeightTargetDate((p as any).weightTargetDate == null ? '' : String((p as any).weightTargetDate));
+      setDailyCalorieGoal(p.dailyCalorieGoal == null ? '' : String(p.dailyCalorieGoal));
+      setWorkoutsPerWeek((p as any).workoutsPerWeek == null ? '' : String((p as any).workoutsPerWeek));
     });
   }, [user]);
-
-  useEffect(() => {
-    const t = setTimeout(() => {
-      if (focusField === 'height') heightRef.current?.focus?.();
-      if (focusField === 'age') ageRef.current?.focus?.();
-      if (focusField === 'weightCurrent') weightCurrentRef.current?.focus?.();
-      if (focusField === 'weightGoal') weightGoalRef.current?.focus?.();
-      if (focusField === 'weightTargetDate') weightTargetDateRef.current?.focus?.();
-    }, 250);
-    return () => clearTimeout(t);
-  }, [focusField]);
-
-  const seasonEndDefault = useMemo(() => {
-    const seasonId = seasonIdFromDate(new Date(), DEFAULT_TZ); // e.g. 2026Q1
-    const y = seasonId.slice(0, 4);
-    const q = seasonId.slice(4);
-    if (q === 'Q1') return `${y}-03-31`;
-    if (q === 'Q2') return `${y}-06-30`;
-    if (q === 'Q3') return `${y}-09-30`;
-    if (q === 'Q4') return `${y}-12-31`;
-    return '';
-  }, []);
 
   const changePhoto = async () => {
     if (!user) return;
     setError(null);
-    setSaved(null);
     setIsUploadingPhoto(true);
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -105,7 +67,6 @@ export default function EditProfileScreen({ route, navigation }: Props) {
         setError('Permission to access photos was denied.');
         return;
       }
-
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
@@ -113,17 +74,11 @@ export default function EditProfileScreen({ route, navigation }: Props) {
         aspect: [1, 1],
       });
       if (result.canceled) return;
-
-      const uri = result.assets[0].uri;
-      const url = await uploadUserAvatar({ uid: user.uid, uri });
+      const url = await uploadUserAvatar({ uid: user.uid, uri: result.assets[0].uri });
       setPhotoURL(url);
-
       await updateMyProfile({ uid: user.uid, photoURL: url });
-      if (auth.currentUser) {
-        await updateFirebaseProfile(auth.currentUser, { photoURL: url });
-      }
+      if (auth.currentUser) await updateFirebaseProfile(auth.currentUser, { photoURL: url });
       await syncMyMemberProfileToAllGroups(user.uid);
-      setSaved('Photo updated.');
     } catch {
       setError('Failed to update photo.');
     } finally {
@@ -134,69 +89,38 @@ export default function EditProfileScreen({ route, navigation }: Props) {
   const save = async () => {
     if (!user) return;
     setError(null);
-    setSaved(null);
     setIsSaving(true);
     try {
-      // Important: treat empty fields as "no change" (undefined), not "wipe" (null).
-      // This prevents accidentally clearing profile stats when the form is partially filled.
       const patch: Parameters<typeof updateMyProfile>[0] = { uid: user.uid };
-
       const dn = displayName.trim();
       if (dn) patch.displayName = dn;
-
-      // Only update photo if we have a URL. Clearing photos can be added later via explicit UI.
       if (photoURL) patch.photoURL = photoURL;
 
-      const hText = height.trim();
-      if (hText) {
-        const n = toNumberOrNull(hText);
-        if (n == null) throw new Error('Height must be a number');
-        patch.height = n;
-      }
-
-      const aText = age.trim();
-      if (aText) {
-        const n = toNumberOrNull(aText);
-        if (n == null) throw new Error('Age must be a number');
-        patch.age = n;
-      }
-
-      const wcText = weightCurrent.trim();
-      if (wcText) {
-        const n = toNumberOrNull(wcText);
-        if (n == null) throw new Error('Current weight must be a number');
-        patch.weightCurrent = n;
-      }
-
-      const wgText = weightGoal.trim();
-      if (wgText) {
-        const n = toNumberOrNull(wgText);
-        if (n == null) throw new Error('Goal weight must be a number');
-        patch.weightGoal = n;
-      }
-
-      // Target date (optional). If user clears it, explicitly clear stored value (null).
-      const td = weightTargetDate.trim();
-      if (td) {
-        if (!isValidYYYYMMDD(td)) throw new Error('Target date must be YYYY-MM-DD.');
-        if (td < todayYYYYMMDD()) throw new Error('Target date cannot be in the past.');
-        patch.weightTargetDate = td;
-      } else {
-        patch.weightTargetDate = null;
-      }
-
-      if (auth.currentUser) {
-        const authPatch: { displayName?: string; photoURL?: string } = {};
-        if (patch.displayName !== undefined) authPatch.displayName = patch.displayName ?? '';
-        if (patch.photoURL !== undefined) authPatch.photoURL = patch.photoURL ?? undefined;
-        if (Object.keys(authPatch).length > 0) {
-          await updateFirebaseProfile(auth.currentUser, authPatch);
+      for (const [text, key] of [
+        [height, 'height'],
+        [age, 'age'],
+        [weightGoal, 'weightGoal'],
+        [dailyCalorieGoal, 'dailyCalorieGoal'],
+        [workoutsPerWeek, 'workoutsPerWeek'],
+      ] as const) {
+        if (text.trim()) {
+          const n = numOrNull(text);
+          if (n == null) throw new Error(`${key} must be a number`);
+          (patch as any)[key] = n;
         }
       }
 
+      if (auth.currentUser && patch.displayName !== undefined) {
+        await updateFirebaseProfile(auth.currentUser, { displayName: patch.displayName ?? '' });
+      }
+
       await updateMyProfile(patch);
+      // Stamp when goal changes should count for MMR fairness (next ISO week).
+      if (db) {
+        const nextWeek = nextIsoWeekId(isoWeekIdInTz(new Date(), DEFAULT_TZ), DEFAULT_TZ);
+        await setDoc(doc(db, 'users', user.uid), { goalsEffectiveWeekId: nextWeek, updatedAt: serverTimestamp() }, { merge: true });
+      }
       await syncMyMemberProfileToAllGroups(user.uid);
-      setSaved('Saved.');
       navigation.goBack();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Save failed.');
@@ -205,125 +129,70 @@ export default function EditProfileScreen({ route, navigation }: Props) {
     }
   };
 
-  if (!user) {
-    return (
-      <View style={{ flex: 1, padding: 16, justifyContent: 'center' }}>
-        <Text>You must be signed in.</Text>
-      </View>
-    );
-  }
-
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-        <ScrollView
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode={Platform.OS === 'ios' ? 'on-drag' : 'none'}
-          contentContainerStyle={{ flexGrow: 1, padding: 16 }}
-        >
-          <Card>
-            <Card.Title title="Edit profile" />
-            <Card.Content>
-              <View style={{ alignItems: 'center' }}>
-                {photoURL ? (
-                  <Image
-                    source={{ uri: photoURL }}
-                    style={{ width: 96, height: 96, borderRadius: 96, backgroundColor: '#111' }}
-                  />
-                ) : (
-                  <View style={{ width: 96, height: 96, borderRadius: 96, backgroundColor: '#222' }} />
-                )}
-                <View style={{ height: 12 }} />
-                <Button mode="outlined" onPress={changePhoto} disabled={isSaving || isUploadingPhoto} loading={isUploadingPhoto}>
-                  Change photo
-                </Button>
-              </View>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.back} hitSlop={8}>
+          <Icon source="chevron-left" size={24} color={colors.textPrimary} />
+        </TouchableOpacity>
+        <AppText variant="rowTitle" color="primary" style={styles.headerTitle}>Edit profile</AppText>
+        <TouchableOpacity onPress={save} disabled={isSaving} hitSlop={8}>
+          <AppText variant="rowTitle" color={isSaving ? 'muted' : 'accent'}>Save</AppText>
+        </TouchableOpacity>
+      </View>
 
-              <View style={{ height: 16 }} />
-              <TextInput label="Display name" value={displayName} onChangeText={setDisplayName} disabled={isSaving} />
-              <View style={{ height: 12 }} />
-              <TextInput
-                ref={heightRef}
-                label="Height (inches)"
-                value={height}
-                onChangeText={setHeight}
-                keyboardType="number-pad"
-                disabled={isSaving}
-              />
-              <Text variant="bodySmall" style={{ opacity: 0.75 }}>
-                Preview: {heightPreview}
-              </Text>
-              <View style={{ height: 12 }} />
-              <TextInput ref={ageRef} label="Age" value={age} onChangeText={setAge} keyboardType="number-pad" disabled={isSaving} />
-              <View style={{ height: 12 }} />
-              <TextInput
-                ref={weightCurrentRef}
-                label="Current weight (lb)"
-                value={weightCurrent}
-                onChangeText={setWeightCurrent}
-                keyboardType="decimal-pad"
-                disabled={isSaving}
-              />
-              <Text variant="bodySmall" style={{ opacity: 0.75 }}>
-                Preview: {currentWeightPreview}
-              </Text>
-              <View style={{ height: 12 }} />
-              <TextInput
-                ref={weightGoalRef}
-                label="Goal weight (lb)"
-                value={weightGoal}
-                onChangeText={setWeightGoal}
-                keyboardType="decimal-pad"
-                disabled={isSaving}
-              />
-              <Text variant="bodySmall" style={{ opacity: 0.75 }}>
-                Preview: {goalWeightPreview}
-              </Text>
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          <View style={styles.avatarWrap}>
+            <View>
+              {photoURL ? <Image source={{ uri: photoURL }} style={styles.avatar} /> : <Avatar photoURL={null} name={displayName || 'U'} size={84} />}
+              <TouchableOpacity onPress={changePhoto} disabled={isUploadingPhoto} style={styles.cameraBadge}>
+                <Icon source="camera" size={14} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity onPress={changePhoto} disabled={isUploadingPhoto}>
+              <AppText variant="rowSubtitle" color="accent" style={{ marginTop: spacing.sm }}>Change photo</AppText>
+            </TouchableOpacity>
+          </View>
 
-              <View style={{ height: 12 }} />
-              <TextInput
-                ref={weightTargetDateRef}
-                label="Target date (YYYY-MM-DD)"
-                value={weightTargetDate}
-                onChangeText={setWeightTargetDate}
-                autoCapitalize="none"
-                autoCorrect={false}
-                disabled={isSaving}
-              />
-              <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-                <Button mode="outlined" compact disabled={isSaving || !seasonEndDefault} onPress={() => setWeightTargetDate(seasonEndDefault)}>
-                  Use season end
-                </Button>
-                <Button mode="text" compact disabled={isSaving} onPress={() => setWeightTargetDate('')}>
-                  Clear
-                </Button>
-              </View>
-              <Text variant="bodySmall" style={{ opacity: 0.75, marginTop: 6 }}>
-                Default: end of season ({seasonEndDefault || '—'}).
-              </Text>
+          <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>Identity</AppText>
+          <View style={styles.group}>
+            <EditRow label="Display name" value={displayName} onChangeText={setDisplayName} placeholder="Your name" />
+            <EditRow label="Height" value={height} onChangeText={setHeight} placeholder="70" suffix="in" keyboardType="number-pad" />
+            <EditRow label="Age" value={age} onChangeText={setAge} placeholder="—" keyboardType="number-pad" showDivider={false} />
+          </View>
 
-              {error ? (
-                <>
-                  <View style={{ height: 12 }} />
-                  <Text style={{ color: 'crimson' }}>{error}</Text>
-                </>
-              ) : null}
-              {saved ? (
-                <>
-                  <View style={{ height: 12 }} />
-                  <Text style={{ color: 'green' }}>{saved}</Text>
-                </>
-              ) : null}
+          <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>Goals</AppText>
+          <View style={styles.group}>
+            <EditRow label="Goal weight" value={weightGoal} onChangeText={setWeightGoal} subline="Your target — drives weight progress" placeholder="175" suffix="lb" keyboardType="decimal-pad" />
+            <EditRow label="Daily calories" value={dailyCalorieGoal} onChangeText={setDailyCalorieGoal} subline="Your daily intake target" placeholder="2200" suffix="kcal" keyboardType="number-pad" />
+            <EditRow label="Workouts / week" value={workoutsPerWeek} onChangeText={setWorkoutsPerWeek} subline="Your weekly MMR target — miss it and you lose MP" placeholder="4" keyboardType="number-pad" showDivider={false} />
+          </View>
 
-              <View style={{ height: 16 }} />
-              <Button mode="contained" onPress={save} loading={isSaving} disabled={isSaving}>
-                Save
-              </Button>
-            </Card.Content>
-          </Card>
+          <AppText variant="rowSubtitle" color="muted" style={styles.footnote}>
+            Goal changes apply from next week so this week's rank is fair.
+          </AppText>
+          {error ? <AppText variant="rowSubtitle" color="danger" style={styles.footnote}>{error}</AppText> : null}
         </ScrollView>
-      </TouchableWithoutFeedback>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  flex: { flex: 1 },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
+  back: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { flex: 1, fontSize: 18, marginLeft: spacing.xs },
+  content: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl },
+  avatarWrap: { alignItems: 'center', marginVertical: spacing.lg },
+  avatar: { width: 84, height: 84, borderRadius: 999, backgroundColor: colors.surface2 },
+  cameraBadge: {
+    position: 'absolute', right: -2, bottom: -2, width: 28, height: 28, borderRadius: 999,
+    backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: colors.background,
+  },
+  sectionLabel: { marginTop: spacing.lg, marginBottom: spacing.sm, marginLeft: spacing.xs },
+  group: { backgroundColor: colors.surface, borderRadius: radius.listGroup, borderWidth: 1, borderColor: colors.borderCard, paddingHorizontal: spacing.base },
+  footnote: { marginTop: spacing.base, textAlign: 'center', paddingHorizontal: spacing.base, lineHeight: 18 },
+});
