@@ -25,7 +25,9 @@ export default function HomeTodayScreen() {
         if (activeGroupId) nav.navigate('GroupDetail', { groupId: activeGroupId });
       }}
       onBell={() => (nav as any).navigate('MainTabs', { screen: 'ProfileTab', params: { screen: 'Notifications' } })}
-      onOpenMember={() => {}}
+      onOpenMember={(uid: string) => {
+        if (activeGroupId && uid) (nav as any).navigate('MemberDetail', { groupId: activeGroupId, uid });
+      }}
     />
   );
 }

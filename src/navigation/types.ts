@@ -26,6 +26,7 @@ export type RootStackParamList = {
     | undefined;
   MMRGoals: undefined;
   LogComposer: { initialType?: import('../services/logs').LogType } | undefined;
+  MemberDetail: { groupId: string; uid: string };
 };
 
 export type OnboardingStackParamList = {

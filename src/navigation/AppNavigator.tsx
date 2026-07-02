@@ -18,6 +18,7 @@ import LogTodayScreen from '../screens/LogTodayScreen';
 import EditProfileScreen from '../screens/EditProfileScreen';
 import MMRGoalsScreen from '../screens/MMRGoalsScreen';
 import LogComposerScreen from '../screens/LogComposerScreen';
+import MemberDetailScreen from '../screens/MemberDetailScreen';
 import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
 import { RootStackParamList } from './types';
@@ -99,6 +100,11 @@ export default function AppNavigator() {
               name="LogComposer"
               component={LogComposerScreen}
               options={{ headerShown: false, presentation: 'modal' }}
+            />
+            <Stack.Screen
+              name="MemberDetail"
+              component={MemberDetailScreen}
+              options={{ headerShown: false, presentation: 'transparentModal', animation: 'fade' }}
             />
           </>
         )}

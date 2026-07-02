@@ -178,6 +178,14 @@ export async function deleteGroupLogById(groupId: string, logId: string): Promis
   await deleteDoc(doc(db, 'groups', groupId, 'logs', logId));
 }
 
+/**
+ * Toggle a reaction (cheer) on a log. Reactions are stored as a map on the log
+ * doc: `reactions[uid] = emoji`. Passing null clears the current user's reaction.
+ */
+export async function setLogReaction(groupId: string, logId: string, uid: string, emoji: string | null): Promise<void> {
+  await setDoc(doc(db, 'groups', groupId, 'logs', logId), { reactions: { [uid]: emoji } }, { merge: true });
+}
+
 export function subscribeGroupLogs(
   groupId: string,
   onChange: (logs: GroupLog[]) => void,

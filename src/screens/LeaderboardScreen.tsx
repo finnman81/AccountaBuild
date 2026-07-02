@@ -90,7 +90,7 @@ export default function LeaderboardScreen({ route }: Props) {
   const listRows = rows.slice(3);
   const strongWeeks = gapToTop != null ? Math.max(1, Math.ceil(gapToTop / 80)) : null;
 
-  const openMember = (uid: string) => nav.navigate('GroupDetail' as any, { groupId, focusUid: uid } as any);
+  const openMember = (uid: string) => nav.navigate('MemberDetail' as any, { groupId, uid } as any);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
