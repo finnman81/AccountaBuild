@@ -67,17 +67,9 @@ export default function AppNavigator() {
       >
         {!user ? (
           <>
-            <Stack.Screen name="Login" component={LoginScreen} options={{ title: 'Login' }} />
-            <Stack.Screen
-              name="Register"
-              component={RegisterScreen}
-              options={{ title: 'Create Account' }}
-            />
-            <Stack.Screen
-              name="ForgotPassword"
-              component={ForgotPasswordScreen}
-              options={{ title: 'Reset Password' }}
-            />
+            <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="Register" component={RegisterScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} options={{ headerShown: false }} />
           </>
         ) : !onboardingCompleted ? (
           <Stack.Screen name="Onboarding" component={OnboardingNavigator} options={{ headerShown: false }} />
