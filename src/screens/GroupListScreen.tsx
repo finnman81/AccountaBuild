@@ -1,54 +1,40 @@
 import React, { useContext, useEffect, useMemo, useState } from 'react';
-import { Image, View } from 'react-native';
-import { Button, Card, Dialog, Divider, IconButton, List, Menu, Portal, Snackbar, Text, useTheme } from 'react-native-paper';
+import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { Button, Dialog, Portal, Snackbar, Icon } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
+import * as Clipboard from 'expo-clipboard';
 
-import Screen from '../components/layout/Screen';
+import AppText from '../components/ui/AppText';
 import PrimaryButton from '../components/ui/PrimaryButton';
-import NavList from '../components/ui/NavList';
+import GroupCard from '../components/group/GroupCard';
 import LoadingState from '../components/state/LoadingState';
 import ErrorState from '../components/state/ErrorState';
 import { GroupsStackParamList } from '../navigation/types';
 import type { RootStackParamList } from '../navigation/types';
 import { AuthContext } from '../store/AuthContext';
 import { leaveGroup, subscribeMyGroups, UserGroupListItem } from '../services/groups';
-import { subscribeMyProfile } from '../services/profile';
-import { friendlyNameFromDisplayName, formatTimeAgo } from '../utils/formatters';
 import { useActiveGroup } from '../store/ActiveGroupContext';
+import { useGroupsOverview } from '../hooks/useGroupsOverview';
+import { colors, radius, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<GroupsStackParamList, 'GroupList'>;
 
 export default function GroupListScreen({ navigation }: Props) {
-  const theme = useTheme();
   const rootNav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { user, logout } = useContext(AuthContext);
-  const { setActiveGroupId } = useActiveGroup();
+  const { activeGroupId, setActiveGroupId } = useActiveGroup();
   const [groups, setGroups] = useState<UserGroupListItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [retryKey, setRetryKey] = useState(0);
-  const [myPhotoURL, setMyPhotoURL] = useState<string | null>(null);
   const [leaveDialogVisible, setLeaveDialogVisible] = useState(false);
   const [leavingGroupId, setLeavingGroupId] = useState<string | null>(null);
   const [isLeaving, setIsLeaving] = useState(false);
-  const [menuVisible, setMenuVisible] = useState<Record<string, boolean>>({});
-  const [showSuccess, setShowSuccess] = useState(false);
-
-  const username = useMemo(() => {
-    return friendlyNameFromDisplayName(user?.displayName ?? user?.email ?? null, user?.uid);
-  }, [user?.displayName, user?.email]);
-
-  useEffect(() => {
-    if (!user) return;
-    return subscribeMyProfile(
-      user.uid,
-      (p) => setMyPhotoURL((p?.photoURL ?? '').trim() || null),
-      () => setMyPhotoURL(null),
-    );
-  }, [user]);
+  const [snack, setSnack] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -67,217 +53,150 @@ export default function GroupListScreen({ navigation }: Props) {
     );
   }, [retryKey, user]);
 
-  const toMillis = (t: any | null) => {
-    if (!t) return null;
-    try {
-      if (typeof t?.toMillis === 'function') return t.toMillis();
-    } catch {}
-    const d = t instanceof Date ? t : null;
-    return d ? d.getTime() : null;
-  };
+  const groupIds = useMemo(() => groups.map((g) => g.groupId), [groups]);
+  const overviews = useGroupsOverview(groupIds, user?.uid);
 
-  const handleLeaveGroup = (groupId: string) => {
-    setLeavingGroupId(groupId);
-    setLeaveDialogVisible(true);
-    setMenuVisible({});
+  const inviteGroup = useMemo(
+    () => groups.find((g) => g.groupId === activeGroupId) ?? groups[0] ?? null,
+    [groups, activeGroupId],
+  );
+
+  const openGroup = (g: UserGroupListItem) => {
+    void setActiveGroupId(g.groupId);
+    rootNav.navigate('MainTabs', { screen: 'HomeTab' } as any);
   };
 
   const confirmLeaveGroup = async () => {
     if (!user || !leavingGroupId) return;
-    
     setIsLeaving(true);
     try {
       await leaveGroup({ uid: user.uid, groupId: leavingGroupId });
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setShowSuccess(true);
+      setSnack('Left group');
       setLeaveDialogVisible(false);
+      if (activeGroupId === leavingGroupId) void setActiveGroupId(null);
       setLeavingGroupId(null);
-      
-      // If this was the active group, clear it
-      if (groups.find(g => g.groupId === leavingGroupId)) {
-        void setActiveGroupId(null);
-      }
     } catch (e) {
-      console.error('[GroupList] Error leaving group:', e);
       setError(e instanceof Error ? e.message : 'Failed to leave group.');
     } finally {
       setIsLeaving(false);
     }
   };
 
+  const copyCode = async () => {
+    if (!inviteGroup?.joinCode) return;
+    await Clipboard.setStringAsync(inviteGroup.joinCode);
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setSnack('Join code copied');
+  };
+
   return (
-    <Screen>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <Portal>
         <Dialog visible={leaveDialogVisible} onDismiss={() => !isLeaving && setLeaveDialogVisible(false)}>
           <Dialog.Title>Leave group?</Dialog.Title>
           <Dialog.Content>
-            <Text>You will no longer be able to access this group or see its members. You can rejoin later with the join code.</Text>
+            <AppText variant="body" color="secondary">
+              You'll lose access to this group and its members. You can rejoin later with the join code.
+            </AppText>
           </Dialog.Content>
           <Dialog.Actions>
-            <Button onPress={() => setLeaveDialogVisible(false)} disabled={isLeaving}>
-              Cancel
-            </Button>
-            <Button onPress={confirmLeaveGroup} loading={isLeaving} disabled={isLeaving} textColor={theme.colors.error}>
-              Leave
-            </Button>
+            <Button onPress={() => setLeaveDialogVisible(false)} disabled={isLeaving}>Cancel</Button>
+            <Button onPress={confirmLeaveGroup} loading={isLeaving} disabled={isLeaving} textColor={colors.danger}>Leave</Button>
           </Dialog.Actions>
         </Dialog>
       </Portal>
 
-      <Card>
-        <Card.Title
-          title={username}
-          subtitle={user?.email ? `Signed in as ${user.email}` : 'Your account'}
-          left={() =>
-            myPhotoURL ? (
-              <Image
-                source={{ uri: myPhotoURL }}
-                style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: 12,
-                  backgroundColor: theme.colors.surfaceVariant,
-                }}
-                resizeMode="cover"
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <AppText variant="pageTitle" color="primary" style={styles.title}>Groups</AppText>
+
+        <View style={styles.actions}>
+          <PrimaryButton onPress={() => navigation.navigate('CreateGroup')} style={styles.actionBtn} icon="plus">
+            Create group
+          </PrimaryButton>
+          <PrimaryButton secondary onPress={() => navigation.navigate('JoinGroup')} style={styles.actionBtn} icon="account-multiple-plus-outline">
+            Join with code
+          </PrimaryButton>
+        </View>
+
+        {isLoading ? (
+          <View style={styles.stateWrap}><LoadingState skeletonCount={2} /></View>
+        ) : error ? (
+          <View style={styles.stateWrap}><ErrorState onRetry={() => setRetryKey((k) => k + 1)} message={error} /></View>
+        ) : groups.length === 0 ? (
+          <View style={styles.stateWrap}>
+            <AppText variant="body" color="secondary" style={{ textAlign: 'center' }}>
+              No groups yet. Create one or join with a code.
+            </AppText>
+          </View>
+        ) : (
+          <View style={styles.list}>
+            {groups.map((g) => (
+              <GroupCard
+                key={g.groupId}
+                group={g}
+                overview={overviews[g.groupId]}
+                isActive={g.groupId === activeGroupId}
+                onPress={() => openGroup(g)}
               />
-            ) : (
-              <View
-                style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: 12,
-                  backgroundColor: theme.colors.surfaceVariant,
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                }}
-              >
-                <Text variant="titleMedium">{username.slice(0, 2).toUpperCase()}</Text>
-              </View>
-            )
-          }
-        />
-        <Card.Content>
-          {error ? <Text style={{ color: 'crimson' }}>{error}</Text> : null}
-          <PrimaryButton onPress={() => navigation.navigate('CreateGroup')}>Create group</PrimaryButton>
-          <View style={{ height: 8 }} />
-          <Button mode="outlined" onPress={() => navigation.navigate('JoinGroup')}>
-            Join group
-          </Button>
-        </Card.Content>
-      </Card>
+            ))}
+          </View>
+        )}
 
-      <View style={{ height: 16 }} />
-      <Text variant="titleMedium" style={{ color: theme.colors.onBackground, marginBottom: 8 }}>
-        Your groups
-      </Text>
+        {inviteGroup?.joinCode ? (
+          <View style={styles.inviteCard}>
+            <AppText variant="rowTitle" color="primary" style={{ textAlign: 'center' }}>Accountability works better together</AppText>
+            <AppText variant="rowSubtitle" color="muted" style={styles.inviteSub}>
+              Invite a friend with your join code — groups with 4+ members keep streaks 2× longer.
+            </AppText>
+            <TouchableOpacity onPress={copyCode} activeOpacity={0.8} style={styles.codePill}>
+              <AppText variant="rowTitle" color="primary" style={styles.codeText}>{inviteGroup.joinCode}</AppText>
+              <Icon source="content-copy" size={16} color={colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
+        ) : null}
 
-      <Card>
-        <Card.Content style={{ paddingHorizontal: 0 }}>
-          {isLoading ? (
-            <View style={{ paddingHorizontal: 16, paddingVertical: 12 }}>
-              <LoadingState skeletonCount={2} />
-            </View>
-          ) : error ? (
-            <View style={{ paddingHorizontal: 16, paddingVertical: 12 }}>
-              <ErrorState onRetry={() => setRetryKey((k) => k + 1)} message={error} />
-            </View>
-          ) : groups.length === 0 ? (
-            <View style={{ paddingHorizontal: 16, paddingVertical: 8 }}>
-              <Text variant="bodyMedium">No groups yet. Create one or join with a code.</Text>
-            </View>
-          ) : (
-            <>
-              <Divider />
-              {groups.map((g) => (
-                <React.Fragment key={g.groupId}>
-                  <List.Item
-                    title={g.name}
-                    description={[
-                      g.description ?? null,
-                      `${g.memberCount ?? '—'} members • Updated ${formatTimeAgo(toMillis(g.lastActivityAt ?? null))}`,
-                    ]
-                      .filter(Boolean)
-                      .join('\n')}
-                    onPress={() => {
-                      void setActiveGroupId(g.groupId);
-                      rootNav.navigate('MainTabs', { screen: 'HomeTab' } as any);
-                    }}
-                    left={() =>
-                      <View style={{ marginLeft: 8, justifyContent: 'center' }}>
-                        {g.logoUrl ? (
-                          <Image
-                            source={{ uri: g.logoUrl }}
-                            style={{
-                              width: 40,
-                              height: 40,
-                              borderRadius: 12,
-                              backgroundColor: theme.colors.surfaceVariant,
-                            }}
-                            resizeMode="cover"
-                          />
-                        ) : (
-                          <View
-                            style={{
-                              width: 40,
-                              height: 40,
-                              borderRadius: 12,
-                              backgroundColor: theme.colors.surfaceVariant,
-                              justifyContent: 'center',
-                              alignItems: 'center',
-                            }}
-                          >
-                            <Text variant="titleMedium">{g.name.slice(0, 2).toUpperCase()}</Text>
-                          </View>
-                        )}
-                      </View>
-                    }
-                    right={() => (
-                      <Menu
-                        visible={menuVisible[g.groupId] ?? false}
-                        onDismiss={() => setMenuVisible({ ...menuVisible, [g.groupId]: false })}
-                        anchor={
-                          <IconButton
-                            icon="dots-vertical"
-                            size={20}
-                            onPress={() => setMenuVisible({ ...menuVisible, [g.groupId]: true })}
-                          />
-                        }
-                      >
-                        <Menu.Item
-                          onPress={() => {
-                            setMenuVisible({ ...menuVisible, [g.groupId]: false });
-                            handleLeaveGroup(g.groupId);
-                          }}
-                          title="Leave group"
-                          leadingIcon="exit-run"
-                        />
-                      </Menu>
-                    )}
-                  />
-                  <Divider />
-                </React.Fragment>
-              ))}
-            </>
-          )}
-        </Card.Content>
-      </Card>
+        <TouchableOpacity onPress={logout} style={styles.signOut}>
+          <AppText variant="rowSubtitle" color="muted">Sign out</AppText>
+        </TouchableOpacity>
+      </ScrollView>
 
-      <View style={{ height: 12 }} />
-      <Button mode="text" onPress={logout}>
-        Sign out
-      </Button>
-
-      <Snackbar
-        visible={showSuccess}
-        onDismiss={() => setShowSuccess(false)}
-        duration={2000}
-        style={{ backgroundColor: '#22C55E' }}
-        theme={{ colors: { onSurface: '#FFFFFF' } }}
-      >
-        Successfully left group
+      <Snackbar visible={!!snack} onDismiss={() => setSnack(null)} duration={2000}>
+        {snack ?? ''}
       </Snackbar>
-    </Screen>
+    </SafeAreaView>
   );
 }
 
-
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  content: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.xxl },
+  title: { fontSize: 26, fontWeight: '700', marginBottom: spacing.base },
+  actions: { flexDirection: 'row', gap: spacing.md, marginBottom: spacing.lg },
+  actionBtn: { flex: 1 },
+  stateWrap: { paddingVertical: spacing.lg },
+  list: { gap: spacing.base },
+  inviteCard: {
+    marginTop: spacing.lg,
+    borderWidth: 1.5,
+    borderColor: colors.dashedBorder,
+    borderStyle: 'dashed',
+    borderRadius: radius.card,
+    padding: spacing.base,
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  inviteSub: { textAlign: 'center', lineHeight: 18 },
+  codePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.surface2,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.sm,
+    marginTop: spacing.xs,
+  },
+  codeText: { fontFamily: 'monospace', letterSpacing: 2 },
+  signOut: { alignItems: 'center', marginTop: spacing.xl, paddingVertical: spacing.sm },
+});
