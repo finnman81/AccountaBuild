@@ -201,7 +201,7 @@ export default function OnboardingBasicInfoScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={['top']}>
-      <OnboardingHeader currentStep={2} totalSteps={5} showBack={true} onBack={handleBack} />
+      <OnboardingHeader currentStep={2} totalSteps={4} showBack={true} onBack={handleBack} />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}

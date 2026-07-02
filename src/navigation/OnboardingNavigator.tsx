@@ -13,9 +13,9 @@ export default function OnboardingNavigator() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="Welcome" component={OnboardingWelcomeScreen} />
+      <Stack.Screen name="Goals" component={OnboardingGoalsScreen} />
       <Stack.Screen name="BasicInfo" component={OnboardingBasicInfoScreen} />
       <Stack.Screen name="Accountability" component={OnboardingAccountabilityScreen} />
-      <Stack.Screen name="Goals" component={OnboardingGoalsScreen} />
       <Stack.Screen name="Finish" component={OnboardingFinishScreen} />
     </Stack.Navigator>
   );

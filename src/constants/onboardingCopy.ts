@@ -4,15 +4,38 @@
  */
 
 export const onboardingCopy = {
-  // Screen 1: Welcome screen
+  // Screen 1: Welcome screen ("Midnight Blue" revamp — design 01)
   welcome: {
-    headline: "Welcome to AccountaBuild",
-    subtext: "Turn consistency into rank — set weekly goals, log fast, and stay accountable.",
+    headline: "Fitness is a\nteam sport.",
+    subtext: "AccountaBuild keeps you honest — log daily, climb the ranks, and never let your crew down.",
     credibilityLine: "Log in seconds. Rank up weekly.",
-    cta: "Start my week",
+    cta: "Get started",
     ctaSubtext: "Takes ~60 seconds",
+    valueRows: [
+      { icon: 'clock-fast', tint: 'primary', title: 'Log in seconds', subtitle: 'Calories, workouts, weight — one tap each' },
+      { icon: 'account-group', tint: 'success', title: 'Your crew sees you', subtitle: 'Everyone knows who showed up today' },
+      { icon: 'diamond-stone', tint: 'gold', title: 'Climb the ranks', subtitle: 'Seasonal MMR from Iron to Challenger' },
+    ] as const,
   },
-  
+
+  // Screen 2: "What are you training for?" — intent picker (design 02).
+  // Each intent seeds sensible default goals; detailed tuning lives in Edit Profile.
+  goalsIntent: {
+    headline: "What are you\ntraining for?",
+    subtext: "This sets your default goals — you can change it anytime.",
+    cta: "Continue",
+    options: [
+      { key: 'lose_weight', title: 'Lose weight', subtitle: 'Calorie deficit + steady cardio', icon: 'heart-outline',
+        defaults: { goalMode: 'cut', dailyCalorieGoal: 1800, workoutsPerWeek: 4 } },
+      { key: 'build_muscle', title: 'Build muscle', subtitle: 'Progressive lifting + calorie surplus', icon: 'arm-flex-outline',
+        defaults: { goalMode: 'bulk', dailyCalorieGoal: 2800, workoutsPerWeek: 5 } },
+      { key: 'stay_consistent', title: 'Stay consistent', subtitle: 'Show up daily, protect the streak', icon: 'trending-up',
+        defaults: { goalMode: 'maintenance', dailyCalorieGoal: 2200, workoutsPerWeek: 4 } },
+      { key: 'train_event', title: 'Train for an event', subtitle: 'Race, meet, or competition prep', icon: 'target',
+        defaults: { goalMode: 'maintenance', dailyCalorieGoal: 2400, workoutsPerWeek: 5 } },
+    ] as const,
+  },
+
   // Screen 2: Basic Info
   basicInfo: {
     headline: "Basic info",
