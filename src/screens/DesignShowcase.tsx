@@ -17,6 +17,7 @@ import TodaysLogCard from '../components/today/TodaysLogCard';
 import TeamTodayRail from '../components/today/TeamTodayRail';
 import LeaderboardPreviewCard from '../components/today/LeaderboardPreviewCard';
 import type { TeamToday, TodayChecklist, LeaderboardPreviewRow } from '../viewmodels/today';
+import LogComposer from '../components/log/LogComposer';
 
 const MOCK_CHECKLIST: TodayChecklist = {
   doneCount: 2,
@@ -153,6 +154,12 @@ export default function DesignShowcase() {
         <TodaysLogCard checklist={MOCK_CHECKLIST} onLog={() => {}} />
         <TeamTodayRail team={MOCK_TEAM} onMemberPress={() => {}} />
         <LeaderboardPreviewCard rows={MOCK_LEADERBOARD} onViewAll={() => {}} />
+      </Section>
+
+      <Section title="Log composer · weight (dial + tap-to-type)">
+        <View style={{ height: 560, borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: colors.borderCard }}>
+          <LogComposer initialType="weight" onClose={() => {}} />
+        </View>
       </Section>
     </ScrollView>
   );
