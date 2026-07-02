@@ -25,6 +25,7 @@ export type RootStackParamList = {
     | { focusField?: 'displayName' | 'height' | 'age' | 'weightCurrent' | 'weightGoal' | 'weightTargetDate' | 'units' }
     | undefined;
   MMRGoals: undefined;
+  LogComposer: { initialType?: import('../services/logs').LogType } | undefined;
 };
 
 export type OnboardingStackParamList = {
@@ -37,6 +38,7 @@ export type OnboardingStackParamList = {
 
 export type HomeStackParamList = {
   Home: undefined;
+  Today: undefined;
   GroupDetail: { groupId: string };
   Leaderboard: { groupId: string };
   GroupCharts: { groupId: string };

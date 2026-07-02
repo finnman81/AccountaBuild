@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { TouchableOpacity, View } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -33,8 +33,8 @@ import HealthSettingsScreen from '../screens/HealthSettingsScreen';
 import ProgressScreen from '../screens/ProgressScreen';
 import HomeScreen from '../screens/HomeScreen';
 import LeaderboardScreen from '../screens/LeaderboardScreen';
-import LogActionSheet from '../components/ui/LogActionSheet';
-import { useActiveGroup } from '../store/ActiveGroupContext';
+import { colors } from '../theme/colors';
+import HomeTodayScreen from '../screens/HomeTodayScreen';
 
 const Tab = createBottomTabNavigator<TabsParamList>();
 const HomeStack = createNativeStackNavigator<HomeStackParamList>();
@@ -46,7 +46,8 @@ function HomeStackNavigator() {
   return (
     <HomeStack.Navigator>
       <HomeStack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
-      <HomeStack.Screen name="GroupDetail" component={GroupDetailScreen} options={{ title: 'Home' }} />
+      <HomeStack.Screen name="Today" component={HomeTodayScreen} options={{ headerShown: false }} />
+      <HomeStack.Screen name="GroupDetail" component={GroupDetailScreen} options={{ title: 'Group' }} />
       <HomeStack.Screen name="Leaderboard" component={LeaderboardScreen} options={{ title: 'Leaderboard' }} />
       <HomeStack.Screen name="GroupCharts" component={GroupChartsScreen} options={{ title: 'Charts' }} />
       <HomeStack.Screen name="GroupChat" component={GroupChatScreen} options={{ title: 'Chat' }} />
@@ -94,16 +95,14 @@ function LogPlaceholder() {
 
 export default function TabsNavigator() {
   const theme = useTheme();
-  const { activeGroupId } = useActiveGroup();
   const rootNav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const [isLogOpen, setIsLogOpen] = useState(false);
 
   const tabBarStyle = useMemo(
     () => ({
-      backgroundColor: theme.colors.surface,
-      borderTopColor: theme.colors.outlineVariant,
+      backgroundColor: colors.tabBar,
+      borderTopColor: colors.divider,
     }),
-    [theme.colors.outlineVariant, theme.colors.surface],
+    [],
   );
 
   return (
@@ -113,6 +112,7 @@ export default function TabsNavigator() {
           headerShown: false,
           tabBarStyle,
           tabBarActiveTintColor: theme.colors.primary,
+          tabBarInactiveTintColor: colors.textMuted,
         }}
       >
         <Tab.Screen
@@ -142,7 +142,7 @@ export default function TabsNavigator() {
             tabBarButton: (props) => (
               <TouchableOpacity
                 {...(props as any)}
-                onPress={() => setIsLogOpen(true)}
+                onPress={() => rootNav.navigate('LogComposer')}
                 style={{
                   marginTop: -18,
                   width: 64,
@@ -164,7 +164,7 @@ export default function TabsNavigator() {
           listeners={{
             tabPress: (e) => {
               e.preventDefault();
-              setIsLogOpen(true);
+              rootNav.navigate('LogComposer');
             },
           }}
         />
@@ -187,32 +187,6 @@ export default function TabsNavigator() {
           }}
         />
       </Tab.Navigator>
-
-      <LogActionSheet
-        visible={isLogOpen}
-        onDismiss={() => setIsLogOpen(false)}
-        groupId={activeGroupId}
-        onGoToGroups={() => {
-          setIsLogOpen(false);
-          rootNav.navigate('MainTabs' as any, { screen: 'GroupsTab' } as any);
-        }}
-        onLogWorkout={(groupId) => {
-          setIsLogOpen(false);
-          rootNav.navigate('AddWorkout', { groupId });
-        }}
-        onLogCalories={(groupId) => {
-          setIsLogOpen(false);
-          rootNav.navigate('AddCalories', { groupId });
-        }}
-        onLogWeight={(groupId) => {
-          setIsLogOpen(false);
-          rootNav.navigate('AddWeight', { groupId });
-        }}
-        onAddPhoto={(groupId) => {
-          setIsLogOpen(false);
-          rootNav.navigate('AddPhoto', { groupId });
-        }}
-      />
     </>
   );
 }
