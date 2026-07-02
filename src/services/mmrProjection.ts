@@ -4,6 +4,7 @@ import { db } from '../firebase/firebase';
 import { missedWeekPenalty, partialWeekPenalty, streakMultiplier } from '../mmr/constants';
 import { D_calDays, D_minutes, D_workouts, D_weightGain, D_weightLoss } from '../mmr/difficulty';
 import { applyRankWithDemotionRules, bandForMMR } from '../mmr/ranks';
+import { lowerTierProgressBonus } from '../mmr/progression';
 import { combineWeekScore, goalScore } from '../mmr/scoring';
 import { DEFAULT_TZ, isoWeekIdInTz, isoWeekRangeInTz } from '../mmr/time';
 import type { Tier } from '../mmr/types';
@@ -184,19 +185,10 @@ function computeProjection(params: {
 
   const penalty = missedIfEndedNow ? missedWeekPenalty(params.mmrBefore) : partialIfEndedNow ? partialWeekPenalty(params.mmrBefore) : 0;
   
-  // Lower tier progression bonus: Give bonus MMR for completed weeks in lower tiers
+  // Small flat encouragement bonus for a completed week in the lower tiers.
   const oldBand = bandForMMR(params.mmrBefore);
-  const lowerTierBonus = (() => {
-    if (!completedIfEndedNow) return 0;
-    const tier = oldBand.tier;
-    // Only apply to lower tiers: Iron, Bronze, Silver, Gold
-    if (tier === 'Iron' || tier === 'Bronze' || tier === 'Silver' || tier === 'Gold') {
-      const divisionWidth = oldBand.max - oldBand.min + 1;
-      return divisionWidth;
-    }
-    return 0;
-  })();
-  
+  const lowerTierBonus = lowerTierProgressBonus(oldBand.tier, completedIfEndedNow);
+
   const deltaMMRProjected = weekScore * S - penalty + lowerTierBonus;
   const mmrProjected = Math.max(0, Math.round(params.mmrBefore + deltaMMRProjected));
   const ranked = applyRankWithDemotionRules({
@@ -236,7 +228,7 @@ export function subscribeMyMmrProjection(uid: string, onChange: (p: MmrProjectio
   let userMmr: number | null = null;
   let userMp: number | null = null;
   let streakWeeks = 0;
-  let tierShieldWeeksRemaining = 5; // Default 5 shields for testing
+  let tierShieldWeeksRemaining = 0;
   let seasonId = '';
   let goals: Record<string, GoalDoc> = {};
   let workouts: Array<{ date: string; durationMinutes: number }> = [];
@@ -304,7 +296,7 @@ export function subscribeMyMmrProjection(uid: string, onChange: (p: MmrProjectio
         userMmr = typeof d?.mmr === 'number' ? Number(d.mmr) : null;
         userMp = typeof d?.mp === 'number' ? Number(d.mp) : typeof d?.lp === 'number' ? Number(d.lp) : 0; // Backward compat
         streakWeeks = typeof d?.streakWeeks === 'number' ? Number(d.streakWeeks) : 0;
-        tierShieldWeeksRemaining = typeof d?.tierShieldWeeksRemaining === 'number' ? Number(d.tierShieldWeeksRemaining) : 5; // Default 5 shields for testing
+        tierShieldWeeksRemaining = typeof d?.tierShieldWeeksRemaining === 'number' ? Number(d.tierShieldWeeksRemaining) : 0;
         seasonId = String(d?.currentSeasonId ?? '').trim();
         emit();
       },

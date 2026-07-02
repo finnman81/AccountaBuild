@@ -96,6 +96,18 @@ Exit criterion: a build survives repeated leaderboard opens and health-permissio
 
 ## Phase 3 — MMR correctness and economy (2-3 days)
 
+> **STATUS 2026-07-01 — mostly done, tsc clean, 41/41 tests pass.**
+> Landed:
+> - [x] `isCurrentWeek` blocker (Phase 0).
+> - [x] Removed all six "5 shields for testing" defaults → spec behavior (0 default, 2 on tier promotion, breaks after 2 missed weeks). Extracted to a pure, tested `nextShieldWeeks` in `src/mmr/progression.ts`.
+> - [x] Replaced the economy-breaking `lowerTierBonus` (full division/week) with a flat **+50** for completed weeks in Iron–Gold (`lowerTierProgressBonus`, tested). Difficulty tables now matter from Iron.
+> - [x] Fixed calorie-day counting: `calorieDaysHitFromTotals` (pure, tested) now counts only days at/under the budget instead of any logged day.
+> - [x] Completion-bonus race: the +300 weight-goal bonus is now gated on a `tx.get` of the goal doc **inside** the transaction, so re-runs and concurrent runs can't double-award it.
+> - [x] `mmrProjection.ts` now shares the same `progression.ts` helpers (no more silent drift on shields / lower-tier bonus).
+> Deferred:
+> - [ ] Full `computeWeeklyDelta` unification (the buggy pieces are now shared pure helpers; the remaining ~150-line scoring duplication between update and projection is a Phase-5 Cloud-Function enabler and gets its own careful pass).
+> - [ ] Missing badges: Endgame Crusher, Consistency (nice-to-have).
+
 The `src/mmr/` engine (constants, difficulty, scoring, ranks, time, risk, badges) is pure, dependency-free, spec-faithful, and well-tested. The problems are all in the service orchestration layer (`mmrUpdate.ts`) and are a mix of the compile blocker, an idempotency race, and test scaffolding that was never removed.
 
 **Must-fix correctness:**

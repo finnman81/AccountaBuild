@@ -178,7 +178,7 @@ export async function ensureSeasonRollover(uid: string) {
 
         // Reset season-scoped counters
         streakWeeks: 0,
-        tierShieldWeeksRemaining: 5, // Default 5 shields for testing
+        tierShieldWeeksRemaining: 0, // Cleared on season reset (re-earned on tier promotion)
         consecutiveMissedWeeks: 0,
 
         // Initialize season peak for new season
