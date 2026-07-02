@@ -27,6 +27,7 @@ export type RootStackParamList = {
   MMRGoals: undefined;
   LogComposer: { initialType?: import('../services/logs').LogType } | undefined;
   MemberDetail: { groupId: string; uid: string };
+  RankUp: { tier: import('../mmr/types').Tier; division: number | null; kind: 'promotion' | 'demotion'; mmr?: number };
 };
 
 export type OnboardingStackParamList = {

@@ -19,6 +19,7 @@ import EditProfileScreen from '../screens/EditProfileScreen';
 import MMRGoalsScreen from '../screens/MMRGoalsScreen';
 import LogComposerScreen from '../screens/LogComposerScreen';
 import MemberDetailScreen from '../screens/MemberDetailScreen';
+import RankUpScreen from '../screens/RankUpScreen';
 import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
 import { RootStackParamList } from './types';
@@ -105,6 +106,11 @@ export default function AppNavigator() {
               name="MemberDetail"
               component={MemberDetailScreen}
               options={{ headerShown: false, presentation: 'transparentModal', animation: 'fade' }}
+            />
+            <Stack.Screen
+              name="RankUp"
+              component={RankUpScreen}
+              options={{ headerShown: false, presentation: 'fullScreenModal', animation: 'fade' }}
             />
           </>
         )}
