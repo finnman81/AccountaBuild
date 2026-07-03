@@ -45,6 +45,8 @@ export type GroupLog = {
   ts?: unknown;
   source?: 'self_reported' | 'apple_health' | 'google_fit' | 'mixed' | string;
   payload: Record<string, unknown>;
+  /** Cheers/reactions on this log: uid → emoji. */
+  reactions?: Record<string, string>;
 };
 
 function normalizeLogDate(date?: string) {

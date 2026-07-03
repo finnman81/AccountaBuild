@@ -3,6 +3,7 @@ import { FlatList, KeyboardAvoidingView, Platform, View, StyleSheet, TextInput, 
 import { useFocusEffect } from '@react-navigation/native';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { Icon } from 'react-native-paper';
+import * as Haptics from 'expo-haptics';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -12,13 +13,22 @@ import { db } from '../firebase/firebase';
 import { AuthContext } from '../store/AuthContext';
 import { GroupMessage, sendGroupMessage, subscribeGroupMessages } from '../services/chat';
 import { markGroupChatSeen } from '../services/groups';
-import { subscribeGroupLogs, type GroupLog } from '../services/logs';
+import { subscribeGroupLogs, setLogReaction, type GroupLog } from '../services/logs';
 import { friendlyNameFromDisplayName } from '../utils/formatters';
 import { subscribePublicUsers, type PublicUser } from '../services/publicUsers';
 import { subscribeMyCanSeeUids } from '../services/visibility';
 import { todayYYYYMMDD } from '../utils/dates';
 import AppText from '../components/ui/AppText';
+import LogCard from '../components/chat/LogCard';
 import { colors, radius, spacing } from '../theme';
+
+type FeedItem = { kind: 'message'; id: string; ms: number; msg: GroupMessage } | { kind: 'log'; id: string; ms: number; log: GroupLog };
+
+function tsMs(ts: any): number {
+  if (ts && typeof ts.toMillis === 'function') return ts.toMillis();
+  if (ts && typeof ts.seconds === 'number') return ts.seconds * 1000;
+  return 0;
+}
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'GroupChat'>;
 
@@ -67,6 +77,36 @@ export default function GroupChatScreen({ route }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [logs, memberUids, canSee, user?.uid, publicUsers]);
 
+  // Merge messages with recent visible log-cards into one time-sorted feed
+  // (newest first, for the inverted list). Logs are limited to the last few days
+  // so the stream stays readable.
+  const feed = useMemo<FeedItem[]>(() => {
+    const allowed = new Set(memberUids.filter((u) => u === user?.uid || canSee.has(u)));
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 3);
+    const cutoffStr = `${cutoff.getFullYear()}-${String(cutoff.getMonth() + 1).padStart(2, '0')}-${String(cutoff.getDate()).padStart(2, '0')}`;
+
+    const items: FeedItem[] = [];
+    for (const m of messages) items.push({ kind: 'message', id: `m_${m.id}`, ms: tsMs(m.createdAt) || Date.now(), msg: m });
+    for (const l of logs) {
+      if (!allowed.has(l.uid) || l.date < cutoffStr) continue;
+      items.push({ kind: 'log', id: `l_${l.id}`, ms: tsMs(l.ts), log: l });
+    }
+    items.sort((a, b) => b.ms - a.ms);
+    return items;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, logs, memberUids, canSee, user?.uid]);
+
+  const toggleReaction = async (logId: string, emoji: string, mine: boolean) => {
+    if (!user) return;
+    try {
+      await setLogReaction(groupId, logId, user.uid, mine ? null : emoji);
+      await Haptics.selectionAsync();
+    } catch {
+      /* non-fatal */
+    }
+  };
+
   useFocusEffect(
     React.useCallback(() => {
       if (!user) return;
@@ -104,17 +144,24 @@ export default function GroupChatScreen({ route }: Props) {
         )}
 
         <FlatList
-          data={messages}
-          keyExtractor={(m) => m.id}
+          data={feed}
+          keyExtractor={(item) => item.id}
           inverted
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
           contentContainerStyle={{ paddingHorizontal: spacing.base, paddingTop: spacing.md, paddingBottom: composerH + spacing.md + insets.bottom }}
           renderItem={({ item }) => {
-            const mine = user?.uid === item.uid;
+            if (item.kind === 'log') {
+              return (
+                <View style={styles.msgRow}>
+                  <LogCard log={item.log} name={nameFor(item.log.uid)} myUid={user?.uid ?? ''} onToggleReaction={toggleReaction} />
+                </View>
+              );
+            }
+            const mine = user?.uid === item.msg.uid;
             return (
               <View style={[styles.msgRow, { alignItems: mine ? 'flex-end' : 'flex-start' }]}>
-                {!mine && <AppText variant="label" color="muted" style={styles.sender}>{nameFor(item.uid)}</AppText>}
+                {!mine && <AppText variant="label" color="muted" style={styles.sender}>{nameFor(item.msg.uid)}</AppText>}
                 <View
                   style={[
                     styles.bubble,
@@ -122,7 +169,7 @@ export default function GroupChatScreen({ route }: Props) {
                     { borderTopLeftRadius: mine ? 18 : 6, borderTopRightRadius: mine ? 6 : 18 },
                   ]}
                 >
-                  <AppText variant="body" style={{ color: mine ? '#FFFFFF' : colors.textPrimary }}>{item.text}</AppText>
+                  <AppText variant="body" style={{ color: mine ? '#FFFFFF' : colors.textPrimary }}>{item.msg.text}</AppText>
                 </View>
               </View>
             );

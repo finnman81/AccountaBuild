@@ -132,7 +132,13 @@ service cloud.firestore {
       match /logs/{logId} {
         allow read: if isGroupMember(groupId);
         allow create: if isGroupMember(groupId);
-        allow update, delete: if signedIn() && request.auth.uid == resource.data.uid;
+        // The log owner may edit/delete their log. Any group member may update
+        // ONLY the `reactions` map (cheers) on another member's log.
+        allow update: if signedIn() && (
+          request.auth.uid == resource.data.uid ||
+          (isGroupMember(groupId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions']))
+        );
+        allow delete: if signedIn() && request.auth.uid == resource.data.uid;
       }
 
       match /goals/{uid} {
