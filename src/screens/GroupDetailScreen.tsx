@@ -1,13 +1,16 @@
 import React, { useContext, useEffect, useMemo, useState } from 'react';
-import { FlatList, Image, ScrollView, View } from 'react-native';
-import { Avatar, Button, Card, Divider, IconButton, List, SegmentedButtons, Text, useTheme } from 'react-native-paper';
+import { FlatList, Image, ScrollView, TouchableOpacity, View } from 'react-native';
+import { Icon, List } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import { collection, doc, limit, onSnapshot, orderBy, query, where } from 'firebase/firestore';
 import { Swipeable } from 'react-native-gesture-handler';
 
 import Screen from '../components/layout/Screen';
+import Card from '../components/ui/Card';
+import AppText from '../components/ui/AppText';
 import PrimaryButton from '../components/ui/PrimaryButton';
+import SegmentedControl from '../components/ui/SegmentedControl';
 import NavList from '../components/ui/NavList';
 import MemberDetailCard from '../components/group/MemberDetailCard';
 import MemberDetailModal from '../components/group/MemberDetailModal';
@@ -27,10 +30,7 @@ import { subscribePublicUsers, type PublicUser } from '../services/publicUsers';
 import { subscribeMyCanSeeUids } from '../services/visibility';
 import { subscribeMyBadges, type EarnedBadge } from '../services/mmrBadges';
 import { subscribeMyMmrState, type MmrState } from '../services/mmrState';
-import { colors } from '../theme/colors';
-import { spacing } from '../theme/spacing';
-import { radius } from '../theme/radius';
-import { shadow } from '../theme/shadows';
+import { colors, radius, spacing } from '../theme';
 import RankBadge from '../components/mmr/RankBadge';
 
 // GroupDetail lives in the Home stack but navigates to root-level modal routes
@@ -80,7 +80,6 @@ export default function GroupDetailScreen({ route, navigation }: Props) {
   const { user } = useContext(AuthContext);
   const { groupId } = route.params;
   const { groups, setActiveGroupId } = useActiveGroup();
-  const theme = useTheme();
 
   const [group, setGroup] = useState<GroupDoc | null>(null);
   const [members, setMembers] = useState<MemberDoc[]>([]);
@@ -301,7 +300,7 @@ export default function GroupDetailScreen({ route, navigation }: Props) {
             width: size,
             height: size,
             borderRadius: 12,
-            backgroundColor: theme.colors.surfaceVariant,
+            backgroundColor: colors.surface2,
           }}
           resizeMode="cover"
         />
@@ -313,12 +312,12 @@ export default function GroupDetailScreen({ route, navigation }: Props) {
           width: size,
           height: size,
           borderRadius: 12,
-          backgroundColor: theme.colors.surfaceVariant,
+          backgroundColor: colors.surface2,
           justifyContent: 'center',
           alignItems: 'center',
         }}
       >
-        <Text variant="titleMedium">{initialsFor(uid).slice(0, 2)}</Text>
+        <AppText variant="rowTitle" color="secondary">{initialsFor(uid).slice(0, 2)}</AppText>
       </View>
     );
   };
@@ -334,7 +333,7 @@ export default function GroupDetailScreen({ route, navigation }: Props) {
             width: size,
             height: size,
             borderRadius: 12,
-            backgroundColor: theme.colors.surfaceVariant,
+            backgroundColor: colors.surface2,
           }}
           resizeMode="cover"
         />
@@ -346,12 +345,12 @@ export default function GroupDetailScreen({ route, navigation }: Props) {
           width: size,
           height: size,
           borderRadius: 12,
-          backgroundColor: theme.colors.surfaceVariant,
+          backgroundColor: colors.surface2,
           justifyContent: 'center',
           alignItems: 'center',
         }}
       >
-        <Text variant="titleMedium">{initialsFor(uid).slice(0, 2)}</Text>
+        <AppText variant="rowTitle" color="secondary">{initialsFor(uid).slice(0, 2)}</AppText>
       </View>
     );
   };
@@ -597,9 +596,9 @@ export default function GroupDetailScreen({ route, navigation }: Props) {
   }) => {
     return (
       <View style={{ position: 'relative' }}>
-        <Button mode={mode} onPress={onPress}>
+        <PrimaryButton secondary={mode === 'outlined'} onPress={onPress}>
           {children}
-        </Button>
+        </PrimaryButton>
         {show ? (
           <View
             style={{
@@ -608,10 +607,10 @@ export default function GroupDetailScreen({ route, navigation }: Props) {
               right: -2,
               width: 10,
               height: 10,
-              borderRadius: 999,
-              backgroundColor: theme.colors.secondary,
+              borderRadius: radius.pill,
+              backgroundColor: colors.primary,
               borderWidth: 2,
-              borderColor: theme.colors.background,
+              borderColor: colors.background,
             }}
           />
         ) : null}
@@ -729,36 +728,50 @@ export default function GroupDetailScreen({ route, navigation }: Props) {
   return (
     <Screen safeTop={false}>
       <Card>
-        <Card.Content>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
-            {group?.logoUrl ? (
-              <Image
-                source={{ uri: group.logoUrl }}
-                style={{ width: 140, height: 140, borderRadius: 24, backgroundColor: '#111' }}
-                resizeMode="cover"
-              />
-            ) : (
-              <View style={{ width: 140, height: 140, borderRadius: 24, backgroundColor: '#222' }} />
-            )}
-            <View style={{ flex: 1 }}>
-              <Text variant="headlineLarge">{group?.name ?? 'Group'}</Text>
-              {group?.description ? (
-                <Text variant="bodyMedium" style={{ opacity: 0.8, marginTop: 4 }}>
-                  {group.description}
-                </Text>
-              ) : null}
-              <View style={{ height: 10 }} />
-              <Text variant="bodyMedium">Join code: {group?.joinCode ?? '—'}</Text>
-              <View style={{ height: 6 }} />
-              <Text variant="bodySmall" style={{ opacity: 0.8 }}>
-                Your role: {myRole ?? '—'}
-              </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.base }}>
+          {group?.logoUrl ? (
+            <Image
+              source={{ uri: group.logoUrl }}
+              style={{ width: 140, height: 140, borderRadius: radius.card, backgroundColor: colors.surface2 }}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={{ width: 140, height: 140, borderRadius: radius.card, backgroundColor: colors.surface2 }} />
+          )}
+          <View style={{ flex: 1 }}>
+            <AppText variant="pageTitle" color="primary">{group?.name ?? 'Group'}</AppText>
+            {group?.description ? (
+              <AppText variant="body" color="secondary" style={{ marginTop: 4 }}>
+                {group.description}
+              </AppText>
+            ) : null}
+            <View style={{ height: 10 }} />
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                alignSelf: 'flex-start',
+                gap: spacing.sm,
+                backgroundColor: colors.surface2,
+                borderRadius: radius.pill,
+                paddingHorizontal: spacing.md,
+                paddingVertical: spacing.xs,
+              }}
+            >
+              <AppText variant="rowSubtitle" color="muted">Join code</AppText>
+              <AppText variant="rowTitle" color="primary" style={{ fontFamily: 'monospace', letterSpacing: 2 }}>
+                {group?.joinCode ?? '—'}
+              </AppText>
             </View>
+            <View style={{ height: 6 }} />
+            <AppText variant="rowSubtitle" color="muted">
+              Your role: {myRole ?? '—'}
+            </AppText>
           </View>
+        </View>
 
-          <View style={{ height: 16 }} />
-          <PrimaryButton onPress={() => navigation.navigate('LogToday', { groupId })}>Log today</PrimaryButton>
-        </Card.Content>
+        <View style={{ height: 16 }} />
+        <PrimaryButton onPress={() => navigation.navigate('LogToday', { groupId })}>Log today</PrimaryButton>
       </Card>
 
       {/* Group Selector - only show if user has multiple groups */}
@@ -766,167 +779,86 @@ export default function GroupDetailScreen({ route, navigation }: Props) {
         <>
           <View style={{ height: 16 }} />
           <Card>
-            <Card.Content>
-              <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: spacing.md }}>
-                Switch Group
-              </Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
-                {groups.map((g) => (
-                  <Button
-                    key={g.groupId}
-                    mode={g.groupId === groupId ? 'contained' : 'outlined'}
-                    compact
-                    onPress={() => {
-                      void setActiveGroupId(g.groupId);
-                      navigation.replace('GroupDetail', { groupId: g.groupId });
-                    }}
-                    style={{
-                      borderRadius: radius.pill,
-                      ...(g.groupId === groupId && {
-                        ...shadow,
-                        shadowOpacity: 0.1,
-                        shadowRadius: 4,
-                        elevation: 1,
-                      }),
-                    }}
-                  >
-                    {g.name}
-                  </Button>
-                ))}
-              </ScrollView>
-            </Card.Content>
+            <AppText variant="rowSubtitle" color="secondary" style={{ marginBottom: spacing.md }}>
+              Switch Group
+            </AppText>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
+              {groups.map((g) => (
+                <PrimaryButton
+                  key={g.groupId}
+                  secondary={g.groupId !== groupId}
+                  compact
+                  onPress={() => {
+                    void setActiveGroupId(g.groupId);
+                    navigation.replace('GroupDetail', { groupId: g.groupId });
+                  }}
+                  style={{ borderRadius: radius.pill }}
+                >
+                  {g.name}
+                </PrimaryButton>
+              ))}
+            </ScrollView>
           </Card>
         </>
       )}
 
       <View style={{ height: 16 }} />
-      <Card>
-        <Card.Content style={{ paddingHorizontal: 0 }}>
-          <NavList
-            items={[
-              { title: 'View charts', icon: 'chart-line', onPress: () => navigation.navigate('GroupCharts', { groupId }) },
-              { title: 'Leaderboard', icon: 'trophy', onPress: () => navigation.navigate('Leaderboard', { groupId }) },
-              { title: 'Group chat', icon: 'message', badge: hasNewChat, onPress: () => navigation.navigate('GroupChat', { groupId }) },
-              { title: 'Progress gallery', icon: 'image-multiple', badge: hasNewPhotos, onPress: () => navigation.navigate('ViewPhotos', { groupId }) },
-              { title: 'Issues / Suggestions', icon: 'bug', onPress: () => navigation.navigate('Issues', { groupId }) },
-              { title: 'Group settings', icon: 'cog', onPress: () => navigation.navigate('GroupSettings', { groupId }) },
-            ]}
-          />
-        </Card.Content>
+      <Card style={{ paddingHorizontal: 0 }}>
+        <NavList
+          items={[
+            { title: 'View charts', icon: 'chart-line', onPress: () => navigation.navigate('GroupCharts', { groupId }) },
+            { title: 'Leaderboard', icon: 'trophy', onPress: () => navigation.navigate('Leaderboard', { groupId }) },
+            { title: 'Group chat', icon: 'message', badge: hasNewChat, onPress: () => navigation.navigate('GroupChat', { groupId }) },
+            { title: 'Progress gallery', icon: 'image-multiple', badge: hasNewPhotos, onPress: () => navigation.navigate('ViewPhotos', { groupId }) },
+            { title: 'Issues / Suggestions', icon: 'bug', onPress: () => navigation.navigate('Issues', { groupId }) },
+            { title: 'Group settings', icon: 'cog', onPress: () => navigation.navigate('GroupSettings', { groupId }) },
+          ]}
+        />
       </Card>
 
       <View style={{ height: spacing.base }} />
       <Card>
-        <Card.Title title="Today" />
-        <Card.Content>
-          {isTodayLoading ? (
-            <LoadingState skeletonCount={3} />
-          ) : memberSummaries.length === 0 ? (
-            <Text>No members yet.</Text>
-          ) : (
-            <View style={{ gap: spacing.xl }}>
-              {/* Section 1: You */}
-              {mySummary ? (
-                <>
-                  <View style={{ marginBottom: -spacing.sm }}>
-                    <Text variant="titleSmall" style={{ color: colors.textSecondary, marginBottom: spacing.md }}>
-                      You
-                    </Text>
-                    <MemberDetailCard item={mySummary} mode={todayMode} />
-                  </View>
-                </>
-              ) : null}
-
-              {/* Section 2: Team Today */}
-              <View style={{ marginTop: spacing.sm }}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md }}>
-                  <Text variant="titleSmall" style={{ color: colors.textSecondary }}>
-                    Team Today
-                  </Text>
-                  <Text variant="labelSmall" style={{ color: colors.textMuted }}>
-                    {todaySummary.loggedCount}/{todaySummary.totalMembers} logged
-                  </Text>
+        <AppText variant="rowTitle" color="primary" style={{ marginBottom: spacing.md }}>Today</AppText>
+        {isTodayLoading ? (
+          <LoadingState skeletonCount={3} />
+        ) : memberSummaries.length === 0 ? (
+          <AppText variant="body" color="secondary">No members yet.</AppText>
+        ) : (
+          <View style={{ gap: spacing.xl }}>
+            {/* Section 1: You */}
+            {mySummary ? (
+              <>
+                <View style={{ marginBottom: -spacing.sm }}>
+                  <AppText variant="cardLabel" color="secondary" style={{ marginBottom: spacing.md }}>
+                    You
+                  </AppText>
+                  <MemberDetailCard item={mySummary} mode={todayMode} />
                 </View>
-                <SegmentedButtons
-                  value={todayMode}
-                  onValueChange={(v) => setTodayMode(v as any)}
-                  buttons={[
-                    {
-                      value: 'calories',
-                      label: 'Calories',
-                      style: {
-                        backgroundColor:
-                          todayMode === 'calories' ? colors.surface2 : 'transparent',
-                        borderWidth: todayMode === 'calories' ? 0 : 1,
-                        borderColor: todayMode === 'calories' ? undefined : colors.divider,
-                        minHeight: 40,
-                        paddingHorizontal: spacing.md,
-                        borderRadius: radius.pill,
-                        ...(todayMode === 'calories' && {
-                          ...shadow,
-                          shadowOpacity: 0.1,
-                          shadowRadius: 4,
-                          elevation: 1,
-                        }),
-                      },
-                      labelStyle: {
-                        color:
-                          todayMode === 'calories' ? colors.primary : colors.textSecondary,
-                        fontWeight: todayMode === 'calories' ? '600' : '400',
-                      },
-                    },
-                    {
-                      value: 'workout',
-                      label: 'Workout',
-                      style: {
-                        backgroundColor:
-                          todayMode === 'workout' ? colors.surface2 : 'transparent',
-                        borderWidth: todayMode === 'workout' ? 0 : 1,
-                        borderColor: todayMode === 'workout' ? undefined : colors.divider,
-                        minHeight: 40,
-                        paddingHorizontal: spacing.md,
-                        borderRadius: radius.pill,
-                        ...(todayMode === 'workout' && {
-                          ...shadow,
-                          shadowOpacity: 0.1,
-                          shadowRadius: 4,
-                          elevation: 1,
-                        }),
-                      },
-                      labelStyle: {
-                        color:
-                          todayMode === 'workout' ? colors.primary : colors.textSecondary,
-                        fontWeight: todayMode === 'workout' ? '600' : '400',
-                      },
-                    },
-                    {
-                      value: 'weight',
-                      label: 'Weight',
-                      style: {
-                        backgroundColor:
-                          todayMode === 'weight' ? colors.surface2 : 'transparent',
-                        borderWidth: todayMode === 'weight' ? 0 : 1,
-                        borderColor: todayMode === 'weight' ? undefined : colors.divider,
-                        minHeight: 40,
-                        paddingHorizontal: spacing.md,
-                        borderRadius: radius.pill,
-                        ...(todayMode === 'weight' && {
-                          ...shadow,
-                          shadowOpacity: 0.1,
-                          shadowRadius: 4,
-                          elevation: 1,
-                        }),
-                      },
-                      labelStyle: {
-                        color:
-                          todayMode === 'weight' ? colors.primary : colors.textSecondary,
-                        fontWeight: todayMode === 'weight' ? '600' : '400',
-                      },
-                    },
-                  ]}
-                  style={{ marginBottom: spacing.md }}
-                />
-                {teamMembers.length > 0 ? (
+              </>
+            ) : null}
+
+            {/* Section 2: Team Today */}
+            <View style={{ marginTop: spacing.sm }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md }}>
+                <AppText variant="cardLabel" color="secondary">
+                  Team Today
+                </AppText>
+                <AppText variant="label" color="muted">
+                  {todaySummary.loggedCount}/{todaySummary.totalMembers} logged
+                </AppText>
+              </View>
+              <SegmentedControl
+                variant="surface"
+                value={todayMode}
+                onChange={(v) => setTodayMode(v as any)}
+                options={[
+                  { value: 'calories', label: 'Calories' },
+                  { value: 'workout', label: 'Workout' },
+                  { value: 'weight', label: 'Weight' },
+                ]}
+                style={{ marginBottom: spacing.md }}
+              />
+              {teamMembers.length > 0 ? (
                   <FlatList
                     horizontal
                     data={teamMembers}
@@ -946,22 +878,21 @@ export default function GroupDetailScreen({ route, navigation }: Props) {
                       />
                     )}
                   />
-                ) : (
-                  <Text variant="bodySmall" style={{ color: colors.textMuted }}>
-                    No other members yet.
-                  </Text>
-                )}
-              </View>
-
-              {/* Section 3: View Leaderboard */}
-              <Row
-                title="View leaderboard"
-                icon="trophy"
-                onPress={() => navigation.navigate('Leaderboard', { groupId })}
-              />
+              ) : (
+                <AppText variant="rowSubtitle" color="muted">
+                  No other members yet.
+                </AppText>
+              )}
             </View>
-          )}
-        </Card.Content>
+
+            {/* Section 3: View Leaderboard */}
+            <Row
+              title="View leaderboard"
+              icon="trophy"
+              onPress={() => navigation.navigate('Leaderboard', { groupId })}
+            />
+          </View>
+        )}
       </Card>
 
       {/* Member Detail Modal */}
@@ -976,12 +907,14 @@ export default function GroupDetailScreen({ route, navigation }: Props) {
       />
 
       <View style={{ height: 16 }} />
-      <Card>
-        <Card.Title title="Recent activity" />
-        <Card.Content>
-          {logs.length === 0 ? <Text>No logs yet. Add one!</Text> : null}
-        </Card.Content>
-        <Divider />
+      <Card style={{ paddingHorizontal: 0 }}>
+        <AppText variant="rowTitle" color="primary" style={{ marginHorizontal: spacing.base, marginBottom: spacing.md }}>
+          Recent activity
+        </AppText>
+        {logs.length === 0 ? (
+          <AppText variant="body" color="secondary" style={{ marginHorizontal: spacing.base }}>No logs yet. Add one!</AppText>
+        ) : null}
+        <View style={{ height: 1, backgroundColor: colors.divider }} />
         {recentItems.map((l) => {
           const meta = formatLog(l);
           const note = logNote(l);
@@ -1031,30 +964,33 @@ export default function GroupDetailScreen({ route, navigation }: Props) {
               renderRightActions={() =>
                 canEdit ? (
                   <View style={{ justifyContent: 'center', paddingRight: 12 }}>
-                    <IconButton icon="delete" iconColor={theme.colors.error} onPress={handleDelete} />
+                    <TouchableOpacity onPress={handleDelete} hitSlop={8} style={{ padding: spacing.sm }}>
+                      <Icon source="delete" size={20} color={colors.danger} />
+                    </TouchableOpacity>
                   </View>
                 ) : null
               }
             >
               <List.Item
                 title={meta.title}
+                titleStyle={{ color: colors.textPrimary }}
                 description={
                   <View style={{ gap: 2 }}>
                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' }}>
-                      <Text variant="bodySmall" style={{ opacity: 0.85 }}>
+                      <AppText variant="rowSubtitle" color="secondary">
                         {meta.subtitle}
-                      </Text>
-                      <Text variant="bodySmall" style={{ opacity: 0.5 }}>
+                      </AppText>
+                      <AppText variant="rowSubtitle" color="muted">
                         {'  ·  '}
-                      </Text>
-                      <Text variant="bodySmall" style={{ opacity: 0.7 }}>
+                      </AppText>
+                      <AppText variant="rowSubtitle" color="muted">
                         {ts}
-                      </Text>
+                      </AppText>
                     </View>
                     {note ? (
-                      <Text variant="bodySmall" style={{ opacity: 0.75 }}>
+                      <AppText variant="rowSubtitle" color="secondary">
                         {note}
-                      </Text>
+                      </AppText>
                     ) : null}
                   </View>
                 }
@@ -1065,7 +1001,9 @@ export default function GroupDetailScreen({ route, navigation }: Props) {
                 )}
                 right={() =>
                   canEdit ? (
-                    <IconButton icon="pencil" onPress={handleEdit} />
+                    <TouchableOpacity onPress={handleEdit} hitSlop={8} style={{ padding: spacing.sm, justifyContent: 'center' }}>
+                      <Icon source="pencil" size={20} color={colors.textSecondary} />
+                    </TouchableOpacity>
                   ) : null
                 }
               />
@@ -1073,25 +1011,31 @@ export default function GroupDetailScreen({ route, navigation }: Props) {
           );
         })}
         {logs.length > RECENT_LIMIT ? (
-          <Card.Actions style={{ justifyContent: 'flex-end' }}>
-            <Button mode="text" compact onPress={() => setShowAllRecent((v) => !v)}>
-              {showAllRecent ? 'View less' : 'View all'}
-            </Button>
-          </Card.Actions>
+          <View style={{ flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: spacing.base, paddingTop: spacing.sm }}>
+            <TouchableOpacity onPress={() => setShowAllRecent((v) => !v)} hitSlop={8} style={{ paddingVertical: spacing.xs }}>
+              <AppText variant="rowTitle" color="accent">
+                {showAllRecent ? 'View less' : 'View all'}
+              </AppText>
+            </TouchableOpacity>
+          </View>
         ) : null}
       </Card>
 
       <View style={{ height: 16 }} />
-      <Card>
-        <Card.Title title="Members" />
-        <Card.Content>
-          {members.length === 0 ? <Text>No members found yet.</Text> : null}
-        </Card.Content>
-        <Divider />
+      <Card style={{ paddingHorizontal: 0 }}>
+        <AppText variant="rowTitle" color="primary" style={{ marginHorizontal: spacing.base, marginBottom: spacing.md }}>
+          Members
+        </AppText>
+        {members.length === 0 ? (
+          <AppText variant="body" color="secondary" style={{ marginHorizontal: spacing.base }}>No members found yet.</AppText>
+        ) : null}
+        <View style={{ height: 1, backgroundColor: colors.divider }} />
         {members.map((m) => (
           <List.Item
             key={m.uid}
             title={displayNameFor(m.uid)}
+            titleStyle={{ color: colors.textPrimary }}
+            descriptionStyle={{ color: colors.textSecondary }}
             description={[
               `Role: ${m.role}`,
               (() => {

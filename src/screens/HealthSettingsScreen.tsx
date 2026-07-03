@@ -1,12 +1,14 @@
 import React, { useContext, useEffect, useState, useCallback } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, Switch, View, AppState, AppStateStatus } from 'react-native';
-import { Button, Card, Text, useTheme, IconButton } from 'react-native-paper';
+import { KeyboardAvoidingView, Platform, ScrollView, Switch, View, StyleSheet, TouchableOpacity } from 'react-native';
+import { Icon } from 'react-native-paper';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 
-import Screen from '../components/layout/Screen';
+import AppText from '../components/ui/AppText';
+import Card from '../components/ui/Card';
+import PrimaryButton from '../components/ui/PrimaryButton';
 import { AuthContext } from '../store/AuthContext';
 import { useActiveGroup } from '../store/ActiveGroupContext';
 import { subscribeHealthSettings, updateHealthSettings, type HealthSettings } from '../services/healthSettings';
@@ -15,11 +17,50 @@ import { syncHealthData } from '../services/healthSync';
 import { db } from '../firebase/firebase';
 import * as HealthKitService from '../services/health/healthKitService';
 import { todayYYYYMMDD } from '../utils/dates';
+import { colors, radius, spacing } from '../theme';
+
+function ToggleRow({
+  title,
+  subtitle,
+  extra,
+  warning,
+  value,
+  onValueChange,
+  divider = true,
+}: {
+  title: string;
+  subtitle?: string;
+  extra?: string;
+  warning?: string;
+  value: boolean;
+  onValueChange: () => void;
+  divider?: boolean;
+}) {
+  return (
+    <>
+      <View style={styles.toggleRow}>
+        <View style={styles.toggleLeft}>
+          <AppText variant="rowTitle" color="primary">{title}</AppText>
+          {subtitle ? <AppText variant="rowSubtitle" color="muted" style={styles.rowGap}>{subtitle}</AppText> : null}
+          {extra ? <AppText variant="rowSubtitle" color="muted" style={styles.rowGap}>{extra}</AppText> : null}
+          {warning ? <AppText variant="rowSubtitle" color="danger" style={styles.rowGap}>{warning}</AppText> : null}
+        </View>
+        <Switch
+          value={value}
+          onValueChange={onValueChange}
+          trackColor={{ false: colors.ringNotLogged, true: colors.primary }}
+          thumbColor="#FFFFFF"
+          ios_backgroundColor={colors.ringNotLogged}
+        />
+      </View>
+      {divider ? <View style={styles.divider} /> : null}
+    </>
+  );
+}
 
 export default function HealthSettingsScreen() {
   const { user } = useContext(AuthContext);
   const { activeGroupId } = useActiveGroup();
-  const theme = useTheme();
   const headerHeight = useHeaderHeight();
   const insets = useSafeAreaInsets();
 
@@ -111,7 +152,7 @@ export default function HealthSettingsScreen() {
       console.log('Requesting permissions...');
       const result = await HealthService.requestHealthPermissions();
       console.log('Permission request result:', result);
-      
+
       if (!result.success) {
         setError(`Failed to request permissions: ${result.error || 'Unknown error'}`);
         return;
@@ -119,7 +160,7 @@ export default function HealthSettingsScreen() {
 
       // Wait a moment for iOS to process the permission dialog (if it was shown)
       await new Promise(resolve => setTimeout(resolve, 1000));
-      
+
       // Always re-check permissions after request
       const perms = await HealthService.checkHealthPermissions();
       console.log('Permission status after request:', perms);
@@ -127,7 +168,7 @@ export default function HealthSettingsScreen() {
 
       // Check if permissions were actually granted
       const anyGranted = perms.workouts || perms.calories || perms.weight;
-      
+
       if (anyGranted && user) {
         await updateHealthSettings(user.uid, {
           healthKitAuthorized: Platform.OS === 'ios' ? true : undefined,
@@ -169,7 +210,7 @@ export default function HealthSettingsScreen() {
     try {
       addLog('Starting sync...');
       addLog(`Settings: syncWorkouts=${settings.syncWorkouts}, syncCalories=${settings.syncCalories}, syncWeight=${settings.syncWeight}`);
-      
+
       // Check permissions
       const permissions = await HealthService.checkHealthPermissions();
       addLog(`Permissions: workouts=${permissions.workouts}, calories=${permissions.calories}, weight=${permissions.weight}`);
@@ -177,9 +218,9 @@ export default function HealthSettingsScreen() {
       // Check for manual logs
       const today = todayYYYYMMDD();
       addLog(`Today's date: ${today}`);
-      
+
       const result = await syncHealthData(user.uid, activeGroupId, settings);
-      
+
       // Update last sync time
       await updateHealthSettings(user.uid, {
         lastSyncAt: new Date(),
@@ -276,304 +317,252 @@ export default function HealthSettingsScreen() {
 
   if (loading || !settings) {
     return (
-      <Screen>
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <Text>
+      <View style={styles.container}>
+        <View style={styles.centered}>
+          <AppText variant="body" color="secondary" style={styles.centeredText}>
             {user
               ? db
                 ? 'Loading...'
                 : 'Health settings unavailable (database not initialized).'
               : 'Please log in to manage Health & Fitness settings.'}
-          </Text>
+          </AppText>
         </View>
-      </Screen>
+      </View>
     );
   }
 
   const platformName = Platform.OS === 'ios' ? 'Apple Health' : 'Google Fit';
 
   return (
-    <Screen>
+    <View style={styles.container}>
       <KeyboardAvoidingView
-        style={{ flex: 1 }}
+        style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={headerHeight}
       >
         <ScrollView
-          contentContainerStyle={{
-            padding: 16,
-            paddingBottom: 16 + insets.bottom,
-          }}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[styles.content, { paddingBottom: spacing.xxl + insets.bottom }]}
         >
           <Card>
-            <Card.Title 
-              title="Health & Fitness Integration" 
-              subtitle={`Connect with ${platformName}`}
-              right={(props) => (
-                <IconButton
-                  {...props}
-                  icon="refresh"
-                  onPress={refreshPermissions}
-                  disabled={!isAvailable}
-                />
-              )}
-            />
-            <Card.Content>
-              {!isAvailable ? (
-                <Text style={{ color: theme.colors.error, marginBottom: 16 }}>
-                  {platformName} is not available on this device.
-                </Text>
-              ) : (
-                <>
-                  <View style={{ marginBottom: 24 }}>
-                    <Text variant="bodyMedium" style={{ marginBottom: 8 }}>
-                      Sync your fitness data automatically from {platformName}. Manual logs always take priority.
-                    </Text>
-                    {!permissions.workouts && !permissions.calories && !permissions.weight && (
-                      <>
-                        <Button
-                          mode="contained"
-                          onPress={handleRequestPermissions}
-                          style={{ marginTop: 8 }}
-                        >
-                          Request Permissions
-                        </Button>
-                        <Text 
-                          variant="bodySmall" 
-                          style={{ 
-                            color: theme.colors.onSurfaceVariant, 
-                            marginTop: 8,
-                            textAlign: 'center'
-                          }}
-                        >
-                          If no dialog appears, permissions were already requested. Enable them in iOS Settings → Privacy & Security → Health → AccountaBuild
-                        </Text>
-                      </>
-                    )}
+            <View style={styles.cardHeader}>
+              <View style={styles.cardHeaderText}>
+                <AppText variant="cardLabel" color="primary">Health & Fitness Integration</AppText>
+                <AppText variant="rowSubtitle" color="muted" style={styles.subLine}>{`Connect with ${platformName}`}</AppText>
+              </View>
+              <TouchableOpacity onPress={refreshPermissions} disabled={!isAvailable} hitSlop={8} style={styles.iconBtn}>
+                <Icon source="refresh" size={20} color={isAvailable ? colors.textSecondary : colors.faint} />
+              </TouchableOpacity>
+            </View>
+
+            {!isAvailable ? (
+              <AppText variant="body" color="danger" style={styles.blockGap}>
+                {platformName} is not available on this device.
+              </AppText>
+            ) : (
+              <>
+                <View style={styles.introBlock}>
+                  <AppText variant="rowSubtitle" color="secondary" style={styles.introText}>
+                    Sync your fitness data automatically from {platformName}. Manual logs always take priority.
+                  </AppText>
+                  {!permissions.workouts && !permissions.calories && !permissions.weight && (
+                    <>
+                      <PrimaryButton onPress={handleRequestPermissions} style={styles.requestBtn}>
+                        Request Permissions
+                      </PrimaryButton>
+                      <AppText variant="rowSubtitle" color="muted" style={styles.centerNote}>
+                        If no dialog appears, permissions were already requested. Enable them in iOS Settings → Privacy & Security → Health → AccountaBuild
+                      </AppText>
+                    </>
+                  )}
+                </View>
+
+                <AppText variant="eyebrow" color="muted" style={styles.eyebrow}>Sync options</AppText>
+                <View style={styles.group}>
+                  <ToggleRow
+                    title="Sync Workouts"
+                    subtitle={`Automatically sync workouts from ${platformName}`}
+                    warning={
+                      !permissions.workouts
+                        ? settings.syncWorkouts
+                          ? 'Permission required - enable in Settings → Privacy & Security → Health → AccountaBuild'
+                          : 'Permission required'
+                        : undefined
+                    }
+                    value={settings.syncWorkouts}
+                    onValueChange={() => handleToggle('syncWorkouts')}
+                  />
+                  <ToggleRow
+                    title="Sync Calories"
+                    subtitle={`Sync dietary energy (calories consumed) from ${platformName}`}
+                    extra={`Works with apps like MyFitnessPal that sync to ${platformName}`}
+                    warning={
+                      !permissions.calories
+                        ? settings.syncCalories
+                          ? 'Permission required - enable in Settings → Privacy & Security → Health → AccountaBuild'
+                          : 'Permission required'
+                        : undefined
+                    }
+                    value={settings.syncCalories}
+                    onValueChange={() => handleToggle('syncCalories')}
+                  />
+                  <ToggleRow
+                    title="Sync Weight"
+                    subtitle={`Automatically sync weight entries from ${platformName}`}
+                    warning={
+                      !permissions.weight
+                        ? settings.syncWeight
+                          ? 'Permission required - enable in Settings → Privacy & Security → Health → AccountaBuild'
+                          : 'Permission required'
+                        : undefined
+                    }
+                    value={settings.syncWeight}
+                    onValueChange={() => handleToggle('syncWeight')}
+                    divider={false}
+                  />
+                </View>
+
+                {error && (
+                  <AppText variant="rowSubtitle" color="danger" style={styles.blockGap}>{error}</AppText>
+                )}
+                {success && (
+                  <AppText variant="rowSubtitle" color="accent" style={styles.blockGap}>{success}</AppText>
+                )}
+                {(!permissions.workouts || !permissions.calories || !permissions.weight) && (
+                  <View style={styles.noteBox}>
+                    <AppText variant="rowSubtitle" color="secondary">
+                      <AppText variant="rowSubtitle" color="primary" style={styles.bold}>Permission Status: </AppText>
+                      Not all permissions are granted.
+                    </AppText>
+                    <AppText variant="rowSubtitle" color="secondary" style={styles.rowGap}>
+                      To enable permissions, go to: iOS Settings → Privacy & Security → Health → AccountaBuild
+                    </AppText>
+                    <AppText variant="rowSubtitle" color="secondary" style={styles.rowGap}>
+                      Then toggle ON: Workouts, Dietary Energy, and Body Mass.
+                    </AppText>
                   </View>
+                )}
 
-                  <View style={{ marginBottom: 16 }}>
-                    <View
-                      style={{
-                        flexDirection: 'row',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        marginBottom: 16,
-                      }}
-                    >
-                      <View style={{ flex: 1 }}>
-                        <Text variant="titleMedium">Sync Workouts</Text>
-                        <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                          Automatically sync workouts from {platformName}
-                        </Text>
-                        {!permissions.workouts && (
-                          <Text variant="bodySmall" style={{ color: theme.colors.error, marginTop: 4 }}>
-                            {settings.syncWorkouts 
-                              ? 'Permission required - enable in Settings → Privacy & Security → Health → AccountaBuild'
-                              : 'Permission required'}
-                          </Text>
-                        )}
-                      </View>
-                      <Switch
-                        value={settings.syncWorkouts}
-                        onValueChange={() => handleToggle('syncWorkouts')}
-                        disabled={false}
-                      />
-                    </View>
+                <PrimaryButton
+                  onPress={handleSync}
+                  loading={syncing}
+                  disabled={syncing || !activeGroupId}
+                  style={styles.syncBtn}
+                >
+                  Sync Now
+                </PrimaryButton>
 
-                    <View
-                      style={{
-                        flexDirection: 'row',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        marginBottom: 16,
-                      }}
-                    >
-                      <View style={{ flex: 1 }}>
-                        <Text variant="titleMedium">Sync Calories</Text>
-                        <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                          Sync dietary energy (calories consumed) from {platformName}
-                        </Text>
-                        <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 4 }}>
-                          Works with apps like MyFitnessPal that sync to {platformName}
-                        </Text>
-                        {!permissions.calories && (
-                          <Text variant="bodySmall" style={{ color: theme.colors.error, marginTop: 4 }}>
-                            {settings.syncCalories 
-                              ? 'Permission required - enable in Settings → Privacy & Security → Health → AccountaBuild'
-                              : 'Permission required'}
-                          </Text>
-                        )}
-                      </View>
-                      <Switch
-                        value={settings.syncCalories}
-                        onValueChange={() => handleToggle('syncCalories')}
-                        disabled={false}
-                      />
-                    </View>
-
-                    <View
-                      style={{
-                        flexDirection: 'row',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        marginBottom: 16,
-                      }}
-                    >
-                      <View style={{ flex: 1 }}>
-                        <Text variant="titleMedium">Sync Weight</Text>
-                        <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                          Automatically sync weight entries from {platformName}
-                        </Text>
-                        {!permissions.weight && (
-                          <Text variant="bodySmall" style={{ color: theme.colors.error, marginTop: 4 }}>
-                            {settings.syncWeight 
-                              ? 'Permission required - enable in Settings → Privacy & Security → Health → AccountaBuild'
-                              : 'Permission required'}
-                          </Text>
-                        )}
-                      </View>
-                      <Switch
-                        value={settings.syncWeight}
-                        onValueChange={() => handleToggle('syncWeight')}
-                        disabled={false}
-                      />
-                    </View>
-                  </View>
-
-                  {error && (
-                    <Text style={{ color: theme.colors.error, marginBottom: 16 }}>{error}</Text>
-                  )}
-                  {success && (
-                    <Text style={{ color: theme.colors.primary, marginBottom: 16 }}>{success}</Text>
-                  )}
-                  {(!permissions.workouts || !permissions.calories || !permissions.weight) && (
-                    <View style={{ marginBottom: 16, padding: 12, backgroundColor: theme.colors.surfaceVariant, borderRadius: 8 }}>
-                      <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 4 }}>
-                        <Text style={{ fontWeight: 'bold' }}>Permission Status:</Text> Not all permissions are granted.
-                      </Text>
-                      <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                        To enable permissions, go to: iOS Settings → Privacy & Security → Health → AccountaBuild
-                      </Text>
-                      <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 4 }}>
-                        Then toggle ON: Workouts, Dietary Energy, and Body Mass.
-                      </Text>
-                    </View>
-                  )}
-
-                  <Button
-                    mode="contained"
-                    onPress={handleSync}
-                    loading={syncing}
-                    disabled={syncing || !activeGroupId}
-                    style={{ marginTop: 8 }}
-                  >
-                    Sync Now
-                  </Button>
-
-                  {settings.lastSyncAt && (
-                    <Text variant="bodySmall" style={{ marginTop: 8, color: theme.colors.onSurfaceVariant }}>
-                      Last synced: {new Date((settings.lastSyncAt as any)?.toDate?.() || settings.lastSyncAt).toLocaleString()}
-                    </Text>
-                  )}
-                </>
-              )}
-            </Card.Content>
+                {settings.lastSyncAt && (
+                  <AppText variant="rowSubtitle" color="muted" style={styles.lastSync}>
+                    Last synced: {new Date((settings.lastSyncAt as any)?.toDate?.() || settings.lastSyncAt).toLocaleString()}
+                  </AppText>
+                )}
+              </>
+            )}
           </Card>
 
           {/* Sync Debug Logs Panel */}
           {showSyncLogs && (
-            <Card style={{ marginTop: 16 }}>
-              <Card.Title 
-                title="Sync Debug Logs" 
-                subtitle="Real-time sync information"
-                right={(props) => (
-                  <IconButton
-                    {...props}
-                    icon="close"
-                    onPress={() => setShowSyncLogs(false)}
-                  />
-                )}
-              />
-              <Card.Content>
-                {syncLogs.length === 0 ? (
-                  <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                    No logs yet. Tap "Sync Now" to see debug information.
-                  </Text>
-                ) : (
-                  <ScrollView
-                    style={{
-                      backgroundColor: theme.colors.surfaceVariant,
-                      padding: 12,
-                      borderRadius: 8,
-                      maxHeight: 300,
-                    }}
-                    nestedScrollEnabled
-                  >
-                    <Text
-                      selectable
-                      style={{
-                        fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-                        fontSize: 10,
-                        color: theme.colors.onSurfaceVariant,
-                      }}
-                    >
-                      {syncLogs.join('\n')}
-                    </Text>
-                  </ScrollView>
-                )}
-                <Text variant="bodySmall" style={{ marginTop: 8, color: theme.colors.onSurfaceVariant }}>
-                  These logs show what happens during sync. Copy the text above to share for debugging.
-                </Text>
-              </Card.Content>
+            <Card style={styles.spacedCard}>
+              <View style={styles.cardHeader}>
+                <View style={styles.cardHeaderText}>
+                  <AppText variant="cardLabel" color="primary">Sync Debug Logs</AppText>
+                  <AppText variant="rowSubtitle" color="muted" style={styles.subLine}>Real-time sync information</AppText>
+                </View>
+                <TouchableOpacity onPress={() => setShowSyncLogs(false)} hitSlop={8} style={styles.iconBtn}>
+                  <Icon source="close" size={20} color={colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
+              {syncLogs.length === 0 ? (
+                <AppText variant="rowSubtitle" color="muted" style={styles.blockGap}>
+                  No logs yet. Tap "Sync Now" to see debug information.
+                </AppText>
+              ) : (
+                <ScrollView style={styles.logBox} nestedScrollEnabled>
+                  <AppText selectable style={styles.mono}>
+                    {syncLogs.join('\n')}
+                  </AppText>
+                </ScrollView>
+              )}
+              <AppText variant="rowSubtitle" color="muted" style={styles.blockGap}>
+                These logs show what happens during sync. Copy the text above to share for debugging.
+              </AppText>
             </Card>
           )}
 
           {/* Debug Diagnostics Panel */}
           {Platform.OS === 'ios' && (
-            <Card style={{ marginTop: 16 }}>
-              <Card.Title title="HealthKit Diagnostics" subtitle="Debug information" />
-              <Card.Content>
-                <Button
-                  mode="outlined"
-                  onPress={handleRunDiagnostics}
-                  loading={runningDiagnostics}
-                  disabled={runningDiagnostics}
-                  style={{ marginBottom: 16 }}
-                >
-                  Run Diagnostics
-                </Button>
+            <Card style={styles.spacedCard}>
+              <AppText variant="cardLabel" color="primary">HealthKit Diagnostics</AppText>
+              <AppText variant="rowSubtitle" color="muted" style={styles.subLine}>Debug information</AppText>
 
-                {diagnostics && (
-                  <View
-                    style={{
-                      backgroundColor: theme.colors.surfaceVariant,
-                      padding: 12,
-                      borderRadius: 8,
-                      maxHeight: 400,
-                    }}
-                  >
-                    <Text
-                      selectable
-                      style={{
-                        fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-                        fontSize: 11,
-                        color: theme.colors.onSurfaceVariant,
-                      }}
-                    >
-                      {diagnostics}
-                    </Text>
-                  </View>
-                )}
+              <PrimaryButton
+                secondary
+                onPress={handleRunDiagnostics}
+                loading={runningDiagnostics}
+                disabled={runningDiagnostics}
+                style={styles.diagBtn}
+              >
+                Run Diagnostics
+              </PrimaryButton>
 
-                <Text variant="bodySmall" style={{ marginTop: 8, color: theme.colors.onSurfaceVariant }}>
-                  Tap "Run Diagnostics" to test HealthKit API calls. Copy the output above to share for debugging.
-                </Text>
-              </Card.Content>
+              {diagnostics && (
+                <ScrollView style={[styles.logBox, styles.diagBox]} nestedScrollEnabled>
+                  <AppText selectable style={styles.mono}>
+                    {diagnostics}
+                  </AppText>
+                </ScrollView>
+              )}
+
+              <AppText variant="rowSubtitle" color="muted" style={styles.blockGap}>
+                Tap "Run Diagnostics" to test HealthKit API calls. Copy the output above to share for debugging.
+              </AppText>
             </Card>
           )}
         </ScrollView>
       </KeyboardAvoidingView>
-    </Screen>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  flex: { flex: 1 },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing.lg },
+  centeredText: { textAlign: 'center' },
+  content: { paddingHorizontal: spacing.lg, paddingTop: spacing.base },
+  cardHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
+  cardHeaderText: { flex: 1 },
+  subLine: { marginTop: 2 },
+  iconBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+  blockGap: { marginTop: spacing.base },
+  introBlock: { marginTop: spacing.base, marginBottom: spacing.sm },
+  introText: { lineHeight: 18 },
+  requestBtn: { marginTop: spacing.md },
+  centerNote: { marginTop: spacing.sm, textAlign: 'center', lineHeight: 18 },
+  eyebrow: { marginTop: spacing.lg, marginBottom: spacing.sm },
+  group: {
+    backgroundColor: colors.surface2,
+    borderRadius: radius.listGroup,
+    borderWidth: 1,
+    borderColor: colors.borderCard,
+    paddingHorizontal: spacing.base,
+  },
+  toggleRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.md, gap: spacing.md },
+  toggleLeft: { flex: 1 },
+  rowGap: { marginTop: spacing.xs },
+  divider: { height: 1, backgroundColor: colors.divider },
+  noteBox: { marginTop: spacing.base, padding: spacing.md, backgroundColor: colors.surface2, borderRadius: radius.tile },
+  bold: { fontWeight: '700' },
+  syncBtn: { marginTop: spacing.base },
+  lastSync: { marginTop: spacing.md },
+  spacedCard: { marginTop: spacing.md },
+  logBox: { backgroundColor: colors.surface2, padding: spacing.md, borderRadius: radius.tile, maxHeight: 300, marginTop: spacing.base },
+  diagBox: { maxHeight: 400 },
+  mono: {
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontSize: 11,
+    color: colors.textSecondary,
+  },
+  diagBtn: { marginTop: spacing.base },
+});

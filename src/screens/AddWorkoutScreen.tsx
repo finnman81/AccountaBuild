@@ -1,6 +1,6 @@
 import React, { useContext, useEffect, useState } from 'react';
-import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, TouchableWithoutFeedback, View } from 'react-native';
-import { Button, Card, List, Modal, Portal, Text, TextInput, useTheme } from 'react-native-paper';
+import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
+import { Icon, Modal, Portal } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { clearBadge } from '../services/notifications';
@@ -11,9 +11,13 @@ import { RootStackParamList } from '../navigation/types';
 import { AuthContext } from '../store/AuthContext';
 import { addWorkoutLog, WorkoutType } from '../services/logs';
 import { db } from '../firebase/firebase';
-import LogDateField from '../components/ui/LogDateField';
-import { isFutureYYYYMMDD, isValidYYYYMMDD, todayYYYYMMDD } from '../utils/dates';
+import { isFutureYYYYMMDD, isValidYYYYMMDD, todayYYYYMMDD, yesterdayYYYYMMDD } from '../utils/dates';
 import { updateGroupLog, upsertUserWorkoutHistoryFromGroupLog } from '../services/logEdits';
+import AppText from '../components/ui/AppText';
+import Card from '../components/ui/Card';
+import TextField from '../components/ui/TextField';
+import PrimaryButton from '../components/ui/PrimaryButton';
+import { colors, radius, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'AddWorkout'>;
 
@@ -40,7 +44,6 @@ const workoutTypes: { label: string; value: WorkoutType }[] = [
 export default function AddWorkoutScreen({ route, navigation }: Props) {
   const { user } = useContext(AuthContext);
   const { groupId, edit } = route.params;
-  const theme = useTheme();
   const headerHeight = useHeaderHeight();
   const insets = useSafeAreaInsets();
   const [logDate, setLogDate] = useState(todayYYYYMMDD());
@@ -119,7 +122,7 @@ export default function AddWorkoutScreen({ route, navigation }: Props) {
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1 }}
+      style={styles.flex}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={headerHeight}
     >
@@ -127,94 +130,148 @@ export default function AddWorkoutScreen({ route, navigation }: Props) {
         <Modal
           visible={typePickerVisible}
           onDismiss={() => setTypePickerVisible(false)}
-          contentContainerStyle={{
-            margin: 16,
-            borderRadius: 16,
-            overflow: 'hidden',
-            backgroundColor: theme.colors.surface,
-            maxHeight: '70%',
-          }}
+          contentContainerStyle={styles.modalContainer}
         >
-          <Card>
-            <Card.Title title="Workout type" />
-            <Card.Content style={{ paddingHorizontal: 0, paddingTop: 6, paddingBottom: 0 }}>
-              <ScrollView style={{ maxHeight: 380 }} contentContainerStyle={{ paddingTop: 6, paddingBottom: 18 }} showsVerticalScrollIndicator>
-                {workoutTypes.map((w) => (
-                  <List.Item
+          <Card style={styles.modalCard}>
+            <AppText variant="rowTitle" color="primary" style={styles.modalTitle}>Workout type</AppText>
+            <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator>
+              {workoutTypes.map((w) => {
+                const active = w.value === workoutType;
+                return (
+                  <TouchableOpacity
                     key={w.value}
-                    title={w.label}
+                    style={styles.modalRow}
+                    activeOpacity={0.7}
                     onPress={() => {
                       setWorkoutType(w.value);
                       setTypePickerVisible(false);
                     }}
-                    right={(props) => (w.value === workoutType ? <List.Icon {...props} icon="check" /> : null)}
-                  />
-                ))}
-              </ScrollView>
-            </Card.Content>
-            <Card.Actions style={{ justifyContent: 'flex-end' }}>
-              <Button mode="text" onPress={() => setTypePickerVisible(false)}>
-                Close
-              </Button>
-            </Card.Actions>
+                  >
+                    <AppText variant="body" color={active ? 'accent' : 'primary'} style={styles.modalRowLabel}>{w.label}</AppText>
+                    {active ? <Icon source="check" size={20} color={colors.primaryOnDark} /> : null}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+            <TouchableOpacity onPress={() => setTypePickerVisible(false)} style={styles.modalClose} activeOpacity={0.7}>
+              <AppText variant="rowTitle" color="accent">Close</AppText>
+            </TouchableOpacity>
           </Card>
         </Modal>
       </Portal>
 
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-        <ScrollView
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode={Platform.OS === 'ios' ? 'on-drag' : 'none'}
-          contentContainerStyle={{
-            flexGrow: 1,
-            padding: 16,
-            paddingBottom: 16 + insets.bottom,
-            justifyContent: 'center',
-          }}
-        >
-          <Card>
-            <Card.Title title={edit?.logId ? 'Edit workout' : 'Log workout'} />
-            <Card.Content>
-              <LogDateField value={logDate} onChange={setLogDate} disabled={isSubmitting} />
-              <View style={{ height: 12 }} />
-              <Text variant="bodySmall">Workout type</Text>
-              <View style={{ height: 8 }} />
-              <Button
-                mode="outlined"
+      <View style={styles.container}>
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode={Platform.OS === 'ios' ? 'on-drag' : 'none'}
+            contentContainerStyle={[styles.content, { paddingBottom: spacing.base + insets.bottom }]}
+          >
+            <Card>
+              <AppText variant="rowTitle" color="primary">{edit?.logId ? 'Edit workout' : 'Log workout'}</AppText>
+
+              <AppText variant="eyebrow" color="muted" style={styles.fieldLabel}>Log date</AppText>
+              <TextField
+                value={logDate}
+                onChangeText={setLogDate}
+                editable={!isSubmitting}
+                autoCapitalize="none"
+                autoCorrect={false}
+                placeholder={todayYYYYMMDD()}
+              />
+              <View style={styles.dateChips}>
+                <TouchableOpacity
+                  style={styles.dateChip}
+                  disabled={isSubmitting}
+                  onPress={() => setLogDate(todayYYYYMMDD())}
+                  activeOpacity={0.8}
+                >
+                  <AppText variant="rowSubtitle" color="secondary">Today</AppText>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.dateChip}
+                  disabled={isSubmitting}
+                  onPress={() => setLogDate(yesterdayYYYYMMDD())}
+                  activeOpacity={0.8}
+                >
+                  <AppText variant="rowSubtitle" color="secondary">Yesterday</AppText>
+                </TouchableOpacity>
+              </View>
+
+              <AppText variant="eyebrow" color="muted" style={styles.fieldLabel}>Workout type</AppText>
+              <TouchableOpacity
+                style={styles.selectField}
                 disabled={isSubmitting}
                 onPress={() => setTypePickerVisible(true)}
-                contentStyle={{ justifyContent: 'space-between' }}
-                icon="chevron-down"
+                activeOpacity={0.8}
               >
-                {workoutTypes.find((w) => w.value === workoutType)?.label ?? 'Select'}
-              </Button>
+                <AppText variant="body" color="primary">{workoutTypes.find((w) => w.value === workoutType)?.label ?? 'Select'}</AppText>
+                <Icon source="chevron-down" size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
 
-              <View style={{ height: 12 }} />
-              <TextInput
-                label="Duration (minutes)"
+              <AppText variant="eyebrow" color="muted" style={styles.fieldLabel}>Duration (minutes)</AppText>
+              <TextField
                 keyboardType="number-pad"
                 value={durationMinutes}
                 onChangeText={setDurationMinutes}
-                disabled={isSubmitting}
+                editable={!isSubmitting}
               />
-              <View style={{ height: 12 }} />
-              <TextInput label="Note (optional)" value={note} onChangeText={setNote} disabled={isSubmitting} multiline />
+
+              <AppText variant="eyebrow" color="muted" style={styles.fieldLabel}>Note (optional)</AppText>
+              <TextField value={note} onChangeText={setNote} editable={!isSubmitting} multiline />
+
               {error ? (
-                <>
-                  <View style={{ height: 12 }} />
-                  <Text style={{ color: 'crimson' }}>{error}</Text>
-                </>
+                <AppText variant="rowSubtitle" color="danger" style={styles.error}>{error}</AppText>
               ) : null}
-              <View style={{ height: 16 }} />
-              <Button mode="contained" onPress={onSubmit} loading={isSubmitting} disabled={isSubmitting}>
+
+              <PrimaryButton onPress={onSubmit} loading={isSubmitting} disabled={isSubmitting} style={styles.submit}>
                 {edit?.logId ? 'Update' : 'Save'}
-              </Button>
-            </Card.Content>
-          </Card>
-        </ScrollView>
-      </TouchableWithoutFeedback>
+              </PrimaryButton>
+            </Card>
+          </ScrollView>
+        </TouchableWithoutFeedback>
+      </View>
     </KeyboardAvoidingView>
   );
 }
 
-
+const styles = StyleSheet.create({
+  flex: { flex: 1 },
+  container: { flex: 1, backgroundColor: colors.background },
+  content: { flexGrow: 1, paddingHorizontal: spacing.lg, paddingTop: spacing.base, justifyContent: 'center' },
+  fieldLabel: { marginTop: spacing.base, marginBottom: spacing.sm },
+  dateChips: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
+  dateChip: {
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surface2,
+    borderWidth: 1,
+    borderColor: colors.borderCard,
+  },
+  selectField: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: 52,
+    borderRadius: radius.tile,
+    borderWidth: 1,
+    borderColor: colors.borderCard,
+    backgroundColor: colors.surface2,
+    paddingHorizontal: spacing.base,
+  },
+  error: { marginTop: spacing.md },
+  submit: { marginTop: spacing.lg },
+  modalContainer: { marginHorizontal: spacing.base },
+  modalCard: { maxHeight: '70%', padding: spacing.base },
+  modalTitle: { marginBottom: spacing.sm },
+  modalScroll: { maxHeight: 380 },
+  modalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.md,
+  },
+  modalRowLabel: { flex: 1 },
+  modalClose: { alignItems: 'flex-end', paddingTop: spacing.md, paddingRight: spacing.xs },
+});

@@ -1,6 +1,5 @@
 import React, { useContext, useEffect, useState } from 'react';
-import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, TouchableWithoutFeedback, View } from 'react-native';
-import { Button, Card, Text, TextInput } from 'react-native-paper';
+import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { useHeaderHeight } from '@react-navigation/elements';
@@ -11,9 +10,13 @@ import { AuthContext } from '../store/AuthContext';
 import { addWeightLog } from '../services/logs';
 import { syncMyMemberProfileToAllGroups, updateMyProfile } from '../services/profile';
 import { db } from '../firebase/firebase';
-import LogDateField from '../components/ui/LogDateField';
-import { isFutureYYYYMMDD, isValidYYYYMMDD, todayYYYYMMDD } from '../utils/dates';
+import { isFutureYYYYMMDD, isValidYYYYMMDD, todayYYYYMMDD, yesterdayYYYYMMDD } from '../utils/dates';
 import { updateGroupLog, upsertUserWeightHistoryFromGroupLog } from '../services/logEdits';
+import AppText from '../components/ui/AppText';
+import Card from '../components/ui/Card';
+import TextField from '../components/ui/TextField';
+import PrimaryButton from '../components/ui/PrimaryButton';
+import { colors, radius, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'AddWeight'>;
 
@@ -94,51 +97,90 @@ export default function AddWeightScreen({ route, navigation }: Props) {
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1 }}
+      style={styles.flex}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={headerHeight}
     >
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-        <ScrollView
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode={Platform.OS === 'ios' ? 'on-drag' : 'none'}
-          contentContainerStyle={{
-            flexGrow: 1,
-            padding: 16,
-            paddingBottom: 16 + insets.bottom,
-            justifyContent: 'center',
-          }}
-        >
-          <Card>
-            <Card.Title title={edit?.logId ? 'Edit weight' : 'Log weight'} subtitle="Quick daily weigh-in" />
-            <Card.Content>
-              <LogDateField value={logDate} onChange={setLogDate} disabled={isSubmitting} />
-              <View style={{ height: 12 }} />
-              <TextInput
-                label="Weight (lb)"
+      <View style={styles.container}>
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode={Platform.OS === 'ios' ? 'on-drag' : 'none'}
+            contentContainerStyle={[styles.content, { paddingBottom: spacing.base + insets.bottom }]}
+          >
+            <Card>
+              <AppText variant="rowTitle" color="primary">{edit?.logId ? 'Edit weight' : 'Log weight'}</AppText>
+              <AppText variant="rowSubtitle" color="muted" style={styles.subtitle}>Quick daily weigh-in</AppText>
+
+              <AppText variant="eyebrow" color="muted" style={styles.fieldLabel}>Log date</AppText>
+              <TextField
+                value={logDate}
+                onChangeText={setLogDate}
+                editable={!isSubmitting}
+                autoCapitalize="none"
+                autoCorrect={false}
+                placeholder={todayYYYYMMDD()}
+              />
+              <View style={styles.dateChips}>
+                <TouchableOpacity
+                  style={styles.dateChip}
+                  disabled={isSubmitting}
+                  onPress={() => setLogDate(todayYYYYMMDD())}
+                  activeOpacity={0.8}
+                >
+                  <AppText variant="rowSubtitle" color="secondary">Today</AppText>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.dateChip}
+                  disabled={isSubmitting}
+                  onPress={() => setLogDate(yesterdayYYYYMMDD())}
+                  activeOpacity={0.8}
+                >
+                  <AppText variant="rowSubtitle" color="secondary">Yesterday</AppText>
+                </TouchableOpacity>
+              </View>
+
+              <AppText variant="eyebrow" color="muted" style={styles.fieldLabel}>Weight (lb)</AppText>
+              <TextField
                 keyboardType="decimal-pad"
                 value={weight}
                 onChangeText={setWeight}
-                disabled={isSubmitting}
+                editable={!isSubmitting}
               />
-              <View style={{ height: 12 }} />
-              <TextInput label="Note (optional)" value={note} onChangeText={setNote} disabled={isSubmitting} multiline />
+
+              <AppText variant="eyebrow" color="muted" style={styles.fieldLabel}>Note (optional)</AppText>
+              <TextField value={note} onChangeText={setNote} editable={!isSubmitting} multiline />
+
               {error ? (
-                <>
-                  <View style={{ height: 12 }} />
-                  <Text style={{ color: 'crimson' }}>{error}</Text>
-                </>
+                <AppText variant="rowSubtitle" color="danger" style={styles.error}>{error}</AppText>
               ) : null}
-              <View style={{ height: 16 }} />
-              <Button mode="contained" onPress={onSubmit} loading={isSubmitting} disabled={isSubmitting}>
+
+              <PrimaryButton onPress={onSubmit} loading={isSubmitting} disabled={isSubmitting} style={styles.submit}>
                 {edit?.logId ? 'Update' : 'Save'}
-              </Button>
-            </Card.Content>
-          </Card>
-        </ScrollView>
-      </TouchableWithoutFeedback>
+              </PrimaryButton>
+            </Card>
+          </ScrollView>
+        </TouchableWithoutFeedback>
+      </View>
     </KeyboardAvoidingView>
   );
 }
 
-
+const styles = StyleSheet.create({
+  flex: { flex: 1 },
+  container: { flex: 1, backgroundColor: colors.background },
+  content: { flexGrow: 1, paddingHorizontal: spacing.lg, paddingTop: spacing.base, justifyContent: 'center' },
+  subtitle: { marginTop: spacing.xs },
+  fieldLabel: { marginTop: spacing.base, marginBottom: spacing.sm },
+  dateChips: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
+  dateChip: {
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surface2,
+    borderWidth: 1,
+    borderColor: colors.borderCard,
+  },
+  error: { marginTop: spacing.md },
+  submit: { marginTop: spacing.lg },
+});

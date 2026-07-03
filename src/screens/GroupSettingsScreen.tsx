@@ -1,16 +1,20 @@
 import React, { useContext, useEffect, useMemo, useState } from 'react';
-import { View } from 'react-native';
-import { Button, Card, Dialog, Portal, SegmentedButtons, Text } from 'react-native-paper';
+import { ScrollView, View, StyleSheet } from 'react-native';
+import { Button, Dialog, Portal } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as ImagePicker from 'expo-image-picker';
 import { doc, onSnapshot } from 'firebase/firestore';
 
-import Screen from '../components/layout/Screen';
 import { HomeStackParamList } from '../navigation/types';
 import { db } from '../firebase/firebase';
 import { AuthContext } from '../store/AuthContext';
 import { deleteGroupAsCreator, setGroupLogoUrl, setGroupStreakRule } from '../services/groups';
 import { uploadGroupLogo } from '../services/photos';
+import Card from '../components/ui/Card';
+import AppText from '../components/ui/AppText';
+import PrimaryButton from '../components/ui/PrimaryButton';
+import SegmentedControl from '../components/ui/SegmentedControl';
+import { colors, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'GroupSettings'>;
 
@@ -99,69 +103,98 @@ export default function GroupSettingsScreen({ route, navigation }: Props) {
   };
 
   return (
-    <Screen>
+    <View style={styles.container}>
       <Portal>
-        <Dialog visible={deleteDialogVisible} onDismiss={() => setDeleteDialogVisible(false)}>
+        <Dialog visible={deleteDialogVisible} onDismiss={() => !isDeletingGroup && setDeleteDialogVisible(false)}>
           <Dialog.Title>Delete group?</Dialog.Title>
           <Dialog.Content>
-            <Text>This will delete the group and its join code. Members will no longer be able to access it.</Text>
+            <AppText variant="body" color="secondary">
+              This will delete the group and its join code. Members will no longer be able to access it.
+            </AppText>
           </Dialog.Content>
           <Dialog.Actions>
             <Button onPress={() => setDeleteDialogVisible(false)} disabled={isDeletingGroup}>
               Cancel
             </Button>
-            <Button onPress={onDeleteGroup} loading={isDeletingGroup} disabled={isDeletingGroup}>
+            <Button onPress={onDeleteGroup} loading={isDeletingGroup} disabled={isDeletingGroup} textColor={colors.danger}>
               Delete
             </Button>
           </Dialog.Actions>
         </Dialog>
       </Portal>
 
-      <Card>
-        <Card.Title title="Group settings" subtitle={group?.name ?? undefined} />
-        <Card.Content>
-          {!isAdmin ? <Text variant="bodyMedium">Only group admins can change settings.</Text> : null}
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <Card style={styles.card}>
+          <AppText variant="pageTitle" color="primary" style={styles.title}>
+            Group settings
+          </AppText>
+          {group?.name ? (
+            <AppText variant="rowSubtitle" color="muted" style={styles.subtitle}>
+              {group.name}
+            </AppText>
+          ) : null}
 
-          <Text variant="titleMedium" style={{ marginTop: 4 }}>
+          {!isAdmin ? (
+            <AppText variant="body" color="secondary">
+              Only group admins can change settings.
+            </AppText>
+          ) : null}
+
+          <AppText variant="rowTitle" color="primary" style={styles.sectionTitle}>
             Streak rule
-          </Text>
-          <Text variant="bodySmall" style={{ opacity: 0.75 }}>
+          </AppText>
+          <AppText variant="rowSubtitle" color="muted" style={styles.sectionHelp}>
             Controls what counts as a “streak day” for members in this group.
-          </Text>
-          <View style={{ height: 8 }} />
-          <SegmentedButtons
-            value={(group?.streakRule ?? 'workout') as any}
-            onValueChange={(v) => void onChangeStreakRule(v as any)}
-            buttons={[
-              { value: 'workout', label: 'Workout only', disabled: !isAdmin || isSavingStreakRule },
-              { value: 'any', label: 'Any log', disabled: !isAdmin || isSavingStreakRule },
+          </AppText>
+          <SegmentedControl
+            options={[
+              { value: 'workout', label: 'Workout only' },
+              { value: 'any', label: 'Any log' },
             ]}
+            value={(group?.streakRule ?? 'workout') as 'workout' | 'any'}
+            onChange={(v) => void onChangeStreakRule(v)}
+            style={styles.segmented}
           />
 
-          <View style={{ height: 16 }} />
-
           {!isCreator ? (
-            <Text variant="bodySmall" style={{ opacity: 0.75 }}>
+            <AppText variant="rowSubtitle" color="muted" style={styles.footnote}>
               Only the group creator can change logo or delete the group.
-            </Text>
+            </AppText>
           ) : (
-            <>
-              <Button mode="outlined" onPress={changeGroupLogo} loading={isUploadingLogo} disabled={isUploadingLogo}>
+            <View style={styles.actions}>
+              <PrimaryButton
+                secondary
+                onPress={changeGroupLogo}
+                loading={isUploadingLogo}
+                disabled={isUploadingLogo}
+              >
                 Set group logo
-              </Button>
-              <View style={{ height: 8 }} />
-              <Button
-                mode="outlined"
+              </PrimaryButton>
+              <PrimaryButton
+                secondary
                 onPress={() => setDeleteDialogVisible(true)}
                 disabled={isUploadingLogo || isDeletingGroup}
+                textColor={colors.danger}
               >
                 Delete group
-              </Button>
-            </>
+              </PrimaryButton>
+            </View>
           )}
-        </Card.Content>
-      </Card>
-    </Screen>
+        </Card>
+      </ScrollView>
+    </View>
   );
 }
 
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  content: { paddingHorizontal: spacing.lg, paddingTop: spacing.base, paddingBottom: spacing.xxl },
+  card: { gap: spacing.sm },
+  title: { marginBottom: spacing.xs },
+  subtitle: { marginBottom: spacing.sm },
+  sectionTitle: { marginTop: spacing.sm },
+  sectionHelp: { marginBottom: spacing.sm, lineHeight: 18 },
+  segmented: { marginTop: spacing.xs },
+  footnote: { marginTop: spacing.base, lineHeight: 18 },
+  actions: { marginTop: spacing.base, gap: spacing.md },
+});

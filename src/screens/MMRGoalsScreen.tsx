@@ -1,20 +1,40 @@
 import React, { useContext, useEffect, useMemo, useState } from 'react';
-import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, TouchableWithoutFeedback, View } from 'react-native';
-import { Button, Card, SegmentedButtons, Switch, Text, TextInput } from 'react-native-paper';
+import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Switch, TouchableWithoutFeedback, View } from 'react-native';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import Screen from '../components/layout/Screen';
 import { AuthContext } from '../store/AuthContext';
 import { subscribeMyMmrGoals, upsertGoal } from '../services/mmrGoals';
 import { subscribeMyProfile, updateMyProfile } from '../services/profile';
 import { isValidYYYYMMDD } from '../utils/dates';
+import AppText from '../components/ui/AppText';
+import Card from '../components/ui/Card';
+import TextField from '../components/ui/TextField';
+import PrimaryButton from '../components/ui/PrimaryButton';
+import SegmentedControl from '../components/ui/SegmentedControl';
+import { colors, spacing } from '../theme';
 
 function toNumberOrNull(t: string) {
   const s = t.trim();
   if (!s) return null;
   const n = Number(s);
   return Number.isFinite(n) ? n : null;
+}
+
+function ToggleRow({ title, value, onValueChange, disabled }: { title: string; value: boolean; onValueChange: (v: boolean) => void; disabled?: boolean }) {
+  return (
+    <View style={styles.toggleRow}>
+      <AppText variant="rowTitle" color="primary" style={styles.flex}>{title}</AppText>
+      <Switch
+        value={value}
+        onValueChange={onValueChange}
+        disabled={disabled}
+        trackColor={{ false: colors.ringNotLogged, true: colors.primary }}
+        thumbColor="#FFFFFF"
+        ios_backgroundColor={colors.ringNotLogged}
+      />
+    </View>
+  );
 }
 
 export default function MMRGoalsScreen() {
@@ -68,11 +88,11 @@ export default function MMRGoalsScreen() {
     const w = raw.workouts;
     if (w?.targetWorkoutsPerWeek != null) setWorkoutsPerWeek(String(w.targetWorkoutsPerWeek));
     setWorkoutsEnabled((w?.status ?? 'active') === 'active');
-    
+
     const m = raw.minutes;
     if (m?.targetMinutesPerWeek != null) setMinutesPerWeek(String(m.targetMinutesPerWeek));
     setMinutesEnabled((m?.status ?? 'active') === 'active');
-    
+
     const c = raw.calorieDays;
     if (c?.targetDaysPerWeek != null) setCalorieDaysPerWeek(String(c.targetDaysPerWeek));
     setCaloriesEnabled((c?.status ?? 'active') === 'active');
@@ -124,10 +144,10 @@ export default function MMRGoalsScreen() {
       // Save workouts goal
       if (workoutsEnabled) {
         const w = toNumberOrNull(workoutsPerWeek);
-        await upsertGoal(user.uid, 'workouts', { 
-          type: 'workouts', 
-          status: 'active', 
-          targetWorkoutsPerWeek: Math.round(w!) 
+        await upsertGoal(user.uid, 'workouts', {
+          type: 'workouts',
+          status: 'active',
+          targetWorkoutsPerWeek: Math.round(w!)
         });
       } else {
         await upsertGoal(user.uid, 'workouts', { type: 'workouts', status: 'paused' });
@@ -136,10 +156,10 @@ export default function MMRGoalsScreen() {
       // Save minutes goal
       if (minutesEnabled) {
         const m = toNumberOrNull(minutesPerWeek);
-        await upsertGoal(user.uid, 'minutes', { 
-          type: 'minutes', 
-          status: 'active', 
-          targetMinutesPerWeek: Math.round(m!) 
+        await upsertGoal(user.uid, 'minutes', {
+          type: 'minutes',
+          status: 'active',
+          targetMinutesPerWeek: Math.round(m!)
         });
       } else {
         await upsertGoal(user.uid, 'minutes', { type: 'minutes', status: 'paused' });
@@ -148,10 +168,10 @@ export default function MMRGoalsScreen() {
       // Save calorie days goal
       if (caloriesEnabled) {
         const c = toNumberOrNull(calorieDaysPerWeek);
-        await upsertGoal(user.uid, 'calorieDays', { 
-          type: 'calorieDays', 
-          status: 'active', 
-          targetDaysPerWeek: Math.round(c!) 
+        await upsertGoal(user.uid, 'calorieDays', {
+          type: 'calorieDays',
+          status: 'active',
+          targetDaysPerWeek: Math.round(c!)
         });
       } else {
         await upsertGoal(user.uid, 'calorieDays', { type: 'calorieDays', status: 'paused' });
@@ -209,170 +229,177 @@ export default function MMRGoalsScreen() {
 
   if (!user) {
     return (
-      <Screen>
-        <Text>You must be signed in.</Text>
-      </Screen>
+      <View style={styles.container}>
+        <ScrollView contentContainerStyle={styles.content}>
+          <AppText variant="body" color="primary">You must be signed in.</AppText>
+        </ScrollView>
+      </View>
     );
   }
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={headerHeight}
-    >
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-        <ScrollView
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode={Platform.OS === 'ios' ? 'on-drag' : 'none'}
-          contentContainerStyle={{
-            flexGrow: 1,
-            padding: 16,
-            paddingBottom: 16 + insets.bottom,
-          }}
-        >
-          <Card>
-            <Card.Title title="Goals (global)" subtitle="Used for weekly scoring + group dashboards" />
-            <Card.Content>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <Text variant="bodyMedium" style={{ flex: 1 }}>Track Workouts</Text>
-                <Switch value={workoutsEnabled} onValueChange={setWorkoutsEnabled} disabled={!canSave} />
-              </View>
+    <View style={styles.container}>
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={headerHeight}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode={Platform.OS === 'ios' ? 'on-drag' : 'none'}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={[
+              styles.content,
+              { paddingBottom: spacing.lg + insets.bottom },
+            ]}
+          >
+            <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>Goals (global)</AppText>
+            <Card>
+              <AppText variant="rowSubtitle" color="muted" style={styles.cardSubtitle}>
+                Used for weekly scoring + group dashboards
+              </AppText>
+
+              <ToggleRow title="Track Workouts" value={workoutsEnabled} onValueChange={setWorkoutsEnabled} disabled={!canSave} />
               {workoutsEnabled && (
-                <>
-                  <TextInput
+                <View style={styles.field}>
+                  <TextField
                     label="Workouts per week (1–7)"
                     keyboardType="number-pad"
                     value={workoutsPerWeek}
                     onChangeText={setWorkoutsPerWeek}
-                    disabled={!canSave}
+                    editable={canSave}
                   />
-                  <View style={{ height: 12 }} />
-                </>
+                </View>
               )}
 
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <Text variant="bodyMedium" style={{ flex: 1 }}>Track Minutes</Text>
-                <Switch value={minutesEnabled} onValueChange={setMinutesEnabled} disabled={!canSave} />
-              </View>
+              <ToggleRow title="Track Minutes" value={minutesEnabled} onValueChange={setMinutesEnabled} disabled={!canSave} />
               {minutesEnabled && (
-                <>
-                  <TextInput
+                <View style={styles.field}>
+                  <TextField
                     label="Minutes per week"
                     keyboardType="number-pad"
                     value={minutesPerWeek}
                     onChangeText={setMinutesPerWeek}
-                    disabled={!canSave}
+                    editable={canSave}
                   />
-                  <View style={{ height: 12 }} />
-                </>
+                </View>
               )}
 
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <Text variant="bodyMedium" style={{ flex: 1 }}>Track Calories</Text>
-                <Switch value={caloriesEnabled} onValueChange={setCaloriesEnabled} disabled={!canSave} />
-              </View>
+              <ToggleRow title="Track Calories" value={caloriesEnabled} onValueChange={setCaloriesEnabled} disabled={!canSave} />
               {caloriesEnabled && (
                 <>
-                  <TextInput
-                    label="Calorie adherence days per week (1–7)"
-                    keyboardType="number-pad"
-                    value={calorieDaysPerWeek}
-                    onChangeText={setCalorieDaysPerWeek}
-                    disabled={!canSave}
-                  />
-                  <View style={{ height: 12 }} />
-                  <TextInput
-                    label="Daily calorie goal (0–20000)"
-                    keyboardType="number-pad"
-                    value={dailyCalorieGoal}
-                    onChangeText={setDailyCalorieGoal}
-                    disabled={!canSave}
-                  />
-                  <View style={{ height: 12 }} />
+                  <View style={styles.field}>
+                    <TextField
+                      label="Calorie adherence days per week (1–7)"
+                      keyboardType="number-pad"
+                      value={calorieDaysPerWeek}
+                      onChangeText={setCalorieDaysPerWeek}
+                      editable={canSave}
+                    />
+                  </View>
+                  <View style={styles.field}>
+                    <TextField
+                      label="Daily calorie goal (0–20000)"
+                      keyboardType="number-pad"
+                      value={dailyCalorieGoal}
+                      onChangeText={setDailyCalorieGoal}
+                      editable={canSave}
+                    />
+                  </View>
                 </>
               )}
 
-              <TextInput
-                label="Weight log days per week (0–7)"
-                keyboardType="number-pad"
-                value={logWeightDaysPerWeek}
-                onChangeText={setLogWeightDaysPerWeek}
-                disabled={!canSave}
-              />
-            </Card.Content>
-          </Card>
+              <View style={styles.field}>
+                <TextField
+                  label="Weight log days per week (0–7)"
+                  keyboardType="number-pad"
+                  value={logWeightDaysPerWeek}
+                  onChangeText={setLogWeightDaysPerWeek}
+                  editable={canSave}
+                />
+              </View>
+            </Card>
 
-          <View style={{ height: 16 }} />
+            <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>Weight timeline goal (optional)</AppText>
+            <Card>
+              <AppText variant="rowSubtitle" color="muted" style={styles.cardSubtitle}>
+                Enables weight loss/gain scoring
+              </AppText>
 
-          <Card>
-            <Card.Title title="Weight timeline goal (optional)" subtitle="Enables weight loss/gain scoring" />
-            <Card.Content>
-              <SegmentedButtons
+              <SegmentedControl
                 value={weightMode}
-                onValueChange={(v) => setWeightMode(v as any)}
-                buttons={[
+                onChange={(v) => setWeightMode(v as any)}
+                options={[
                   { value: 'loss', label: 'Loss' },
                   { value: 'gain', label: 'Gain' },
                 ]}
               />
-              <View style={{ height: 12 }} />
-              <TextInput
-                label="Start weight (lb)"
-                keyboardType="decimal-pad"
-                value={weightStart}
-                onChangeText={setWeightStart}
-                disabled={!canSave}
-              />
-              <View style={{ height: 12 }} />
-              <TextInput
-                label="Goal weight (lb)"
-                keyboardType="decimal-pad"
-                value={weightGoal}
-                onChangeText={setWeightGoal}
-                disabled={!canSave}
-              />
-              <View style={{ height: 12 }} />
-              <TextInput
-                label="Start date (YYYY-MM-DD)"
-                value={weightStartDate}
-                onChangeText={setWeightStartDate}
-                disabled={!canSave}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-              <View style={{ height: 12 }} />
-              <TextInput
-                label="Target end date (YYYY-MM-DD)"
-                value={weightTargetEndDate}
-                onChangeText={setWeightTargetEndDate}
-                disabled={!canSave}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
+              <View style={styles.field}>
+                <TextField
+                  label="Start weight (lb)"
+                  keyboardType="decimal-pad"
+                  value={weightStart}
+                  onChangeText={setWeightStart}
+                  editable={canSave}
+                />
+              </View>
+              <View style={styles.field}>
+                <TextField
+                  label="Goal weight (lb)"
+                  keyboardType="decimal-pad"
+                  value={weightGoal}
+                  onChangeText={setWeightGoal}
+                  editable={canSave}
+                />
+              </View>
+              <View style={styles.field}>
+                <TextField
+                  label="Start date (YYYY-MM-DD)"
+                  value={weightStartDate}
+                  onChangeText={setWeightStartDate}
+                  editable={canSave}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+              </View>
+              <View style={styles.field}>
+                <TextField
+                  label="Target end date (YYYY-MM-DD)"
+                  value={weightTargetEndDate}
+                  onChangeText={setWeightTargetEndDate}
+                  editable={canSave}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+              </View>
 
               {error ? (
-                <>
-                  <View style={{ height: 12 }} />
-                  <Text style={{ color: 'crimson' }}>{error}</Text>
-                </>
+                <AppText variant="rowSubtitle" color="danger" style={styles.field}>{error}</AppText>
               ) : null}
               {saved ? (
-                <>
-                  <View style={{ height: 12 }} />
-                  <Text style={{ color: 'green' }}>{saved}</Text>
-                </>
+                <AppText variant="rowSubtitle" color="success" style={styles.field}>{saved}</AppText>
               ) : null}
 
-              <View style={{ height: 16 }} />
-              <Button mode="contained" onPress={save} disabled={!canSave} loading={saving}>
-                Save goals
-              </Button>
-            </Card.Content>
-          </Card>
-        </ScrollView>
-      </TouchableWithoutFeedback>
-    </KeyboardAvoidingView>
+              <View style={styles.field}>
+                <PrimaryButton onPress={save} disabled={!canSave} loading={saving}>
+                  Save goals
+                </PrimaryButton>
+              </View>
+            </Card>
+          </ScrollView>
+        </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  flex: { flex: 1 },
+  content: { flexGrow: 1, paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.lg },
+  sectionLabel: { marginTop: spacing.lg, marginBottom: spacing.sm, marginLeft: spacing.xs },
+  cardSubtitle: { marginBottom: spacing.base },
+  toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: spacing.sm },
+  field: { marginTop: spacing.md },
+});

@@ -1,11 +1,15 @@
 import React, { useContext, useEffect, useState } from 'react';
-import { KeyboardAvoidingView, Platform, View } from 'react-native';
-import { Button, Card, Text, TextInput } from 'react-native-paper';
+import { KeyboardAvoidingView, Platform, ScrollView, View, StyleSheet } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import { HomeStackParamList } from '../navigation/types';
 import { AuthContext } from '../store/AuthContext';
 import { subscribeMyGoals, upsertUserGoals } from '../services/goals';
+import Card from '../components/ui/Card';
+import AppText from '../components/ui/AppText';
+import TextField from '../components/ui/TextField';
+import PrimaryButton from '../components/ui/PrimaryButton';
+import { colors, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'SetGoals'>;
 
@@ -72,57 +76,73 @@ export default function SetGoalsScreen({ route, navigation }: Props) {
   };
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <View style={{ flex: 1, padding: 16, justifyContent: 'center' }}>
-        <Card>
-          <Card.Title title="Set your goals" subtitle="Weekly targets (0–7)" />
-          <Card.Content>
-            <TextInput
+    <View style={styles.container}>
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <Card style={styles.card}>
+            <AppText variant="pageTitle" color="primary" style={styles.title}>
+              Set your goals
+            </AppText>
+            <AppText variant="rowSubtitle" color="muted" style={styles.subtitle}>
+              Weekly targets (0–7)
+            </AppText>
+
+            <TextField
               label="Workouts per week"
               keyboardType="number-pad"
               value={workoutsPerWeek}
               onChangeText={setWorkoutsPerWeek}
-              disabled={isSubmitting}
+              editable={!isSubmitting}
             />
-            <View style={{ height: 12 }} />
-            <TextInput
+            <TextField
               label="Days/week to log calories"
               keyboardType="number-pad"
               value={logCaloriesDaysPerWeek}
               onChangeText={setLogCaloriesDaysPerWeek}
-              disabled={isSubmitting}
+              editable={!isSubmitting}
             />
-            <View style={{ height: 12 }} />
-            <TextInput
+            <TextField
               label="Days/week to log weight"
               keyboardType="number-pad"
               value={logWeightDaysPerWeek}
               onChangeText={setLogWeightDaysPerWeek}
-              disabled={isSubmitting}
+              editable={!isSubmitting}
             />
-            <View style={{ height: 12 }} />
-            <TextInput
+            <TextField
               label="Daily calorie goal"
               keyboardType="number-pad"
               value={dailyCalorieGoal}
               onChangeText={setDailyCalorieGoal}
-              disabled={isSubmitting}
+              editable={!isSubmitting}
             />
+
             {error ? (
-              <>
-                <View style={{ height: 12 }} />
-                <Text style={{ color: 'crimson' }}>{error}</Text>
-              </>
+              <AppText variant="rowSubtitle" color="danger" style={styles.error}>
+                {error}
+              </AppText>
             ) : null}
-            <View style={{ height: 16 }} />
-            <Button mode="contained" onPress={onSave} loading={isSubmitting} disabled={isSubmitting}>
+
+            <PrimaryButton onPress={onSave} loading={isSubmitting} disabled={isSubmitting} style={styles.button}>
               Save goals
-            </Button>
-          </Card.Content>
-        </Card>
-      </View>
-    </KeyboardAvoidingView>
+            </PrimaryButton>
+          </Card>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
-
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  flex: { flex: 1 },
+  content: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: spacing.lg, paddingVertical: spacing.xl },
+  card: { gap: spacing.md },
+  title: { marginBottom: spacing.xs },
+  subtitle: { marginBottom: spacing.sm },
+  error: { marginTop: spacing.xs },
+  button: { marginTop: spacing.sm },
+});

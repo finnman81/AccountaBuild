@@ -1,6 +1,5 @@
 import React, { useContext, useEffect, useMemo, useState } from 'react';
-import { LayoutChangeEvent, ScrollView, View, useWindowDimensions } from 'react-native';
-import { Card, Text, useTheme } from 'react-native-paper';
+import { LayoutChangeEvent, ScrollView, View, StyleSheet, useWindowDimensions } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { collection, onSnapshot } from 'firebase/firestore';
 import Svg, { Rect, Text as SvgText } from 'react-native-svg';
@@ -11,6 +10,9 @@ import { GroupLog, subscribeGroupLogs } from '../services/logs';
 import { AuthContext } from '../store/AuthContext';
 import { subscribeMyCanSeeUids } from '../services/visibility';
 import { subscribePublicUsers } from '../services/publicUsers';
+import Card from '../components/ui/Card';
+import AppText from '../components/ui/AppText';
+import { colors, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'GroupCharts'>;
 
@@ -53,7 +55,6 @@ function colorForPercent(percent: number, redHex: string, greenHex: string) {
 export default function GroupChartsScreen({ route }: Props) {
   const { groupId } = route.params;
   const { user } = useContext(AuthContext);
-  const theme = useTheme();
   const { width: windowWidth } = useWindowDimensions();
   const [logs, setLogs] = useState<GroupLog[]>([]);
   const [memberUids, setMemberUids] = useState<string[]>([]);
@@ -159,8 +160,8 @@ export default function GroupChartsScreen({ route }: Props) {
     [compliance],
   );
 
-  const red = theme.colors.secondary;
-  const green = '#22C55E';
+  const red = colors.danger;
+  const green = colors.success;
   const [chartWidth, setChartWidth] = useState(0);
   const height = 140;
 
@@ -194,29 +195,29 @@ export default function GroupChartsScreen({ route }: Props) {
   const effectiveWidth = chartWidth || Math.max(260, windowWidth - 32);
 
   return (
-    <ScrollView contentContainerStyle={{ padding: 16 }}>
-      <Card>
-        <Card.Title title="Charts" subtitle="Group compliance (this week)" />
-        <Card.Content>
-          <Text variant="bodySmall">
+    <View style={styles.container}>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <Card style={styles.card}>
+          <AppText variant="pageTitle" color="primary" style={styles.title}>
+            Charts
+          </AppText>
+          <AppText variant="rowSubtitle" color="muted" style={styles.subtitle}>
+            Group compliance (this week)
+          </AppText>
+          <AppText variant="body" color="secondary" style={styles.body}>
             Group progress toward weekly goals since Sunday at midnight (local time).
-          </Text>
-        </Card.Content>
-      </Card>
+          </AppText>
+        </Card>
 
-      <View style={{ height: 16 }} />
-
-      <Card>
-        <Card.Title
-          title="This week"
-          subtitle={
-            compliance.totalMembers
+        <Card style={styles.card}>
+          <AppText variant="rowTitle" color="primary">This week</AppText>
+          <AppText variant="rowSubtitle" color="muted" style={styles.subtitle}>
+            {compliance.totalMembers
               ? `${compliance.membersWithGoals}/${compliance.totalMembers} members set goals`
-              : 'No members yet'
-          }
-        />
-        <Card.Content>
-          <View style={{ width: '100%', height }} onLayout={handleLayout}>
+              : 'No members yet'}
+          </AppText>
+
+          <View style={[styles.chartWrap, { height }]} onLayout={handleLayout}>
             {chartWidth > 0 && (
               <Svg width={chartWidth} height={height}>
                 {bars.map((b, idx) => {
@@ -229,13 +230,13 @@ export default function GroupChartsScreen({ route }: Props) {
                   return (
                     <React.Fragment key={b.label}>
                       <Rect x={x} y={y} width={barW} height={h} rx={10} ry={10} fill={fill} />
-                      <SvgText x={x + barW / 2} y={baseline + 18} fontSize="12" fill={theme.colors.onSurface} textAnchor="middle">
+                      <SvgText x={x + barW / 2} y={baseline + 18} fontSize="12" fill={colors.textPrimary} textAnchor="middle">
                         {b.label}
                       </SvgText>
-                      <SvgText x={x + barW / 2} y={baseline + 34} fontSize="12" fill={theme.colors.onSurfaceVariant} textAnchor="middle">
+                      <SvgText x={x + barW / 2} y={baseline + 34} fontSize="12" fill={colors.textSecondary} textAnchor="middle">
                         {b.ratio}
                       </SvgText>
-                      <SvgText x={x + barW / 2} y={y - 6} fontSize="12" fill={theme.colors.onSurface} textAnchor="middle">
+                      <SvgText x={x + barW / 2} y={y - 6} fontSize="12" fill={colors.textPrimary} textAnchor="middle">
                         {b.pct}%
                       </SvgText>
                     </React.Fragment>
@@ -244,13 +245,22 @@ export default function GroupChartsScreen({ route }: Props) {
               </Svg>
             )}
           </View>
-          <Text variant="bodySmall">
+          <AppText variant="rowSubtitle" color="secondary" style={styles.legend}>
             Weight: {compliance.weightRatio} ({compliance.weightPct}%) • Calories: {compliance.caloriesRatio} ({compliance.caloriesPct}%) • Workouts: {compliance.workoutRatio} ({compliance.workoutPct}%)
-          </Text>
-        </Card.Content>
-      </Card>
-    </ScrollView>
+          </AppText>
+        </Card>
+      </ScrollView>
+    </View>
   );
 }
 
-
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  content: { paddingHorizontal: spacing.lg, paddingTop: spacing.base, paddingBottom: spacing.xxl, gap: spacing.base },
+  card: { gap: spacing.xs },
+  title: { marginBottom: spacing.xs },
+  subtitle: { marginBottom: spacing.xs },
+  body: { lineHeight: 20 },
+  chartWrap: { width: '100%', marginTop: spacing.sm },
+  legend: { marginTop: spacing.sm, lineHeight: 18 },
+});
