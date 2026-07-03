@@ -49,3 +49,6 @@ accountabuild-firebase-adminsdk-fbsvc-96d847c201.json
 *firebase-adminsdk*.json
 *-adminsdk-*.json
 serviceAccount*.json
+# Google Play submit service-account key
+play-service-account.json
+*play*service*account*.json
