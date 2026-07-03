@@ -60,12 +60,14 @@ async function getHealthKitService() {
 }
 
 async function getGoogleFitService() {
-  // Only block in Expo Go - custom dev clients can use native modules
+  // Only block in Expo Go - custom dev clients can use native modules.
+  // Android health now uses Health Connect (react-native-health-connect), which
+  // exposes the same googleFit* function names this module dispatches to.
   if (isExpoGo) return null;
   try {
-    return await import('./googleFitService');
+    return await import('./healthConnectService');
   } catch (error) {
-    console.error('Google Fit service unavailable:', error);
+    console.error('Health Connect service unavailable:', error);
     return null;
   }
 }
@@ -150,6 +152,14 @@ export async function readWorkoutsSinceAnchor(anchor?: string): Promise<Anchored
       return { items: [], deletedUuids: [], newAnchor: anchor };
     }
     return await (service as any).readWorkoutsSinceAnchor(anchor);
+  }
+  if (Platform.OS === 'android') {
+    // Health Connect has no anchored workout read wired yet; wrap today's
+    // workouts as a delta (deterministic ids keep it idempotent, no deletions).
+    const service = await getGoogleFitService();
+    if (!service) return { items: [], deletedUuids: [], newAnchor: anchor };
+    const items = await service.readTodayWorkouts();
+    return { items, deletedUuids: [], newAnchor: anchor };
   }
   return { items: [], deletedUuids: [], newAnchor: anchor };
 }

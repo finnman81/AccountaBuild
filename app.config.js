@@ -38,6 +38,8 @@ module.exports = ({ config }) => {
         },
       ],
       healthKitPlugin,
+      // Android health sync via Health Connect (replaces deprecated Google Fit).
+      'react-native-health-connect',
     ],
     android: {
       ...config.android,

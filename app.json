@@ -36,7 +36,10 @@
         "android.permission.ACTIVITY_RECOGNITION",
         "android.permission.BODY_SENSORS",
         "android.permission.ACCESS_FINE_LOCATION",
-        "android.permission.POST_NOTIFICATIONS"
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.health.READ_EXERCISE",
+        "android.permission.health.READ_NUTRITION",
+        "android.permission.health.READ_WEIGHT"
       ],
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
