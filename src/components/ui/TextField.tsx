@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { forwardRef, useState } from 'react';
 import { View, TextInput, StyleSheet, TouchableOpacity, TextInputProps, ViewStyle } from 'react-native';
 import { Icon } from 'react-native-paper';
 
@@ -19,7 +19,10 @@ type Props = TextInputProps & {
  * Midnight Blue text field: 52px surface2 box, blue focus border, optional label
  * and password reveal. Reused across auth, onboarding, and edit-profile forms.
  */
-export default function TextField({ label, secure, error, containerStyle, style, onFocus, onBlur, ...props }: Props) {
+const TextField = forwardRef<TextInput, Props>(function TextField(
+  { label, secure, error, containerStyle, style, onFocus, onBlur, ...props },
+  ref,
+) {
   const [focused, setFocused] = useState(false);
   const [hidden, setHidden] = useState(!!secure);
 
@@ -34,6 +37,7 @@ export default function TextField({ label, secure, error, containerStyle, style,
       ) : null}
       <View style={[styles.box, { borderColor }]}>
         <TextInput
+          ref={ref}
           style={[styles.input, style]}
           placeholderTextColor={colors.textMuted}
           secureTextEntry={hidden}
@@ -60,7 +64,9 @@ export default function TextField({ label, secure, error, containerStyle, style,
       ) : null}
     </View>
   );
-}
+});
+
+export default TextField;
 
 const styles = StyleSheet.create({
   label: { marginBottom: spacing.sm },
