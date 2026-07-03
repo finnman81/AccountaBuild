@@ -14,13 +14,18 @@
  * and climbs from there. To start higher, change TARGET below (e.g. Silver I =
  * 2400). prevMmr is seeded equal so nobody shows a rank-up/movement on day one.
  *
- * Usage:
- *   node scripts/reset-mmr-to-silver.js <projectId> <serviceAccountKeyPath> [--dry-run]
+ * Auth (either one):
+ *   A) Service-account key:  pass the JSON path as the 2nd arg.
+ *   B) Application Default Credentials: run `gcloud auth application-default login`
+ *      once, then pass `adc` (or omit the 2nd arg) instead of a key path.
  *
- * Example (preview, writes nothing):
+ * Usage:
+ *   node scripts/reset-mmr-to-silver.js <projectId> [serviceAccountKeyPath|adc] [--dry-run]
+ *
+ * Examples:
  *   node scripts/reset-mmr-to-silver.js accountabuild ./accountabuild-firebase-adminsdk-XXXX.json --dry-run
- * Example (apply):
- *   node scripts/reset-mmr-to-silver.js accountabuild ./accountabuild-firebase-adminsdk-XXXX.json
+ *   node scripts/reset-mmr-to-silver.js accountabuild adc --dry-run
+ *   node scripts/reset-mmr-to-silver.js accountabuild adc          # apply
  */
 
 const TARGET = { mmr: 1800, rankTier: 'Silver', rankDivision: 4, mp: 0 };
@@ -36,11 +41,12 @@ try {
 const args = process.argv.slice(2);
 const dryRun = args.includes('--dry-run');
 const positional = args.filter((a) => !a.startsWith('--'));
-if (positional.length < 2) {
-  console.error('Usage: node scripts/reset-mmr-to-silver.js <projectId> <serviceAccountKeyPath> [--dry-run]');
+if (positional.length < 1) {
+  console.error('Usage: node scripts/reset-mmr-to-silver.js <projectId> [serviceAccountKeyPath|adc] [--dry-run]');
   process.exit(1);
 }
 const [projectId, serviceAccountPath] = positional;
+const useAdc = !serviceAccountPath || serviceAccountPath.toLowerCase() === 'adc';
 
 /** Current ISO week id (YYYY-Www), Monday-based, UTC — matches app week ids closely enough for a reset baseline. */
 function currentIsoWeekId() {
@@ -54,11 +60,17 @@ function currentIsoWeekId() {
 
 if (!admin.apps.length) {
   try {
-    const serviceAccount = require(require('path').resolve(serviceAccountPath));
-    admin.initializeApp({ credential: admin.credential.cert(serviceAccount), projectId });
-    console.log('✅ Firebase Admin initialized');
+    if (useAdc) {
+      admin.initializeApp({ credential: admin.credential.applicationDefault(), projectId });
+      console.log('✅ Firebase Admin initialized (Application Default Credentials)');
+    } else {
+      const serviceAccount = require(require('path').resolve(serviceAccountPath));
+      admin.initializeApp({ credential: admin.credential.cert(serviceAccount), projectId });
+      console.log('✅ Firebase Admin initialized (service-account key)');
+    }
   } catch (error) {
     console.error('❌ Failed to initialize Firebase Admin:', error.message);
+    if (useAdc) console.error('   Tip: run `gcloud auth application-default login` first, or pass a service-account key path.');
     process.exit(1);
   }
 }
