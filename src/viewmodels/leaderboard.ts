@@ -6,6 +6,8 @@ import { friendlyNameFromDisplayName } from '../utils/formatters';
 
 export type Division = 1 | 2 | 3 | 4;
 
+export type Movement = 'up' | 'down' | 'same';
+
 export type LeaderboardRow = {
   rank: number;
   uid: string;
@@ -17,6 +19,8 @@ export type LeaderboardRow = {
   streakDays: number;
   atRisk: boolean;
   isMe: boolean;
+  /** Week-over-week MMR movement; null when no prior-week snapshot exists yet. */
+  movement: Movement | null;
 };
 
 export type LeaderboardData = {
@@ -56,16 +60,20 @@ export function buildLeaderboard(params: {
     .filter((uid) => publicUsers[uid])
     .map((uid) => {
       const p = publicUsers[uid];
+      const mmr = typeof p?.mmrPublic === 'number' ? p.mmrPublic : null;
+      const prev = typeof p?.prevMmrPublic === 'number' ? p.prevMmrPublic : null;
+      const movement: Movement | null = mmr == null || prev == null ? null : mmr > prev ? 'up' : mmr < prev ? 'down' : 'same';
       return {
         uid,
         name: friendlyNameFromDisplayName(p?.displayName ?? null, uid),
         photoURL: p?.photoURL ?? null,
         tier: asTier(p?.rankTierPublic),
         division: (typeof p?.rankDivisionPublic === 'number' ? p.rankDivisionPublic : null) as Division | null,
-        mmr: typeof p?.mmrPublic === 'number' ? p.mmrPublic : null,
+        mmr,
         streakDays: streaks[uid] ?? 0,
         atRisk: !loggedToday.has(uid) && pastCutoff,
         isMe: uid === myUid,
+        movement,
       };
     });
 

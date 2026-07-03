@@ -129,6 +129,9 @@ export default function LeaderboardScreen({ route }: Props) {
                     {r.atRisk ? (
                       <View style={styles.riskTag}><AppText variant="eyebrow" style={styles.riskText}>AT RISK</AppText></View>
                     ) : null}
+                    {r.movement && r.movement !== 'same' ? (
+                      <Icon source={r.movement === 'up' ? 'arrow-up' : 'arrow-down'} size={16} color={r.movement === 'up' ? colors.success : colors.danger} />
+                    ) : null}
                     <AppText variant="rowTitle" color="primary" style={styles.rowMmr}>{mmrText(r.mmr)}</AppText>
                   </TouchableOpacity>
                 ))}

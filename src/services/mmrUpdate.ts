@@ -625,6 +625,11 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
       rankTier: band.tier,
       rankDivision: band.division ?? null,
       mp,
+      // Snapshot the rank entering this week (= last week's close) so the
+      // leaderboard can show week-over-week movement arrows.
+      prevMmr: mmrBefore,
+      prevRankTier: oldBand.tier,
+      prevRankDivision: oldBand.division ?? null,
       streakWeeks: streakAfter,
       tierShieldWeeksRemaining: shieldAfter,
       consecutiveMissedWeeks,
@@ -648,6 +653,8 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
         rankTierPublic: band.tier,
         rankDivisionPublic: band.division ?? null,
         mpPublic: mp,
+        // Week-over-week baseline for leaderboard movement arrows.
+        prevMmrPublic: mmrBefore,
         seasonIdPublic: seasonId,
         updatedAtPublic: serverTimestamp(),
       },

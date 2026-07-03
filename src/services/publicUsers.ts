@@ -29,6 +29,7 @@ export type PublicUser = {
   rankTierPublic?: string | null;
   rankDivisionPublic?: number | null;
   mpPublic?: number | null;
+  prevMmrPublic?: number | null;
 };
 
 function chunk<T>(arr: T[], size: number) {
@@ -96,6 +97,7 @@ export function subscribePublicUsers(uids: string[], onChange: (map: Record<stri
           rankTierPublic: data?.rankTierPublic ?? null,
           rankDivisionPublic: typeof data?.rankDivisionPublic === 'number' ? data.rankDivisionPublic : null,
           mpPublic: typeof data?.mpPublic === 'number' ? data.mpPublic : typeof data?.lpPublic === 'number' ? data.lpPublic : null, // Backward compat
+          prevMmrPublic: typeof data?.prevMmrPublic === 'number' ? data.prevMmrPublic : null,
         };
       }
       emit();

@@ -45,3 +45,7 @@ yarn-error.*
 /android
 accountabuild-firebase-adminsdk-fbsvc-96d847c201.json
 /accountabuild-firebase-adminsdk-fbsvc-96d847c201.json
+# Any Firebase Admin SDK service-account key (never commit these)
+*firebase-adminsdk*.json
+*-adminsdk-*.json
+serviceAccount*.json
