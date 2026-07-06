@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Image, ScrollView, useWindowDimensions, View } from 'react-native';
-import { Button, Card, IconButton, List, Modal, Portal, SegmentedButtons, Text, useTheme } from 'react-native-paper';
+import { Image, ScrollView, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import { Icon, Modal, Portal } from 'react-native-paper';
 import { collection, doc, onSnapshot } from 'firebase/firestore';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -9,15 +9,16 @@ import { useNavigation } from '@react-navigation/native';
 import Screen from '../components/layout/Screen';
 import EmptyState from '../components/state/EmptyState';
 import SimpleLineChart from '../components/charts/SimpleLineChart';
+import Card from '../components/ui/Card';
+import AppText from '../components/ui/AppText';
+import PrimaryButton from '../components/ui/PrimaryButton';
+import SegmentedControl from '../components/ui/SegmentedControl';
 import { AuthContext } from '../store/AuthContext';
 import { useActiveGroup } from '../store/ActiveGroupContext';
 import { db } from '../firebase/firebase';
 import { subscribeGroupLogs, subscribeGroupPhotoLogs, type GroupLog } from '../services/logs';
-import { formatMinutesHM, formatWeightLb, formatDeltaLb } from '../utils/formatters';
-import { colors } from '../theme/colors';
-import { spacing } from '../theme/spacing';
-import { radius } from '../theme/radius';
-import { shadow } from '../theme/shadows';
+import { formatMinutesHM, formatDeltaLb } from '../utils/formatters';
+import { colors, spacing, radius } from '../theme';
 import type { ProgressStackParamList } from '../navigation/types';
 import type { RootStackParamList } from '../navigation/types';
 
@@ -57,7 +58,6 @@ function weekdayShort(idx: number) {
 }
 
 export default function ProgressScreen({ navigation }: Props) {
-  const theme = useTheme();
   const { width } = useWindowDimensions();
   const rootNav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { user } = React.useContext(AuthContext);
@@ -348,7 +348,7 @@ export default function ProgressScreen({ navigation }: Props) {
   if (!user) {
     return (
       <Screen>
-        <Text>You must be signed in.</Text>
+        <AppText variant="body" color="primary">You must be signed in.</AppText>
       </Screen>
     );
   }
@@ -356,7 +356,7 @@ export default function ProgressScreen({ navigation }: Props) {
   if (!isReady) {
     return (
       <Screen>
-        <Text>Loading…</Text>
+        <AppText variant="body" color="secondary">Loading…</AppText>
       </Screen>
     );
   }
@@ -377,151 +377,152 @@ export default function ProgressScreen({ navigation }: Props) {
   return (
     <Screen scroll safeTop={false}>
       <Card>
-        <Card.Title title="Progress" subtitle={activeGroupName ?? undefined} />
-        <Card.Content>
-          <Text variant="bodySmall" style={{ color: colors.textSecondary, marginBottom: spacing.md }}>
-            Group
-          </Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
-            {groups.map((g) => (
-              <Button
+        <AppText variant="pageTitle" color="primary">Progress</AppText>
+        {activeGroupName ? (
+          <AppText variant="rowSubtitle" color="secondary" style={{ marginTop: 2 }}>{activeGroupName}</AppText>
+        ) : null}
+        <AppText variant="eyebrow" color="muted" style={{ marginTop: spacing.md, marginBottom: spacing.sm }}>
+          Group
+        </AppText>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
+          {groups.map((g) => {
+            const active = g.groupId === activeGroupId;
+            return (
+              <TouchableOpacity
                 key={g.groupId}
-                mode={g.groupId === activeGroupId ? 'contained' : 'outlined'}
-                compact
                 onPress={() => void setActiveGroupId(g.groupId)}
+                activeOpacity={0.85}
                 style={{
                   borderRadius: radius.pill,
-                  ...(g.groupId === activeGroupId && {
-                    ...shadow,
-                    shadowOpacity: 0.1,
-                    shadowRadius: 4,
-                    elevation: 1,
-                  }),
+                  paddingHorizontal: spacing.base,
+                  paddingVertical: spacing.sm,
+                  backgroundColor: active ? colors.primary : 'transparent',
+                  borderWidth: active ? 0 : 1,
+                  borderColor: colors.divider,
                 }}
               >
-                {g.name}
-              </Button>
-            ))}
-          </ScrollView>
-        </Card.Content>
+                <AppText variant="rowSubtitle" style={{ color: active ? '#FFFFFF' : colors.textSecondary, fontWeight: '600' }}>
+                  {g.name}
+                </AppText>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
       </Card>
 
       <View style={{ height: spacing.base }} />
 
       {/* Weekly Metrics Summary */}
       <Card>
-        <Card.Title title="This Week" />
-        <Card.Content>
-          <View
-            style={{
-              flexDirection: 'row',
-              gap: spacing.md,
-              flexWrap: 'wrap',
-            }}
-          >
-            {/* Total Group Weight Change */}
-            <View style={{ flex: 1, minWidth: 120 }}>
-              <Text variant="labelSmall" style={{ color: colors.textSecondary, marginBottom: spacing.xs }}>
-                Total Weight Change
-              </Text>
-              <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs }}>
-                <Text variant="titleLarge" style={{ color: colors.textPrimary }}>
-                  {weeklyMetrics.totalWeightChange != null
-                    ? formatDeltaLb(weeklyMetrics.totalWeightChange)
-                    : '—'}
-                </Text>
-                {weeklyMetrics.totalWeightChangeDelta != null && (
-                  <Text
-                    variant="labelSmall"
-                    style={{
-                      color:
-                        weeklyMetrics.totalWeightChangeDelta > 0
-                          ? colors.success
-                          : weeklyMetrics.totalWeightChangeDelta < 0
-                            ? colors.danger
-                            : colors.textMuted,
-                    }}
-                  >
-                    {weeklyMetrics.totalWeightChangeDelta > 0 ? '↑' : weeklyMetrics.totalWeightChangeDelta < 0 ? '↓' : '→'}
-                  </Text>
-                )}
-              </View>
-            </View>
-
-            {/* Total Training Minutes */}
-            <View style={{ flex: 1, minWidth: 120 }}>
-              <Text variant="labelSmall" style={{ color: colors.textSecondary, marginBottom: spacing.xs }}>
-                Total Training Minutes
-              </Text>
-              <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs }}>
-                <Text variant="titleLarge" style={{ color: colors.textPrimary }}>
-                  {formatMinutesHM(weeklyMetrics.totalTrainingMinutes)}
-                </Text>
-                {weeklyMetrics.totalTrainingMinutesDelta != null && (
-                  <Text
-                    variant="labelSmall"
-                    style={{
-                      color:
-                        weeklyMetrics.totalTrainingMinutesDelta > 0
-                          ? colors.success
-                          : weeklyMetrics.totalTrainingMinutesDelta < 0
-                            ? colors.danger
-                            : colors.textMuted,
-                    }}
-                  >
-                    {weeklyMetrics.totalTrainingMinutesDelta > 0 ? '↑' : weeklyMetrics.totalTrainingMinutesDelta < 0 ? '↓' : '→'}
-                  </Text>
-                )}
-              </View>
-            </View>
-
-            {/* Logging Consistency */}
-            <View style={{ flex: 1, minWidth: 120 }}>
-              <Text variant="labelSmall" style={{ color: colors.textSecondary, marginBottom: spacing.xs }}>
-                Logging Consistency
-              </Text>
-              <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs }}>
-                <Text variant="titleLarge" style={{ color: colors.textPrimary }}>
-                  {weeklyMetrics.loggingConsistency}%
-                </Text>
-                {weeklyMetrics.loggingConsistencyDelta != null && (
-                  <Text
-                    variant="labelSmall"
-                    style={{
-                      color:
-                        weeklyMetrics.loggingConsistencyDelta > 0
-                          ? colors.success
-                          : weeklyMetrics.loggingConsistencyDelta < 0
-                            ? colors.danger
-                            : colors.textMuted,
-                    }}
-                  >
-                    {weeklyMetrics.loggingConsistencyDelta > 0 ? '↑' : weeklyMetrics.loggingConsistencyDelta < 0 ? '↓' : '→'}
-                  </Text>
-                )}
-              </View>
+        <AppText variant="rowTitle" color="primary" style={{ marginBottom: spacing.md }}>This Week</AppText>
+        <View
+          style={{
+            flexDirection: 'row',
+            gap: spacing.md,
+            flexWrap: 'wrap',
+          }}
+        >
+          {/* Total Group Weight Change */}
+          <View style={{ flex: 1, minWidth: 120 }}>
+            <AppText variant="label" color="secondary" style={{ marginBottom: spacing.xs }}>
+              Total Weight Change
+            </AppText>
+            <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs }}>
+              <AppText variant="numberMd" color="primary">
+                {weeklyMetrics.totalWeightChange != null
+                  ? formatDeltaLb(weeklyMetrics.totalWeightChange)
+                  : '—'}
+              </AppText>
+              {weeklyMetrics.totalWeightChangeDelta != null && (
+                <AppText
+                  variant="label"
+                  style={{
+                    color:
+                      weeklyMetrics.totalWeightChangeDelta > 0
+                        ? colors.success
+                        : weeklyMetrics.totalWeightChangeDelta < 0
+                          ? colors.danger
+                          : colors.textMuted,
+                  }}
+                >
+                  {weeklyMetrics.totalWeightChangeDelta > 0 ? '↑' : weeklyMetrics.totalWeightChangeDelta < 0 ? '↓' : '→'}
+                </AppText>
+              )}
             </View>
           </View>
-        </Card.Content>
+
+          {/* Total Training Minutes */}
+          <View style={{ flex: 1, minWidth: 120 }}>
+            <AppText variant="label" color="secondary" style={{ marginBottom: spacing.xs }}>
+              Total Training Minutes
+            </AppText>
+            <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs }}>
+              <AppText variant="numberMd" color="primary">
+                {formatMinutesHM(weeklyMetrics.totalTrainingMinutes)}
+              </AppText>
+              {weeklyMetrics.totalTrainingMinutesDelta != null && (
+                <AppText
+                  variant="label"
+                  style={{
+                    color:
+                      weeklyMetrics.totalTrainingMinutesDelta > 0
+                        ? colors.success
+                        : weeklyMetrics.totalTrainingMinutesDelta < 0
+                          ? colors.danger
+                          : colors.textMuted,
+                  }}
+                >
+                  {weeklyMetrics.totalTrainingMinutesDelta > 0 ? '↑' : weeklyMetrics.totalTrainingMinutesDelta < 0 ? '↓' : '→'}
+                </AppText>
+              )}
+            </View>
+          </View>
+
+          {/* Logging Consistency */}
+          <View style={{ flex: 1, minWidth: 120 }}>
+            <AppText variant="label" color="secondary" style={{ marginBottom: spacing.xs }}>
+              Logging Consistency
+            </AppText>
+            <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs }}>
+              <AppText variant="numberMd" color="primary">
+                {weeklyMetrics.loggingConsistency}%
+              </AppText>
+              {weeklyMetrics.loggingConsistencyDelta != null && (
+                <AppText
+                  variant="label"
+                  style={{
+                    color:
+                      weeklyMetrics.loggingConsistencyDelta > 0
+                        ? colors.success
+                        : weeklyMetrics.loggingConsistencyDelta < 0
+                          ? colors.danger
+                          : colors.textMuted,
+                  }}
+                >
+                  {weeklyMetrics.loggingConsistencyDelta > 0 ? '↑' : weeklyMetrics.loggingConsistencyDelta < 0 ? '↓' : '→'}
+                </AppText>
+              )}
+            </View>
+          </View>
+        </View>
       </Card>
 
       <View style={{ height: spacing.base }} />
 
       {/* Weekly Insight Summary */}
       <Card>
-        <Card.Title title="Weekly Insight" />
-        <Card.Content>
-          <View
-            style={{
-              borderRadius: radius.card,
-              padding: spacing.md,
-              backgroundColor: colors.surface2,
-              borderWidth: 1,
-              borderColor: 'rgba(255, 255, 255, 0.04)',
-            }}
-          >
-            <Text variant="bodyMedium" style={{ color: colors.textPrimary, lineHeight: 20 }}>
-              {(() => {
+        <AppText variant="rowTitle" color="primary" style={{ marginBottom: spacing.md }}>Weekly Insight</AppText>
+        <View
+          style={{
+            borderRadius: radius.card,
+            padding: spacing.md,
+            backgroundColor: colors.surface2,
+            borderWidth: 1,
+            borderColor: 'rgba(255, 255, 255, 0.04)',
+          }}
+        >
+          <AppText variant="body" color="primary" style={{ lineHeight: 20 }}>
+            {(() => {
                 const insights: string[] = [];
                 if (weeklyMetrics.totalWeightChange != null && weeklyMetrics.totalWeightChange < 0) {
                   insights.push(`Group lost ${formatDeltaLb(Math.abs(weeklyMetrics.totalWeightChange))} total`);
@@ -536,90 +537,27 @@ export default function ProgressScreen({ navigation }: Props) {
                 }
                 return insights.length > 0 ? insights.join(' • ') : 'Start logging to see insights.';
               })()}
-            </Text>
-          </View>
-        </Card.Content>
+          </AppText>
+        </View>
       </Card>
 
       <View style={{ height: spacing.base }} />
 
       <Card>
-        <Card.Title title="Trend" subtitle="Group averages" />
-        <Card.Content>
-          <SegmentedButtons
-            value={metric}
-            onValueChange={(v) => setMetric(v as any)}
-            buttons={[
-              {
-                value: 'workout',
-                label: 'Workout',
-                style: {
-                  backgroundColor: metric === 'workout' ? colors.surface2 : 'transparent',
-                  borderWidth: metric === 'workout' ? 0 : 1,
-                  borderColor: metric === 'workout' ? undefined : colors.divider,
-                  minHeight: 40,
-                  paddingHorizontal: spacing.md,
-                  borderRadius: radius.pill,
-                  ...(metric === 'workout' && {
-                    ...shadow,
-                    shadowOpacity: 0.1,
-                    shadowRadius: 4,
-                    elevation: 1,
-                  }),
-                },
-                labelStyle: {
-                  color: metric === 'workout' ? colors.primary : colors.textSecondary,
-                  fontWeight: metric === 'workout' ? '600' : '400',
-                },
-              },
-              {
-                value: 'calories',
-                label: 'Calories',
-                style: {
-                  backgroundColor: metric === 'calories' ? colors.surface2 : 'transparent',
-                  borderWidth: metric === 'calories' ? 0 : 1,
-                  borderColor: metric === 'calories' ? undefined : colors.divider,
-                  minHeight: 40,
-                  paddingHorizontal: spacing.md,
-                  borderRadius: radius.pill,
-                  ...(metric === 'calories' && {
-                    ...shadow,
-                    shadowOpacity: 0.1,
-                    shadowRadius: 4,
-                    elevation: 1,
-                  }),
-                },
-                labelStyle: {
-                  color: metric === 'calories' ? colors.primary : colors.textSecondary,
-                  fontWeight: metric === 'calories' ? '600' : '400',
-                },
-              },
-              {
-                value: 'weight',
-                label: 'Weight',
-                style: {
-                  backgroundColor: metric === 'weight' ? colors.surface2 : 'transparent',
-                  borderWidth: metric === 'weight' ? 0 : 1,
-                  borderColor: metric === 'weight' ? undefined : colors.divider,
-                  minHeight: 40,
-                  paddingHorizontal: spacing.md,
-                  borderRadius: radius.pill,
-                  ...(metric === 'weight' && {
-                    ...shadow,
-                    shadowOpacity: 0.1,
-                    shadowRadius: 4,
-                    elevation: 1,
-                  }),
-                },
-                labelStyle: {
-                  color: metric === 'weight' ? colors.primary : colors.textSecondary,
-                  fontWeight: metric === 'weight' ? '600' : '400',
-                },
-              },
-            ]}
-          />
+        <AppText variant="rowTitle" color="primary">Trend</AppText>
+        <AppText variant="rowSubtitle" color="secondary" style={{ marginTop: 2, marginBottom: spacing.md }}>Group averages</AppText>
+        <SegmentedControl
+          value={metric}
+          onChange={(v) => setMetric(v)}
+          variant="surface"
+          options={[
+            { value: 'workout', label: 'Workout' },
+            { value: 'calories', label: 'Calories' },
+            { value: 'weight', label: 'Weight' },
+          ]}
+        />
 
-          <View style={{ height: spacing.md }} />
+        <View style={{ height: spacing.md }} />
 
           <View
             style={{
@@ -630,21 +568,21 @@ export default function ProgressScreen({ navigation }: Props) {
               borderColor: 'rgba(255, 255, 255, 0.04)',
             }}
           >
-            <Text variant="titleMedium" style={{ color: colors.textPrimary, marginBottom: spacing.xs }}>
+            <AppText variant="rowTitle" color="primary" style={{ marginBottom: spacing.xs }}>
               {aggregates.title}
-            </Text>
-            <Text variant="bodySmall" style={{ color: colors.textSecondary }}>
+            </AppText>
+            <AppText variant="rowSubtitle" color="secondary">
               {metric === 'weight'
                 ? 'This week vs first weigh-in this week'
                 : `This week • averaged across ${Math.max(1, memberUids.length || groupMeta?.memberCount || 0)} members`}
-            </Text>
+            </AppText>
 
             <View style={{ height: spacing.md }} />
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               {/**
                * Layout math:
                * - Screen adds 16px padding on each side => 32 total
-               * - Card.Content has its own horizontal padding (Paper default ~16 each side => 32)
+               * - Card has its own horizontal padding (16 each side => 32)
                * - We also have a Y-axis tick column to the left (yAxisW)
                */}
               {(() => {
@@ -654,15 +592,15 @@ export default function ProgressScreen({ navigation }: Props) {
                 return (
                   <>
                     <View style={{ width: yAxisW, justifyContent: 'space-between', height: 160, paddingVertical: 8 }}>
-                      <Text variant="labelSmall" style={{ color: colors.textMuted, textAlign: 'right' }}>
+                      <AppText variant="label" color="muted" style={{ textAlign: 'right' }}>
                         {yTicks.top}
-                      </Text>
-                      <Text variant="labelSmall" style={{ color: colors.textMuted, textAlign: 'right' }}>
+                      </AppText>
+                      <AppText variant="label" color="muted" style={{ textAlign: 'right' }}>
                         {yTicks.mid}
-                      </Text>
-                      <Text variant="labelSmall" style={{ color: colors.textMuted, textAlign: 'right' }}>
+                      </AppText>
+                      <AppText variant="label" color="muted" style={{ textAlign: 'right' }}>
                         {yTicks.bot}
-                      </Text>
+                      </AppText>
                     </View>
                     <View style={{ flex: 1, overflow: 'hidden' }}>
                       <SimpleLineChart
@@ -678,144 +616,151 @@ export default function ProgressScreen({ navigation }: Props) {
                         {weekDates.map((d, i) => {
                           const idx = parseYYYYMMDDLocal(d).getDay();
                           return (
-                            <Text key={`${d}-${i}`} variant="labelSmall" style={{ color: colors.textMuted }}>
+                            <AppText key={`${d}-${i}`} variant="label" color="muted">
                               {weekdayShort(idx)}
-                            </Text>
+                            </AppText>
                           );
                         })}
                       </View>
-                      <Text variant="labelSmall" style={{ color: colors.textMuted, textAlign: 'center', marginTop: 4 }}>
+                      <AppText variant="label" color="muted" style={{ textAlign: 'center', marginTop: 4 }}>
                         Day
-                      </Text>
+                      </AppText>
                     </View>
                   </>
                 );
               })()}
             </View>
           </View>
-        </Card.Content>
       </Card>
 
       <View style={{ height: spacing.base }} />
 
       <Card>
-        <Card.Title title="History" />
-        <Card.Content style={{ paddingHorizontal: 0 }}>
-          {aggregates.history.length === 0 ? (
-            <View style={{ paddingHorizontal: spacing.base, paddingVertical: spacing.md }}>
-              <Text style={{ color: colors.textMuted }}>No data yet.</Text>
-            </View>
-          ) : (
-            aggregates.history
-              .slice()
-              .reverse()
-              .map((h: any, i: number) => {
-                // Calculate deltas for this day vs previous day
-                const prevDay = i < aggregates.history.length - 1 ? aggregates.history[aggregates.history.length - 2 - i] : null;
-                const weightDelta = prevDay && h.avgPct != null && prevDay.avgPct != null ? h.avgPct - prevDay.avgPct : null;
-                const minsDelta = prevDay ? h.avgMins - prevDay.avgMins : null;
-                
-                return (
-                  <List.Item
-                    key={`${h.date}-${i}`}
-                    title={h.date}
-                    description={
-                      <View style={{ gap: 2 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
-                          <Text variant="bodySmall" style={{ color: colors.textSecondary }}>
-                            Avg % loss: {h.avgPct == null ? '—' : `${h.avgPct}%`}
-                          </Text>
-                          {weightDelta != null && weightDelta !== 0 && (
-                            <Text
-                              variant="labelSmall"
-                              style={{
-                                color: weightDelta > 0 ? colors.success : colors.danger,
-                              }}
-                            >
-                              {weightDelta > 0 ? '↑' : '↓'}
-                            </Text>
-                          )}
-                        </View>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
-                          <Text variant="bodySmall" style={{ color: colors.textSecondary }}>
-                            Avg minutes: {formatMinutesHM(h.avgMins)}
-                          </Text>
-                          {minsDelta != null && minsDelta !== 0 && (
-                            <Text
-                              variant="labelSmall"
-                              style={{
-                                color: minsDelta > 0 ? colors.success : colors.danger,
-                              }}
-                            >
-                              {minsDelta > 0 ? '↑' : '↓'}
-                            </Text>
-                          )}
-                        </View>
-                        <Text variant="bodySmall" style={{ color: colors.textMuted }}>
-                          Avg calories: {Math.round(h.avgCals)}
-                        </Text>
-                      </View>
-                    }
-                  />
-                );
-              })
-          )}
-        </Card.Content>
-      </Card>
+        <AppText variant="rowTitle" color="primary" style={{ marginBottom: spacing.sm }}>History</AppText>
+        {aggregates.history.length === 0 ? (
+          <View style={{ paddingVertical: spacing.md }}>
+            <AppText variant="body" color="muted">No data yet.</AppText>
+          </View>
+        ) : (
+          aggregates.history
+            .slice()
+            .reverse()
+            .map((h: any, i: number) => {
+              // Calculate deltas for this day vs previous day
+              const prevDay = i < aggregates.history.length - 1 ? aggregates.history[aggregates.history.length - 2 - i] : null;
+              const weightDelta = prevDay && h.avgPct != null && prevDay.avgPct != null ? h.avgPct - prevDay.avgPct : null;
+              const minsDelta = prevDay ? h.avgMins - prevDay.avgMins : null;
 
-      <View style={{ height: spacing.base }} />
-
-      <Card>
-        <Card.Title
-          title="Progress pictures"
-          right={() => (
-            <Button
-              mode="text"
-              onPress={() =>
-                rootNav.navigate(
-                  'MainTabs',
-                  {
-                    screen: 'HomeTab',
-                    params: { screen: 'ViewPhotos', params: { groupId: activeGroupId } },
-                  } as any,
-                )
-              }
-            >
-              See all
-            </Button>
-          )}
-        />
-        <Card.Content>
-          {photoStrip.length === 0 ? (
-            <Text style={{ opacity: 0.75 }}>No photos yet.</Text>
-          ) : (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
-              {photoStrip.map((l) => {
-                const uri = String((l.payload as any)?.url ?? '').trim();
-                if (!uri) return null;
-                return (
-                  <View key={l.id} style={{ width: 92, height: 92, borderRadius: 16, overflow: 'hidden' }}>
-                    <IconButton
-                      icon="magnify-plus-outline"
-                      size={18}
-                      style={{ position: 'absolute', top: 2, right: 2, zIndex: 2, backgroundColor: '#00000066' }}
-                      iconColor="#fff"
-                      onPress={() => setViewerUri(uri)}
-                    />
-                    <Image source={{ uri }} style={{ width: 92, height: 92 }} />
+              return (
+                <View
+                  key={`${h.date}-${i}`}
+                  style={{
+                    paddingVertical: spacing.md,
+                    borderTopWidth: i === 0 ? 0 : 1,
+                    borderTopColor: colors.divider,
+                  }}
+                >
+                  <AppText variant="rowTitle" color="primary" style={{ marginBottom: 4 }}>{h.date}</AppText>
+                  <View style={{ gap: 2 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
+                      <AppText variant="rowSubtitle" color="secondary">
+                        Avg % loss: {h.avgPct == null ? '—' : `${h.avgPct}%`}
+                      </AppText>
+                      {weightDelta != null && weightDelta !== 0 && (
+                        <AppText
+                          variant="label"
+                          style={{
+                            color: weightDelta > 0 ? colors.success : colors.danger,
+                          }}
+                        >
+                          {weightDelta > 0 ? '↑' : '↓'}
+                        </AppText>
+                      )}
+                    </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
+                      <AppText variant="rowSubtitle" color="secondary">
+                        Avg minutes: {formatMinutesHM(h.avgMins)}
+                      </AppText>
+                      {minsDelta != null && minsDelta !== 0 && (
+                        <AppText
+                          variant="label"
+                          style={{
+                            color: minsDelta > 0 ? colors.success : colors.danger,
+                          }}
+                        >
+                          {minsDelta > 0 ? '↑' : '↓'}
+                        </AppText>
+                      )}
+                    </View>
+                    <AppText variant="rowSubtitle" color="muted">
+                      Avg calories: {Math.round(h.avgCals)}
+                    </AppText>
                   </View>
-                );
-              })}
-            </ScrollView>
-          )}
-        </Card.Content>
+                </View>
+              );
+            })
+        )}
+      </Card>
+
+      <View style={{ height: spacing.base }} />
+
+      <Card>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.md }}>
+          <AppText variant="rowTitle" color="primary">Progress pictures</AppText>
+          <TouchableOpacity
+            onPress={() =>
+              rootNav.navigate(
+                'MainTabs',
+                {
+                  screen: 'HomeTab',
+                  params: { screen: 'ViewPhotos', params: { groupId: activeGroupId } },
+                } as any,
+              )
+            }
+            activeOpacity={0.7}
+          >
+            <AppText variant="rowSubtitle" color="accent">See all</AppText>
+          </TouchableOpacity>
+        </View>
+        {photoStrip.length === 0 ? (
+          <AppText variant="body" color="muted">No photos yet.</AppText>
+        ) : (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
+            {photoStrip.map((l) => {
+              const uri = String((l.payload as any)?.url ?? '').trim();
+              if (!uri) return null;
+              return (
+                <View key={l.id} style={{ width: 92, height: 92, borderRadius: 16, overflow: 'hidden' }}>
+                  <TouchableOpacity
+                    style={{
+                      position: 'absolute',
+                      top: 2,
+                      right: 2,
+                      zIndex: 2,
+                      width: 28,
+                      height: 28,
+                      borderRadius: 14,
+                      backgroundColor: '#00000066',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                    onPress={() => setViewerUri(uri)}
+                  >
+                    <Icon source="magnify-plus-outline" size={18} color="#fff" />
+                  </TouchableOpacity>
+                  <Image source={{ uri }} style={{ width: 92, height: 92 }} />
+                </View>
+              );
+            })}
+          </ScrollView>
+        )}
       </Card>
 
       <Portal>
         <Modal
           visible={Boolean(viewerUri)}
           onDismiss={() => setViewerUri(null)}
-          contentContainerStyle={{ margin: 16, borderRadius: 16, overflow: 'hidden', backgroundColor: theme.colors.surface }}
+          contentContainerStyle={{ margin: 16, borderRadius: 16, overflow: 'hidden', backgroundColor: colors.surface }}
         >
           {viewerUri ? <Image source={{ uri: viewerUri }} style={{ width: '100%', height: 420 }} /> : null}
         </Modal>

@@ -1,12 +1,14 @@
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Image, TouchableOpacity, View } from 'react-native';
-import { Card, IconButton, Text, useTheme } from 'react-native-paper';
+import { Icon } from 'react-native-paper';
 import * as Haptics from 'expo-haptics';
 import { collection, doc, limit, onSnapshot, orderBy, query } from 'firebase/firestore';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
 
 import Screen from '../components/layout/Screen';
+import Card from '../components/ui/Card';
+import AppText from '../components/ui/AppText';
 import NavList from '../components/ui/NavList';
 import { AuthContext } from '../store/AuthContext';
 import { subscribeMyProfile } from '../services/profile';
@@ -32,7 +34,7 @@ import ConsistencyStrip from '../components/profile/ConsistencyStrip';
 import TrendPreviewSparkline from '../components/profile/TrendPreviewSparkline';
 import RankDetailsModal from '../components/profile/RankDetailsModal';
 import ProjectionDetailsModal from '../components/profile/ProjectionDetailsModal';
-import { spacing } from '../theme/spacing';
+import { colors, spacing } from '../theme';
 
 function weekStartMondayLocal() {
   const d = new Date();
@@ -48,7 +50,6 @@ function parseYYYYMMDDLocal(dateYYYYMMDD: string) {
 }
 
 export default function ProfileScreen() {
-  const theme = useTheme();
   const { user, logout } = useContext(AuthContext);
   const nav = useNavigation<NativeStackNavigationProp<RootStackParamList & ProfileStackParamList>>();
   const { activeGroupId } = useActiveGroup();
@@ -294,7 +295,7 @@ export default function ProfileScreen() {
   if (!user) {
     return (
       <Screen>
-        <Text>You must be signed in.</Text>
+        <AppText variant="body" color="primary">You must be signed in.</AppText>
       </Screen>
     );
   }
@@ -345,47 +346,55 @@ export default function ProfileScreen() {
       }}
     >
       <Card>
-        <Card.Content>
-          <View style={{ alignItems: 'center' }}>
-            <View
-              style={{
-                padding: 4,
-                borderRadius: 24,
-                borderWidth: 2,
-                borderColor: theme.colors.primary,
-              }}
-            >
-              {photoURL ? (
-                <Image
-                  source={{ uri: photoURL }}
-                  style={{ width: 112, height: 112, borderRadius: 20, backgroundColor: '#111' }}
-                  resizeMode="cover"
-                />
-              ) : (
-                <View
-                  style={{
-                    width: 112,
-                    height: 112,
-                    borderRadius: 20,
-                    backgroundColor: theme.colors.surfaceVariant,
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                  }}
-                >
-                  <Text variant="headlineSmall">{name.slice(0, 2).toUpperCase()}</Text>
-                </View>
-              )}
-              <IconButton
-                icon="pencil"
-                size={18}
-                style={{ position: 'absolute', right: -6, bottom: -6, backgroundColor: theme.colors.surfaceVariant }}
-                onPress={() => nav.navigate('EditProfile', undefined)}
+        <View style={{ alignItems: 'center' }}>
+          <View
+            style={{
+              padding: 4,
+              borderRadius: 24,
+              borderWidth: 2,
+              borderColor: colors.primary,
+            }}
+          >
+            {photoURL ? (
+              <Image
+                source={{ uri: photoURL }}
+                style={{ width: 112, height: 112, borderRadius: 20, backgroundColor: '#111' }}
+                resizeMode="cover"
               />
-            </View>
-            <View style={{ height: 12 }} />
-            <Text variant="headlineSmall">{name}</Text>
+            ) : (
+              <View
+                style={{
+                  width: 112,
+                  height: 112,
+                  borderRadius: 20,
+                  backgroundColor: colors.surface2,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                }}
+              >
+                <AppText variant="pageTitle" color="primary">{name.slice(0, 2).toUpperCase()}</AppText>
+              </View>
+            )}
+            <TouchableOpacity
+              style={{
+                position: 'absolute',
+                right: -6,
+                bottom: -6,
+                width: 32,
+                height: 32,
+                borderRadius: 16,
+                backgroundColor: colors.surface2,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+              onPress={() => nav.navigate('EditProfile', undefined)}
+            >
+              <Icon source="pencil" size={18} color={colors.textSecondary} />
+            </TouchableOpacity>
           </View>
-        </Card.Content>
+          <View style={{ height: 12 }} />
+          <AppText variant="pageTitle" color="primary">{name}</AppText>
+        </View>
       </Card>
 
       <View style={{ height: spacing.base }} />
@@ -410,9 +419,7 @@ export default function ProfileScreen() {
         <>
           <View style={{ height: spacing.sm }} />
           <Card>
-            <Card.Content>
-              <Text style={{ color: 'crimson' }}>{mmrError}</Text>
-            </Card.Content>
+            <AppText variant="body" color="danger">{mmrError}</AppText>
           </Card>
         </>
       ) : null}
@@ -467,53 +474,51 @@ export default function ProfileScreen() {
       <View style={{ height: spacing.base }} />
 
       <Card>
-        <Card.Title title="Stats" />
-        <Card.Content>
-          <View style={{ flexDirection: 'row', gap: 12 }}>
-            {statItems.slice(0, 2).map((s) => (
-              <TouchableOpacity
-                key={s.key}
-                style={{ flex: 1 }}
-                onPress={() => nav.navigate('EditProfile', { focusField: s.focusField })}
-              >
-                <View style={{ borderRadius: 16, padding: 14, backgroundColor: theme.colors.surfaceVariant, borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.04)' }}>
-                  <Text variant="labelSmall" style={{ opacity: 0.75 }}>
-                    {s.label}
-                  </Text>
-                  <Text variant="titleLarge" style={{ marginTop: 4 }}>
-                    {s.value}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </View>
-          <View style={{ height: 12 }} />
-          <View style={{ flexDirection: 'row', gap: 12 }}>
-            {statItems.slice(2, 4).map((s) => (
-              <TouchableOpacity
-                key={s.key}
-                style={{ flex: 1 }}
-                onPress={() => nav.navigate('EditProfile', { focusField: s.focusField })}
-              >
-                <View style={{ borderRadius: 16, padding: 14, backgroundColor: theme.colors.surfaceVariant, borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.04)' }}>
-                  <Text variant="labelSmall" style={{ opacity: 0.75 }}>
-                    {s.label}
-                  </Text>
-                  <Text variant="titleLarge" style={{ marginTop: 4 }}>
-                    {s.value}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </Card.Content>
+        <AppText variant="rowTitle" color="primary" style={{ marginBottom: spacing.md }}>Stats</AppText>
+        <View style={{ flexDirection: 'row', gap: 12 }}>
+          {statItems.slice(0, 2).map((s) => (
+            <TouchableOpacity
+              key={s.key}
+              style={{ flex: 1 }}
+              onPress={() => nav.navigate('EditProfile', { focusField: s.focusField })}
+            >
+              <View style={{ borderRadius: 16, padding: 14, backgroundColor: colors.surface2, borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.04)' }}>
+                <AppText variant="label" color="secondary">
+                  {s.label}
+                </AppText>
+                <AppText variant="numberMd" color="primary" style={{ marginTop: 4 }}>
+                  {s.value}
+                </AppText>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </View>
+        <View style={{ height: 12 }} />
+        <View style={{ flexDirection: 'row', gap: 12 }}>
+          {statItems.slice(2, 4).map((s) => (
+            <TouchableOpacity
+              key={s.key}
+              style={{ flex: 1 }}
+              onPress={() => nav.navigate('EditProfile', { focusField: s.focusField })}
+            >
+              <View style={{ borderRadius: 16, padding: 14, backgroundColor: colors.surface2, borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.04)' }}>
+                <AppText variant="label" color="secondary">
+                  {s.label}
+                </AppText>
+                <AppText variant="numberMd" color="primary" style={{ marginTop: 4 }}>
+                  {s.value}
+                </AppText>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </View>
       </Card>
 
       <View style={{ height: 16 }} />
 
       <Card>
-        <Card.Title title="Settings & Controls" />
-        <Card.Content style={{ paddingHorizontal: 0 }}>
+        <AppText variant="rowTitle" color="primary" style={{ marginBottom: spacing.sm }}>Settings & Controls</AppText>
+        <View style={{ marginHorizontal: -spacing.base }}>
           <NavList
             items={[
               { title: 'Settings', icon: 'cog', onPress: () => (nav as any).navigate('Settings') },
@@ -560,7 +565,7 @@ export default function ProfileScreen() {
               },
             ]}
           />
-        </Card.Content>
+        </View>
       </Card>
 
       {/* Modals */}
