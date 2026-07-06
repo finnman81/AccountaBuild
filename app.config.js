@@ -14,7 +14,7 @@ module.exports = ({ config }) => {
         'AccountaBuild reads workouts, weight, and calories from Apple Health to keep your logs accurate. Manual logs always take priority.',
       NSHealthUpdateUsageDescription:
         'AccountaBuild can read health data from Apple Health when you enable sync.',
-      background: false, // Set to true only if using HealthKit background delivery
+      background: true, // HealthKit background delivery → near-instant sync
     },
   ];
 

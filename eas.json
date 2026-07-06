@@ -35,14 +35,14 @@
       "android": {
         "serviceAccountKeyPath": "./play-service-account.json",
         "track": "internal",
-        "releaseStatus": "draft"
+        "releaseStatus": "completed"
       }
     },
     "production-android": {
       "android": {
         "serviceAccountKeyPath": "./play-service-account.json",
         "track": "internal",
-        "releaseStatus": "draft"
+        "releaseStatus": "completed"
       }
     }
   }

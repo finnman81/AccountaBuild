@@ -180,6 +180,21 @@ export async function readCalorieEntriesSinceAnchor(anchor?: string): Promise<An
 }
 
 /**
+ * Set up near-instant background sync triggers (iOS HealthKit background delivery
+ * + change observers). Android relies on the periodic background task instead, so
+ * this is a no-op there. Returns a cleanup function.
+ */
+export async function setupBackgroundObservers(onChange: () => void): Promise<() => void> {
+  if (Platform.OS === 'ios') {
+    const service = await getHealthKitService();
+    if (service && typeof (service as any).setupBackgroundObservers === 'function') {
+      return (service as any).setupBackgroundObservers(onChange);
+    }
+  }
+  return () => {};
+}
+
+/**
  * Read individual calorie entries for today (with meal types)
  */
 export async function readTodayCalorieEntries(): Promise<HealthCalorieEntry[]> {

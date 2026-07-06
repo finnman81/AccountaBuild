@@ -11,6 +11,9 @@ import {
   queryStatisticsForQuantity,
   getMostRecentQuantitySample,
   isHealthDataAvailable,
+  enableBackgroundDelivery,
+  subscribeToChanges,
+  UpdateFrequency,
 } from '@kingstinct/react-native-healthkit';
 import { mapHealthKitWorkoutType } from './workoutMapper';
 import { WorkoutType } from '../logs';
@@ -748,6 +751,49 @@ export async function readTodayWeight(): Promise<HealthKitWeight | null> {
     console.error('Error reading HealthKit weight:', error);
     return null;
   }
+}
+
+/**
+ * Enable HealthKit background delivery + change observers so new workouts /
+ * calories / weight trigger a near-instant sync (Strava-style), even when the
+ * app is backgrounded. `onChange` is fired when HealthKit signals new data.
+ * Returns a cleanup that removes the observers. iOS-only; fully guarded.
+ */
+export async function setupBackgroundObservers(onChange: () => void): Promise<() => void> {
+  if (Platform.OS !== 'ios') return () => {};
+  const types = [
+    HKWorkoutTypeIdentifier,
+    HKQuantityTypeIdentifierDietaryEnergyConsumed,
+    HKQuantityTypeIdentifierBodyMass,
+  ];
+  const subs: Array<{ remove: () => boolean }> = [];
+  for (const t of types) {
+    try {
+      await enableBackgroundDelivery(t as any, UpdateFrequency.immediate);
+    } catch (e) {
+      console.warn('[HealthKit] enableBackgroundDelivery failed for', t, e);
+    }
+    try {
+      subs.push(subscribeToChanges(t as any, () => {
+        try {
+          onChange();
+        } catch {
+          /* non-fatal */
+        }
+      }));
+    } catch (e) {
+      console.warn('[HealthKit] subscribeToChanges failed for', t, e);
+    }
+  }
+  return () => {
+    for (const s of subs) {
+      try {
+        s.remove();
+      } catch {
+        /* non-fatal */
+      }
+    }
+  };
 }
 
 /**

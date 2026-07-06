@@ -68,6 +68,29 @@ export default function HealthAutoSync() {
     void registerBackgroundHealthSync();
   }, [isExpoGo]);
 
+  // iOS HealthKit background delivery: fire a sync near-instantly when new
+  // workouts/calories/weight land in Apple Health (Strava-style). No-op on
+  // Android (covered by the periodic background task).
+  useEffect(() => {
+    if (isExpoGo || !user || !activeGroupId || !settings) return;
+    if (!settings.syncWorkouts && !settings.syncCalories && !settings.syncWeight) return;
+
+    let cleanup: (() => void) | null = null;
+    let active = true;
+    void import('../../services/health/healthService')
+      .then((HS) => HS.setupBackgroundObservers(() => triggerSync('foreground')))
+      .then((c) => {
+        if (active) cleanup = c;
+        else c();
+      })
+      .catch((e) => console.warn('[HealthAutoSync] background observers setup failed', e));
+
+    return () => {
+      active = false;
+      if (cleanup) cleanup();
+    };
+  }, [user, activeGroupId, settings, isExpoGo, triggerSync]);
+
   // Subscribe to health settings
   useEffect(() => {
     if (isExpoGo) {
