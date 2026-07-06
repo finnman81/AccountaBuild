@@ -26,7 +26,7 @@
       "notificationMode": "production"
     },
     "android": {
-      "package": "com.accountabuild.app",
+      "package": "com.munitor.accountabuild",
       "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
