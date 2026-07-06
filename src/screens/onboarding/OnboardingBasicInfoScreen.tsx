@@ -122,7 +122,8 @@ export default function OnboardingBasicInfoScreen({ navigation }: Props) {
     const displayNameError = validateDisplayName(displayName);
     if (displayNameError) newErrors.displayName = displayNameError;
 
-    if (!sex) newErrors.sex = 'Please select your sex';
+    // sex is optional — it isn't consumed by any calculation, so it shouldn't
+    // block a returning (re-onboarded) user who never set it before.
 
     const ageError = validateAge(age);
     if (ageError) newErrors.age = ageError;

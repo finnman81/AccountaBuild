@@ -10,6 +10,15 @@ export type OnboardingData = {
   lastStep?: number;
 };
 
+/**
+ * Bump this whenever onboarding changes enough that EVERY user — new or
+ * returning — should see it again (e.g. the Midnight Blue redesign + intent
+ * picker). Users whose stored `onboarding.version` is below this are routed
+ * back through onboarding on next launch; completing it re-stamps the current
+ * version, so it only shows once per bump. No backend migration needed.
+ */
+export const CURRENT_ONBOARDING_VERSION = 2;
+
 export function useOnboardingStatus(uid: string | null): { isCompleted: boolean; isLoading: boolean } {
   const [isCompleted, setIsCompleted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -32,7 +41,8 @@ export function useOnboardingStatus(uid: string | null): { isCompleted: boolean;
         if (snap.exists()) {
           const data = snap.data();
           const onboarding = (data.onboarding as OnboardingData | undefined) ?? { completed: false };
-          setIsCompleted(onboarding.completed === true);
+          const seenCurrentVersion = (onboarding.version ?? 1) >= CURRENT_ONBOARDING_VERSION;
+          setIsCompleted(onboarding.completed === true && seenCurrentVersion);
         } else {
           setIsCompleted(false);
         }

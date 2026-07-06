@@ -4,7 +4,7 @@ import { Icon } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as Haptics from 'expo-haptics';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 import { AuthContext } from '../../store/AuthContext';
 import { OnboardingStackParamList } from '../../navigation/types';
@@ -48,10 +48,21 @@ export default function OnboardingGoalsScreen({ navigation }: Props) {
 
     setIsSubmitting(true);
     try {
+      // Re-onboarding (returning users forced through the new flow) must not
+      // clobber goals someone already calibrated — only seed defaults for
+      // fields that are genuinely unset.
+      let existingCalorieGoal: number | null | undefined;
+      let existingWorkoutsPerWeek: number | null | undefined;
+      if (db) {
+        const snap = await getDoc(doc(db, 'users', user.uid));
+        const data = snap.exists() ? snap.data() : null;
+        existingCalorieGoal = data?.dailyCalorieGoal;
+        existingWorkoutsPerWeek = data?.workoutsPerWeek;
+      }
       await updateMyProfile({
         uid: user.uid,
-        dailyCalorieGoal: option.defaults.dailyCalorieGoal,
-        workoutsPerWeek: option.defaults.workoutsPerWeek,
+        dailyCalorieGoal: existingCalorieGoal == null ? option.defaults.dailyCalorieGoal : undefined,
+        workoutsPerWeek: existingWorkoutsPerWeek == null ? option.defaults.workoutsPerWeek : undefined,
       });
       if (db) {
         await setDoc(

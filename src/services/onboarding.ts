@@ -1,16 +1,17 @@
 import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { db } from '../firebase/firebase';
-import type { OnboardingData } from '../hooks/useOnboardingStatus';
+import { CURRENT_ONBOARDING_VERSION, type OnboardingData } from '../hooks/useOnboardingStatus';
 
 export async function checkOnboardingStatus(uid: string): Promise<boolean> {
   if (!db) throw new Error('Firebase is not initialized');
-  
+
   const userDoc = await getDoc(doc(db, 'users', uid));
   if (!userDoc.exists()) return false;
-  
+
   const data = userDoc.data();
   const onboarding = (data.onboarding as OnboardingData | undefined) ?? { completed: false };
-  return onboarding.completed === true;
+  const seenCurrentVersion = (onboarding.version ?? 1) >= CURRENT_ONBOARDING_VERSION;
+  return onboarding.completed === true && seenCurrentVersion;
 }
 
 export async function updateOnboardingStep(uid: string, step: number): Promise<void> {
@@ -50,7 +51,7 @@ export async function completeOnboarding(uid: string): Promise<void> {
         ...existingOnboarding,
         completed: true,
         completedAt: serverTimestamp(),
-        version: 1,
+        version: CURRENT_ONBOARDING_VERSION,
       },
       updatedAt: serverTimestamp(),
     },
