@@ -7,12 +7,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AuthContext } from '../store/AuthContext';
 import { subscribeMyProfile, syncMyMemberProfileToAllGroups, updateMyProfile } from '../services/profile';
-import { auth, db } from '../firebase/firebase';
+import { auth } from '../firebase/firebase';
 import { uploadUserAvatar } from '../services/photos';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
-import { DEFAULT_TZ, isoWeekIdInTz, nextIsoWeekId } from '../mmr/time';
-import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import AppText from '../components/ui/AppText';
 import Avatar from '../components/ui/Avatar';
 import EditRow from '../components/ui/EditRow';
@@ -33,9 +31,6 @@ export default function EditProfileScreen({ navigation }: Props) {
   const [displayName, setDisplayName] = useState('');
   const [height, setHeight] = useState('');
   const [age, setAge] = useState('');
-  const [weightGoal, setWeightGoal] = useState('');
-  const [dailyCalorieGoal, setDailyCalorieGoal] = useState('');
-  const [workoutsPerWeek, setWorkoutsPerWeek] = useState('');
   const [photoURL, setPhotoURL] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
@@ -49,9 +44,6 @@ export default function EditProfileScreen({ navigation }: Props) {
       setPhotoURL((p as any).photoURL ?? null);
       setHeight(p.height == null ? '' : String(p.height));
       setAge(p.age == null ? '' : String(p.age));
-      setWeightGoal(p.weightGoal == null ? '' : String(p.weightGoal));
-      setDailyCalorieGoal(p.dailyCalorieGoal == null ? '' : String(p.dailyCalorieGoal));
-      setWorkoutsPerWeek((p as any).workoutsPerWeek == null ? '' : String((p as any).workoutsPerWeek));
     });
   }, [user]);
 
@@ -101,9 +93,6 @@ export default function EditProfileScreen({ navigation }: Props) {
       for (const [text, key] of [
         [height, 'height'],
         [age, 'age'],
-        [weightGoal, 'weightGoal'],
-        [dailyCalorieGoal, 'dailyCalorieGoal'],
-        [workoutsPerWeek, 'workoutsPerWeek'],
       ] as const) {
         if (text.trim()) {
           const n = numOrNull(text);
@@ -117,11 +106,6 @@ export default function EditProfileScreen({ navigation }: Props) {
       }
 
       await updateMyProfile(patch);
-      // Stamp when goal changes should count for MMR fairness (next ISO week).
-      if (db) {
-        const nextWeek = nextIsoWeekId(isoWeekIdInTz(new Date(), DEFAULT_TZ), DEFAULT_TZ);
-        await setDoc(doc(db, 'users', user.uid), { goalsEffectiveWeekId: nextWeek, updatedAt: serverTimestamp() }, { merge: true });
-      }
       await syncMyMemberProfileToAllGroups(user.uid);
       navigation.goBack();
     } catch (e) {
@@ -173,14 +157,19 @@ export default function EditProfileScreen({ navigation }: Props) {
 
           <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>Goals</AppText>
           <View style={styles.group}>
-            <EditRow label="Goal weight" value={weightGoal} onChangeText={setWeightGoal} subline="Your target — drives weight progress" placeholder="175" suffix="lb" keyboardType="decimal-pad" />
-            <EditRow label="Daily calories" value={dailyCalorieGoal} onChangeText={setDailyCalorieGoal} subline="Your daily intake target" placeholder="2200" suffix="kcal" keyboardType="number-pad" />
-            <EditRow label="Workouts / week" value={workoutsPerWeek} onChangeText={setWorkoutsPerWeek} subline="Your weekly MMR target — miss it and you lose MP" placeholder="4" keyboardType="number-pad" showDivider={false} />
+            <TouchableOpacity
+              style={styles.navRow}
+              onPress={() => (navigation as any).navigate('MMRGoals')}
+              activeOpacity={0.7}
+            >
+              <View style={styles.navRowLeft}>
+                <AppText variant="rowTitle" color="primary">Goals</AppText>
+                <AppText variant="rowSubtitle" color="muted">Weekly targets, calories, and weight goal</AppText>
+              </View>
+              <Icon source="chevron-right" size={20} color={colors.textMuted} />
+            </TouchableOpacity>
           </View>
 
-          <AppText variant="rowSubtitle" color="muted" style={styles.footnote}>
-            Goal changes apply from next week so this week's rank is fair.
-          </AppText>
           {error ? <AppText variant="rowSubtitle" color="danger" style={styles.footnote}>{error}</AppText> : null}
         </ScrollView>
       </KeyboardAvoidingView>
@@ -203,5 +192,7 @@ const styles = StyleSheet.create({
   },
   sectionLabel: { marginTop: spacing.lg, marginBottom: spacing.sm, marginLeft: spacing.xs },
   group: { backgroundColor: colors.surface, borderRadius: radius.listGroup, borderWidth: 1, borderColor: colors.borderCard, paddingHorizontal: spacing.base },
+  navRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.md, gap: spacing.md, minHeight: 52 },
+  navRowLeft: { flex: 1, gap: 2 },
   footnote: { marginTop: spacing.base, textAlign: 'center', paddingHorizontal: spacing.base, lineHeight: 18 },
 });
