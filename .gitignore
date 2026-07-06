@@ -52,3 +52,8 @@ serviceAccount*.json
 # Google Play submit service-account key
 play-service-account.json
 *play*service*account*.json
+
+# Android upload keystore + local EAS credentials (never commit)
+credentials.json
+credentials/
+*.keystore
