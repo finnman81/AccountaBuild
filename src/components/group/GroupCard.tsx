@@ -34,6 +34,7 @@ export default function GroupCard({ group, overview, isActive, onPress }: Props)
         <ComplianceRing pct={pct} size={64} strokeWidth={6} />
         <View style={styles.info}>
           <View style={styles.titleRow}>
+            {group.logoUrl ? <Image source={{ uri: group.logoUrl }} style={styles.logo} /> : null}
             <AppText variant="rowTitle" color="primary" numberOfLines={1} style={styles.name}>{group.name}</AppText>
             {roleLabel ? (
               <View style={styles.roleChip}>
@@ -94,6 +95,7 @@ const styles = StyleSheet.create({
   top: { flexDirection: 'row', alignItems: 'center', gap: spacing.base },
   info: { flex: 1, gap: 3 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  logo: { width: 22, height: 22, borderRadius: 6, backgroundColor: colors.surface2 },
   name: { flexShrink: 1 },
   roleChip: { backgroundColor: colors.primaryTint, borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 2 },
   roleText: { color: colors.primaryOnDark, fontSize: 9 },

@@ -94,7 +94,7 @@ export default function AppNavigator() {
             <Stack.Screen
               name="EditProfile"
               component={EditProfileScreen}
-              options={{ title: 'Edit profile', presentation: 'modal' }}
+              options={{ headerShown: false, presentation: 'modal' }}
             />
             <Stack.Screen name="MMRGoals" component={MMRGoalsScreen} options={{ title: 'Goals', presentation: 'modal' }} />
             <Stack.Screen

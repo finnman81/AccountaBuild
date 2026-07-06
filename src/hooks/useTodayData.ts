@@ -29,7 +29,15 @@ export function useTodayData() {
       setGroup(null);
       return;
     }
-    return onSnapshot(doc(db, 'groups', activeGroupId), (snap) => setGroup(snap.exists() ? ((snap.data() as any) ?? null) : null));
+    return onSnapshot(doc(db, 'groups', activeGroupId), (snap) => {
+      if (!snap.exists()) {
+        setGroup(null);
+        return;
+      }
+      const data = (snap.data() as any) ?? {};
+      // Group docs store `logoUrl`; normalize to the `logoURL` this hook exposes.
+      setGroup({ ...data, logoURL: data.logoURL ?? data.logoUrl ?? null });
+    });
   }, [activeGroupId]);
 
   useEffect(() => {

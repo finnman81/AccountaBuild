@@ -754,6 +754,54 @@ export async function readTodayWeight(): Promise<HealthKitWeight | null> {
 }
 
 /**
+ * Read weight entries for the last `daysBack` days — the latest sample per local
+ * day (used by sync backfill so unopened-app days still get their weigh-ins).
+ */
+export async function readRecentWeights(daysBack = 7): Promise<HealthKitWeight[]> {
+  if (Platform.OS !== 'ios') return [];
+  if (!(await isHealthKitAvailable())) return [];
+
+  try {
+    const now = new Date();
+    const start = new Date(now);
+    start.setDate(start.getDate() - daysBack);
+    start.setHours(0, 0, 0, 0);
+
+    const result: any = await queryQuantitySamples(HKQuantityTypeIdentifierBodyMass, {
+      startDate: start,
+      endDate: now,
+      ascending: true,
+      limit: 0,
+    } as any);
+    const samples: any[] = Array.isArray(result) ? result : (result?.samples ?? []);
+
+    const byDate = new Map<string, HealthKitWeight>();
+    for (const sample of samples) {
+      const qty = typeof sample.quantity === 'number' ? sample.quantity : null;
+      if (qty == null || qty <= 0) continue;
+      const ts = sample.startDate instanceof Date ? sample.startDate : new Date(sample.startDate);
+      if (Number.isNaN(ts.valueOf())) continue;
+      const unit = String(sample.unit ?? '').toLowerCase();
+      const lbs = unit === 'kg' || unit.includes('kilogram') ? qty * 2.2046226218 : qty;
+      const date = formatYYYYMMDDLocal(ts);
+      const prev = byDate.get(date);
+      if (!prev || ts.getTime() >= prev.timestamp.getTime()) {
+        byDate.set(date, {
+          weight: Math.round(lbs * 10) / 10,
+          date,
+          timestamp: ts,
+          uuid: sample.uuid ? String(sample.uuid) : undefined,
+        });
+      }
+    }
+    return Array.from(byDate.values());
+  } catch (error) {
+    console.error('[HealthKit] Error reading recent weights:', error);
+    return [];
+  }
+}
+
+/**
  * Enable HealthKit background delivery + change observers so new workouts /
  * calories / weight trigger a near-instant sync (Strava-style), even when the
  * app is backgrounded. `onChange` is fired when HealthKit signals new data.

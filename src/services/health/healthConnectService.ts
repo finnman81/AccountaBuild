@@ -61,9 +61,10 @@ const READ_PERMS = [
   { accessType: 'read', recordType: 'Weight' },
 ] as const;
 
-function todayWindow() {
+function readWindow(daysBack = 0) {
   const now = new Date();
   const start = new Date(now);
+  start.setDate(start.getDate() - Math.max(0, daysBack));
   start.setHours(0, 0, 0, 0);
   return { startTime: start.toISOString(), endTime: now.toISOString(), start, now };
 }
@@ -107,10 +108,10 @@ export async function checkGoogleFitPermissions(): Promise<{ workouts: boolean; 
   }
 }
 
-export async function readTodayWorkouts(): Promise<HealthWorkout[]> {
+export async function readTodayWorkouts(daysBack = 0): Promise<HealthWorkout[]> {
   if (!(await ready())) return [];
   try {
-    const { startTime, endTime } = todayWindow();
+    const { startTime, endTime } = readWindow(daysBack);
     const res: any = await readRecords('ExerciseSession', { timeRangeFilter: { operator: 'between', startTime, endTime } } as any);
     const records: any[] = res?.records ?? [];
     return records
@@ -127,10 +128,10 @@ export async function readTodayWorkouts(): Promise<HealthWorkout[]> {
   }
 }
 
-export async function readTodayCalorieEntries(): Promise<HealthCalorieEntry[]> {
+export async function readTodayCalorieEntries(daysBack = 0): Promise<HealthCalorieEntry[]> {
   if (!(await ready())) return [];
   try {
-    const { startTime, endTime } = todayWindow();
+    const { startTime, endTime } = readWindow(daysBack);
     const res: any = await readRecords('Nutrition', { timeRangeFilter: { operator: 'between', startTime, endTime } } as any);
     const records: any[] = res?.records ?? [];
     const entries: HealthCalorieEntry[] = [];
@@ -161,20 +162,33 @@ export async function readTodayCalories(): Promise<HealthCalories | null> {
 }
 
 export async function readTodayWeight(): Promise<HealthWeight | null> {
-  if (!(await ready())) return null;
+  const recent = await readRecentWeights(0);
+  if (recent.length === 0) return null;
+  return recent.reduce((a, b) => (b.timestamp.getTime() >= a.timestamp.getTime() ? b : a));
+}
+
+/** Weight entries for the last `daysBack` days — latest sample per local day (sync backfill). */
+export async function readRecentWeights(daysBack = 7): Promise<HealthWeight[]> {
+  if (!(await ready())) return [];
   try {
-    const { startTime, endTime } = todayWindow();
+    const { startTime, endTime } = readWindow(daysBack);
     const res: any = await readRecords('Weight', { timeRangeFilter: { operator: 'between', startTime, endTime } } as any);
     const records: any[] = res?.records ?? [];
-    if (records.length === 0) return null;
-    // Most recent by time.
-    const latest = records.reduce((a, b) => (new Date(b.time).getTime() >= new Date(a.time).getTime() ? b : a));
-    const lbs = Number(latest?.weight?.inPounds);
-    if (!Number.isFinite(lbs) || lbs <= 0) return null;
-    const ts = new Date(latest.time);
-    return { weight: Math.round(lbs * 10) / 10, date: todayYYYYMMDD(), timestamp: ts, uuid: latest?.metadata?.id ? String(latest.metadata.id) : undefined };
+    const byDate = new Map<string, HealthWeight>();
+    for (const r of records) {
+      const lbs = Number(r?.weight?.inPounds);
+      if (!Number.isFinite(lbs) || lbs <= 0) continue;
+      const ts = new Date(r.time);
+      if (Number.isNaN(ts.valueOf())) continue;
+      const date = formatYYYYMMDDLocal(ts);
+      const prev = byDate.get(date);
+      if (!prev || ts.getTime() >= prev.timestamp.getTime()) {
+        byDate.set(date, { weight: Math.round(lbs * 10) / 10, date, timestamp: ts, uuid: r?.metadata?.id ? String(r.metadata.id) : undefined });
+      }
+    }
+    return Array.from(byDate.values());
   } catch (e) {
-    console.error('[HealthConnect] readTodayWeight failed:', e);
-    return null;
+    console.error('[HealthConnect] readRecentWeights failed:', e);
+    return [];
   }
 }

@@ -24,6 +24,9 @@ export type SyncResult = {
 let syncInProgress = false;
 let syncPromise: Promise<SyncResult> | null = null;
 
+/** How far back sync imports (days). Covers a week of unopened-app activity. */
+const BACKFILL_DAYS = 7;
+
 /** Delete the group logs for samples that were removed in Apple Health. */
 async function deleteSyncedLogs(
   groupId: string,
@@ -87,8 +90,8 @@ export async function syncHealthData(uid: string, groupId: string, settings: Hea
           let synced = 0;
           for (const w of items) {
             const date = formatYYYYMMDDLocal(w.startDate);
-            // Bound first-run backfill to today/yesterday and keep the today-centric model.
-            if (!isRecentImportDate(date, today)) continue;
+            // Backfill window: last 7 days, so days the app wasn't opened still count.
+            if (!isRecentImportDate(date, today, BACKFILL_DAYS)) continue;
             try {
               const logId = resolveHealthLogId(w.uuid, { type: 'workout', date, value: w.durationMinutes, source });
               await upsertGroupLogById(groupId, logId, {
@@ -137,11 +140,27 @@ export async function syncHealthData(uid: string, groupId: string, settings: Hea
               result.errors.push(`calorie entry: ${e}`);
             }
           }
-          if (synced > 0) result.caloriesSynced = true;
-
-          // Honor deletions from Apple Health via an anchored delta read.
+          // Backfill + deletions via the anchored delta read: import any entries
+          // from the last week the app missed, and honor Apple Health deletions.
           const anchor = await getAnchor(uid, 'calories');
-          const { deletedUuids, newAnchor } = await HealthService.readCalorieEntriesSinceAnchor(anchor);
+          const { items: deltaEntries, deletedUuids, newAnchor } = await HealthService.readCalorieEntriesSinceAnchor(anchor);
+          for (const entry of deltaEntries) {
+            if (!isRecentImportDate(entry.date, today, BACKFILL_DAYS)) continue;
+            try {
+              const logId = resolveHealthLogId(entry.uuid, { type: 'calories', date: entry.date, value: entry.calories, meal: entry.meal, source });
+              await upsertGroupLogById(groupId, logId, {
+                uid,
+                type: 'calories',
+                date: entry.date,
+                source,
+                payload: { calories: entry.calories, meal: entry.meal, note: entry.source ? `Synced from ${sourceLabel} (${entry.source})` : `Synced from ${sourceLabel}` },
+              });
+              synced += 1;
+            } catch (e) {
+              result.errors.push(`calorie backfill: ${e}`);
+            }
+          }
+          if (synced > 0) result.caloriesSynced = true;
           const removed = anchor ? await deleteSyncedLogs(groupId, deletedUuids, result, 'calorie') : 0;
           if (newAnchor) await setAnchor(uid, 'calories', newAnchor);
 
@@ -155,26 +174,32 @@ export async function syncHealthData(uid: string, groupId: string, settings: Hea
         result.diagnostics!.calories = { dataFromHealth: null, reason: `disabled (enabled=${settings.syncCalories}, perm=${permissions.calories})` };
       }
 
-      // ---- Weight (most recent today) ----
+      // ---- Weight (latest per day, last week — backfills unopened-app days) ----
       if (settings.syncWeight && permissions.weight) {
         try {
-          const weight = await HealthService.readTodayWeight();
-          if (weight && weight.weight > 0) {
-            const logId = resolveHealthLogId(weight.uuid, { type: 'weight', date: today, value: weight.weight, source });
-            await upsertGroupLogById(groupId, logId, {
-              uid,
-              type: 'weight',
-              date: today,
-              source,
-              payload: { weight: weight.weight, note: `Synced from ${sourceLabel}` },
-            });
-            await upsertUserWeightHistoryFromGroupLog({ uid, groupId, groupLogId: logId, date: today, weight: weight.weight });
-            result.weightSynced = true;
-            result.diagnostics!.weight = { dataFromHealth: weight, syncedCount: 1 };
-            console.log('[HealthSync] Weight synced:', weight.weight);
-          } else {
-            result.diagnostics!.weight = { dataFromHealth: weight ?? null, reason: weight ? 'weight is 0' : 'no weight today' };
+          const weights = await HealthService.readRecentWeights(BACKFILL_DAYS);
+          let syncedW = 0;
+          for (const weight of weights) {
+            if (!weight || weight.weight <= 0) continue;
+            if (!isRecentImportDate(weight.date, today, BACKFILL_DAYS)) continue;
+            try {
+              const logId = resolveHealthLogId(weight.uuid, { type: 'weight', date: weight.date, value: weight.weight, source });
+              await upsertGroupLogById(groupId, logId, {
+                uid,
+                type: 'weight',
+                date: weight.date,
+                source,
+                payload: { weight: weight.weight, note: `Synced from ${sourceLabel}` },
+              });
+              await upsertUserWeightHistoryFromGroupLog({ uid, groupId, groupLogId: logId, date: weight.date, weight: weight.weight });
+              syncedW += 1;
+            } catch (e) {
+              result.errors.push(`weight: ${e}`);
+            }
           }
+          if (syncedW > 0) result.weightSynced = true;
+          result.diagnostics!.weight = { dataFromHealth: { count: weights.length }, syncedCount: syncedW, reason: syncedW === 0 ? 'no weights in window' : undefined };
+          console.log('[HealthSync] Weights synced:', syncedW, 'of', weights.length);
         } catch (e) {
           result.errors.push(`read weight: ${e}`);
           result.diagnostics!.weight = { dataFromHealth: null, reason: `Error: ${e}` };

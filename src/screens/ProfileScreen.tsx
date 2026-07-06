@@ -408,7 +408,7 @@ export default function ProfileScreen() {
             ? () => {
                 nav.navigate('MainTabs' as any, {
                   screen: 'HomeTab',
-                  params: { screen: 'Leaderboard', params: { groupId: activeGroupId } },
+                  params: { screen: 'Leaderboard', initial: false, params: { groupId: activeGroupId } },
                 } as any);
               }
             : undefined

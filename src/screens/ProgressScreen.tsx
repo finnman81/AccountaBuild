@@ -713,7 +713,7 @@ export default function ProgressScreen({ navigation }: Props) {
                 'MainTabs',
                 {
                   screen: 'HomeTab',
-                  params: { screen: 'ViewPhotos', params: { groupId: activeGroupId } },
+                  params: { screen: 'ViewPhotos', initial: false, params: { groupId: activeGroupId } },
                 } as any,
               )
             }

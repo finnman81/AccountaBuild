@@ -65,7 +65,7 @@ export default function GroupSettingsScreen({ route, navigation }: Props) {
       if (status !== 'granted') return;
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ["images"] as ImagePicker.MediaType[],
         allowsEditing: true,
         quality: 0.9,
         aspect: [1, 1],

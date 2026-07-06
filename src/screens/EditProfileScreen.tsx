@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useState } from 'react';
-import { Image, KeyboardAvoidingView, Platform, ScrollView, View, StyleSheet, TouchableOpacity } from 'react-native';
+import { Alert, Image, KeyboardAvoidingView, Platform, ScrollView, View, StyleSheet, TouchableOpacity } from 'react-native';
 import { Icon } from 'react-native-paper';
 import { updateProfile as updateFirebaseProfile } from 'firebase/auth';
 import * as ImagePicker from 'expo-image-picker';
@@ -41,8 +41,6 @@ export default function EditProfileScreen({ navigation }: Props) {
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => navigation.setOptions({ headerShown: false }), [navigation]);
-
   useEffect(() => {
     if (!user) return;
     return subscribeMyProfile(user.uid, (p) => {
@@ -68,7 +66,7 @@ export default function EditProfileScreen({ navigation }: Props) {
         return;
       }
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ["images"] as ImagePicker.MediaType[],
         allowsEditing: true,
         quality: 0.9,
         aspect: [1, 1],
@@ -79,8 +77,12 @@ export default function EditProfileScreen({ navigation }: Props) {
       await updateMyProfile({ uid: user.uid, photoURL: url });
       if (auth.currentUser) await updateFirebaseProfile(auth.currentUser, { photoURL: url });
       await syncMyMemberProfileToAllGroups(user.uid);
-    } catch {
+      Alert.alert('Photo updated', 'Your new photo is saved.');
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error('[EditProfile] photo upload failed:', e);
       setError('Failed to update photo.');
+      Alert.alert('Photo upload failed', msg);
     } finally {
       setIsUploadingPhoto(false);
     }
@@ -132,8 +134,15 @@ export default function EditProfileScreen({ navigation }: Props) {
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.back} hitSlop={8}>
-          <Icon source="chevron-left" size={24} color={colors.textPrimary} />
+        <TouchableOpacity
+          onPress={() => {
+            if (navigation.canGoBack()) navigation.goBack();
+            else (navigation as any).navigate('MainTabs');
+          }}
+          style={styles.back}
+          hitSlop={16}
+        >
+          <Icon source="chevron-left" size={26} color={colors.textPrimary} />
         </TouchableOpacity>
         <AppText variant="rowTitle" color="primary" style={styles.headerTitle}>Edit profile</AppText>
         <TouchableOpacity onPress={save} disabled={isSaving} hitSlop={8}>

@@ -107,19 +107,22 @@ function Hero({
   const s = value.toFixed(decimals);
   const [intPart, decPart] = s.split('.');
   return (
-    <Pressable
-      onPress={() => {
-        setDraft(s);
-        setTyping(true);
-      }}
-      accessibilityRole="button"
-      accessibilityHint="Tap to type an exact value"
-      style={styles.heroRow}
-    >
-      <Text style={styles.heroInt}>{intPart}</Text>
-      {decPart != null && <Text style={styles.heroDec}>.{decPart}</Text>}
-      <Text style={styles.heroUnit}> {unit}</Text>
-    </Pressable>
+    <View>
+      <Pressable
+        onPress={() => {
+          setDraft(s);
+          setTyping(true);
+        }}
+        accessibilityRole="button"
+        accessibilityHint="Tap to type an exact value"
+        style={styles.heroRow}
+      >
+        <Text style={styles.heroInt}>{intPart}</Text>
+        {decPart != null && <Text style={styles.heroDec}>.{decPart}</Text>}
+        <Text style={styles.heroUnit}> {unit}</Text>
+      </Pressable>
+      <Text style={styles.heroHint}>Tap the number to type it</Text>
+    </View>
   );
 }
 
@@ -237,6 +240,7 @@ const styles = StyleSheet.create({
   heroInt: { fontSize: 72, fontWeight: '800', letterSpacing: -2, color: colors.textPrimary, fontVariant: ['tabular-nums'] },
   heroDec: { fontSize: 72, fontWeight: '800', letterSpacing: -2, color: colors.faint, fontVariant: ['tabular-nums'] },
   heroUnit: { fontSize: 20, fontWeight: '600', color: colors.textSecondary },
+  heroHint: { fontSize: 11, color: colors.textMuted, textAlign: 'center', marginTop: 4 },
   heroInput: { fontSize: 72, fontWeight: '800', color: colors.textPrimary, minWidth: 160, textAlign: 'center', padding: 0 },
   chipRow: { gap: 10, paddingHorizontal: 2 },
   chip: { height: 40, paddingHorizontal: 18, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },

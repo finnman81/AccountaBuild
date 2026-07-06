@@ -24,7 +24,7 @@ export default function HomeTodayScreen() {
       onSwitchGroup={() => {
         if (activeGroupId) nav.navigate('GroupDetail', { groupId: activeGroupId });
       }}
-      onBell={() => (nav as any).navigate('MainTabs', { screen: 'ProfileTab', params: { screen: 'Notifications' } })}
+      onBell={() => (nav as any).navigate('MainTabs', { screen: 'ProfileTab', params: { screen: 'Notifications', initial: false } })}
       onOpenMember={(uid: string) => {
         if (activeGroupId && uid) (nav as any).navigate('MemberDetail', { groupId: activeGroupId, uid });
       }}

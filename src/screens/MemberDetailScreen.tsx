@@ -87,7 +87,7 @@ export default function MemberDetailScreen({ route, navigation }: Props) {
 
   const message = () => {
     navigation.goBack();
-    (navigation as any).navigate('MainTabs', { screen: 'HomeTab', params: { screen: 'GroupChat', params: { groupId } } });
+    (navigation as any).navigate('MainTabs', { screen: 'HomeTab', params: { screen: 'GroupChat', initial: false, params: { groupId } } });
   };
 
   return (

@@ -154,11 +154,11 @@ export async function readWorkoutsSinceAnchor(anchor?: string): Promise<Anchored
     return await (service as any).readWorkoutsSinceAnchor(anchor);
   }
   if (Platform.OS === 'android') {
-    // Health Connect has no anchored workout read wired yet; wrap today's
-    // workouts as a delta (deterministic ids keep it idempotent, no deletions).
+    // Health Connect has no anchored workout read wired yet; wrap the last
+    // week's workouts as a delta (deterministic ids keep it idempotent).
     const service = await getGoogleFitService();
     if (!service) return { items: [], deletedUuids: [], newAnchor: anchor };
-    const items = await service.readTodayWorkouts();
+    const items = await service.readTodayWorkouts(7);
     return { items, deletedUuids: [], newAnchor: anchor };
   }
   return { items: [], deletedUuids: [], newAnchor: anchor };
@@ -166,7 +166,7 @@ export async function readWorkoutsSinceAnchor(anchor?: string): Promise<Anchored
 
 /**
  * Delta read of dietary-energy entries since the given anchor.
- * Android has no anchored path yet, so it returns an empty passthrough.
+ * Android wraps the last week's Health Connect entries (idempotent, no deletions).
  */
 export async function readCalorieEntriesSinceAnchor(anchor?: string): Promise<AnchoredResult<HealthCalorieEntry>> {
   if (Platform.OS === 'ios') {
@@ -176,7 +176,28 @@ export async function readCalorieEntriesSinceAnchor(anchor?: string): Promise<An
     }
     return await (service as any).readCalorieEntriesSinceAnchor(anchor);
   }
+  if (Platform.OS === 'android') {
+    const service = await getGoogleFitService();
+    if (!service) return { items: [], deletedUuids: [], newAnchor: anchor };
+    const items = await service.readTodayCalorieEntries(7);
+    return { items, deletedUuids: [], newAnchor: anchor };
+  }
   return { items: [], deletedUuids: [], newAnchor: anchor };
+}
+
+/** Weight entries for the last `daysBack` days (latest per day) — sync backfill. */
+export async function readRecentWeights(daysBack = 7): Promise<HealthWeight[]> {
+  if (Platform.OS === 'ios') {
+    const service = await getHealthKitService();
+    if (!service || typeof (service as any).readRecentWeights !== 'function') return [];
+    return await (service as any).readRecentWeights(daysBack);
+  }
+  if (Platform.OS === 'android') {
+    const service = await getGoogleFitService();
+    if (!service || typeof (service as any).readRecentWeights !== 'function') return [];
+    return await (service as any).readRecentWeights(daysBack);
+  }
+  return [];
 }
 
 /**

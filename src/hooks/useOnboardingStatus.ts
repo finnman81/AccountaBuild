@@ -25,6 +25,10 @@ export function useOnboardingStatus(uid: string | null): { isCompleted: boolean;
     const unsubscribe = onSnapshot(
       doc(db, 'users', uid),
       (snap) => {
+        // A cache-first snapshot can briefly claim the user doc doesn't exist
+        // before the server responds, which flashed the onboarding welcome at
+        // returning users. Stay in "loading" until we have real data.
+        if (!snap.exists() && snap.metadata.fromCache) return;
         if (snap.exists()) {
           const data = snap.data();
           const onboarding = (data.onboarding as OnboardingData | undefined) ?? { completed: false };
