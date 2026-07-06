@@ -1,4 +1,4 @@
-import { doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
 import { db } from '../firebase/firebase';
 
 export type HealthSettings = {
@@ -43,6 +43,25 @@ export function subscribeHealthSettings(
     },
     onError,
   );
+}
+
+/** One-shot read of a user's health settings (for headless/background use). */
+export async function getHealthSettings(uid: string): Promise<HealthSettings> {
+  try {
+    const snap = await getDoc(doc(db, 'users', uid, 'healthSettings', 'settings'));
+    if (!snap.exists()) return DEFAULT_SETTINGS;
+    const data = snap.data() as any;
+    return {
+      syncWorkouts: data.syncWorkouts ?? false,
+      syncCalories: data.syncCalories ?? false,
+      syncWeight: data.syncWeight ?? false,
+      lastSyncAt: data.lastSyncAt ?? null,
+      healthKitAuthorized: data.healthKitAuthorized ?? false,
+      googleFitAuthorized: data.googleFitAuthorized ?? false,
+    };
+  } catch {
+    return DEFAULT_SETTINGS;
+  }
 }
 
 /**

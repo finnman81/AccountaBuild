@@ -5,6 +5,8 @@ import Constants from 'expo-constants';
 import { AuthContext } from '../../store/AuthContext';
 import { useActiveGroup } from '../../store/ActiveGroupContext';
 import { subscribeHealthSettings, type HealthSettings } from '../../services/healthSettings';
+// Importing this module also defines the background task (required at import time).
+import { registerBackgroundHealthSync } from '../../services/health/backgroundHealthSync';
 
 /**
  * Component that automatically syncs health data when app comes to foreground
@@ -58,6 +60,13 @@ export default function HealthAutoSync() {
         console.error('[HealthAutoSync] Auto-sync failed:', err);
       });
   }, [user, activeGroupId, settings]);
+
+  // Register the OS-scheduled background sync task once (runs even when the app
+  // is closed). It self-checks user/group/settings, so registering is safe.
+  useEffect(() => {
+    if (isExpoGo) return;
+    void registerBackgroundHealthSync();
+  }, [isExpoGo]);
 
   // Subscribe to health settings
   useEffect(() => {

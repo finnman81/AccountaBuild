@@ -40,6 +40,8 @@ module.exports = ({ config }) => {
       healthKitPlugin,
       // Android health sync via Health Connect (replaces deprecated Google Fit).
       'react-native-health-connect',
+      // OS-scheduled background health sync (runs when the app is closed).
+      'expo-background-task',
     ],
     android: {
       ...config.android,
