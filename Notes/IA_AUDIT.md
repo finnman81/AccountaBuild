@@ -59,6 +59,16 @@ RETIRE: GroupDetail hub (absorb: members→GroupInfo, activity→chat log-cards)
 - GroupChat → custom header (name + "N members", back, overflow) with pinned status bar flush beneath; kill the native title bar.
 - GroupCharts/ViewPhotos/Issues get reachable homes inside GroupInfo (charts may later merge into Progress).
 
+## Personal side (Profile + Settings) — same disease, less obvious
+Profile "Settings & Controls" list (Settings·Edit profile·Goals·Season history·MMR history·Notifications·Health·Units) DUPLICATES the Settings screen and creates multiple owners:
+- **Edit profile reachable 3×** (Profile list + Settings→Account + avatar pencil).
+- **TWO different Notifications screens**: Profile→NotificationsScreen (reminder count/times scheduler) vs Settings→Notifications (toggles streak/team/nudges/chat). Disconnected, overlapping.
+- **Health reachable 2×** (Profile "Health & Fitness" + Settings "Apple Health sync") — both → HealthSettings.
+- **"Units" is a DEAD link** 🐛 — navigates EditProfile?focusField=units, but EditProfile went identity-only (no units field) → goes nowhere useful. FIX or remove.
+- Profile's fat list re-implements Settings. Design mock 07 = a SHORT Profile list (Season history / Notifications / Health sync) + gear → full Settings.
+
+Fix: Profile bottom list shrinks to the design's short set (or collapses into gear→Settings); Settings becomes the single home for toggles/account/health/sign-out; the reminder-scheduler screen becomes reachable FROM the Settings "Streak reminder" toggle, not a separate entry; delete the dead Units link.
+
 ## Execution order (each shippable alone)
 1. Group switcher sheet + chat icon on Today header (kills 90% of the felt confusion; chip stops navigating to the hub).
 2. GroupInfo slim screen in the Groups stack + GroupSettings restyle; move charts/photos/issues links there.
