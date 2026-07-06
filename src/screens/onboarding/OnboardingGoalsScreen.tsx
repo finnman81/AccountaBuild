@@ -4,7 +4,7 @@ import { Icon } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as Haptics from 'expo-haptics';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 import { AuthContext } from '../../store/AuthContext';
 import { OnboardingStackParamList } from '../../navigation/types';
@@ -12,7 +12,6 @@ import OnboardingHeader from '../../components/onboarding/OnboardingHeader';
 import PrimaryButton from '../../components/ui/PrimaryButton';
 import AppText from '../../components/ui/AppText';
 import { updateOnboardingStep } from '../../services/onboarding';
-import { updateMyProfile } from '../../services/profile';
 import { onboardingAnalytics } from '../../services/analytics';
 import { onboardingCopy } from '../../constants/onboardingCopy';
 import { db } from '../../firebase/firebase';
@@ -48,34 +47,20 @@ export default function OnboardingGoalsScreen({ navigation }: Props) {
 
     setIsSubmitting(true);
     try {
-      // Re-onboarding (returning users forced through the new flow) must not
-      // clobber goals someone already calibrated — only seed defaults for
-      // fields that are genuinely unset.
-      let existingCalorieGoal: number | null | undefined;
-      let existingWorkoutsPerWeek: number | null | undefined;
-      if (db) {
-        const snap = await getDoc(doc(db, 'users', user.uid));
-        const data = snap.exists() ? snap.data() : null;
-        existingCalorieGoal = data?.dailyCalorieGoal;
-        existingWorkoutsPerWeek = data?.workoutsPerWeek;
-      }
-      await updateMyProfile({
-        uid: user.uid,
-        dailyCalorieGoal: existingCalorieGoal == null ? option.defaults.dailyCalorieGoal : undefined,
-        workoutsPerWeek: existingWorkoutsPerWeek == null ? option.defaults.workoutsPerWeek : undefined,
-      });
+      // Only record the intent here. Actual calorie/workout targets are
+      // computed on the Recommended screen after Basic Info, so they can be
+      // personalized (and so re-onboarded users' existing goals survive).
       if (db) {
         await setDoc(
           doc(db, 'users', user.uid),
-          { goalMode: option.defaults.goalMode, trainingIntent: option.key, units: 'imperial', updatedAt: serverTimestamp() },
+          { goalMode: option.defaults.goalMode, trainingIntent: option.key, updatedAt: serverTimestamp() },
           { merge: true },
         );
       }
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      await updateOnboardingStep(user.uid, 2);
-      onboardingAnalytics.goalsSaved();
-      onboardingAnalytics.continue(2, 3);
-      navigation.navigate('BasicInfo');
+      await updateOnboardingStep(user.uid, 1);
+      onboardingAnalytics.continue(1, 2);
+      navigation.navigate('MMRIntro');
     } catch (error) {
       console.error('[Onboarding] Error saving intent:', error);
     } finally {
@@ -85,7 +70,7 @@ export default function OnboardingGoalsScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      <OnboardingHeader currentStep={1} totalSteps={4} showBack onBack={() => navigation.goBack()} />
+      <OnboardingHeader currentStep={1} totalSteps={6} showBack onBack={() => navigation.goBack()} />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <AppText variant="pageTitle" color="primary" style={styles.headline}>
           {goalsIntent.headline}

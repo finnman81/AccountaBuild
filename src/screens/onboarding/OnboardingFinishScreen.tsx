@@ -133,7 +133,7 @@ export default function OnboardingFinishScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <OnboardingHeader currentStep={4} totalSteps={4} showBack={true} onBack={handleBack} />
+      <OnboardingHeader currentStep={6} totalSteps={6} showBack={true} onBack={handleBack} />
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}

@@ -44,7 +44,7 @@ export default function OnboardingAccountabilityScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={['top']}>
-      <OnboardingHeader currentStep={3} totalSteps={4} showBack={true} onBack={handleBack} />
+      <OnboardingHeader currentStep={5} totalSteps={6} showBack={true} onBack={handleBack} />
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}

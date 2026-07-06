@@ -36,10 +36,31 @@ export const onboardingCopy = {
     ] as const,
   },
 
+  // MMR explainer — between the intent picker and Basic Info.
+  mmrIntro: {
+    headline: "Climb the ranks",
+    subtext: "Every week you hit your goals, you earn MMR and move up the ladder — from Iron all the way to Challenger.",
+    cta: "Got it",
+    rows: [
+      { icon: 'calendar-check', tint: 'primary', title: 'Win your week', subtitle: 'Hit your weekly goals to earn rank points' },
+      { icon: 'arm-flex-outline', tint: 'gold', title: 'Harder goals, faster climb', subtitle: 'Tougher targets are worth more — difficulty multiplies your gains' },
+      { icon: 'shield-half-full', tint: 'success', title: 'Consistency protects you', subtitle: 'Streaks build shields; missed weeks cost rank' },
+    ] as const,
+  },
+
   // Screen 2: Basic Info
   basicInfo: {
     headline: "Basic info",
     subtext: "This helps set realistic targets.",
+  },
+
+  // Recommended targets — computed from intent + basic info, user can tweak.
+  recommended: {
+    headline: "Your recommended targets",
+    subtextPersonalized: "Based on your stats and goal — tweak anything before you lock it in.",
+    subtextFallback: "Solid starting points for your goal — tweak anything before you lock it in.",
+    cta: "Looks good",
+    note: "You can change these anytime in Goals. Harder targets earn more MMR.",
   },
   
   // Screen 3: Accountability

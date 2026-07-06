@@ -189,7 +189,7 @@ export default function OnboardingBasicInfoScreen({ navigation }: Props) {
       await updateOnboardingStep(user.uid, 2);
       onboardingAnalytics.basicInfoSaved();
       onboardingAnalytics.continue(2, 3);
-      navigation.navigate('Accountability');
+      navigation.navigate('Recommended');
     } catch (error) {
       console.error('[Onboarding] Error saving basic info:', error);
       setErrors({ general: 'Failed to save. Please try again.' });
@@ -204,7 +204,7 @@ export default function OnboardingBasicInfoScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <OnboardingHeader currentStep={2} totalSteps={4} showBack={true} onBack={handleBack} />
+      <OnboardingHeader currentStep={3} totalSteps={6} showBack={true} onBack={handleBack} />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}

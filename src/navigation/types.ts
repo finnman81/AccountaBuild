@@ -32,9 +32,11 @@ export type RootStackParamList = {
 
 export type OnboardingStackParamList = {
   Welcome: undefined;
-  BasicInfo: undefined;
-  Accountability: undefined;
   Goals: undefined;
+  MMRIntro: undefined;
+  BasicInfo: undefined;
+  Recommended: undefined;
+  Accountability: undefined;
   Finish: undefined;
 };
 
