@@ -87,3 +87,11 @@ Fix: Profile bottom list shrinks to the design's short set (or collapses into ge
 3. Retire GroupDetail route (redirect → Today), delete after a release of soak.
 4. De-route LogToday/Add* from primary nav; SetGoals fold-in.
 ```
+
+## STATUS — ALL 4 STEPS SHIPPED (July 2026 overnight run)
+- **IA-1 ✅** (7019f32): Today group chip → `GroupSwitcherSheet` (was → hub); 1-tap 💬 `chat-outline` icon → GroupChat; compact rank chip (diamond + tier); replaced placeholder header glyphs (music-note "bell", text chevron) with real vector icons.
+- **IA-2 ✅** (d556008): new `GroupInfoScreen` (Groups stack) = the one group home (hero, invite code, Chat/Charts/Photos/Leaderboard/Issues links, member list, ⚙ settings). Gear on each `GroupCard` opens it; card body still = set active + go Today. **Group admin member management** lives here (`removeMemberAsAdmin`, self-heals removed user's list via membership check in `subscribeMyGroups`). GroupSettings → grouped rows (Rules · Identity · Danger). Also removed leftover debug `fetch` to 127.0.0.1:7242 in groups.ts.
+- **IA-3 ✅** (0e7fa44): GroupDetailScreen gutted to a thin redirect (was 1121 lines). Create → GroupInfo (active set); Join → active set + Today. Issues de-orphaned into Groups stack. SetGoals/LogToday de-routed (still registered for soak).
+- **IA-4 ✅** (f69722b): Profile fat list → short "Profile & progress" set (Goals·Season·MMR·Health sync·Settings). Dead **Units** link + Privacy/Export placeholders deleted. Reminder scheduler now reached from Settings → "Reminder schedule".
+
+Follow-ups left for a later pass: delete the retired GroupDetail/SetGoals/LogToday files+routes after a soak release; charts may later merge into Progress; GroupChat custom header (name + "N members" + pinned bar) still uses the native stack header.
