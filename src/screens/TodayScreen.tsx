@@ -12,14 +12,19 @@ import TodayHeader from '../components/today/TodayHeader';
 import TodaysLogCard from '../components/today/TodaysLogCard';
 import TeamTodayRail from '../components/today/TeamTodayRail';
 import LeaderboardPreviewCard from '../components/today/LeaderboardPreviewCard';
+import type { Tier } from '../mmr/types';
 
 type Props = {
   onOpenLog?: (type: ChecklistType) => void;
   onViewLeaderboard?: () => void;
   onOpenMember?: (uid: string) => void;
   onSwitchGroup?: () => void;
+  onChat?: () => void;
   onBell?: () => void;
 };
+
+const TIERS: Tier[] = ['Iron', 'Bronze', 'Silver', 'Gold', 'Platinum', 'Diamond', 'Master', 'Challenger'];
+const asTier = (x: unknown): Tier | null => (TIERS as string[]).includes(String(x ?? '').trim()) ? (String(x).trim() as Tier) : null;
 
 function greetingFor(hour: number): string {
   if (hour < 12) return 'Good morning';
@@ -31,7 +36,7 @@ function dateLabel(d: Date): string {
   return d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
 }
 
-export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember, onSwitchGroup, onBell }: Props) {
+export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember, onSwitchGroup, onChat, onBell }: Props) {
   const { user, group, memberUids, canSee, publicUsers, logs, myProfile } = useTodayData();
 
   const today = todayYYYYMMDD();
@@ -63,6 +68,8 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
   }
 
   const userName = friendlyNameFromDisplayName(publicUsers[myUid]?.displayName ?? myProfile?.displayName ?? null, myUid);
+  const rankTier = asTier(publicUsers[myUid]?.rankTierPublic);
+  const rankDivision = typeof publicUsers[myUid]?.rankDivisionPublic === 'number' ? publicUsers[myUid]?.rankDivisionPublic : null;
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ padding: spacing.lg, paddingTop: 56, paddingBottom: 32 }}>
@@ -72,7 +79,10 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
         userName={userName}
         dateLabel={dateLabel(now)}
         greeting={greetingFor(now.getHours())}
+        rankTier={rankTier}
+        rankDivision={rankDivision}
         onSwitchGroup={onSwitchGroup ?? (() => {})}
+        onChat={onChat ?? (() => {})}
         onBell={onBell ?? (() => {})}
       />
       <View style={{ height: 20 }} />

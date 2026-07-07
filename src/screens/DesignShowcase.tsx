@@ -147,7 +147,10 @@ export default function DesignShowcase() {
           dateLabel="Tuesday, July 1"
           greeting="Good morning"
           unreadCount={2}
+          rankTier="Silver"
+          rankDivision={4}
           onSwitchGroup={() => {}}
+          onChat={() => {}}
           onBell={() => {}}
         />
         <View style={{ height: 20 }} />
