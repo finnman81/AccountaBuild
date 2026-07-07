@@ -324,20 +324,50 @@ export default function ProgressScreen({ navigation }: Props) {
     };
   }, [activeGroupId, groupLogs, groupMeta?.memberCount, memberUids.length, metric, weekDates]);
 
+  // Build a clean chart model per metric so all three trends are consistent:
+  // - weight: missing days are carried forward (0% would be a false plunge),
+  //   axis is tight around the real values.
+  // - workout/calories: a missing day genuinely IS zero, so the axis is anchored
+  //   at 0 and topped by the week's max.
+  const chart = useMemo(() => {
+    const raw = aggregates.history.map((h: any) => {
+      if (metric === 'weight') return { v: h.avgPct as number | null, has: h.avgPct != null };
+      if (metric === 'workout') return { v: h.avgMins as number, has: h.avgMins > 0 };
+      return { v: h.avgCals as number, has: h.avgCals > 0 };
+    });
+    const realCount = raw.filter((r) => r.has).length;
+
+    let series: number[];
+    if (metric === 'weight') {
+      const firstReal = raw.find((r) => r.has)?.v ?? 0;
+      let last = firstReal as number;
+      series = raw.map((r) => {
+        if (r.has) last = r.v as number;
+        return last;
+      });
+    } else {
+      series = raw.map((r) => (r.has ? (r.v as number) : 0));
+    }
+
+    let yMin: number;
+    let yMax: number;
+    if (metric === 'weight') {
+      yMin = Math.min(...series);
+      yMax = Math.max(...series);
+      if (yMin === yMax) { yMin -= 1; yMax += 1; } else { const pad = (yMax - yMin) * 0.15; yMin -= pad; yMax += pad; }
+    } else {
+      yMin = 0;
+      yMax = Math.max(1, ...series) * 1.1;
+    }
+    return { series, yMin, yMax, realCount };
+  }, [aggregates.history, metric]);
+
   const yTicks = useMemo(() => {
-    if (!aggregates.series.length) return { top: '—', mid: '—', bot: '—' };
-    const vals = aggregates.series.filter((n) => Number.isFinite(n));
-    if (!vals.length) return { top: '—', mid: '—', bot: '—' };
-    const min = Math.min(...vals);
-    const max = Math.max(...vals);
-    const mid = (min + max) / 2;
-    const fmt = (n: number) => {
-      if (metric === 'weight') return `${Math.round(n * 100) / 100}%`;
-      if (metric === 'workout') return `${Math.round(n)}`;
-      return `${Math.round(n)}`;
-    };
-    return { top: fmt(max), mid: fmt(mid), bot: fmt(min) };
-  }, [aggregates.series, metric]);
+    if (chart.realCount === 0) return { top: '—', mid: '—', bot: '—' };
+    const mid = (chart.yMin + chart.yMax) / 2;
+    const fmt = (n: number) => (metric === 'weight' ? `${Math.round(n * 10) / 10}%` : `${Math.round(n)}`);
+    return { top: fmt(chart.yMax), mid: fmt(mid), bot: fmt(chart.yMin) };
+  }, [chart, metric]);
 
   const formatPointLabel = useMemo(() => {
     if (metric === 'weight') return (v: number) => `${Math.round(v * 100) / 100}%`;
@@ -578,127 +608,96 @@ export default function ProgressScreen({ navigation }: Props) {
             </AppText>
 
             <View style={{ height: spacing.md }} />
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              {/**
-               * Layout math:
-               * - Screen adds 16px padding on each side => 32 total
-               * - Card has its own horizontal padding (16 each side => 32)
-               * - We also have a Y-axis tick column to the left (yAxisW)
-               */}
-              {(() => {
-                const yAxisW = 56;
-                const estimatedCardPadding = 32;
-                const chartW = Math.max(240, width - 32 - estimatedCardPadding - yAxisW);
-                return (
-                  <>
-                    <View style={{ width: yAxisW, justifyContent: 'space-between', height: 160, paddingVertical: 8 }}>
-                      <AppText variant="label" color="muted" style={{ textAlign: 'right' }}>
-                        {yTicks.top}
-                      </AppText>
-                      <AppText variant="label" color="muted" style={{ textAlign: 'right' }}>
-                        {yTicks.mid}
-                      </AppText>
-                      <AppText variant="label" color="muted" style={{ textAlign: 'right' }}>
-                        {yTicks.bot}
-                      </AppText>
-                    </View>
-                    <View style={{ flex: 1, overflow: 'hidden' }}>
-                      <SimpleLineChart
-                        values={aggregates.series}
-                        height={160}
-                        width={chartW}
-                        color={colors.primary}
-                        showPointLabels
-                        formatPointLabel={formatPointLabel}
-                        labelColor={colors.textPrimary}
-                      />
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6, paddingHorizontal: 4 }}>
-                        {weekDates.map((d, i) => {
-                          const idx = parseYYYYMMDDLocal(d).getDay();
-                          return (
-                            <AppText key={`${d}-${i}`} variant="label" color="muted">
-                              {weekdayShort(idx)}
-                            </AppText>
-                          );
-                        })}
+            {chart.realCount < 2 ? (
+              <View style={{ height: 160, alignItems: 'center', justifyContent: 'center' }}>
+                <Icon source="chart-line-variant" size={28} color={colors.textMuted} />
+                <AppText variant="rowSubtitle" color="muted" style={{ textAlign: 'center', marginTop: spacing.sm }}>
+                  Not enough data yet — log a few days to see the trend.
+                </AppText>
+              </View>
+            ) : (
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                {(() => {
+                  const yAxisW = 48;
+                  const estimatedCardPadding = 32;
+                  const chartW = Math.max(240, width - 32 - estimatedCardPadding - yAxisW);
+                  return (
+                    <>
+                      <View style={{ width: yAxisW, justifyContent: 'space-between', height: 160, paddingVertical: 20 }}>
+                        <AppText variant="label" color="muted" style={{ textAlign: 'right' }}>{yTicks.top}</AppText>
+                        <AppText variant="label" color="muted" style={{ textAlign: 'right' }}>{yTicks.mid}</AppText>
+                        <AppText variant="label" color="muted" style={{ textAlign: 'right' }}>{yTicks.bot}</AppText>
                       </View>
-                      <AppText variant="label" color="muted" style={{ textAlign: 'center', marginTop: 4 }}>
-                        Day
-                      </AppText>
-                    </View>
-                  </>
-                );
-              })()}
-            </View>
+                      <View style={{ flex: 1, overflow: 'hidden' }}>
+                        <SimpleLineChart
+                          values={chart.series}
+                          height={160}
+                          width={chartW}
+                          yMin={chart.yMin}
+                          yMax={chart.yMax}
+                          color={colors.primary}
+                          showPointLabels
+                          formatPointLabel={formatPointLabel}
+                          labelColor={colors.textPrimary}
+                        />
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6, paddingHorizontal: 4 }}>
+                          {weekDates.map((d, i) => {
+                            const idx = parseYYYYMMDDLocal(d).getDay();
+                            return (
+                              <AppText key={`${d}-${i}`} variant="label" color="muted">
+                                {weekdayShort(idx)}
+                              </AppText>
+                            );
+                          })}
+                        </View>
+                      </View>
+                    </>
+                  );
+                })()}
+              </View>
+            )}
           </View>
       </Card>
 
       <View style={{ height: spacing.base }} />
 
       <Card>
-        <AppText variant="rowTitle" color="primary" style={{ marginBottom: spacing.sm }}>History</AppText>
+        <AppText variant="rowTitle" color="primary">History</AppText>
+        <AppText variant="rowSubtitle" color="secondary" style={{ marginTop: 2, marginBottom: spacing.md }}>
+          Daily group averages this week
+        </AppText>
         {aggregates.history.length === 0 ? (
           <View style={{ paddingVertical: spacing.md }}>
             <AppText variant="body" color="muted">No data yet.</AppText>
           </View>
         ) : (
-          aggregates.history
-            .slice()
-            .reverse()
-            .map((h: any, i: number) => {
-              // Calculate deltas for this day vs previous day
-              const prevDay = i < aggregates.history.length - 1 ? aggregates.history[aggregates.history.length - 2 - i] : null;
-              const weightDelta = prevDay && h.avgPct != null && prevDay.avgPct != null ? h.avgPct - prevDay.avgPct : null;
-              const minsDelta = prevDay ? h.avgMins - prevDay.avgMins : null;
-
+          <>
+            {/* Header */}
+            <View style={{ flexDirection: 'row', paddingBottom: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.divider }}>
+              <AppText variant="label" color="muted" style={{ flex: 1.4 }}>DAY</AppText>
+              <AppText variant="label" color="muted" style={{ flex: 1, textAlign: 'right' }}>WT %</AppText>
+              <AppText variant="label" color="muted" style={{ flex: 1, textAlign: 'right' }}>MIN</AppText>
+              <AppText variant="label" color="muted" style={{ flex: 1, textAlign: 'right' }}>CAL</AppText>
+            </View>
+            {aggregates.history.map((h: any, i: number) => {
+              const dow = parseYYYYMMDDLocal(h.date);
+              const dayLabel = dow.toLocaleDateString(undefined, { weekday: 'short' });
+              const num = (v: number) => (v > 0 ? String(Math.round(v)) : '—');
               return (
                 <View
                   key={`${h.date}-${i}`}
-                  style={{
-                    paddingVertical: spacing.md,
-                    borderTopWidth: i === 0 ? 0 : 1,
-                    borderTopColor: colors.divider,
-                  }}
+                  style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.sm, borderTopWidth: i === 0 ? 0 : 1, borderTopColor: colors.divider }}
                 >
-                  <AppText variant="rowTitle" color="primary" style={{ marginBottom: 4 }}>{h.date}</AppText>
-                  <View style={{ gap: 2 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
-                      <AppText variant="rowSubtitle" color="secondary">
-                        Avg % loss: {h.avgPct == null ? '—' : `${h.avgPct}%`}
-                      </AppText>
-                      {weightDelta != null && weightDelta !== 0 && (
-                        <AppText
-                          variant="label"
-                          style={{
-                            color: weightDelta > 0 ? colors.success : colors.danger,
-                          }}
-                        >
-                          {weightDelta > 0 ? '↑' : '↓'}
-                        </AppText>
-                      )}
-                    </View>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
-                      <AppText variant="rowSubtitle" color="secondary">
-                        Avg minutes: {formatMinutesHM(h.avgMins)}
-                      </AppText>
-                      {minsDelta != null && minsDelta !== 0 && (
-                        <AppText
-                          variant="label"
-                          style={{
-                            color: minsDelta > 0 ? colors.success : colors.danger,
-                          }}
-                        >
-                          {minsDelta > 0 ? '↑' : '↓'}
-                        </AppText>
-                      )}
-                    </View>
-                    <AppText variant="rowSubtitle" color="muted">
-                      Avg calories: {Math.round(h.avgCals)}
-                    </AppText>
-                  </View>
+                  <AppText variant="rowSubtitle" color="primary" style={{ flex: 1.4 }}>{dayLabel}</AppText>
+                  <AppText variant="rowSubtitle" color="secondary" style={{ flex: 1, textAlign: 'right', fontVariant: ['tabular-nums'] }}>
+                    {h.avgPct == null ? '—' : `${h.avgPct > 0 ? '' : ''}${h.avgPct}`}
+                  </AppText>
+                  <AppText variant="rowSubtitle" color="secondary" style={{ flex: 1, textAlign: 'right', fontVariant: ['tabular-nums'] }}>{num(h.avgMins)}</AppText>
+                  <AppText variant="rowSubtitle" color="secondary" style={{ flex: 1, textAlign: 'right', fontVariant: ['tabular-nums'] }}>{num(h.avgCals)}</AppText>
                 </View>
               );
-            })
+            })}
+          </>
         )}
       </Card>
 
