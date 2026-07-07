@@ -126,7 +126,12 @@ service cloud.firestore {
         // Note: We don't check groupExists() because exists() requires read permission.
         // If the join code exists, the group exists (join codes are cleaned up on delete).
         allow create: if signedIn() && request.auth.uid == uid;
-        allow update, delete: if signedIn() && request.auth.uid == uid;
+        // A user manages their own membership; a group admin may also update
+        // (promote/demote) or delete (remove) any member EXCEPT the creator.
+        allow update, delete: if signedIn() && (
+          request.auth.uid == uid ||
+          (isGroupAdmin(groupId) && get(/databases/$(database)/documents/groups/$(groupId)).data.createdBy != uid)
+        );
       }
 
       match /logs/{logId} {
