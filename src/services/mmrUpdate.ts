@@ -13,7 +13,7 @@ import {
 } from 'firebase/firestore';
 
 import { db } from '../firebase/firebase';
-import { RULES_VERSION, missedWeekPenalty, partialWeekPenalty, streakMultiplier } from '../mmr/constants';
+import { RULES_VERSION, STARTING_MMR, missedWeekPenalty, partialWeekPenalty, streakMultiplier } from '../mmr/constants';
 import { D_calDays, D_minutes, D_workouts, D_weightGain, D_weightLoss } from '../mmr/difficulty';
 import { bandForMMR, bandOrderIndex, applyRankWithDemotionRules, isStrictlyHigher, mpForMMR } from '../mmr/ranks';
 import { calorieDaysHitFromTotals } from '../mmr/adherence';
@@ -445,7 +445,7 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
     // Idempotency: if this week was already computed once, reuse the same baseline
     // so re-running doesn't stack penalties/deltas.
     // Safety: ensure mmrBefore is never negative (fixes any bad data)
-    const rawMmrBefore = weeklyData && typeof weeklyData?.mmrBefore === 'number' ? Number(weeklyData.mmrBefore) : typeof userData?.mmr === 'number' ? Number(userData.mmr) : 1000;
+    const rawMmrBefore = weeklyData && typeof weeklyData?.mmrBefore === 'number' ? Number(weeklyData.mmrBefore) : typeof userData?.mmr === 'number' ? Number(userData.mmr) : STARTING_MMR;
     const mmrBefore = Math.max(0, rawMmrBefore); // Ensure never negative
     const oldBand = bandForMMR(mmrBefore);
     const rankBefore = rankObjFromBand(mmrBefore, oldBand);

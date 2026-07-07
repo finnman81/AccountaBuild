@@ -14,6 +14,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { auth, db, firebaseInitError, isFirebaseConfigured } from '../firebase/firebase';
 import { syncMyMemberProfileToAllGroups } from '../services/profile';
 import { syncMyVisibilityIndex } from '../services/visibility';
+import { STARTING_MMR, STARTING_TIER, STARTING_DIVISION } from '../mmr/constants';
 
 // Debug: Check AsyncStorage for Firebase auth data
 async function debugAsyncStorage() {
@@ -135,7 +136,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         await updateProfile(credential.user, { displayName: displayName.trim() });
 
-        // Create/update a basic user profile doc.
+        // Create/update a basic user profile doc, seeded at the Silver IV
+        // starting rank (prev* seeded equal so no phantom movement arrow shows).
         await setDoc(
           doc(db, 'users', credential.user.uid),
           {
@@ -145,7 +147,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             age: null,
             weightCurrent: null,
             weightGoal: null,
+            mmr: STARTING_MMR,
+            rankTier: STARTING_TIER,
+            rankDivision: STARTING_DIVISION,
+            mp: 0,
+            prevMmr: STARTING_MMR,
+            prevRankTier: STARTING_TIER,
+            prevRankDivision: STARTING_DIVISION,
             createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true },
+        );
+
+        // Mirror the starting rank into the public profile so the leaderboard
+        // shows the new member at Silver IV right away.
+        await setDoc(
+          doc(db, 'publicUsers', credential.user.uid),
+          {
+            uid: credential.user.uid,
+            displayName: displayName.trim(),
+            mmrPublic: STARTING_MMR,
+            rankTierPublic: STARTING_TIER,
+            rankDivisionPublic: STARTING_DIVISION,
+            mpPublic: 0,
             updatedAt: serverTimestamp(),
           },
           { merge: true },
