@@ -6,7 +6,7 @@ import { D_calDays, D_minutes, D_workouts, D_weightGain, D_weightLoss } from '..
 import { applyRankWithDemotionRules, bandForMMR } from '../mmr/ranks';
 import { lowerTierProgressBonus } from '../mmr/progression';
 import { combineWeekScore, goalScore } from '../mmr/scoring';
-import { DEFAULT_TZ, isoWeekIdInTz, isoWeekRangeInTz } from '../mmr/time';
+import { DEFAULT_TZ, isoWeekIdInTz, isoWeekRangeInTz, yyyyMmDdInTz } from '../mmr/time';
 import type { Tier } from '../mmr/types';
 
 type GoalDoc = any;
@@ -91,7 +91,16 @@ function computeProjection(params: {
   weights: Array<{ date: string; weight: number; tsMs: number | null }>;
   calorieDaysMet: Set<string>;
 }): MmrProjection {
-  const { start, end } = isoWeekRangeInTz(params.weekId, DEFAULT_TZ);
+  const { start, end, dates } = isoWeekRangeInTz(params.weekId, DEFAULT_TZ);
+
+  // Pace-aware achievement: judge "are you on track SO FAR", not "did you finish
+  // the whole week's target already". Early in the week, hitting your per-day pace
+  // counts as on-track (1 of 5 workouts on Monday is perfect pace, not a miss).
+  // At week's end elapsedFrac = 1, so this collapses to actual/target.
+  const today = yyyyMmDdInTz(new Date(), DEFAULT_TZ);
+  const daysElapsed = today > end ? 7 : Math.max(1, Math.min(7, dates.filter((d) => d <= today).length));
+  const elapsedFrac = daysElapsed / 7;
+  const paceA = (actual: number, target: number) => clamp(0, 1, actual / Math.max(0.0001, (target || 1) * elapsedFrac));
 
   let workoutsDone = 0;
   let minutesDone = 0;
@@ -108,7 +117,7 @@ function computeProjection(params: {
 
   if ((params.goals.workouts?.status ?? 'active') === 'active' && Number.isFinite(params.goals.workouts?.targetWorkoutsPerWeek)) {
     const t = Number(params.goals.workouts.targetWorkoutsPerWeek);
-    const A = clamp(0, 1, workoutsDone / (t || 1));
+    const A = paceA(workoutsDone, t);
     const D = D_workouts(t);
     const O = A;
     active.push({ id: 'workouts', type: 'workouts', D, A, O, score: goalScore(D, A, O) });
@@ -116,7 +125,7 @@ function computeProjection(params: {
 
   if ((params.goals.minutes?.status ?? 'active') === 'active' && Number.isFinite(params.goals.minutes?.targetMinutesPerWeek)) {
     const t = Number(params.goals.minutes.targetMinutesPerWeek);
-    const A = clamp(0, 1, minutesDone / (t || 1));
+    const A = paceA(minutesDone, t);
     const D = D_minutes(t);
     const O = A;
     active.push({ id: 'minutes', type: 'minutes', D, A, O, score: goalScore(D, A, O) });
@@ -124,7 +133,7 @@ function computeProjection(params: {
 
   if ((params.goals.calorieDays?.status ?? 'active') === 'active' && Number.isFinite(params.goals.calorieDays?.targetDaysPerWeek)) {
     const t = Number(params.goals.calorieDays.targetDaysPerWeek);
-    const A = clamp(0, 1, calorieDaysHit / (t || 1));
+    const A = paceA(calorieDaysHit, t);
     const D = D_calDays(t);
     const O = A;
     active.push({ id: 'calorieDays', type: 'calorieDays', D, A, O, score: goalScore(D, A, O) });

@@ -450,10 +450,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   content: {
-    flex: 1,
+    // flexGrow (not flex:1) so the ScrollView content can exceed the viewport
+    // and actually scroll — flex:1 pinned it to screen height and blocked scroll.
+    flexGrow: 1,
     paddingHorizontal: 24,
     paddingTop: 32,
-    paddingBottom: 16,
+    paddingBottom: 48,
   },
   textContainer: {
     marginBottom: 32,
