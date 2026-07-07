@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useState } from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
+import { View, StyleSheet, ScrollView, Platform } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as Haptics from 'expo-haptics';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -13,6 +13,9 @@ import PrimaryButton from '../../components/ui/PrimaryButton';
 import AppText from '../../components/ui/AppText';
 import Card from '../../components/ui/Card';
 import { completeOnboarding } from '../../services/onboarding';
+import { requestNotificationPermissions, scheduleNotifications } from '../../services/notifications';
+import { requestHealthPermissions } from '../../services/health/healthService';
+import { updateHealthSettings } from '../../services/healthSettings';
 import { onboardingAnalytics } from '../../services/analytics';
 import { onboardingCopy } from '../../constants/onboardingCopy';
 import { subscribeMyProfile } from '../../services/profile';
@@ -84,6 +87,30 @@ export default function OnboardingFinishScreen({ navigation }: Props) {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       await completeOnboarding(user.uid);
       onboardingAnalytics.completed();
+
+      // Ask for notifications + health sync at the very end of onboarding (native
+      // OS prompts). Both are non-fatal — a denial/failure never blocks finishing;
+      // the user can enable them later in Settings.
+      try {
+        const notifGranted = await requestNotificationPermissions();
+        if (notifGranted) await scheduleNotifications({ startFromTomorrow: true });
+      } catch (e) {
+        console.warn('[Onboarding] notification permission request failed', e);
+      }
+      try {
+        const health = await requestHealthPermissions();
+        if (health.success) {
+          await updateHealthSettings(user.uid, {
+            syncWorkouts: true,
+            syncCalories: true,
+            syncWeight: true,
+            healthKitAuthorized: Platform.OS === 'ios',
+            googleFitAuthorized: Platform.OS === 'android',
+          });
+        }
+      } catch (e) {
+        console.warn('[Onboarding] health permission request failed', e);
+      }
 
       // Navigate to root MainTabs
       // The AppNavigator will automatically show MainTabs since onboarding is now completed
@@ -203,13 +230,16 @@ export default function OnboardingFinishScreen({ navigation }: Props) {
       </ScrollView>
 
       <View style={styles.footer}>
+        <AppText variant="rowSubtitle" color="muted" style={styles.permsNote}>
+          Next, we'll ask to connect your health app and turn on reminders — you can change these anytime in Settings.
+        </AppText>
         <PrimaryButton
           onPress={handleFinish}
           style={styles.button}
           loading={isSubmitting}
           disabled={isSubmitting}
         >
-          Go to Profile
+          Finish setup
         </PrimaryButton>
       </View>
     </SafeAreaView>
@@ -256,5 +286,10 @@ const styles = StyleSheet.create({
   },
   button: {
     minHeight: 48,
+  },
+  permsNote: {
+    textAlign: 'center',
+    lineHeight: 18,
+    marginBottom: 12,
   },
 });
