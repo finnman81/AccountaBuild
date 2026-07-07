@@ -517,52 +517,15 @@ export default function ProfileScreen() {
       <View style={{ height: 16 }} />
 
       <Card>
-        <AppText variant="rowTitle" color="primary" style={{ marginBottom: spacing.sm }}>Settings & Controls</AppText>
+        <AppText variant="rowTitle" color="primary" style={{ marginBottom: spacing.sm }}>Profile & progress</AppText>
         <View style={{ marginHorizontal: -spacing.base }}>
           <NavList
             items={[
-              { title: 'Settings', icon: 'cog', onPress: () => (nav as any).navigate('Settings') },
-              { title: 'Edit profile', icon: 'account-edit', onPress: () => nav.navigate('EditProfile', undefined) },
               { title: 'Goals', icon: 'target', onPress: () => nav.navigate('MMRGoals') },
               { title: 'Season history', icon: 'trophy', onPress: () => (nav as any).navigate('SeasonHistory') },
               { title: 'MMR history', icon: 'chart-line', onPress: () => (nav as any).navigate('MMRHistory') },
-              {
-                title: 'Notifications',
-                icon: 'bell',
-                onPress: () => nav.navigate('Notifications', undefined),
-              },
-              {
-                title: 'Health & Fitness',
-                icon: 'heart-pulse',
-                onPress: () => (nav as any).navigate('HealthSettings'),
-              },
-              {
-                title: 'Units',
-                icon: 'ruler-square',
-                description: 'lb/in (for now)',
-                onPress: () => nav.navigate('EditProfile', { focusField: 'units' }),
-              },
-              {
-                title: 'Privacy',
-                icon: 'shield-lock',
-                description: 'Coming soon',
-                onPress: async () => {
-                  await Haptics.selectionAsync();
-                },
-              },
-              {
-                title: 'Export data',
-                icon: 'download',
-                description: 'Coming soon',
-                onPress: async () => {
-                  await Haptics.selectionAsync();
-                },
-              },
-              {
-                title: 'Sign out',
-                icon: 'logout',
-                onPress: () => void logout(),
-              },
+              { title: 'Health sync', icon: 'heart-pulse', onPress: () => (nav as any).navigate('HealthSettings') },
+              { title: 'Settings', icon: 'cog', onPress: () => (nav as any).navigate('Settings') },
             ]}
           />
         </View>
