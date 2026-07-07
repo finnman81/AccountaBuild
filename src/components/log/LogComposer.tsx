@@ -68,11 +68,14 @@ function Hero({
   decimals,
   unit,
   onCommit,
+  onStep,
 }: {
   value: number;
   decimals: 0 | 1;
   unit: string;
   onCommit: (v: number) => void;
+  /** Optional −/+ stepper (a guaranteed fallback if the ruler drag misfires). */
+  onStep?: (delta: number) => void;
 }) {
   const [typing, setTyping] = useState(false);
   const [draft, setDraft] = useState('');
@@ -108,20 +111,32 @@ function Hero({
   const [intPart, decPart] = s.split('.');
   return (
     <View>
-      <Pressable
-        onPress={() => {
-          setDraft(s);
-          setTyping(true);
-        }}
-        accessibilityRole="button"
-        accessibilityHint="Tap to type an exact value"
-        style={styles.heroRow}
-      >
-        <Text style={styles.heroInt}>{intPart}</Text>
-        {decPart != null && <Text style={styles.heroDec}>.{decPart}</Text>}
-        <Text style={styles.heroUnit}> {unit}</Text>
-      </Pressable>
-      <Text style={styles.heroHint}>Tap the number to type it</Text>
+      <View style={styles.heroRowWithSteppers}>
+        {onStep && (
+          <Pressable onPress={() => onStep(-1)} hitSlop={10} style={styles.stepBtn} accessibilityRole="button" accessibilityLabel="Decrease">
+            <Text style={styles.stepGlyph}>−</Text>
+          </Pressable>
+        )}
+        <Pressable
+          onPress={() => {
+            setDraft(s);
+            setTyping(true);
+          }}
+          accessibilityRole="button"
+          accessibilityHint="Tap to type an exact value"
+          style={styles.heroRow}
+        >
+          <Text style={styles.heroInt}>{intPart}</Text>
+          {decPart != null && <Text style={styles.heroDec}>.{decPart}</Text>}
+          <Text style={styles.heroUnit}> {unit}</Text>
+        </Pressable>
+        {onStep && (
+          <Pressable onPress={() => onStep(1)} hitSlop={10} style={styles.stepBtn} accessibilityRole="button" accessibilityLabel="Increase">
+            <Text style={styles.stepGlyph}>+</Text>
+          </Pressable>
+        )}
+      </View>
+      <Text style={styles.heroHint}>Tap the number to type it, drag the ruler, or use −/+</Text>
     </View>
   );
 }
@@ -173,7 +188,13 @@ export default function LogComposer({ initialType = 'weight', onClose, onSaved, 
       <ScrollView contentContainerStyle={{ paddingVertical: 28 }} keyboardShouldPersistTaps="handled">
         {mode === 'weight' && (
           <View style={styles.body}>
-            <Hero value={weight} decimals={1} unit="lb" onCommit={(v) => setWeight(Math.max(50, Math.min(500, v)))} />
+            <Hero
+              value={weight}
+              decimals={1}
+              unit="lb"
+              onCommit={(v) => setWeight(Math.max(50, Math.min(500, v)))}
+              onStep={(d) => setWeight((w) => Math.max(50, Math.min(500, Math.round((w + d) * 10) / 10)))}
+            />
             <RulerDial value={weight} onChange={setWeight} min={50} max={500} step={0.1} majorEvery={10} />
           </View>
         )}
@@ -186,14 +207,26 @@ export default function LogComposer({ initialType = 'weight', onClose, onSaved, 
               ))}
             </ScrollView>
             <View style={{ height: 20 }} />
-            <Hero value={duration} decimals={0} unit="min" onCommit={(v) => setDuration(Math.max(1, Math.min(300, Math.round(v))))} />
+            <Hero
+              value={duration}
+              decimals={0}
+              unit="min"
+              onCommit={(v) => setDuration(Math.max(1, Math.min(300, Math.round(v))))}
+              onStep={(d) => setDuration((x) => Math.max(1, Math.min(300, x + d * 5)))}
+            />
             <RulerDial value={duration} onChange={setDuration} min={1} max={300} step={1} majorEvery={15} />
           </View>
         )}
 
         {mode === 'calories' && (
           <View style={styles.body}>
-            <Hero value={calories} decimals={0} unit="kcal" onCommit={(v) => setCalories(Math.max(0, Math.min(6000, Math.round(v))))} />
+            <Hero
+              value={calories}
+              decimals={0}
+              unit="kcal"
+              onCommit={(v) => setCalories(Math.max(0, Math.min(6000, Math.round(v))))}
+              onStep={(d) => setCalories((x) => Math.max(0, Math.min(6000, x + d * 50)))}
+            />
             <RulerDial value={calories} onChange={setCalories} min={0} max={6000} step={10} majorEvery={5} />
             <View style={{ height: 20 }} />
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
@@ -237,6 +270,9 @@ const styles = StyleSheet.create({
   close: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.surface2, alignItems: 'center', justifyContent: 'center' },
   body: { minHeight: 180, justifyContent: 'center' },
   heroRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'center', marginBottom: 8 },
+  heroRowWithSteppers: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  stepBtn: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.surface2, alignItems: 'center', justifyContent: 'center' },
+  stepGlyph: { fontSize: 26, fontWeight: '700', color: colors.textPrimary, lineHeight: 28 },
   heroInt: { fontSize: 72, fontWeight: '800', letterSpacing: -2, color: colors.textPrimary, fontVariant: ['tabular-nums'] },
   heroDec: { fontSize: 72, fontWeight: '800', letterSpacing: -2, color: colors.faint, fontVariant: ['tabular-nums'] },
   heroUnit: { fontSize: 20, fontWeight: '600', color: colors.textSecondary },

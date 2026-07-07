@@ -37,6 +37,13 @@ export default function RulerDial({ value, onChange, min, max, step, majorEvery 
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
+      // Claim the gesture at capture phase too, so the parent (vertical)
+      // ScrollView can't steal the horizontal drag — that made the dial feel
+      // "stuck" on device. The ruler is only 56px tall, so grabbing touches
+      // here doesn't interfere with page scrolling elsewhere.
+      onStartShouldSetPanResponderCapture: () => true,
+      onMoveShouldSetPanResponderCapture: () => true,
+      onPanResponderTerminationRequest: () => false,
       onPanResponderGrant: () => {
         startValue.current = valueRef.current;
       },

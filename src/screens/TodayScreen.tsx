@@ -12,8 +12,11 @@ import { subscribeGroupChallenge, challengeProgress, type GroupChallenge } from 
 import { buildLeaderboardPreview, buildTeamToday, buildTodayChecklist, type ChecklistType } from '../viewmodels/today';
 import TodayHeader from '../components/today/TodayHeader';
 import TodaysLogCard from '../components/today/TodaysLogCard';
+import TodayEntriesSheet from '../components/today/TodayEntriesSheet';
 import TeamTodayRail from '../components/today/TeamTodayRail';
 import LeaderboardPreviewCard from '../components/today/LeaderboardPreviewCard';
+import { deleteGroupLogById } from '../services/logs';
+import type { ChecklistItem, TodayLogEntry } from '../viewmodels/today';
 import type { Tier } from '../mmr/types';
 
 type Props = {
@@ -24,6 +27,7 @@ type Props = {
   onChat?: () => void;
   onBell?: () => void;
   onOpenChallenge?: () => void;
+  onEditEntry?: (entry: TodayLogEntry) => void;
 };
 
 const TIERS: Tier[] = ['Iron', 'Bronze', 'Silver', 'Gold', 'Platinum', 'Diamond', 'Master', 'Challenger'];
@@ -39,9 +43,10 @@ function dateLabel(d: Date): string {
   return d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
 }
 
-export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember, onSwitchGroup, onChat, onBell, onOpenChallenge }: Props) {
+export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember, onSwitchGroup, onChat, onBell, onOpenChallenge, onEditEntry }: Props) {
   const { user, group, memberUids, canSee, publicUsers, logs, myProfile } = useTodayData();
   const { activeGroupId } = useActiveGroup();
+  const [entriesItem, setEntriesItem] = useState<ChecklistItem | null>(null);
 
   const [challenge, setChallenge] = useState<GroupChallenge | null>(null);
   useEffect(() => {
@@ -128,9 +133,22 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
       ) : null}
 
       <View style={{ height: 20 }} />
-      <TodaysLogCard checklist={checklist} onLog={onOpenLog ?? (() => {})} />
+      <TodaysLogCard checklist={checklist} onLog={onOpenLog ?? (() => {})} onOpenEntries={setEntriesItem} />
       <TeamTodayRail team={team} onMemberPress={onOpenMember ?? (() => {})} />
       <LeaderboardPreviewCard rows={preview} onViewAll={onViewLeaderboard ?? (() => {})} />
+
+      <TodayEntriesSheet
+        item={entriesItem}
+        onClose={() => setEntriesItem(null)}
+        onEdit={(entry) => { setEntriesItem(null); onEditEntry?.(entry); }}
+        onDelete={async (entry) => {
+          if (activeGroupId) {
+            try { await deleteGroupLogById(activeGroupId, entry.logId); } catch { /* non-fatal */ }
+          }
+          setEntriesItem(null);
+        }}
+        onAdd={(type) => { setEntriesItem(null); onOpenLog?.(type); }}
+      />
     </ScrollView>
   );
 }

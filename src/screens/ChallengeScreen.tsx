@@ -142,6 +142,15 @@ export default function ChallengeScreen({ route, navigation }: Props) {
     ]);
   };
 
+  const handleBack = () => {
+    // Editing? Back cancels the form first. Otherwise leave the screen — with a
+    // hard fallback to GroupInfo when there's no stack entry beneath (e.g. when
+    // this screen was deep-linked from the Today banner).
+    if (editing) { setEditing(false); return; }
+    if (navigation.canGoBack()) navigation.goBack();
+    else navigation.navigate('GroupInfo', { groupId });
+  };
+
   const statusLine = () => {
     if (!progress) return '';
     if (progress.phase === 'upcoming') return `Starts ${prettyDate(progress.startDate)}`;
@@ -152,7 +161,7 @@ export default function ChallengeScreen({ route, navigation }: Props) {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.back} hitSlop={8}>
+        <TouchableOpacity onPress={handleBack} style={styles.back} hitSlop={8}>
           <Icon source="chevron-left" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
         <AppText variant="rowTitle" color="primary" style={{ flex: 1 }}>Challenge</AppText>

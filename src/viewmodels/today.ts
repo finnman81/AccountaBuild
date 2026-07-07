@@ -6,12 +6,22 @@ import { formatMinutesHM, formatWeightLb, friendlyNameFromDisplayName } from '..
 export type ChecklistType = 'calories' | 'workout' | 'weight';
 export type Division = 1 | 2 | 3 | 4;
 
+export type TodayLogEntry = {
+  logId: string;
+  type: ChecklistType;
+  date: string;
+  loggedAtMs: number | null;
+  valueLine: string;
+  payload: any;
+};
 export type ChecklistItem = {
   type: ChecklistType;
   title: string;
   logged: boolean;
   loggedAtMs: number | null;
   valueLine: string;
+  /** The raw log entries behind this row (for edit/delete). */
+  entries: TodayLogEntry[];
 };
 export type TodayChecklist = { items: ChecklistItem[]; doneCount: number; total: number };
 
@@ -87,9 +97,23 @@ export function buildTodayChecklist(params: {
 }): TodayChecklist {
   const mine = params.logs.filter((l) => l.uid === params.myUid && l.date === params.today);
 
+  const entryValueLine = (type: ChecklistType, l: GroupLog): string => {
+    const p = l.payload as any;
+    if (type === 'calories') {
+      const meal = String(p?.meal ?? '').trim();
+      const mealLabel = meal && meal !== 'all' ? ` · ${meal.charAt(0).toUpperCase()}${meal.slice(1)}` : '';
+      return `${(Number(p?.calories) || 0).toLocaleString()} kcal${mealLabel}`;
+    }
+    if (type === 'workout') return `${prettyWorkout(p?.workoutType)} · ${formatMinutesHM(Number(p?.durationMinutes) || 0)}`;
+    return formatWeightLb(Number(p?.weight));
+  };
+
   const build = (type: ChecklistType, title: string): ChecklistItem => {
     const ofType = mine.filter((l) => l.type === type);
-    if (ofType.length === 0) return { type, title, logged: false, loggedAtMs: null, valueLine: 'Not logged yet' };
+    const entries: TodayLogEntry[] = ofType
+      .map((l) => ({ logId: l.id, type, date: l.date, loggedAtMs: logTsMs(l), valueLine: entryValueLine(type, l), payload: l.payload }))
+      .sort((a, b) => (b.loggedAtMs ?? 0) - (a.loggedAtMs ?? 0));
+    if (ofType.length === 0) return { type, title, logged: false, loggedAtMs: null, valueLine: 'Not logged yet', entries: [] };
 
     const loggedAtMs = ofType.reduce<number | null>((max, l) => {
       const ms = logTsMs(l);
@@ -109,7 +133,7 @@ export function buildTodayChecklist(params: {
       const latest = ofType.reduce((a, b) => ((logTsMs(b) ?? 0) >= (logTsMs(a) ?? 0) ? b : a));
       valueLine = formatWeightLb(Number((latest.payload as any)?.weight));
     }
-    return { type, title, logged: true, loggedAtMs, valueLine };
+    return { type, title, logged: true, loggedAtMs, valueLine, entries };
   };
 
   const items = [build('calories', 'Calories'), build('workout', 'Workout'), build('weight', 'Weight')];

@@ -38,6 +38,17 @@ export default function HomeTodayScreen() {
         onOpenMember={(uid: string) => {
           if (activeGroupId && uid) (nav as any).navigate('MemberDetail', { groupId: activeGroupId, uid });
         }}
+        onEditEntry={(entry) => {
+          if (!activeGroupId) return;
+          const p = (entry.payload ?? {}) as any;
+          if (entry.type === 'calories') {
+            (nav as any).navigate('AddCalories', { groupId: activeGroupId, edit: { logId: entry.logId, date: entry.date, calories: Number(p.calories) || 0, meal: p.meal ?? 'all', note: p.note ?? null } });
+          } else if (entry.type === 'workout') {
+            (nav as any).navigate('AddWorkout', { groupId: activeGroupId, edit: { logId: entry.logId, date: entry.date, workoutType: p.workoutType ?? 'weightLifting', durationMinutes: Number(p.durationMinutes) || 0, note: p.note ?? null } });
+          } else if (entry.type === 'weight') {
+            (nav as any).navigate('AddWeight', { groupId: activeGroupId, edit: { logId: entry.logId, date: entry.date, weight: Number(p.weight) || 0, note: p.note ?? null } });
+          }
+        }}
       />
 
       <GroupSwitcherSheet

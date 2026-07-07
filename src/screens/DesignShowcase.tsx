@@ -23,9 +23,9 @@ const MOCK_CHECKLIST: TodayChecklist = {
   doneCount: 2,
   total: 3,
   items: [
-    { type: 'calories', title: 'Calories', logged: true, loggedAtMs: new Date(2026, 6, 1, 8, 12).getTime(), valueLine: '1,840 / 2,200 kcal' },
-    { type: 'workout', title: 'Workout', logged: true, loggedAtMs: new Date(2026, 6, 1, 7, 5).getTime(), valueLine: 'Push day · 52m' },
-    { type: 'weight', title: 'Weight', logged: false, loggedAtMs: null, valueLine: 'Not logged yet' },
+    { type: 'calories', title: 'Calories', logged: true, loggedAtMs: new Date(2026, 6, 1, 8, 12).getTime(), valueLine: '1,840 / 2,200 kcal', entries: [] },
+    { type: 'workout', title: 'Workout', logged: true, loggedAtMs: new Date(2026, 6, 1, 7, 5).getTime(), valueLine: 'Push day · 52m', entries: [] },
+    { type: 'weight', title: 'Weight', logged: false, loggedAtMs: null, valueLine: 'Not logged yet', entries: [] },
   ],
 };
 
