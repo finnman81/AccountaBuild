@@ -1,3 +1,5 @@
+const fs = require('fs');
+
 module.exports = ({ config }) => {
   const basePlugins = Array.isArray(config.plugins) ? config.plugins : [];
   const filteredPlugins = basePlugins.filter((plugin) => {
@@ -45,7 +47,10 @@ module.exports = ({ config }) => {
     ],
     android: {
       ...config.android,
-      // Permissions are defined in app.json
+      // Permissions are defined in app.json.
+      // FCM config for Android push (cheer/nudge). Wired only when the file is
+      // present so a build never breaks if it hasn't been added yet.
+      ...(fs.existsSync('./google-services.json') ? { googleServicesFile: './google-services.json' } : {}),
     },
     ios: {
       ...config.ios,
