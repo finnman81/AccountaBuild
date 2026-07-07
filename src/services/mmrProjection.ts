@@ -5,7 +5,7 @@ import { missedWeekPenalty, partialWeekPenalty, streakMultiplier } from '../mmr/
 import { D_calDays, D_minutes, D_workouts, D_weightGain, D_weightLoss } from '../mmr/difficulty';
 import { applyRankWithDemotionRules, bandForMMR } from '../mmr/ranks';
 import { lowerTierProgressBonus } from '../mmr/progression';
-import { combineWeekScore, goalScore } from '../mmr/scoring';
+import { breadthFactor, combineWeekScore, coreCategoryCount, goalScore } from '../mmr/scoring';
 import { DEFAULT_TZ, isoWeekIdInTz, isoWeekRangeInTz, yyyyMmDdInTz } from '../mmr/time';
 import type { Tier } from '../mmr/types';
 
@@ -188,7 +188,8 @@ function computeProjection(params: {
   const missedIfEndedNow = !anyActivity || A_total < 0.5;
   const partialIfEndedNow = !missedIfEndedNow && !completedIfEndedNow;
 
-  const weekScore = combineWeekScore(active.map((g) => g.score));
+  const breadth = breadthFactor(coreCategoryCount(active.map((g) => g.id)));
+  const weekScore = combineWeekScore(active.map((g) => g.score)) * breadth;
   const streakIfEndedNow = completedIfEndedNow ? params.streakWeeks + 1 : 0;
   const S = streakMultiplier(streakIfEndedNow);
 

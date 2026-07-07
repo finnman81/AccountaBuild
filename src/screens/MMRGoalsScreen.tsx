@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useMemo, useState } from 'react';
-import { Alert, Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
+import { Alert, Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Switch, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 
@@ -30,10 +30,33 @@ const RESTART_DEFAULTS: Record<string, { dailyCalorieGoal: number; workoutsPerWe
   maintenance: { dailyCalorieGoal: 2200, workoutsPerWeek: 4 },
 };
 
+/** Section header with an on/off toggle for a whole scoring category. */
+function CategoryHeader({ title, subtitle, value, onValueChange, disabled }: { title: string; subtitle?: string; value: boolean; onValueChange: (v: boolean) => void; disabled?: boolean }) {
+  return (
+    <View style={styles.catHeader}>
+      <View style={{ flex: 1, paddingRight: spacing.sm }}>
+        <AppText variant="rowTitle" color="primary">{title}</AppText>
+        {subtitle ? <AppText variant="rowSubtitle" color="muted" style={{ marginTop: 2 }}>{subtitle}</AppText> : null}
+      </View>
+      <Switch
+        value={value}
+        onValueChange={onValueChange}
+        disabled={disabled}
+        trackColor={{ false: colors.ringNotLogged, true: colors.primary }}
+        thumbColor="#FFFFFF"
+        ios_backgroundColor={colors.ringNotLogged}
+      />
+    </View>
+  );
+}
+
 /**
  * The single smart Goals page. Every goal the app tracks — weekly targets,
  * calorie goal, and the weight timeline — is configured here (Edit Profile is
- * identity-only). Changes stamp `goalsEffectiveWeekId` so this week's rank
+ * identity-only). Each of the three core categories (Workouts, Calories, Weight)
+ * can be toggled on/off: opting a category out means you're never penalized for
+ * it, but you level up slower (tracking all three is fastest — see breadthFactor
+ * in mmr/scoring.ts). Changes stamp `goalsEffectiveWeekId` so this week's rank
  * stays fair.
  */
 export default function MMRGoalsScreen() {
@@ -44,6 +67,11 @@ export default function MMRGoalsScreen() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
+
+  // Category toggles.
+  const [workoutsEnabled, setWorkoutsEnabled] = useState(true);
+  const [caloriesEnabled, setCaloriesEnabled] = useState(true);
+  const [weightEnabled, setWeightEnabled] = useState(false);
 
   // Weekly targets
   const [workoutsPerWeek, setWorkoutsPerWeek] = useState('3');
@@ -70,19 +98,21 @@ export default function MMRGoalsScreen() {
       (p) => {
         if (!p) return;
         if (typeof p.dailyCalorieGoal === 'number') setDailyCalorieGoal(String(p.dailyCalorieGoal));
-        if (typeof p.logWeightDaysPerWeek === 'number') setLogWeightDaysPerWeek(String(p.logWeightDaysPerWeek));
+        if (typeof p.logWeightDaysPerWeek === 'number' && p.logWeightDaysPerWeek > 0) setLogWeightDaysPerWeek(String(p.logWeightDaysPerWeek));
       },
       undefined,
     );
   }, [user]);
 
   useEffect(() => {
-    // Hydrate from Firestore if present.
+    // Hydrate values + toggles from Firestore if present.
     const w = raw.workouts;
     if (w?.targetWorkoutsPerWeek != null) setWorkoutsPerWeek(String(w.targetWorkoutsPerWeek));
+    if (w?.status) setWorkoutsEnabled(w.status !== 'paused');
 
     const c = raw.calorieDays;
     if (c?.targetDaysPerWeek != null) setCalorieDaysPerWeek(String(c.targetDaysPerWeek));
+    if (c?.status) setCaloriesEnabled(c.status !== 'paused');
 
     const wl = raw.weightLoss;
     const wg = raw.weightGain;
@@ -94,10 +124,12 @@ export default function MMRGoalsScreen() {
       if (activeWeight.startDate) setWeightStartDate(String(activeWeight.startDate));
       if (activeWeight.targetEndDate) setWeightTargetEndDate(String(activeWeight.targetEndDate));
     }
+    if (wl || wg) setWeightEnabled(wl?.status === 'active' || wg?.status === 'active');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [raw.workouts, raw.calorieDays, raw.weightLoss, raw.weightGain]);
 
   const canSave = useMemo(() => Boolean(user?.uid) && !saving, [saving, user?.uid]);
+  const trackedCount = (workoutsEnabled ? 1 : 0) + (caloriesEnabled ? 1 : 0) + (weightEnabled ? 1 : 0);
 
   // Quick target-date chips: relative offsets plus end of the current season (quarter).
   const targetDateChips = useMemo(() => {
@@ -119,7 +151,6 @@ export default function MMRGoalsScreen() {
 
   const pickTargetDate = (date: string) => {
     setWeightTargetEndDate(date);
-    // Smart default: a fresh timeline starts today unless the user set a start date.
     if (!weightStartDate.trim()) setWeightStartDate(todayYYYYMMDD());
   };
 
@@ -135,6 +166,9 @@ export default function MMRGoalsScreen() {
       // Fall back to maintenance defaults if the profile read fails.
     }
     const d = RESTART_DEFAULTS[mode]!;
+    setWorkoutsEnabled(true);
+    setCaloriesEnabled(true);
+    setWeightEnabled(false);
     setWorkoutsPerWeek(String(d.workoutsPerWeek));
     setDailyCalorieGoal(String(d.dailyCalorieGoal));
     setCalorieDaysPerWeek('5');
@@ -165,54 +199,55 @@ export default function MMRGoalsScreen() {
     setSaved(null);
     setSaving(true);
     try {
-      // Validate weekly targets
-      const w = toNumberOrNull(workoutsPerWeek);
-      if (w == null || w <= 0 || w > 7) throw new Error('Workouts/week must be 1–7.');
-      const c = toNumberOrNull(calorieDaysPerWeek);
-      if (c == null || c <= 0 || c > 7) throw new Error('Calorie days/week must be 1–7.');
-      const dcg = toNumberOrNull(dailyCalorieGoal);
-      if (dcg == null || dcg < 0 || dcg > 20000) throw new Error('Daily calorie goal must be between 0 and 20000.');
-      const wDays = toNumberOrNull(logWeightDaysPerWeek);
-      if (wDays == null || wDays < 0 || wDays > 7) throw new Error('Weight log days/week must be 0–7.');
+      if (!workoutsEnabled && !caloriesEnabled && !weightEnabled) {
+        throw new Error('Enable at least one category to earn rank.');
+      }
 
-      // Save workouts goal
+      const wNum = toNumberOrNull(workoutsPerWeek);
+      const cNum = toNumberOrNull(calorieDaysPerWeek);
+      const dcgNum = toNumberOrNull(dailyCalorieGoal);
+      const wDaysNum = toNumberOrNull(logWeightDaysPerWeek);
+
+      // Validate only the enabled categories.
+      if (workoutsEnabled && (wNum == null || wNum <= 0 || wNum > 7)) throw new Error('Workouts/week must be 1–7.');
+      if (caloriesEnabled) {
+        if (cNum == null || cNum <= 0 || cNum > 7) throw new Error('Calorie days/week must be 1–7.');
+        if (dcgNum == null || dcgNum < 0 || dcgNum > 20000) throw new Error('Daily calorie goal must be between 0 and 20000.');
+      }
+
+      const wTarget = Math.round(wNum ?? raw.workouts?.targetWorkoutsPerWeek ?? 3);
+      const cTarget = Math.round(cNum ?? raw.calorieDays?.targetDaysPerWeek ?? 5);
+
+      // Workouts category (minutes goal, if present, tracks the workouts toggle).
       await upsertGoal(user.uid, 'workouts', {
         type: 'workouts',
-        status: 'active',
-        targetWorkoutsPerWeek: Math.round(w),
+        status: workoutsEnabled ? 'active' : 'paused',
+        targetWorkoutsPerWeek: wTarget,
       });
+      if (raw.minutes) {
+        await upsertGoal(user.uid, 'minutes', { type: 'minutes', status: workoutsEnabled ? 'active' : 'paused' });
+      }
 
-      // Save calorie days goal
+      // Calories category.
       await upsertGoal(user.uid, 'calorieDays', {
         type: 'calorieDays',
-        status: 'active',
-        targetDaysPerWeek: Math.round(c),
+        status: caloriesEnabled ? 'active' : 'paused',
+        targetDaysPerWeek: cTarget,
       });
 
-      // Mirror key goal inputs into the user profile so they persist across groups
-      // and can be surfaced in group dashboards/charts via `publicUsers/{uid}`.
-      await updateMyProfile({
-        uid: user.uid,
-        dailyCalorieGoal: Math.round(dcg),
-        workoutsPerWeek: Math.round(w),
-        logCaloriesDaysPerWeek: Math.round(c),
-        logWeightDaysPerWeek: Math.round(wDays),
-      });
-
-      // Weight goal is optional, but if any field is provided we require all.
-      const ws = toNumberOrNull(weightStart);
-      const wg = toNumberOrNull(weightGoal);
-      const sd = weightStartDate.trim();
-      const ed = weightTargetEndDate.trim();
-      const anyWeight = ws != null || wg != null || Boolean(sd) || Boolean(ed);
-
-      if (anyWeight) {
+      // Weight category.
+      if (weightEnabled) {
+        const ws = toNumberOrNull(weightStart);
+        const wg = toNumberOrNull(weightGoal);
+        const sd = weightStartDate.trim();
+        const ed = weightTargetEndDate.trim();
         if (ws == null || ws <= 0) throw new Error('Weight start must be a positive number.');
         if (wg == null || wg <= 0) throw new Error('Weight goal must be a positive number.');
         if (!isValidYYYYMMDD(sd)) throw new Error('Weight start date must be YYYY-MM-DD.');
         if (!isValidYYYYMMDD(ed)) throw new Error('Weight target end date must be YYYY-MM-DD.');
         if (weightMode === 'loss' && wg >= ws) throw new Error('For weight loss, goal must be less than start.');
         if (weightMode === 'gain' && wg <= ws) throw new Error('For weight gain, goal must be greater than start.');
+        if (wDaysNum == null || wDaysNum < 0 || wDaysNum > 7) throw new Error('Weigh-in days/week must be 0–7.');
 
         const activeId = weightMode === 'loss' ? 'weightLoss' : 'weightGain';
         const inactiveId = weightMode === 'loss' ? 'weightGain' : 'weightLoss';
@@ -225,7 +260,21 @@ export default function MMRGoalsScreen() {
           targetEndDate: ed,
         });
         await upsertGoal(user.uid, inactiveId, { type: inactiveId, status: 'paused' });
+      } else {
+        // Pause any existing weight goals so they stop scoring.
+        if (raw.weightLoss) await upsertGoal(user.uid, 'weightLoss', { type: 'weightLoss', status: 'paused' });
+        if (raw.weightGain) await upsertGoal(user.uid, 'weightGain', { type: 'weightGain', status: 'paused' });
       }
+
+      // Mirror goal inputs into the profile (drives group compliance charts +
+      // recommendations). Disabled categories write 0 so the group view matches.
+      await updateMyProfile({
+        uid: user.uid,
+        dailyCalorieGoal: dcgNum != null ? Math.round(dcgNum) : undefined,
+        workoutsPerWeek: workoutsEnabled ? wTarget : 0,
+        logCaloriesDaysPerWeek: caloriesEnabled ? cTarget : 0,
+        logWeightDaysPerWeek: weightEnabled && wDaysNum != null ? Math.round(wDaysNum) : 0,
+      });
 
       // Stamp when goal changes should count for MMR fairness (next ISO week).
       if (db) {
@@ -263,149 +312,147 @@ export default function MMRGoalsScreen() {
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode={Platform.OS === 'ios' ? 'on-drag' : 'none'}
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={[
-              styles.content,
-              { paddingBottom: spacing.xxl + insets.bottom },
-            ]}
+            contentContainerStyle={[styles.content, { paddingBottom: spacing.xxl + insets.bottom }]}
           >
-            <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>Weekly targets</AppText>
+            <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>What you track</AppText>
+            <AppText variant="rowSubtitle" color="muted" style={styles.intro}>
+              Toggle a category off if you're not tracking it — you won't be penalized for it, but you'll level up
+              slower. Tracking all three ranks up fastest. ({trackedCount}/3 on)
+            </AppText>
+
+            {/* Workouts */}
             <View style={styles.group}>
-              <View style={styles.rowBlock}>
-                <AppText variant="rowTitle" color="primary">Workouts / week</AppText>
-                <AppText variant="rowSubtitle" color="muted" style={styles.subline}>
-                  Your weekly MMR target — miss it and you lose MP
-                </AppText>
-                <View style={styles.workoutChips}>
-                  {[1, 2, 3, 4, 5, 6, 7].map((n) => {
-                    const active = workoutsPerWeek.trim() === String(n);
-                    return (
-                      <TouchableOpacity
-                        key={n}
-                        onPress={() => setWorkoutsPerWeek(String(n))}
-                        disabled={!canSave}
-                        style={[styles.workoutChip, active && styles.chipActive]}
-                        accessibilityRole="button"
-                        accessibilityState={{ selected: active }}
-                      >
-                        <AppText variant="cardLabel" style={{ color: active ? colors.primaryOnDark : colors.textSecondary }}>
-                          {n}
-                        </AppText>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </View>
-              <View style={styles.divider} />
-              <EditRow
-                label="Daily calories"
-                value={dailyCalorieGoal}
-                onChangeText={setDailyCalorieGoal}
-                subline="Your daily intake target — scored on logged days"
-                placeholder="2200"
-                suffix="kcal"
-                keyboardType="number-pad"
-                editable={canSave}
+              <CategoryHeader
+                title="Workouts"
+                subtitle="Your weekly workout target"
+                value={workoutsEnabled}
+                onValueChange={setWorkoutsEnabled}
+                disabled={!canSave}
               />
-              <EditRow
-                label="Calorie days / week"
-                value={calorieDaysPerWeek}
-                onChangeText={setCalorieDaysPerWeek}
-                subline="Days you'll hit your calorie goal (1–7)"
-                placeholder="5"
-                keyboardType="number-pad"
-                editable={canSave}
-              />
-              <EditRow
-                label="Weigh-in days / week"
-                value={logWeightDaysPerWeek}
-                onChangeText={setLogWeightDaysPerWeek}
-                subline="Days you'll log your weight (0–7)"
-                placeholder="5"
-                keyboardType="number-pad"
-                editable={canSave}
-                showDivider={false}
-              />
+              {workoutsEnabled ? (
+                <>
+                  <View style={styles.divider} />
+                  <View style={styles.rowBlock}>
+                    <AppText variant="rowTitle" color="primary">Workouts / week</AppText>
+                    <AppText variant="rowSubtitle" color="muted" style={styles.subline}>Miss it and you lose MP</AppText>
+                    <View style={styles.workoutChips}>
+                      {[1, 2, 3, 4, 5, 6, 7].map((n) => {
+                        const active = workoutsPerWeek.trim() === String(n);
+                        return (
+                          <TouchableOpacity
+                            key={n}
+                            onPress={() => setWorkoutsPerWeek(String(n))}
+                            disabled={!canSave}
+                            style={[styles.workoutChip, active && styles.chipActive]}
+                            accessibilityRole="button"
+                            accessibilityState={{ selected: active }}
+                          >
+                            <AppText variant="cardLabel" style={{ color: active ? colors.primaryOnDark : colors.textSecondary }}>{n}</AppText>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+                </>
+              ) : null}
             </View>
 
-            <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>Weight goal</AppText>
-            <View style={styles.group}>
-              <View style={styles.rowBlock}>
-                <AppText variant="rowSubtitle" color="muted" style={styles.subline}>
-                  Optional — enables weight loss/gain scoring
-                </AppText>
-                <SegmentedControl
-                  value={weightMode}
-                  onChange={(v) => setWeightMode(v as 'loss' | 'gain')}
-                  options={[
-                    { value: 'loss', label: 'Loss' },
-                    { value: 'gain', label: 'Gain' },
-                  ]}
-                  style={styles.segmented}
-                />
-              </View>
-              <View style={styles.divider} />
-              <EditRow
-                label="Start weight"
-                value={weightStart}
-                onChangeText={setWeightStart}
-                subline="Where your timeline starts"
-                placeholder="190"
-                suffix="lb"
-                keyboardType="decimal-pad"
-                editable={canSave}
+            {/* Calories */}
+            <View style={[styles.group, styles.groupGap]}>
+              <CategoryHeader
+                title="Calories"
+                subtitle="Daily intake target, scored on logged days"
+                value={caloriesEnabled}
+                onValueChange={setCaloriesEnabled}
+                disabled={!canSave}
               />
-              <EditRow
-                label="Goal weight"
-                value={weightGoal}
-                onChangeText={setWeightGoal}
-                subline="Your target — drives weight progress"
-                placeholder="175"
-                suffix="lb"
-                keyboardType="decimal-pad"
-                editable={canSave}
+              {caloriesEnabled ? (
+                <>
+                  <View style={styles.divider} />
+                  <EditRow
+                    label="Daily calories"
+                    value={dailyCalorieGoal}
+                    onChangeText={setDailyCalorieGoal}
+                    subline="Your daily intake target"
+                    placeholder="2200"
+                    suffix="kcal"
+                    keyboardType="number-pad"
+                    editable={canSave}
+                  />
+                  <EditRow
+                    label="Calorie days / week"
+                    value={calorieDaysPerWeek}
+                    onChangeText={setCalorieDaysPerWeek}
+                    subline="Days you'll hit your calorie goal (1–7)"
+                    placeholder="5"
+                    keyboardType="number-pad"
+                    editable={canSave}
+                    showDivider={false}
+                  />
+                </>
+              ) : null}
+            </View>
+
+            {/* Weight */}
+            <View style={[styles.group, styles.groupGap]}>
+              <CategoryHeader
+                title="Weight"
+                subtitle="Weight loss / gain timeline scoring"
+                value={weightEnabled}
+                onValueChange={setWeightEnabled}
+                disabled={!canSave}
               />
-              <EditRow
-                label="Start date"
-                value={weightStartDate}
-                onChangeText={setWeightStartDate}
-                subline="When your timeline began"
-                placeholder="YYYY-MM-DD"
-                editable={canSave}
-              />
-              <View style={styles.rowBlock}>
-                <AppText variant="rowTitle" color="primary">Target end date</AppText>
-                <AppText variant="rowSubtitle" color="muted" style={styles.subline}>
-                  When you want to hit your goal weight
-                </AppText>
-                <View style={styles.dateChips}>
-                  {targetDateChips.map((chip) => {
-                    const active = weightTargetEndDate.trim() === chip.date;
-                    return (
-                      <TouchableOpacity
-                        key={chip.label}
-                        onPress={() => pickTargetDate(chip.date)}
-                        disabled={!canSave}
-                        style={[styles.dateChip, active && styles.chipActive]}
-                        accessibilityRole="button"
-                        accessibilityState={{ selected: active }}
-                      >
-                        <AppText variant="cardLabel" style={{ color: active ? colors.primaryOnDark : colors.textSecondary }}>
-                          {chip.label}
-                        </AppText>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-                <TextField
-                  value={weightTargetEndDate}
-                  onChangeText={setWeightTargetEndDate}
-                  placeholder="YYYY-MM-DD"
-                  editable={canSave}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  containerStyle={styles.dateField}
-                />
-              </View>
+              {weightEnabled ? (
+                <>
+                  <View style={styles.divider} />
+                  <View style={styles.rowBlock}>
+                    <SegmentedControl
+                      value={weightMode}
+                      onChange={(v) => setWeightMode(v as 'loss' | 'gain')}
+                      options={[
+                        { value: 'loss', label: 'Loss' },
+                        { value: 'gain', label: 'Gain' },
+                      ]}
+                      style={styles.segmented}
+                    />
+                  </View>
+                  <EditRow label="Start weight" value={weightStart} onChangeText={setWeightStart} subline="Where your timeline starts" placeholder="190" suffix="lb" keyboardType="decimal-pad" editable={canSave} />
+                  <EditRow label="Goal weight" value={weightGoal} onChangeText={setWeightGoal} subline="Your target — drives weight progress" placeholder="175" suffix="lb" keyboardType="decimal-pad" editable={canSave} />
+                  <EditRow label="Start date" value={weightStartDate} onChangeText={setWeightStartDate} subline="When your timeline began" placeholder="YYYY-MM-DD" editable={canSave} />
+                  <View style={styles.rowBlock}>
+                    <AppText variant="rowTitle" color="primary">Target end date</AppText>
+                    <AppText variant="rowSubtitle" color="muted" style={styles.subline}>When you want to hit your goal weight</AppText>
+                    <View style={styles.dateChips}>
+                      {targetDateChips.map((chip) => {
+                        const active = weightTargetEndDate.trim() === chip.date;
+                        return (
+                          <TouchableOpacity
+                            key={chip.label}
+                            onPress={() => pickTargetDate(chip.date)}
+                            disabled={!canSave}
+                            style={[styles.dateChip, active && styles.chipActive]}
+                            accessibilityRole="button"
+                            accessibilityState={{ selected: active }}
+                          >
+                            <AppText variant="cardLabel" style={{ color: active ? colors.primaryOnDark : colors.textSecondary }}>{chip.label}</AppText>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                    <TextField value={weightTargetEndDate} onChangeText={setWeightTargetEndDate} placeholder="YYYY-MM-DD" editable={canSave} autoCapitalize="none" autoCorrect={false} containerStyle={styles.dateField} />
+                  </View>
+                  <EditRow
+                    label="Weigh-in days / week"
+                    value={logWeightDaysPerWeek}
+                    onChangeText={setLogWeightDaysPerWeek}
+                    subline="Days you'll log your weight (0–7)"
+                    placeholder="5"
+                    keyboardType="number-pad"
+                    editable={canSave}
+                    showDivider={false}
+                  />
+                </>
+              ) : null}
             </View>
 
             <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>Reset &amp; recalculate</AppText>
@@ -421,12 +468,8 @@ export default function MMRGoalsScreen() {
               </AppText>
             </View>
 
-            {error ? (
-              <AppText variant="rowSubtitle" color="danger" style={styles.message}>{error}</AppText>
-            ) : null}
-            {saved ? (
-              <AppText variant="rowSubtitle" color="success" style={styles.message}>{saved}</AppText>
-            ) : null}
+            {error ? <AppText variant="rowSubtitle" color="danger" style={styles.message}>{error}</AppText> : null}
+            {saved ? <AppText variant="rowSubtitle" color="success" style={styles.message}>{saved}</AppText> : null}
 
             <PrimaryButton onPress={save} disabled={!canSave} loading={saving} style={styles.saveButton}>
               Save goals
@@ -443,6 +486,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   content: { flexGrow: 1, paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.lg },
   sectionLabel: { marginTop: spacing.lg, marginBottom: spacing.sm, marginLeft: spacing.xs },
+  intro: { marginBottom: spacing.md, marginLeft: spacing.xs, lineHeight: 18 },
   group: {
     backgroundColor: colors.surface,
     borderRadius: radius.listGroup,
@@ -450,6 +494,8 @@ const styles = StyleSheet.create({
     borderColor: colors.borderCard,
     paddingHorizontal: spacing.base,
   },
+  groupGap: { marginTop: spacing.md },
+  catHeader: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.md, minHeight: 56 },
   rowBlock: { paddingVertical: spacing.md, gap: 2 },
   subline: { paddingRight: spacing.sm },
   divider: { height: 1, backgroundColor: colors.divider },

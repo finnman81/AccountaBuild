@@ -18,7 +18,7 @@ import { D_calDays, D_minutes, D_workouts, D_weightGain, D_weightLoss } from '..
 import { bandForMMR, bandOrderIndex, applyRankWithDemotionRules, isStrictlyHigher, mpForMMR } from '../mmr/ranks';
 import { calorieDaysHitFromTotals } from '../mmr/adherence';
 import { lowerTierProgressBonus, nextShieldWeeks } from '../mmr/progression';
-import { combineWeekScore, goalScore } from '../mmr/scoring';
+import { breadthFactor, combineWeekScore, coreCategoryCount, goalScore } from '../mmr/scoring';
 import { DEFAULT_TZ, isoWeekIdInTz, isoWeekRangeInTz, nextIsoWeekId, seasonIdFromDate, zonedNoonUtcFromYmd } from '../mmr/time';
 
 type GoalDoc = any;
@@ -413,7 +413,10 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
   const partialWeek = !missedWeek && !completedWeek;
 
   const scores = active.map((g) => g.score);
-  const weekScore = combineWeekScore(scores);
+  // Breadth: tracking more of the 3 core categories levels you up faster.
+  const coreCategories = coreCategoryCount(active.map((g) => g.id));
+  const breadth = breadthFactor(coreCategories);
+  const weekScore = combineWeekScore(scores) * breadth;
 
   // Transaction update
   try {
@@ -590,6 +593,8 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
         // Summary
         A_total,
         weekScore,
+        breadthFactor: breadth,
+        coreCategories,
         streakMultiplier: S,
         penalty,
         bonus,

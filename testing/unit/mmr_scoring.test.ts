@@ -1,4 +1,4 @@
-import { combineWeekScore, goalScore } from '../../src/mmr/scoring';
+import { breadthFactor, combineWeekScore, coreCategoryCount, goalScore } from '../../src/mmr/scoring';
 import { K, wA, wO } from '../../src/mmr/constants';
 import { D_calDays, D_minutes, D_workouts, D_weightGain, D_weightLoss } from '../../src/mmr/difficulty';
 
@@ -28,6 +28,32 @@ describe('mmr/scoring', () => {
     // minutes: clamps within [0.75, 2.0]
     expect(D_minutes(10)).toBeGreaterThanOrEqual(0.75);
     expect(D_minutes(9999)).toBeLessThanOrEqual(2.0);
+  });
+
+  test('coreCategoryCount counts distinct categories (minutes folds into workouts)', () => {
+    expect(coreCategoryCount([])).toBe(0);
+    expect(coreCategoryCount(['workouts'])).toBe(1);
+    expect(coreCategoryCount(['workouts', 'minutes'])).toBe(1); // still just "workouts"
+    expect(coreCategoryCount(['workouts', 'calorieDays'])).toBe(2);
+    expect(coreCategoryCount(['workouts', 'calorieDays', 'weightLoss'])).toBe(3);
+    expect(coreCategoryCount(['minutes', 'calorieDays', 'weightGain'])).toBe(3);
+  });
+
+  test('breadthFactor: full breadth is full rate, fewer categories are slower', () => {
+    expect(breadthFactor(3)).toBe(1);
+    expect(breadthFactor(2)).toBeLessThan(1);
+    expect(breadthFactor(1)).toBeLessThan(breadthFactor(2));
+    expect(breadthFactor(0)).toBe(0);
+    // clamps out-of-range input
+    expect(breadthFactor(5)).toBe(1);
+    expect(breadthFactor(-1)).toBe(0);
+  });
+
+  test('only-workouts levels slower than tracking all three (equal per-goal score)', () => {
+    const s = 20;
+    const solo = combineWeekScore([s]) * breadthFactor(coreCategoryCount(['workouts']));
+    const all = combineWeekScore([s, s, s]) * breadthFactor(coreCategoryCount(['workouts', 'calorieDays', 'weightLoss']));
+    expect(solo).toBeLessThan(all);
   });
 
   test('weight loss/gain difficulty returns sane caps and progress', () => {
