@@ -83,6 +83,18 @@ service cloud.firestore {
       allow read, write: if signedIn() && request.auth.uid == viewerUid;
     }
 
+    // Social-push queue: the app enqueues a cheer/nudge here; a Cloud Function
+    // (admin) reads it, sends the push, and deletes it. Clients may only CREATE
+    // their own outgoing items and never read the queue (recipients' push tokens
+    // stay private, read only by the function).
+    match /pushQueue/{id} {
+      allow create: if signedIn()
+        && request.resource.data.fromUid == request.auth.uid
+        && request.resource.data.toUid is string
+        && (request.resource.data.type == 'cheer' || request.resource.data.type == 'nudge');
+      allow read, update, delete: if false;
+    }
+
     // Join-code lookup table so non-members can join without reading all groups.
     match /joinCodes/{code} {
       allow read: if signedIn();

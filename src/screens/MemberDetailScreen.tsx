@@ -11,6 +11,7 @@ import { RootStackParamList } from '../navigation/types';
 import { subscribePublicUsers, type PublicUser } from '../services/publicUsers';
 import { subscribeMyCanSeeUids } from '../services/visibility';
 import { subscribeGroupLogs, setLogReaction, type GroupLog, type LogType } from '../services/logs';
+import { enqueueSocialPush } from '../services/socialPush';
 import { computeStreakDays } from '../viewmodels/today';
 import { friendlyNameFromDisplayName } from '../utils/formatters';
 import { DEFAULT_TZ, isoWeekDatesInTz, isoWeekIdInTz, yyyyMmDdInTz } from '../mmr/time';
@@ -38,8 +39,10 @@ export default function MemberDetailScreen({ route, navigation }: Props) {
   const [canSee, setCanSee] = useState<Set<string>>(new Set());
   const [group, setGroup] = useState<{ streakRule?: 'workout' | 'any' } | null>(null);
   const [cheered, setCheered] = useState(false);
+  const [nudged, setNudged] = useState(false);
 
   const isMe = uid === user?.uid;
+  const myName = friendlyNameFromDisplayName(user?.displayName ?? null, user?.uid ?? '');
 
   useEffect(() => subscribePublicUsers([uid], (m) => setPub(m[uid] ?? null)), [uid]);
   useEffect(() => subscribeGroupLogs(groupId, setLogs, undefined, 400), [groupId]);
@@ -77,11 +80,23 @@ export default function MemberDetailScreen({ route, navigation }: Props) {
       const bt = (b?.ts as any)?.seconds ?? 0;
       return bt >= at ? b : a;
     }, null);
-    if (!latest) return;
     try {
-      await setLogReaction(groupId, latest.id, user.uid, '💪');
+      // React to their latest log if there is one, and always send the cheer push.
+      if (latest) await setLogReaction(groupId, latest.id, user.uid, '💪');
+      await enqueueSocialPush({ toUid: uid, fromUid: user.uid, fromName: myName, type: 'cheer' });
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       setCheered(true);
+    } catch {
+      /* non-fatal */
+    }
+  };
+
+  const nudge = async () => {
+    if (!user || isMe) return;
+    try {
+      await enqueueSocialPush({ toUid: uid, fromUid: user.uid, fromName: myName, type: 'nudge' });
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      setNudged(true);
     } catch {
       /* non-fatal */
     }
@@ -151,14 +166,21 @@ export default function MemberDetailScreen({ route, navigation }: Props) {
         </ScrollView>
 
         {!isMe && (
-          <View style={styles.actions}>
-            <TouchableOpacity style={[styles.cheerBtn, cheered && styles.cheerBtnDone]} onPress={cheer} activeOpacity={0.85}>
-              <AppText variant="rowTitle" style={{ color: '#FFFFFF' }}>{cheered ? '💪 Cheered' : '💪 Cheer'}</AppText>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.msgBtn} onPress={message} activeOpacity={0.85}>
-              <AppText variant="rowTitle" color="primary">Message</AppText>
-            </TouchableOpacity>
-          </View>
+          <>
+            <View style={styles.actions}>
+              <TouchableOpacity style={[styles.cheerBtn, cheered && styles.cheerBtnDone]} onPress={cheer} activeOpacity={0.85}>
+                <AppText variant="rowTitle" style={{ color: '#FFFFFF' }}>{cheered ? '💪 Cheered' : '💪 Cheer'}</AppText>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.msgBtn} onPress={message} activeOpacity={0.85}>
+                <AppText variant="rowTitle" color="primary">Message</AppText>
+              </TouchableOpacity>
+            </View>
+            {(pub as any)?.allowNudges ? (
+              <TouchableOpacity style={[styles.nudgeBtn, nudged && styles.nudgeBtnDone]} onPress={nudge} activeOpacity={0.85} disabled={nudged}>
+                <AppText variant="rowTitle" color={nudged ? 'success' : 'primary'}>{nudged ? '👋 Nudged' : '👋 Nudge to log'}</AppText>
+              </TouchableOpacity>
+            ) : null}
+          </>
         )}
         <TouchableOpacity style={styles.close} onPress={() => navigation.goBack()}>
           <AppText variant="rowSubtitle" color="muted">Close</AppText>
@@ -195,6 +217,8 @@ const styles = StyleSheet.create({
   actions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.base },
   cheerBtn: { flex: 1, height: 50, borderRadius: radius.button, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
   cheerBtnDone: { backgroundColor: colors.success },
+  nudgeBtn: { height: 48, borderRadius: radius.button, backgroundColor: colors.surface2, alignItems: 'center', justifyContent: 'center', marginTop: spacing.md },
+  nudgeBtnDone: { backgroundColor: colors.successTint },
   msgBtn: { flex: 1, height: 50, borderRadius: radius.button, backgroundColor: colors.surface2, alignItems: 'center', justifyContent: 'center' },
   close: { alignItems: 'center', paddingVertical: spacing.md, marginTop: spacing.xs },
 });

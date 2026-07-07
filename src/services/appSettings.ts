@@ -3,6 +3,7 @@ import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 
 import { db } from '../firebase/firebase';
 import { getNotificationPreferences, saveNotificationPreferences } from './notificationPreferences';
+import { upsertMyPublicUser } from './publicUsers';
 
 /** User-facing notification toggles (design 15). */
 export type AppNotificationSettings = {
@@ -54,7 +55,10 @@ export async function setAppNotificationSetting<K extends keyof AppNotificationS
   }
   if (key === 'nudgesAllowed' && uid && db) {
     try {
+      // Private authoritative copy (function reads this to gate delivery)…
       await setDoc(doc(db, 'users', uid), { allowNudges: value, updatedAt: serverTimestamp() }, { merge: true });
+      // …and a public mirror so teammates' apps can show/hide the Nudge button.
+      await upsertMyPublicUser(uid, { allowNudges: value as boolean });
     } catch {
       /* non-fatal */
     }
