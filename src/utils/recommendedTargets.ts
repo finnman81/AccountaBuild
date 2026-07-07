@@ -69,3 +69,38 @@ export function recommendTargets(input: RecommendInput): RecommendedTargets {
   const clamped = Math.min(4000, Math.max(1400, adjusted));
   return { dailyCalorieGoal: roundTo50(clamped), workoutsPerWeek: workouts, personalized: true };
 }
+
+function toISODateLocal(d: Date): string {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+export type SuggestedTargetDate = { iso: string; weeks: number; rateLbPerWeek: number };
+
+/**
+ * Suggest a realistic weight-goal target date from current + goal weight at a
+ * healthy pace (~1 lb/week for a cut, ~0.5 lb/week for a bulk). Returns null when
+ * there's no goal or the user is already there, so callers can hide the field.
+ * `from` is injectable for deterministic tests.
+ */
+export function suggestTargetDate(input: {
+  weightLb?: number | null;
+  goalLb?: number | null;
+  goalMode: GoalMode;
+  from?: Date;
+}): SuggestedTargetDate | null {
+  const w = Number(input.weightLb);
+  const g = Number(input.goalLb);
+  if (!Number.isFinite(w) || !Number.isFinite(g) || w <= 0 || g <= 0) return null;
+  const diff = Math.abs(w - g);
+  if (diff < 0.5) return null;
+
+  const rateLbPerWeek = input.goalMode === 'bulk' ? 0.5 : 1.0;
+  const weeks = Math.max(1, Math.ceil(diff / rateLbPerWeek));
+  const base = input.from ? new Date(input.from) : new Date();
+  base.setHours(0, 0, 0, 0);
+  base.setDate(base.getDate() + weeks * 7);
+  return { iso: toISODateLocal(base), weeks, rateLbPerWeek };
+}

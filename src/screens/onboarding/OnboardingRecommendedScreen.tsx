@@ -16,8 +16,30 @@ import { updateMyProfile } from '../../services/profile';
 import { onboardingAnalytics } from '../../services/analytics';
 import { onboardingCopy } from '../../constants/onboardingCopy';
 import { db } from '../../firebase/firebase';
-import { recommendTargets, WORKOUTS_BY_INTENT, type GoalMode } from '../../utils/recommendedTargets';
+import { recommendTargets, suggestTargetDate, WORKOUTS_BY_INTENT, type GoalMode } from '../../utils/recommendedTargets';
 import { colors, spacing, radius } from '../../theme';
+
+function formatTargetDate(iso: string): string {
+  const d = new Date(`${iso}T00:00:00`);
+  if (Number.isNaN(d.valueOf())) return iso;
+  return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function shiftISO(iso: string, days: number): string {
+  const d = new Date(`${iso}T00:00:00`);
+  d.setDate(d.getDate() + days);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function isPast(iso: string): boolean {
+  const d = new Date(`${iso}T00:00:00`);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return d.getTime() <= today.getTime();
+}
 
 type Props = NativeStackScreenProps<OnboardingStackParamList, 'Recommended'>;
 
@@ -33,6 +55,8 @@ export default function OnboardingRecommendedScreen({ navigation }: Props) {
 
   const [calories, setCalories] = useState('');
   const [workouts, setWorkouts] = useState(4);
+  const [targetDate, setTargetDate] = useState<string | null>(null);
+  const [targetPace, setTargetPace] = useState<number | null>(null);
   const [personalized, setPersonalized] = useState(false);
   const [hadExisting, setHadExisting] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -70,6 +94,12 @@ export default function OnboardingRecommendedScreen({ navigation }: Props) {
         setCalories(String(existingCal ?? rec.dailyCalorieGoal));
         setWorkouts(existingWk ?? rec.workoutsPerWeek);
         setPersonalized(rec.personalized);
+
+        // Suggest a realistic goal target date (existing value wins on re-onboard).
+        const sug = suggestTargetDate({ weightLb: d?.weightCurrent, goalLb: d?.weightGoal, goalMode });
+        const existingDate = typeof d?.weightTargetDate === 'string' ? d.weightTargetDate : null;
+        setTargetDate(existingDate ?? sug?.iso ?? null);
+        setTargetPace(sug?.rateLbPerWeek ?? null);
       } catch (e) {
         console.error('[Onboarding] recommendation failed:', e);
         if (!cancelled) setCalories('2200');
@@ -89,7 +119,12 @@ export default function OnboardingRecommendedScreen({ navigation }: Props) {
 
     setIsSubmitting(true);
     try {
-      await updateMyProfile({ uid: user.uid, dailyCalorieGoal: Math.round(cal), workoutsPerWeek: workouts });
+      await updateMyProfile({
+        uid: user.uid,
+        dailyCalorieGoal: Math.round(cal),
+        workoutsPerWeek: workouts,
+        ...(targetDate ? { weightTargetDate: targetDate } : {}),
+      });
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       await updateOnboardingStep(user.uid, 4);
       onboardingAnalytics.goalsSaved();
@@ -152,6 +187,40 @@ export default function OnboardingRecommendedScreen({ navigation }: Props) {
                 />
               </View>
 
+              {targetDate ? (
+                <>
+                  <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>Goal target date</AppText>
+                  <View style={styles.group}>
+                    <View style={styles.dateRow}>
+                      <TouchableOpacity
+                        onPress={() => {
+                          const next = shiftISO(targetDate, -7);
+                          if (!isPast(next)) { setTargetDate(next); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }
+                        }}
+                        style={[styles.stepBtn, isPast(shiftISO(targetDate, -7)) && styles.stepBtnDisabled]}
+                      >
+                        <AppText variant="rowTitle" color="secondary">−</AppText>
+                      </TouchableOpacity>
+                      <View style={styles.dateCenter}>
+                        <AppText variant="rowTitle" color="primary">{formatTargetDate(targetDate)}</AppText>
+                        {targetPace ? (
+                          <AppText variant="rowSubtitle" color="muted">~{targetPace} lb/week</AppText>
+                        ) : null}
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => { setTargetDate(shiftISO(targetDate, 7)); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+                        style={styles.stepBtn}
+                      >
+                        <AppText variant="rowTitle" color="secondary">+</AppText>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                  <AppText variant="rowSubtitle" color="muted" style={styles.note}>
+                    A realistic date at a healthy pace — nudge it a week at a time. You can change it anytime.
+                  </AppText>
+                </>
+              ) : null}
+
               <AppText variant="rowSubtitle" color="muted" style={styles.note}>
                 {recommended.note}
               </AppText>
@@ -196,6 +265,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.base,
   },
   note: { marginTop: spacing.base, lineHeight: 18 },
+  dateRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.md, gap: spacing.md },
+  dateCenter: { flex: 1, alignItems: 'center', gap: 2 },
+  stepBtn: { width: 44, height: 44, borderRadius: radius.tile, backgroundColor: colors.surface2, alignItems: 'center', justifyContent: 'center' },
+  stepBtnDisabled: { opacity: 0.35 },
   footer: { paddingHorizontal: spacing.lg, paddingBottom: spacing.base, paddingTop: spacing.md },
   button: { width: '100%' },
 });
