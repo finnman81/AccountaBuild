@@ -69,6 +69,18 @@ Profile "Settings & Controls" list (Settings·Edit profile·Goals·Season histor
 
 Fix: Profile bottom list shrinks to the design's short set (or collapses into gear→Settings); Settings becomes the single home for toggles/account/health/sign-out; the reminder-scheduler screen becomes reachable FROM the Settings "Streak reminder" toggle, not a separate entry; delete the dead Units link.
 
+## DECISIONS (locked — from user, July 2026)
+1. **Group model:** single "main group" feel, but multiple supported. Groups tab manages/adds; switching is secondary.
+2. **Daily motivation** = check on crew (1st), then log (2nd), then rank (3rd) — but **Today layout order = You → Crew → Standing** (your log checklist stays up top for fast logging, crew rail right below).
+3. **Chat = one-tap 💬 icon on the Today header** (not a tab).
+4. **Tab bar unchanged:** Today · Progress · (+) · Groups · Profile.
+5. **Today header** = `[group chip → SWITCHER SHEET] ....... [◆ compact rank chip] [💬 chat] [🔔 bell]` (rank chip may sit near the greeting if the header is too busy). Body order: Your log · Team today · Leaderboard preview.
+6. **Group chip → group-switcher sheet** (list groups + Manage/Create). NOT the old GroupDetail hub.
+7. **Groups tab: tapping a group = set active + go to Today.** A gear/⋯ affordance on the card opens **GroupInfo**.
+8. **GroupInfo** (new, Groups stack) owns: members, invite code, chat link, **compliance charts**, **progress-photo grid**, and ⚙ group settings — the ONE home for group stuff.
+9. **Charts + photos live under the group (GroupInfo)**, not in Progress.
+10. Profile side: shrink Profile's fat "Settings & Controls" list to the design-07 short set + gear→Settings; Settings is the one home; merge the two Notifications screens; **delete the dead Units link** (points at removed EditProfile units field).
+
 ## Execution order (each shippable alone)
 1. Group switcher sheet + chat icon on Today header (kills 90% of the felt confusion; chip stops navigating to the hub).
 2. GroupInfo slim screen in the Groups stack + GroupSettings restyle; move charts/photos/issues links there.
