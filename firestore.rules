@@ -106,8 +106,8 @@ service cloud.firestore {
         return request.resource.data.diff(resource.data).changedKeys().hasOnly(['memberCount', 'lastActivityAt', 'updatedAt']);
       }
       function isGroupSettingsUpdate() {
-        // Allow admins to update lightweight settings.
-        return request.resource.data.diff(resource.data).changedKeys().hasOnly(['streakRule', 'updatedAt']);
+        // Allow admins to update lightweight settings (streak rule + challenge).
+        return request.resource.data.diff(resource.data).changedKeys().hasOnly(['streakRule', 'challenge', 'updatedAt']);
       }
       allow update: if (signedIn() && request.auth.uid == resource.data.createdBy) ||
         (isGroupMember(groupId) && isGroupMetaUpdate()) ||

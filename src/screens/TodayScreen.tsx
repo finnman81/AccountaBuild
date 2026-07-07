@@ -1,12 +1,14 @@
-import React, { useMemo } from 'react';
-import { ScrollView, View } from 'react-native';
-import { Text } from 'react-native-paper';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Pressable, ScrollView, View } from 'react-native';
+import { Icon, Text } from 'react-native-paper';
 
 import { colors } from '../theme/colors';
 import { spacing } from '../theme/spacing';
 import { todayYYYYMMDD } from '../utils/dates';
 import { friendlyNameFromDisplayName } from '../utils/formatters';
 import { useTodayData } from '../hooks/useTodayData';
+import { useActiveGroup } from '../store/ActiveGroupContext';
+import { subscribeGroupChallenge, challengeProgress, type GroupChallenge } from '../services/challenges';
 import { buildLeaderboardPreview, buildTeamToday, buildTodayChecklist, type ChecklistType } from '../viewmodels/today';
 import TodayHeader from '../components/today/TodayHeader';
 import TodaysLogCard from '../components/today/TodaysLogCard';
@@ -21,6 +23,7 @@ type Props = {
   onSwitchGroup?: () => void;
   onChat?: () => void;
   onBell?: () => void;
+  onOpenChallenge?: () => void;
 };
 
 const TIERS: Tier[] = ['Iron', 'Bronze', 'Silver', 'Gold', 'Platinum', 'Diamond', 'Master', 'Challenger'];
@@ -36,8 +39,16 @@ function dateLabel(d: Date): string {
   return d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
 }
 
-export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember, onSwitchGroup, onChat, onBell }: Props) {
+export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember, onSwitchGroup, onChat, onBell, onOpenChallenge }: Props) {
   const { user, group, memberUids, canSee, publicUsers, logs, myProfile } = useTodayData();
+  const { activeGroupId } = useActiveGroup();
+
+  const [challenge, setChallenge] = useState<GroupChallenge | null>(null);
+  useEffect(() => {
+    if (!activeGroupId) { setChallenge(null); return; }
+    return subscribeGroupChallenge(activeGroupId, setChallenge);
+  }, [activeGroupId]);
+  const challengeInfo = useMemo(() => (challenge ? challengeProgress(challenge) : null), [challenge]);
 
   const today = todayYYYYMMDD();
   const now = new Date();
@@ -85,6 +96,37 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
         onChat={onChat ?? (() => {})}
         onBell={onBell ?? (() => {})}
       />
+      {challenge && challengeInfo ? (
+        <Pressable
+          onPress={onOpenChallenge ?? (() => {})}
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 10,
+            marginTop: 18,
+            backgroundColor: colors.surface,
+            borderWidth: 1,
+            borderColor: colors.borderCard,
+            borderRadius: 14,
+            paddingHorizontal: 14,
+            paddingVertical: 12,
+          }}
+        >
+          <Icon source="flag-checkered" size={18} color={colors.primary} />
+          <View style={{ flex: 1 }}>
+            <Text numberOfLines={1} style={{ color: colors.textPrimary, fontSize: 14, fontWeight: '700' }}>{challenge.name}</Text>
+            <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 1 }}>
+              {challengeInfo.phase === 'upcoming'
+                ? 'Starts soon'
+                : challengeInfo.phase === 'ended'
+                  ? 'Ended · view standings'
+                  : `Week ${challengeInfo.week} of ${challengeInfo.total}`}
+            </Text>
+          </View>
+          <Icon source="chevron-right" size={20} color={colors.textMuted} />
+        </Pressable>
+      ) : null}
+
       <View style={{ height: 20 }} />
       <TodaysLogCard checklist={checklist} onLog={onOpenLog ?? (() => {})} />
       <TeamTodayRail team={team} onMemberPress={onOpenMember ?? (() => {})} />

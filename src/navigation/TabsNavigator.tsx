@@ -21,6 +21,7 @@ import IssuesScreen from '../screens/IssuesScreen';
 import GroupSettingsScreen from '../screens/GroupSettingsScreen';
 import GroupListScreen from '../screens/GroupListScreen';
 import GroupInfoScreen from '../screens/GroupInfoScreen';
+import ChallengeScreen from '../screens/ChallengeScreen';
 import CreateGroupScreen from '../screens/CreateGroupScreen';
 import JoinGroupScreen from '../screens/JoinGroupScreen';
 import ProfileScreen from '../screens/ProfileScreen';
@@ -63,6 +64,7 @@ function GroupsStackNavigator() {
       <GroupsStack.Screen name="CreateGroup" component={CreateGroupScreen} options={{ title: 'Create group' }} />
       <GroupsStack.Screen name="JoinGroup" component={JoinGroupScreen} options={{ title: 'Join group' }} />
       <GroupsStack.Screen name="GroupInfo" component={GroupInfoScreen} options={{ headerShown: false }} />
+      <GroupsStack.Screen name="Challenge" component={ChallengeScreen} options={{ headerShown: false }} />
       <GroupsStack.Screen name="GroupChat" component={GroupChatScreen} options={{ title: 'Chat' }} />
       <GroupsStack.Screen name="ViewPhotos" component={ViewPhotosScreen} options={{ title: 'Photos' }} />
       <GroupsStack.Screen name="Leaderboard" component={LeaderboardScreen} options={{ title: 'Leaderboard' }} />

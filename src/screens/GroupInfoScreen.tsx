@@ -161,6 +161,7 @@ export default function GroupInfoScreen({ route, navigation }: Props) {
         {/* Quick links */}
         <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>Group</AppText>
         <View style={styles.group}>
+          <NavRow icon="flag-checkered" title="Challenge" onPress={() => navigation.navigate('Challenge', { groupId })} />
           <NavRow icon="chat-outline" title="Chat" onPress={() => navigation.navigate('GroupChat', { groupId })} />
           <NavRow
             icon="chart-box-outline"

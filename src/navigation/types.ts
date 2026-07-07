@@ -55,6 +55,7 @@ export type GroupsStackParamList = {
   JoinGroup: undefined;
   GroupInfo: { groupId: string };
   GroupChat: { groupId: string };
+  Challenge: { groupId: string };
   ViewPhotos: { groupId: string };
   Leaderboard: { groupId: string };
   Issues: { groupId: string };
