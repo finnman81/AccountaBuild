@@ -4,7 +4,6 @@ export type RootStackParamList = {
   ForgotPassword: undefined;
   Onboarding: undefined;
   MainTabs: undefined;
-  LogToday: { groupId: string };
   AddCalories: {
     groupId: string;
     edit?: { logId: string; date: string; calories: number; meal: import('../services/logs').MealType; note?: string | null };
@@ -43,13 +42,10 @@ export type OnboardingStackParamList = {
 export type HomeStackParamList = {
   Home: undefined;
   Today: undefined;
-  GroupDetail: { groupId: string };
   Leaderboard: { groupId: string };
-  GroupCharts: { groupId: string };
   GroupChat: { groupId: string };
   ViewPhotos: { groupId: string };
   Issues: { groupId: string };
-  SetGoals: { groupId: string };
   GroupSettings: { groupId: string };
 };
 
@@ -59,7 +55,6 @@ export type GroupsStackParamList = {
   JoinGroup: undefined;
   GroupInfo: { groupId: string };
   GroupChat: { groupId: string };
-  GroupCharts: { groupId: string };
   ViewPhotos: { groupId: string };
   Leaderboard: { groupId: string };
   Issues: { groupId: string };

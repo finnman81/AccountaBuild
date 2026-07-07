@@ -15,12 +15,9 @@ import type {
   TabsParamList,
 } from './types';
 
-import GroupDetailScreen from '../screens/GroupDetailScreen';
-import GroupChartsScreen from '../screens/GroupChartsScreen';
 import GroupChatScreen from '../screens/GroupChatScreen';
 import ViewPhotosScreen from '../screens/ViewPhotosScreen';
 import IssuesScreen from '../screens/IssuesScreen';
-import SetGoalsScreen from '../screens/SetGoalsScreen';
 import GroupSettingsScreen from '../screens/GroupSettingsScreen';
 import GroupListScreen from '../screens/GroupListScreen';
 import GroupInfoScreen from '../screens/GroupInfoScreen';
@@ -50,13 +47,10 @@ function HomeStackNavigator() {
     <HomeStack.Navigator>
       <HomeStack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
       <HomeStack.Screen name="Today" component={HomeTodayScreen} options={{ headerShown: false }} />
-      <HomeStack.Screen name="GroupDetail" component={GroupDetailScreen} options={{ title: 'Group' }} />
       <HomeStack.Screen name="Leaderboard" component={LeaderboardScreen} options={{ title: 'Leaderboard' }} />
-      <HomeStack.Screen name="GroupCharts" component={GroupChartsScreen} options={{ title: 'Charts' }} />
       <HomeStack.Screen name="GroupChat" component={GroupChatScreen} options={{ title: 'Chat' }} />
       <HomeStack.Screen name="ViewPhotos" component={ViewPhotosScreen} options={{ title: 'Photos' }} />
       <HomeStack.Screen name="Issues" component={IssuesScreen} options={{ title: 'Issues / Suggestions' }} />
-      <HomeStack.Screen name="SetGoals" component={SetGoalsScreen} options={{ title: 'Goals' }} />
       <HomeStack.Screen name="GroupSettings" component={GroupSettingsScreen} options={{ title: 'Group settings' }} />
     </HomeStack.Navigator>
   );
@@ -70,7 +64,6 @@ function GroupsStackNavigator() {
       <GroupsStack.Screen name="JoinGroup" component={JoinGroupScreen} options={{ title: 'Join group' }} />
       <GroupsStack.Screen name="GroupInfo" component={GroupInfoScreen} options={{ headerShown: false }} />
       <GroupsStack.Screen name="GroupChat" component={GroupChatScreen} options={{ title: 'Chat' }} />
-      <GroupsStack.Screen name="GroupCharts" component={GroupChartsScreen} options={{ title: 'Charts' }} />
       <GroupsStack.Screen name="ViewPhotos" component={ViewPhotosScreen} options={{ title: 'Photos' }} />
       <GroupsStack.Screen name="Leaderboard" component={LeaderboardScreen} options={{ title: 'Leaderboard' }} />
       <GroupsStack.Screen name="Issues" component={IssuesScreen} options={{ title: 'Issues / Suggestions' }} />

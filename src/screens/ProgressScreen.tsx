@@ -9,6 +9,9 @@ import { useNavigation } from '@react-navigation/native';
 import Screen from '../components/layout/Screen';
 import EmptyState from '../components/state/EmptyState';
 import SimpleLineChart from '../components/charts/SimpleLineChart';
+import ComplianceBars from '../components/progress/ComplianceBars';
+import { subscribeMyCanSeeUids } from '../services/visibility';
+import { subscribePublicUsers } from '../services/publicUsers';
 import Card from '../components/ui/Card';
 import AppText from '../components/ui/AppText';
 import PrimaryButton from '../components/ui/PrimaryButton';
@@ -69,6 +72,8 @@ export default function ProgressScreen({ navigation }: Props) {
   const [viewerUri, setViewerUri] = useState<string | null>(null);
   const [memberUids, setMemberUids] = useState<string[]>([]);
   const [groupMeta, setGroupMeta] = useState<{ name?: string | null; memberCount?: number | null } | null>(null);
+  const [canSee, setCanSee] = useState<Set<string>>(new Set());
+  const [publicUsers, setPublicUsers] = useState<Record<string, any>>({});
 
   const activeGroupName = useMemo(() => {
     if (!activeGroupId) return null;
@@ -130,7 +135,59 @@ export default function ProgressScreen({ navigation }: Props) {
     });
   }, [activeGroupId]);
 
+  useEffect(() => {
+    if (!user) return;
+    return subscribeMyCanSeeUids(user.uid, (uids) => setCanSee(new Set(uids)));
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    const visible = memberUids.filter((uid) => uid === user.uid || canSee.has(uid));
+    if (visible.length === 0) { setPublicUsers({}); return; }
+    return subscribePublicUsers(visible, setPublicUsers);
+  }, [canSee, memberUids, user]);
+
   const photoStrip = useMemo(() => photoLogs.slice(0, 12), [photoLogs]);
+
+  // Group compliance toward weekly goals (merged in from the old Charts screen).
+  const complianceBars = useMemo(() => {
+    const weekStart = weekStartMondayLocal();
+    const workoutsCount: Record<string, number> = {};
+    const caloriesDays: Record<string, Set<string>> = {};
+    const weightDays: Record<string, Set<string>> = {};
+    for (const l of groupLogs) {
+      const d = parseYYYYMMDDLocal(l.date);
+      if (Number.isNaN(d.valueOf()) || d < weekStart) continue;
+      if (l.type === 'workout') workoutsCount[l.uid] = (workoutsCount[l.uid] ?? 0) + 1;
+      if (l.type === 'calories') (caloriesDays[l.uid] = caloriesDays[l.uid] ?? new Set()).add(l.date);
+      if (l.type === 'weight') (weightDays[l.uid] = weightDays[l.uid] ?? new Set()).add(l.date);
+    }
+    let membersWithGoals = 0;
+    let wDone = 0, wGoal = 0, cDone = 0, cGoal = 0, oDone = 0, oGoal = 0;
+    for (const uid of memberUids) {
+      const g = publicUsers[uid];
+      if (!g) continue;
+      const weightGoal = Math.max(0, Number(g.logWeightDaysPerWeek ?? 0));
+      const caloriesGoal = Math.max(0, Number(g.logCaloriesDaysPerWeek ?? 0));
+      const workoutsGoal = Math.max(0, Number(g.workoutsPerWeek ?? 0));
+      if (weightGoal > 0 || caloriesGoal > 0 || workoutsGoal > 0) membersWithGoals += 1;
+      if (weightGoal > 0) { wGoal += weightGoal; wDone += Math.min(weightDays[uid]?.size ?? 0, weightGoal); }
+      if (caloriesGoal > 0) { cGoal += caloriesGoal; cDone += Math.min(caloriesDays[uid]?.size ?? 0, caloriesGoal); }
+      if (workoutsGoal > 0) { oGoal += workoutsGoal; oDone += Math.min(workoutsCount[uid] ?? 0, workoutsGoal); }
+    }
+    const pct = (done: number, goal: number) => (goal > 0 ? Math.round((done / goal) * 100) : 0);
+    const ratio = (done: number, goal: number) => (goal > 0 ? `${done}/${goal}` : '—');
+    return {
+      membersWithGoals,
+      totalMembers: memberUids.length,
+      hasAny: wGoal + cGoal + oGoal > 0,
+      bars: [
+        { label: 'Weight', pct: pct(wDone, wGoal), ratio: ratio(wDone, wGoal) },
+        { label: 'Calories', pct: pct(cDone, cGoal), ratio: ratio(cDone, cGoal) },
+        { label: 'Workouts', pct: pct(oDone, oGoal), ratio: ratio(oDone, oGoal) },
+      ],
+    };
+  }, [groupLogs, memberUids, publicUsers]);
 
   const weekDates = useMemo(() => {
     const start = weekStartMondayLocal();
@@ -535,6 +592,27 @@ export default function ProgressScreen({ navigation }: Props) {
             </View>
           </View>
         </View>
+      </Card>
+
+      <View style={{ height: spacing.base }} />
+
+      {/* Group compliance (merged from the old Charts screen) */}
+      <Card>
+        <AppText variant="rowTitle" color="primary">Group compliance</AppText>
+        <AppText variant="rowSubtitle" color="secondary" style={{ marginTop: 2 }}>
+          {complianceBars.totalMembers
+            ? `${complianceBars.membersWithGoals}/${complianceBars.totalMembers} members set goals · this week`
+            : 'No members yet'}
+        </AppText>
+        {complianceBars.hasAny ? (
+          <View style={{ marginTop: spacing.md }}>
+            <ComplianceBars bars={complianceBars.bars} />
+          </View>
+        ) : (
+          <AppText variant="body" color="muted" style={{ marginTop: spacing.md }}>
+            No goals set yet — members can set weekly targets in Goals.
+          </AppText>
+        )}
       </Card>
 
       <View style={{ height: spacing.base }} />

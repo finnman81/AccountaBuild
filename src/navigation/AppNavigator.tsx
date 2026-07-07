@@ -14,7 +14,6 @@ import AddCaloriesScreen from '../screens/AddCaloriesScreen';
 import AddWorkoutScreen from '../screens/AddWorkoutScreen';
 import AddWeightScreen from '../screens/AddWeightScreen';
 import AddPhotoScreen from '../screens/AddPhotoScreen';
-import LogTodayScreen from '../screens/LogTodayScreen';
 import EditProfileScreen from '../screens/EditProfileScreen';
 import MMRGoalsScreen from '../screens/MMRGoalsScreen';
 import LogComposerScreen from '../screens/LogComposerScreen';
@@ -79,14 +78,6 @@ export default function AppNavigator() {
           <>
             <Stack.Screen name="MainTabs" component={TabsNavigator} options={{ headerShown: false }} />
 
-            <Stack.Screen
-              name="LogToday"
-              component={LogTodayScreen}
-              options={{
-                title: 'Log today',
-                headerBackTitle: 'Group',
-              }}
-            />
             <Stack.Screen name="AddCalories" component={AddCaloriesScreen} options={{ title: 'Log Calories' }} />
             <Stack.Screen name="AddWorkout" component={AddWorkoutScreen} options={{ title: 'Log Workout' }} />
             <Stack.Screen name="AddWeight" component={AddWeightScreen} options={{ title: 'Log Weight' }} />

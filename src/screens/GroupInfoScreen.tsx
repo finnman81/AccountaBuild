@@ -162,7 +162,14 @@ export default function GroupInfoScreen({ route, navigation }: Props) {
         <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>Group</AppText>
         <View style={styles.group}>
           <NavRow icon="chat-outline" title="Chat" onPress={() => navigation.navigate('GroupChat', { groupId })} />
-          <NavRow icon="chart-box-outline" title="Compliance charts" onPress={() => navigation.navigate('GroupCharts', { groupId })} />
+          <NavRow
+            icon="chart-box-outline"
+            title="Compliance charts"
+            onPress={() => {
+              void setActiveGroupId(groupId);
+              (navigation as any).navigate('MainTabs', { screen: 'ProgressTab', params: { screen: 'Progress' } });
+            }}
+          />
           <NavRow icon="image-multiple-outline" title="Progress photos" onPress={() => navigation.navigate('ViewPhotos', { groupId })} />
           <NavRow icon="trophy-outline" title="Leaderboard" onPress={() => navigation.navigate('Leaderboard', { groupId })} />
           <NavRow icon="lightbulb-outline" title="Issues & suggestions" onPress={() => navigation.navigate('Issues', { groupId })} divider={false} />
