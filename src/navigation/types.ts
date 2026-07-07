@@ -62,6 +62,7 @@ export type GroupsStackParamList = {
   GroupCharts: { groupId: string };
   ViewPhotos: { groupId: string };
   Leaderboard: { groupId: string };
+  Issues: { groupId: string };
   GroupSettings: { groupId: string };
 };
 

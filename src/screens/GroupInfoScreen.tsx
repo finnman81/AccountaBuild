@@ -164,7 +164,8 @@ export default function GroupInfoScreen({ route, navigation }: Props) {
           <NavRow icon="chat-outline" title="Chat" onPress={() => navigation.navigate('GroupChat', { groupId })} />
           <NavRow icon="chart-box-outline" title="Compliance charts" onPress={() => navigation.navigate('GroupCharts', { groupId })} />
           <NavRow icon="image-multiple-outline" title="Progress photos" onPress={() => navigation.navigate('ViewPhotos', { groupId })} />
-          <NavRow icon="trophy-outline" title="Leaderboard" onPress={() => navigation.navigate('Leaderboard', { groupId })} divider={false} />
+          <NavRow icon="trophy-outline" title="Leaderboard" onPress={() => navigation.navigate('Leaderboard', { groupId })} />
+          <NavRow icon="lightbulb-outline" title="Issues & suggestions" onPress={() => navigation.navigate('Issues', { groupId })} divider={false} />
         </View>
 
         {/* Members */}

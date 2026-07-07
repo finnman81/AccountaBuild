@@ -73,6 +73,7 @@ function GroupsStackNavigator() {
       <GroupsStack.Screen name="GroupCharts" component={GroupChartsScreen} options={{ title: 'Charts' }} />
       <GroupsStack.Screen name="ViewPhotos" component={ViewPhotosScreen} options={{ title: 'Photos' }} />
       <GroupsStack.Screen name="Leaderboard" component={LeaderboardScreen} options={{ title: 'Leaderboard' }} />
+      <GroupsStack.Screen name="Issues" component={IssuesScreen} options={{ title: 'Issues / Suggestions' }} />
       <GroupsStack.Screen name="GroupSettings" component={GroupSettingsScreen} options={{ title: 'Group settings' }} />
     </GroupsStack.Navigator>
   );

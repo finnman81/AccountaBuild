@@ -4,6 +4,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import { GroupsStackParamList } from '../navigation/types';
 import { AuthContext } from '../store/AuthContext';
+import { useActiveGroup } from '../store/ActiveGroupContext';
 import { createGroup } from '../services/groups';
 import { friendlyNameFromDisplayName } from '../utils/formatters';
 import AppText from '../components/ui/AppText';
@@ -16,6 +17,7 @@ type Props = NativeStackScreenProps<GroupsStackParamList, 'CreateGroup'>;
 
 export default function CreateGroupScreen({ navigation }: Props) {
   const { user } = useContext(AuthContext);
+  const { setActiveGroupId } = useActiveGroup();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -36,8 +38,10 @@ export default function CreateGroupScreen({ navigation }: Props) {
         name,
         description,
       });
-      // GroupDetail lives in the Home tab's stack; cross-tab replace resolves at runtime.
-      (navigation as any).replace('GroupDetail', { groupId: res.groupId });
+      // New group becomes active; land on its GroupInfo so the creator can grab
+      // the invite code and add members right away.
+      await setActiveGroupId(res.groupId);
+      navigation.replace('GroupInfo', { groupId: res.groupId });
     } catch (e) {
       setError('Failed to create group.');
     } finally {

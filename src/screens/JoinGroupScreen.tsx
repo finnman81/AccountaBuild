@@ -2,10 +2,14 @@ import React, { useContext, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { Snackbar } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useNavigation } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 
 import { GroupsStackParamList } from '../navigation/types';
+import type { RootStackParamList } from '../navigation/types';
 import { AuthContext } from '../store/AuthContext';
+import { useActiveGroup } from '../store/ActiveGroupContext';
 import { joinGroupByCode } from '../services/groups';
 import { friendlyNameFromDisplayName } from '../utils/formatters';
 import AppText from '../components/ui/AppText';
@@ -18,6 +22,8 @@ type Props = NativeStackScreenProps<GroupsStackParamList, 'JoinGroup'>;
 
 export default function JoinGroupScreen({ navigation }: Props) {
   const { user } = useContext(AuthContext);
+  const { setActiveGroupId } = useActiveGroup();
+  const rootNav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [joinCode, setJoinCode] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -27,21 +33,6 @@ export default function JoinGroupScreen({ navigation }: Props) {
     if (!user) return;
     setError(null);
     setIsSubmitting(true);
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/d78cd2b8-8a4c-4720-ac47-838b1499e885', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sessionId: 'debug-session',
-        runId: 'pre-fix',
-        hypothesisId: 'H4',
-        location: 'screens/JoinGroupScreen.tsx:23',
-        message: 'join submit pressed',
-        data: { joinCodeLen: joinCode.trim().length, hasUser: !!user },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
     try {
       const res = await joinGroupByCode({
         uid: user.uid,
@@ -53,10 +44,10 @@ export default function JoinGroupScreen({ navigation }: Props) {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setShowSuccess(true);
 
-      // Navigate after a brief delay so user sees the success message
+      // Make the joined group active and drop the user on Today.
+      await setActiveGroupId(res.groupId);
       setTimeout(() => {
-        // GroupDetail lives in the Home tab's stack; cross-tab replace resolves at runtime.
-        (navigation as any).replace('GroupDetail', { groupId: res.groupId });
+        rootNav.navigate('MainTabs', { screen: 'HomeTab' } as any);
       }, 800);
     } catch (e) {
       console.error('[JoinGroup] Error joining group:', e);
