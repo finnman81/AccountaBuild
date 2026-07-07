@@ -326,28 +326,37 @@ export function mapWorkoutSample(w: any): HealthKitWorkout | null {
  * Read workouts for today
  */
 export async function readTodayWorkouts(): Promise<HealthKitWorkout[]> {
+  return readRecentWorkouts(0);
+}
+
+/**
+ * Read workouts within the last `daysBack` days (0 = today only). Used by sync
+ * to import a recent window directly, so data isn't permanently missed when the
+ * anchored delta read's cursor has already advanced past it.
+ */
+export async function readRecentWorkouts(daysBack = 0): Promise<HealthKitWorkout[]> {
   if (Platform.OS !== 'ios') return [];
   if (!(await isHealthKitAvailable())) return [];
 
   try {
     const now = new Date();
-    const startOfToday = new Date(now);
-    startOfToday.setHours(0, 0, 0, 0);
+    const start = new Date(now);
+    start.setDate(start.getDate() - Math.max(0, daysBack));
+    start.setHours(0, 0, 0, 0);
 
     const result: any = await queryWorkoutSamples({
-      startDate: startOfToday,
+      startDate: start,
       endDate: now,
       ascending: true,
       limit: 0,
     } as any);
 
-    // Handle both array response and object with samples property
     const workouts = Array.isArray(result) ? result : (result?.samples || []);
 
     return workouts
       .map(mapWorkoutSample)
       .filter((w: HealthKitWorkout | null): w is HealthKitWorkout => w !== null)
-      .filter((w: HealthKitWorkout) => w.startDate >= startOfToday && w.startDate <= now);
+      .filter((w: HealthKitWorkout) => w.startDate >= start && w.startDate <= now);
   } catch (error) {
     console.error('Error reading HealthKit workouts:', error);
     return [];

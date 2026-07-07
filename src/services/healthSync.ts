@@ -85,12 +85,13 @@ export async function syncHealthData(uid: string, groupId: string, settings: Hea
       // ---- Workouts (anchored delta: import new/changed, honor deletions) ----
       if (settings.syncWorkouts && permissions.workouts) {
         try {
-          const anchor = await getAnchor(uid, 'workouts');
-          const { items, deletedUuids, newAnchor } = await HealthService.readWorkoutsSinceAnchor(anchor);
+          // Import from a DIRECT recent-window read (robust — never permanently
+          // skips data the way an advanced anchor can). Idempotent upserts prevent
+          // dupes. The anchored read is used only for deletion detection.
+          const items = await HealthService.readRecentWorkouts(BACKFILL_DAYS);
           let synced = 0;
           for (const w of items) {
             const date = formatYYYYMMDDLocal(w.startDate);
-            // Backfill window: last 7 days, so days the app wasn't opened still count.
             if (!isRecentImportDate(date, today, BACKFILL_DAYS)) continue;
             try {
               const logId = resolveHealthLogId(w.uuid, { type: 'workout', date, value: w.durationMinutes, source });
@@ -107,11 +108,13 @@ export async function syncHealthData(uid: string, groupId: string, settings: Hea
               result.errors.push(`workout: ${e}`);
             }
           }
-          // Skip deletions on first run (no prior anchor) to avoid no-op churn.
+          // Deletions via the anchored delta (skip first run to avoid no-op churn).
+          const anchor = await getAnchor(uid, 'workouts');
+          const { deletedUuids, newAnchor } = await HealthService.readWorkoutsSinceAnchor(anchor);
           const removed = anchor ? await deleteSyncedLogs(groupId, deletedUuids, result, 'workout') : 0;
           if (newAnchor) await setAnchor(uid, 'workouts', newAnchor);
-          result.diagnostics!.workouts = { dataFromHealth: { source, deltaCount: items.length, deletedCount: removed, firstRun: !anchor }, syncedCount: synced };
-          console.log('[HealthSync] Workouts: synced', synced, 'deleted', removed, 'of delta', items.length);
+          result.diagnostics!.workouts = { dataFromHealth: { source, totalCount: items.length, deletedCount: removed }, syncedCount: synced };
+          console.log('[HealthSync] Workouts: synced', synced, 'deleted', removed, 'of', items.length);
         } catch (e) {
           result.errors.push(`read workouts: ${e}`);
           result.diagnostics!.workouts = { dataFromHealth: null, reason: `Error: ${e}` };

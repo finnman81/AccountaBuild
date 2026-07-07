@@ -128,6 +128,11 @@ export async function readTodayWorkouts(daysBack = 0): Promise<HealthWorkout[]> 
   }
 }
 
+/** Alias for windowed workout reads (matches the HealthKit service surface). */
+export async function readRecentWorkouts(daysBack = 7): Promise<HealthWorkout[]> {
+  return readTodayWorkouts(daysBack);
+}
+
 export async function readTodayCalorieEntries(daysBack = 0): Promise<HealthCalorieEntry[]> {
   if (!(await ready())) return [];
   try {

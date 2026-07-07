@@ -185,6 +185,21 @@ export async function readCalorieEntriesSinceAnchor(anchor?: string): Promise<An
   return { items: [], deletedUuids: [], newAnchor: anchor };
 }
 
+/** Workouts within the last `daysBack` days — direct read for robust sync import. */
+export async function readRecentWorkouts(daysBack = 7): Promise<HealthWorkout[]> {
+  if (Platform.OS === 'ios') {
+    const service = await getHealthKitService();
+    if (!service || typeof (service as any).readRecentWorkouts !== 'function') return [];
+    return await (service as any).readRecentWorkouts(daysBack);
+  }
+  if (Platform.OS === 'android') {
+    const service = await getGoogleFitService();
+    if (!service || typeof (service as any).readRecentWorkouts !== 'function') return [];
+    return await (service as any).readRecentWorkouts(daysBack);
+  }
+  return [];
+}
+
 /** Weight entries for the last `daysBack` days (latest per day) — sync backfill. */
 export async function readRecentWeights(daysBack = 7): Promise<HealthWeight[]> {
   if (Platform.OS === 'ios') {
