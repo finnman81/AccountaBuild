@@ -57,3 +57,11 @@ play-service-account.json
 credentials.json
 credentials/
 *.keystore
+
+# Build-artifact + wrapper junk (kept out of the repo)
+logs/
+*.aab
+*.zip
+.cursor/
+# Cross-project nightly digest (written by a scheduled task, not part of the app)
+brain.md
