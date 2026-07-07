@@ -138,6 +138,7 @@ export default function GroupListScreen({ navigation }: Props) {
                 overview={overviews[g.groupId]}
                 isActive={g.groupId === activeGroupId}
                 onPress={() => openGroup(g)}
+                onInfo={() => navigation.navigate('GroupInfo', { groupId: g.groupId })}
               />
             ))}
           </View>

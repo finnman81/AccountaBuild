@@ -17,10 +17,11 @@ type Props = {
   overview?: GroupOverview;
   isActive: boolean;
   onPress: () => void;
+  onInfo?: () => void;
 };
 
 /** A group's summary card (design 06): compliance ring, stake, and today's logged avatars. */
-export default function GroupCard({ group, overview, isActive, onPress }: Props) {
+export default function GroupCard({ group, overview, isActive, onPress, onInfo }: Props) {
   const pct = overview?.compliancePct ?? 0;
   const members = overview?.memberTotal ?? group.memberCount ?? 0;
   const loggedToday = overview?.loggedToday ?? 0;
@@ -55,7 +56,13 @@ export default function GroupCard({ group, overview, isActive, onPress }: Props)
             </View>
           ) : null}
         </View>
-        <Icon source="chevron-right" size={22} color={colors.textMuted} />
+        {onInfo ? (
+          <TouchableOpacity onPress={onInfo} hitSlop={10} style={styles.gearBtn} accessibilityLabel="Group info & settings">
+            <Icon source="cog-outline" size={22} color={colors.textMuted} />
+          </TouchableOpacity>
+        ) : (
+          <Icon source="chevron-right" size={22} color={colors.textMuted} />
+        )}
       </View>
 
       {(avatars.length > 0 || members > 0) && (
@@ -97,6 +104,7 @@ const styles = StyleSheet.create({
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   logo: { width: 22, height: 22, borderRadius: 6, backgroundColor: colors.surface2 },
   name: { flexShrink: 1 },
+  gearBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
   roleChip: { backgroundColor: colors.primaryTint, borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 2 },
   roleText: { color: colors.primaryOnDark, fontSize: 9 },
   metaLine: {},

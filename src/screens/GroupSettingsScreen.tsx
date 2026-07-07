@@ -1,6 +1,6 @@
 import React, { useContext, useEffect, useMemo, useState } from 'react';
-import { ScrollView, View, StyleSheet } from 'react-native';
-import { Button, Dialog, Portal } from 'react-native-paper';
+import { ScrollView, View, StyleSheet, TouchableOpacity } from 'react-native';
+import { Button, Dialog, Portal, Icon, ActivityIndicator } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as ImagePicker from 'expo-image-picker';
 import { doc, onSnapshot } from 'firebase/firestore';
@@ -10,13 +10,24 @@ import { db } from '../firebase/firebase';
 import { AuthContext } from '../store/AuthContext';
 import { deleteGroupAsCreator, setGroupLogoUrl, setGroupStreakRule } from '../services/groups';
 import { uploadGroupLogo } from '../services/photos';
-import Card from '../components/ui/Card';
 import AppText from '../components/ui/AppText';
-import PrimaryButton from '../components/ui/PrimaryButton';
 import SegmentedControl from '../components/ui/SegmentedControl';
-import { colors, spacing } from '../theme';
+import { colors, radius, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'GroupSettings'>;
+
+function NavRow({ title, value, onPress, danger, loading, divider = true }: { title: string; value?: string; onPress?: () => void; danger?: boolean; loading?: boolean; divider?: boolean }) {
+  return (
+    <>
+      <TouchableOpacity style={styles.row} onPress={onPress} disabled={!onPress || loading} activeOpacity={0.7}>
+        <AppText variant="rowTitle" color={danger ? 'danger' : 'primary'} style={{ flex: 1 }}>{title}</AppText>
+        {loading ? <ActivityIndicator size={16} color={colors.textMuted} /> : value ? <AppText variant="rowSubtitle" color="muted" style={{ marginRight: spacing.sm }}>{value}</AppText> : null}
+        {onPress && !danger && !loading ? <Icon source="chevron-right" size={20} color={colors.textMuted} /> : null}
+      </TouchableOpacity>
+      {divider ? <View style={styles.divider} /> : null}
+    </>
+  );
+}
 
 type GroupDoc = {
   createdBy?: string;
@@ -124,63 +135,52 @@ export default function GroupSettingsScreen({ route, navigation }: Props) {
       </Portal>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Card style={styles.card}>
-          <AppText variant="pageTitle" color="primary" style={styles.title}>
-            Group settings
-          </AppText>
-          {group?.name ? (
-            <AppText variant="rowSubtitle" color="muted" style={styles.subtitle}>
-              {group.name}
-            </AppText>
-          ) : null}
+        {group?.name ? (
+          <AppText variant="rowSubtitle" color="muted" style={styles.groupName}>{group.name}</AppText>
+        ) : null}
 
-          {!isAdmin ? (
-            <AppText variant="body" color="secondary">
-              Only group admins can change settings.
-            </AppText>
-          ) : null}
+        {!isAdmin ? (
+          <View style={styles.notice}>
+            <AppText variant="rowSubtitle" color="muted">Only group admins can change these settings.</AppText>
+          </View>
+        ) : null}
 
-          <AppText variant="rowTitle" color="primary" style={styles.sectionTitle}>
-            Streak rule
-          </AppText>
-          <AppText variant="rowSubtitle" color="muted" style={styles.sectionHelp}>
-            Controls what counts as a “streak day” for members in this group.
-          </AppText>
-          <SegmentedControl
-            options={[
-              { value: 'workout', label: 'Workout only' },
-              { value: 'any', label: 'Any log' },
-            ]}
-            value={(group?.streakRule ?? 'workout') as 'workout' | 'any'}
-            onChange={(v) => void onChangeStreakRule(v)}
-            style={styles.segmented}
-          />
-
-          {!isCreator ? (
-            <AppText variant="rowSubtitle" color="muted" style={styles.footnote}>
-              Only the group creator can change logo or delete the group.
+        <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>Rules</AppText>
+        <View style={styles.group}>
+          <View style={styles.ruleBlock}>
+            <AppText variant="rowTitle" color="primary">Streak rule</AppText>
+            <AppText variant="rowSubtitle" color="muted" style={styles.ruleHelp}>
+              What counts as a “streak day” for members in this group.
             </AppText>
-          ) : (
-            <View style={styles.actions}>
-              <PrimaryButton
-                secondary
-                onPress={changeGroupLogo}
-                loading={isUploadingLogo}
-                disabled={isUploadingLogo}
-              >
-                Set group logo
-              </PrimaryButton>
-              <PrimaryButton
-                secondary
-                onPress={() => setDeleteDialogVisible(true)}
-                disabled={isUploadingLogo || isDeletingGroup}
-                textColor={colors.danger}
-              >
-                Delete group
-              </PrimaryButton>
+            <SegmentedControl
+              options={[
+                { value: 'workout', label: 'Workout only' },
+                { value: 'any', label: 'Any log' },
+              ]}
+              value={(group?.streakRule ?? 'workout') as 'workout' | 'any'}
+              onChange={(v) => isAdmin && void onChangeStreakRule(v)}
+              style={styles.segmented}
+            />
+          </View>
+        </View>
+
+        {isCreator ? (
+          <>
+            <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>Identity</AppText>
+            <View style={styles.group}>
+              <NavRow title="Group logo" value={group?.logoUrl ? 'Change' : 'Set'} onPress={changeGroupLogo} loading={isUploadingLogo} divider={false} />
             </View>
-          )}
-        </Card>
+
+            <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>Danger zone</AppText>
+            <View style={styles.group}>
+              <NavRow title="Delete group" danger onPress={() => setDeleteDialogVisible(true)} divider={false} />
+            </View>
+          </>
+        ) : (
+          <AppText variant="rowSubtitle" color="muted" style={styles.footnote}>
+            Only the group creator can change the logo or delete the group.
+          </AppText>
+        )}
       </ScrollView>
     </View>
   );
@@ -188,13 +188,15 @@ export default function GroupSettingsScreen({ route, navigation }: Props) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  content: { paddingHorizontal: spacing.lg, paddingTop: spacing.base, paddingBottom: spacing.xxl },
-  card: { gap: spacing.sm },
-  title: { marginBottom: spacing.xs },
-  subtitle: { marginBottom: spacing.sm },
-  sectionTitle: { marginTop: spacing.sm },
-  sectionHelp: { marginBottom: spacing.sm, lineHeight: 18 },
+  content: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.xxl },
+  groupName: { marginBottom: spacing.xs, marginLeft: spacing.xs },
+  notice: { backgroundColor: colors.surface2, borderRadius: radius.tile, padding: spacing.base, marginTop: spacing.sm },
+  sectionLabel: { marginTop: spacing.lg, marginBottom: spacing.sm, marginLeft: spacing.xs },
+  group: { backgroundColor: colors.surface, borderRadius: radius.listGroup, borderWidth: 1, borderColor: colors.borderCard, paddingHorizontal: spacing.base },
+  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.md, gap: spacing.md, minHeight: 52 },
+  divider: { height: 1, backgroundColor: colors.divider },
+  ruleBlock: { paddingVertical: spacing.md, gap: spacing.xs },
+  ruleHelp: { lineHeight: 18, marginBottom: spacing.sm },
   segmented: { marginTop: spacing.xs },
-  footnote: { marginTop: spacing.base, lineHeight: 18 },
-  actions: { marginTop: spacing.base, gap: spacing.md },
+  footnote: { marginTop: spacing.lg, marginLeft: spacing.xs, lineHeight: 18 },
 });

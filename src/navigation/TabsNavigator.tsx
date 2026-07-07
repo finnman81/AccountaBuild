@@ -23,6 +23,7 @@ import IssuesScreen from '../screens/IssuesScreen';
 import SetGoalsScreen from '../screens/SetGoalsScreen';
 import GroupSettingsScreen from '../screens/GroupSettingsScreen';
 import GroupListScreen from '../screens/GroupListScreen';
+import GroupInfoScreen from '../screens/GroupInfoScreen';
 import CreateGroupScreen from '../screens/CreateGroupScreen';
 import JoinGroupScreen from '../screens/JoinGroupScreen';
 import ProfileScreen from '../screens/ProfileScreen';
@@ -64,9 +65,15 @@ function HomeStackNavigator() {
 function GroupsStackNavigator() {
   return (
     <GroupsStack.Navigator>
-      <GroupsStack.Screen name="GroupList" component={GroupListScreen} options={{ title: 'Groups' }} />
+      <GroupsStack.Screen name="GroupList" component={GroupListScreen} options={{ headerShown: false }} />
       <GroupsStack.Screen name="CreateGroup" component={CreateGroupScreen} options={{ title: 'Create group' }} />
       <GroupsStack.Screen name="JoinGroup" component={JoinGroupScreen} options={{ title: 'Join group' }} />
+      <GroupsStack.Screen name="GroupInfo" component={GroupInfoScreen} options={{ headerShown: false }} />
+      <GroupsStack.Screen name="GroupChat" component={GroupChatScreen} options={{ title: 'Chat' }} />
+      <GroupsStack.Screen name="GroupCharts" component={GroupChartsScreen} options={{ title: 'Charts' }} />
+      <GroupsStack.Screen name="ViewPhotos" component={ViewPhotosScreen} options={{ title: 'Photos' }} />
+      <GroupsStack.Screen name="Leaderboard" component={LeaderboardScreen} options={{ title: 'Leaderboard' }} />
+      <GroupsStack.Screen name="GroupSettings" component={GroupSettingsScreen} options={{ title: 'Group settings' }} />
     </GroupsStack.Navigator>
   );
 }

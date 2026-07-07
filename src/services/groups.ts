@@ -152,59 +152,13 @@ export async function joinGroupByCode(params: {
   joinCode: string;
 }): Promise<{ groupId: string }> {
   const code = normalizeJoinCode(params.joinCode);
-  const maskedCode = code.length >= 4 ? `${code.slice(0, 2)}...${code.slice(-2)}` : code;
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/d78cd2b8-8a4c-4720-ac47-838b1499e885', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      sessionId: 'debug-session',
-      runId: 'pre-fix',
-      hypothesisId: 'H1',
-      location: 'services/groups.ts:154',
-      message: 'joinGroupByCode entry',
-      data: { joinCodeLen: code.length, maskedCode, hasDisplayName: !!params.displayName },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion
   if (!code || code.length !== 6) {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/d78cd2b8-8a4c-4720-ac47-838b1499e885', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sessionId: 'debug-session',
-        runId: 'pre-fix',
-        hypothesisId: 'H5',
-        location: 'services/groups.ts:155',
-        message: 'join code invalid length',
-        data: { joinCodeLen: code.length, maskedCode },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
     throw new Error('Join code must be 6 characters');
   }
   const joinRef = doc(db, 'joinCodes', code);
   const joinSnap = await getDoc(joinRef);
-  
+
   if (!joinSnap.exists()) {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/d78cd2b8-8a4c-4720-ac47-838b1499e885', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sessionId: 'debug-session',
-        runId: 'pre-fix',
-        hypothesisId: 'H1',
-        location: 'services/groups.ts:161',
-        message: 'join code lookup missing',
-        data: { maskedCode },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
     throw new Error(
       `Join code "${code}" not found. The group admin may need to regenerate the join code. ` +
       `If you're the admin, try viewing the group details to backfill the join code mapping.`
@@ -216,21 +170,6 @@ export async function joinGroupByCode(params: {
   const name = join.name ?? 'Group';
   const description = join.description ?? null;
   const joinCodeFromDoc = join.joinCode ?? code;
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/d78cd2b8-8a4c-4720-ac47-838b1499e885', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      sessionId: 'debug-session',
-      runId: 'pre-fix',
-      hypothesisId: 'H1',
-      location: 'services/groups.ts:168',
-      message: 'join code lookup found',
-      data: { maskedCode, groupId, joinCodeFromDoc: joinCodeFromDoc ? `${joinCodeFromDoc.slice(0, 2)}...${joinCodeFromDoc.slice(-2)}` : null },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion
 
   // Note: We don't check if the group exists here because Firestore rules require
   // membership to read group documents. If the join code exists, the group exists
@@ -241,21 +180,6 @@ export async function joinGroupByCode(params: {
   const memberRef = doc(db, 'groups', groupId, 'members', params.uid);
   const memberSnap = await getDoc(memberRef);
   const isAlreadyMember = memberSnap.exists();
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/d78cd2b8-8a4c-4720-ac47-838b1499e885', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      sessionId: 'debug-session',
-      runId: 'pre-fix',
-      hypothesisId: 'H2',
-      location: 'services/groups.ts:182',
-      message: 'member lookup result',
-      data: { groupId, isAlreadyMember },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion
 
   if (isAlreadyMember) {
     // User is already a member, just update their user groups reference if needed
@@ -323,21 +247,6 @@ export async function joinGroupByCode(params: {
       ),
     ]);
   } catch (joinError: any) {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/d78cd2b8-8a4c-4720-ac47-838b1499e885', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sessionId: 'debug-session',
-        runId: 'pre-fix',
-        hypothesisId: 'H3',
-        location: 'services/groups.ts:249',
-        message: 'join group write failed',
-        data: { groupId, maskedCode, errorCode: joinError?.code || null, errorMessage: joinError?.message || String(joinError) },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
     console.error('[Groups] Error joining group:', {
       uid: params.uid,
       groupId,
@@ -398,6 +307,18 @@ export function subscribeMyGroups(
             if (!groupSnap.exists()) {
               await deleteDoc(doc(db, 'users', uid, 'groups', g.groupId));
               return null;
+            }
+            // Also self-heal if an admin removed us: our own membership doc is
+            // gone but the pointer under users/{uid}/groups lingers. Drop it so
+            // the group disappears from our list.
+            try {
+              const meSnap = await getDoc(doc(db, 'groups', g.groupId, 'members', uid));
+              if (!meSnap.exists()) {
+                await deleteDoc(doc(db, 'users', uid, 'groups', g.groupId));
+                return null;
+              }
+            } catch {
+              // Ignore (permissions/network); keep showing the group for now.
             }
             const data = groupSnap.data() as any;
             // Backfill memberCount for older groups (so UI can show “X members”).
@@ -480,6 +401,52 @@ export async function setGroupStreakRule(params: { groupId: string; streakRule: 
   await updateDoc(doc(db, 'groups', params.groupId), {
     streakRule: params.streakRule,
     updatedAt: serverTimestamp(),
+  });
+}
+
+export type GroupMember = { uid: string; role: 'admin' | 'member'; joinedAt?: unknown };
+
+/** Live list of a group's members (from groups/{groupId}/members). */
+export function subscribeGroupMembers(
+  groupId: string,
+  onChange: (members: GroupMember[]) => void,
+  onError?: (err: unknown) => void,
+) {
+  return onSnapshot(
+    collection(db, 'groups', groupId, 'members'),
+    (snap) => {
+      const members = snap.docs.map((d) => {
+        const data = d.data() as any;
+        return { uid: data?.uid ?? d.id, role: (data?.role as 'admin' | 'member') ?? 'member', joinedAt: data?.joinedAt ?? null };
+      });
+      onChange(members);
+    },
+    onError,
+  );
+}
+
+/** Promote/demote a member (admin-only, enforced by rules). */
+export async function setMemberRole(params: { groupId: string; memberUid: string; role: 'admin' | 'member' }) {
+  await updateDoc(doc(db, 'groups', params.groupId, 'members', params.memberUid), {
+    role: params.role,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/**
+ * Admin removes another member. Deletes the group-scoped membership doc and
+ * decrements memberCount. The removed user's own users/{uid}/groups pointer
+ * self-heals on their next groups read (see subscribeMyGroups), since rules
+ * don't let one user write another's user-scoped docs.
+ */
+export async function removeMemberAsAdmin(params: { groupId: string; memberUid: string }) {
+  await deleteDoc(doc(db, 'groups', params.groupId, 'members', params.memberUid));
+  await updateDoc(doc(db, 'groups', params.groupId), {
+    memberCount: increment(-1),
+    lastActivityAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  }).catch(() => {
+    // memberCount is best-effort; the membership delete is what matters.
   });
 }
 

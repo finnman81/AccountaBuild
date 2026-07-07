@@ -57,6 +57,12 @@ export type GroupsStackParamList = {
   GroupList: undefined;
   CreateGroup: undefined;
   JoinGroup: undefined;
+  GroupInfo: { groupId: string };
+  GroupChat: { groupId: string };
+  GroupCharts: { groupId: string };
+  ViewPhotos: { groupId: string };
+  Leaderboard: { groupId: string };
+  GroupSettings: { groupId: string };
 };
 
 export type ProgressStackParamList = {
