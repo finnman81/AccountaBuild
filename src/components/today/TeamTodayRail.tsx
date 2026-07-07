@@ -7,8 +7,13 @@ import { colors } from '../../theme/colors';
 import type { TeamMemberToday, TeamToday } from '../../viewmodels/today';
 
 function statusFor(m: TeamMemberToday): AvatarStatus {
+  // Today's completion wins: once you've logged, the ring is green — even if
+  // you're the streak leader. The gold streak-leader ring only shows while a
+  // leader still hasn't logged today (the streak count in the value line keeps
+  // showing who's leading regardless).
+  if (m.status === 'logged') return 'logged';
   if (m.streakLeader) return 'streakLeader';
-  return m.status === 'logged' ? 'logged' : 'notLogged';
+  return 'notLogged';
 }
 
 function MemberCell({ member, onPress }: { member: TeamMemberToday; onPress: (uid: string) => void }) {

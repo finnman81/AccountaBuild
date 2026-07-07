@@ -1,7 +1,8 @@
 import React, { useContext, useEffect, useMemo, useState } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Pressable } from 'react-native';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 
 import { db } from '../firebase/firebase';
@@ -30,6 +31,7 @@ const asTier = (x: unknown): Tier | null => (TIERS as string[]).includes(String(
 export default function MemberDetailScreen({ route, navigation }: Props) {
   const { groupId, uid } = route.params;
   const { user } = useContext(AuthContext);
+  const insets = useSafeAreaInsets();
 
   const [pub, setPub] = useState<PublicUser | null>(null);
   const [logs, setLogs] = useState<GroupLog[]>([]);
@@ -92,8 +94,13 @@ export default function MemberDetailScreen({ route, navigation }: Props) {
 
   return (
     <View style={styles.overlay}>
-      <View style={styles.sheet}>
+      {/* Tap the dimmed backdrop to dismiss. */}
+      <Pressable style={StyleSheet.absoluteFill} onPress={() => navigation.goBack()} />
+      <View style={[styles.sheet, { paddingBottom: Math.max(spacing.lg, insets.bottom + spacing.sm) }]}>
         <View style={styles.grabber} />
+        <TouchableOpacity style={styles.closeX} onPress={() => navigation.goBack()} hitSlop={12} accessibilityLabel="Close">
+          <AppText variant="rowTitle" color="muted">✕</AppText>
+        </TouchableOpacity>
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <View style={styles.headerRow}>
             <Avatar photoURL={pub?.photoURL ?? null} name={name} size={58} status={stats.streak >= 7 ? 'streakLeader' : undefined} />
@@ -165,6 +172,7 @@ const styles = StyleSheet.create({
   overlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
   sheet: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: spacing.lg, paddingBottom: spacing.lg, maxHeight: '88%' },
   grabber: { alignSelf: 'center', width: 40, height: 4, borderRadius: 999, backgroundColor: colors.faint, marginTop: spacing.md, marginBottom: spacing.base },
+  closeX: { position: 'absolute', top: spacing.md, right: spacing.base, width: 32, height: 32, alignItems: 'center', justifyContent: 'center', zIndex: 2 },
   content: { paddingBottom: spacing.base },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.base },
   headerInfo: { flex: 1, gap: 4 },

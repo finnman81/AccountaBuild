@@ -1,6 +1,7 @@
 import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { db } from '../firebase/firebase';
-import { CURRENT_ONBOARDING_VERSION, type OnboardingData } from '../hooks/useOnboardingStatus';
+import { CURRENT_ONBOARDING_VERSION, onboardingLocalKey, type OnboardingData } from '../hooks/useOnboardingStatus';
 
 export async function checkOnboardingStatus(uid: string): Promise<boolean> {
   if (!db) throw new Error('Firebase is not initialized');
@@ -44,6 +45,10 @@ export async function completeOnboarding(uid: string): Promise<void> {
   const existingData = userDoc.exists() ? userDoc.data() : {};
   const existingOnboarding = (existingData.onboarding as OnboardingData | undefined) ?? {};
   
+  // Persist a local flag FIRST so a returning user is never re-trapped in
+  // onboarding by a slow/stale Firestore read on the next cold start.
+  await AsyncStorage.setItem(onboardingLocalKey(uid), 'true').catch(() => {});
+
   await setDoc(
     userRef,
     {
