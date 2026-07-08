@@ -3,7 +3,7 @@ import { Image, View, StyleSheet } from 'react-native';
 import { Text } from 'react-native-paper';
 import { colors } from '../../theme/colors';
 
-export type AvatarStatus = 'logged' | 'notLogged' | 'streakLeader';
+export type AvatarStatus = 'logged' | 'notLogged' | 'streakLeader' | 'streak' | 'danger';
 
 type AvatarProps = {
   photoURL: string | null;
@@ -25,6 +25,8 @@ const RING_COLOR: Record<AvatarStatus, string> = {
   logged: colors.ringLogged,
   notLogged: colors.ringNotLogged,
   streakLeader: colors.ringStreakLeader,
+  streak: colors.ringStreak,
+  danger: colors.ringDanger,
 };
 
 export default function Avatar({ photoURL, name, size = 40, status, atRisk }: AvatarProps) {

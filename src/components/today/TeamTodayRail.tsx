@@ -7,20 +7,20 @@ import { colors } from '../../theme/colors';
 import type { TeamMemberToday, TeamToday } from '../../viewmodels/today';
 
 function statusFor(m: TeamMemberToday): AvatarStatus {
-  // Today's completion wins: once you've logged, the ring is green — even if
-  // you're the streak leader. The gold streak-leader ring only shows while a
-  // leader still hasn't logged today (the streak count in the value line keeps
-  // showing who's leading regardless).
+  // Danger (red) wins — it's the actionable "nudge them" signal and takes
+  // priority even over an active streak (a streak still in jeopardy today).
+  // Otherwise: on a streak = green, logged today (no streak) = blue, else gray.
+  if (m.atRisk) return 'danger';
+  if (m.streakDays > 0) return 'streak';
   if (m.status === 'logged') return 'logged';
-  if (m.streakLeader) return 'streakLeader';
   return 'notLogged';
 }
 
 function MemberCell({ member, onPress }: { member: TeamMemberToday; onPress: (uid: string) => void }) {
-  const valueColor = member.streakLeader ? colors.rankGold : member.atRisk ? colors.danger : colors.textMuted;
+  const valueColor = member.atRisk ? colors.danger : member.streakDays > 0 ? colors.success : colors.textMuted;
   return (
     <Pressable onPress={() => onPress(member.uid)} style={styles.cell} accessibilityRole="button">
-      <Avatar name={member.name} photoURL={member.photoURL} size={52} status={statusFor(member)} atRisk={member.atRisk} />
+      <Avatar name={member.name} photoURL={member.photoURL} size={52} status={statusFor(member)} />
       <Text numberOfLines={1} style={styles.name}>
         {member.name}
       </Text>

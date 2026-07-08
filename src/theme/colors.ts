@@ -40,9 +40,11 @@ export const colors = {
   dangerTint: 'rgba(255,93,93,0.14)',
 
   // Avatar ring / status colors (Team Today)
-  ringLogged: '#3E8BFF', // blue
+  ringLogged: '#3E8BFF', // blue — logged today, no active streak
   ringNotLogged: '#2A2E38', // neutral gray
-  ringStreakLeader: '#E9B542', // gold
+  ringStreakLeader: '#E9B542', // gold — group's #1 streak
+  ringStreak: '#33D573', // green — on an active streak
+  ringDanger: '#FF5D5D', // red — at risk of losing MP this week (nudge them)
   riskDot: '#FF5D5D', // red
 } as const;
 
