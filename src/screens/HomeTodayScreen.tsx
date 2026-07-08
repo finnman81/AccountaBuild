@@ -35,6 +35,7 @@ export default function HomeTodayScreen() {
           }
         }}
         onBell={() => nav.navigate('Activity')}
+        onOpenWeeklyRecap={() => (nav as any).navigate('MainTabs', { screen: 'ProfileTab', params: { screen: 'MMRHistory' } })}
         onOpenMember={(uid: string) => {
           if (activeGroupId && uid) (nav as any).navigate('MemberDetail', { groupId: activeGroupId, uid });
         }}

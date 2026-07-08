@@ -1,4 +1,4 @@
-import { isoWeekIdInTz, isoWeekRangeInTz, nextIsoWeekId, seasonIdFromDate, DEFAULT_TZ } from '../../src/mmr/time';
+import { isoWeekIdInTz, isoWeekRangeInTz, nextIsoWeekId, prevIsoWeekId, seasonIdFromDate, DEFAULT_TZ } from '../../src/mmr/time';
 
 describe('mmr/time', () => {
   test('seasonIdFromDate returns correct quarter', () => {
@@ -28,6 +28,14 @@ describe('mmr/time', () => {
     const next = nextIsoWeekId(id, DEFAULT_TZ);
     expect(next).toMatch(/^\d{4}-W\d{2}$/);
     expect(next).not.toBe(id);
+  });
+
+  test('prevIsoWeekId is the inverse of nextIsoWeekId', () => {
+    const id = isoWeekIdInTz(new Date('2026-02-15T12:00:00Z'), DEFAULT_TZ);
+    const prev = prevIsoWeekId(id, DEFAULT_TZ);
+    expect(prev).toMatch(/^\d{4}-W\d{2}$/);
+    expect(prev).not.toBe(id);
+    expect(nextIsoWeekId(prev, DEFAULT_TZ)).toBe(id);
   });
 });
 

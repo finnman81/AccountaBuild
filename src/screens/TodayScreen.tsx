@@ -18,6 +18,7 @@ import TodaysLogCard from '../components/today/TodaysLogCard';
 import TodayEntriesSheet from '../components/today/TodayEntriesSheet';
 import TeamTodayRail from '../components/today/TeamTodayRail';
 import LeaderboardPreviewCard from '../components/today/LeaderboardPreviewCard';
+import WeeklyRecapBanner from '../components/today/WeeklyRecapBanner';
 import { deleteGroupLogById } from '../services/logs';
 import type { ChecklistItem, TodayLogEntry } from '../viewmodels/today';
 import type { Tier } from '../mmr/types';
@@ -30,6 +31,7 @@ type Props = {
   onChat?: () => void;
   onBell?: () => void;
   onOpenChallenge?: () => void;
+  onOpenWeeklyRecap?: () => void;
   onEditEntry?: (entry: TodayLogEntry) => void;
 };
 
@@ -46,7 +48,7 @@ function dateLabel(d: Date): string {
   return d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
 }
 
-export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember, onSwitchGroup, onChat, onBell, onOpenChallenge, onEditEntry }: Props) {
+export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember, onSwitchGroup, onChat, onBell, onOpenChallenge, onOpenWeeklyRecap, onEditEntry }: Props) {
   const { user, group, memberUids, canSee, publicUsers, logs, myProfile } = useTodayData();
   const { activeGroupId } = useActiveGroup();
   const [entriesItem, setEntriesItem] = useState<ChecklistItem | null>(null);
@@ -129,6 +131,7 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
         onChat={onChat ?? (() => {})}
         onBell={onBell ?? (() => {})}
       />
+      <WeeklyRecapBanner onOpen={onOpenWeeklyRecap ?? (() => {})} />
       {challenge && challengeInfo ? (
         <Pressable
           onPress={onOpenChallenge ?? (() => {})}
