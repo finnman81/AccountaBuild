@@ -1,6 +1,6 @@
-import React, { useContext } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import React, { useContext, useEffect } from 'react';
 import { DarkTheme as NavDarkTheme, NavigationContainer } from '@react-navigation/native';
+import * as SplashScreen from 'expo-splash-screen';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { IconButton, useTheme } from 'react-native-paper';
 
@@ -32,17 +32,26 @@ export default function AppNavigator() {
   const theme = useTheme();
   const { isCompleted: onboardingCompleted, isLoading: onboardingLoading } = useOnboardingStatus(user?.uid ?? null);
 
-  if (!isFirebaseConfigured() || firebaseInitError) {
+  const configError = !isFirebaseConfigured() || firebaseInitError;
+  const ready = configError || (!isLoading && !onboardingLoading);
+
+  // Reveal the app (hide the held native splash) only once we know the first
+  // screen. A 6s safety net hides it regardless, so a hung read can't strand
+  // the user on the splash.
+  useEffect(() => {
+    if (ready) SplashScreen.hideAsync().catch(() => {});
+  }, [ready]);
+  useEffect(() => {
+    const t = setTimeout(() => SplashScreen.hideAsync().catch(() => {}), 6000);
+    return () => clearTimeout(t);
+  }, []);
+
+  if (configError) {
     return <FirebaseConfigErrorScreen />;
   }
 
-  if (isLoading || onboardingLoading) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator />
-      </View>
-    );
-  }
+  // Keep the native splash up until ready (render nothing rather than a spinner).
+  if (!ready) return null;
 
   return (
     <NavigationContainer
