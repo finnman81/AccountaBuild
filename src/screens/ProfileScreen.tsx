@@ -13,7 +13,7 @@ import NavList from '../components/ui/NavList';
 import { AuthContext } from '../store/AuthContext';
 import { subscribeMyProfile } from '../services/profile';
 import { db } from '../firebase/firebase';
-import { formatHeightInches, formatMinutesHM, formatWeightLb } from '../utils/formatters';
+import { formatHeightInches, formatMinutesHM, formatWeightForUnits } from '../utils/formatters';
 import { useActiveGroup } from '../store/ActiveGroupContext';
 import { subscribeGroupLogs, type GroupLog } from '../services/logs';
 import type { RootStackParamList, ProfileStackParamList } from '../navigation/types';
@@ -310,8 +310,8 @@ export default function ProfileScreen() {
   const name = String(profile?.displayName ?? user.displayName ?? user.email ?? 'You');
 
   const statItems = [
-    { key: 'weightCurrent', label: 'Current weight', value: profile?.weightCurrent == null ? '—' : formatWeightLb(profile.weightCurrent), focusField: 'weightCurrent' as const },
-    { key: 'weightGoal', label: 'Goal weight', value: profile?.weightGoal == null ? '—' : formatWeightLb(profile.weightGoal), focusField: 'weightGoal' as const },
+    { key: 'weightCurrent', label: 'Current weight', value: profile?.weightCurrent == null ? '—' : formatWeightForUnits(profile.weightCurrent, profile?.units), focusField: 'weightCurrent' as const },
+    { key: 'weightGoal', label: 'Goal weight', value: profile?.weightGoal == null ? '—' : formatWeightForUnits(profile.weightGoal, profile?.units), focusField: 'weightGoal' as const },
     { key: 'height', label: 'Height', value: profile?.height == null ? '—' : formatHeightInches(profile.height), focusField: 'height' as const },
     { key: 'age', label: 'Age', value: profile?.age == null ? '—' : String(profile.age), focusField: 'age' as const },
   ];

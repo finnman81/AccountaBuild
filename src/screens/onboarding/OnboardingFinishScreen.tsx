@@ -19,7 +19,7 @@ import { updateHealthSettings } from '../../services/healthSettings';
 import { onboardingAnalytics } from '../../services/analytics';
 import { onboardingCopy } from '../../constants/onboardingCopy';
 import { subscribeMyProfile } from '../../services/profile';
-import { formatWeightLb } from '../../utils/formatters';
+import { formatWeightForUnits } from '../../utils/formatters';
 import { db } from '../../firebase/firebase';
 import { colors } from '../../theme';
 
@@ -129,15 +129,7 @@ export default function OnboardingFinishScreen({ navigation }: Props) {
     return mode.charAt(0).toUpperCase() + mode.slice(1);
   };
 
-  const formatWeight = (weight?: number, units?: 'imperial' | 'metric') => {
-    if (weight == null) return '—';
-    if (units === 'metric') {
-      // Convert lbs to kg
-      const kg = weight / 2.20462;
-      return `${Math.round(kg * 10) / 10} kg`;
-    }
-    return formatWeightLb(weight);
-  };
+  const formatWeight = (weight?: number, units?: 'imperial' | 'metric') => formatWeightForUnits(weight, units);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>

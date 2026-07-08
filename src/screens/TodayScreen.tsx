@@ -12,6 +12,7 @@ import { subscribeGroupChallenge, challengeProgress, type GroupChallenge } from 
 import { subscribeLatestGroupMessage, type GroupMessage } from '../services/chat';
 import { subscribeMyGroupMeta } from '../services/groups';
 import { subscribeUnreadActivityCount } from '../services/activity';
+import { useMyUnits } from '../hooks/useMyUnits';
 import { buildLeaderboardPreview, buildTeamToday, buildTodayChecklist, type ChecklistType } from '../viewmodels/today';
 import TodayHeader from '../components/today/TodayHeader';
 import TodaysLogCard from '../components/today/TodaysLogCard';
@@ -89,10 +90,11 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
   const streakRule = group?.streakRule ?? 'workout';
   const myUid = user?.uid ?? '';
   const dailyCalorieGoal = myProfile?.dailyCalorieGoal ?? publicUsers[myUid]?.dailyCalorieGoal ?? null;
+  const units = useMyUnits();
 
   const checklist = useMemo(
-    () => buildTodayChecklist({ logs, myUid, today, dailyCalorieGoal }),
-    [logs, myUid, today, dailyCalorieGoal],
+    () => buildTodayChecklist({ logs, myUid, today, dailyCalorieGoal, units }),
+    [logs, myUid, today, dailyCalorieGoal, units],
   );
   const team = useMemo(
     () => buildTeamToday({ memberUids, publicUsers, canSee, myUid, logs, today, streakRule, pastCutoff }),

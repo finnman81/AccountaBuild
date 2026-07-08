@@ -5,13 +5,14 @@ import { Icon } from 'react-native-paper';
 import AppText from '../ui/AppText';
 import { colors, radius, spacing } from '../../theme';
 import type { GroupLog } from '../../services/logs';
-import { formatMinutesHM, formatWeightLb } from '../../utils/formatters';
+import { formatMinutesHM, formatWeightForUnits, type Units } from '../../utils/formatters';
+import { useMyUnits } from '../../hooks/useMyUnits';
 
 const QUICK_EMOJIS = ['💪', '🔥'];
 
 const TYPE_ICON: Record<string, string> = { workout: 'dumbbell', calories: 'fire', weight: 'scale-bathroom', photo: 'image-outline' };
 
-function titleFor(log: GroupLog): string {
+function titleFor(log: GroupLog, units: Units): string {
   const p = log.payload as any;
   if (log.type === 'workout') {
     const t = String(p?.workoutType ?? 'Workout');
@@ -22,7 +23,9 @@ function titleFor(log: GroupLog): string {
     const kcal = Number(p?.calories) || 0;
     return `${kcal.toLocaleString()} kcal${p?.meal && p.meal !== 'all' ? ` · ${p.meal}` : ''}`;
   }
-  if (log.type === 'weight') return formatWeightLb(Number(p?.weight));
+  // Weight is always displayed in the VIEWER's own unit preference, not the
+  // logger's — a metric-preferring viewer sees teammates' weights in kg too.
+  if (log.type === 'weight') return formatWeightForUnits(Number(p?.weight), units);
   return 'Progress photo';
 }
 
@@ -35,6 +38,7 @@ type Props = {
 
 /** A member's log rendered as a card in the chat stream, with cheer/reaction pills (design 10). */
 export default function LogCard({ log, name, myUid, onToggleReaction }: Props) {
+  const units = useMyUnits();
   const reactions = log.reactions ?? {};
   const mineEmoji = reactions[myUid];
   const counts: Record<string, number> = {};
@@ -50,7 +54,7 @@ export default function LogCard({ log, name, myUid, onToggleReaction }: Props) {
           <Icon source={TYPE_ICON[log.type] ?? 'check'} size={18} color={colors.primary} />
         </View>
         <View style={{ flex: 1 }}>
-          <AppText variant="rowTitle" color="primary">{titleFor(log)}</AppText>
+          <AppText variant="rowTitle" color="primary">{titleFor(log, units)}</AppText>
           <AppText variant="rowSubtitle" color="muted">{name} logged a {log.type === 'photo' ? 'photo' : log.type}</AppText>
         </View>
       </View>

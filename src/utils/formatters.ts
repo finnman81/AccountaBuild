@@ -42,6 +42,36 @@ export function formatDeltaLb(delta?: number | null) {
   return `${sign}${rounded} lb`;
 }
 
+export type Units = 'imperial' | 'metric';
+
+const LB_PER_KG = 2.20462262;
+
+/**
+ * Weight is always STORED in lb (see onboarding's kg->lb conversion at entry) —
+ * these only control DISPLAY. Centralizes the lb->kg conversion so every
+ * display site (Profile, Progress, chat log cards, onboarding summary, Today
+ * checklist) shows a metric user's own preferred unit instead of hardcoded lb.
+ */
+export function formatWeightForUnits(lb?: number | null, units?: Units | null) {
+  if (lb == null || !Number.isFinite(lb)) return '—';
+  if (units === 'metric') {
+    const kg = Math.round((lb / LB_PER_KG) * 10) / 10;
+    return `${kg} kg`;
+  }
+  return formatWeightLb(lb);
+}
+
+export function formatDeltaForUnits(deltaLb?: number | null, units?: Units | null) {
+  if (deltaLb == null || !Number.isFinite(deltaLb)) return '—';
+  if (units === 'metric') {
+    const deltaKg = deltaLb / LB_PER_KG;
+    const rounded = (deltaKg >= 0 ? Math.round(deltaKg * 10) : -Math.round(Math.abs(deltaKg) * 10)) / 10;
+    const sign = rounded > 0 ? '+' : '';
+    return `${sign}${rounded} kg`;
+  }
+  return formatDeltaLb(deltaLb);
+}
+
 export function formatTimeAgo(ms: number | null) {
   if (!ms) return '—';
   const s = Math.max(0, Math.floor((Date.now() - ms) / 1000));

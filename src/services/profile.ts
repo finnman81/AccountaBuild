@@ -25,6 +25,8 @@ export type UserProfile = {
   weightCurrent: number | null;
   weightGoal: number | null;
   weightTargetDate: string | null; // YYYY-MM-DD
+  /** Display-units preference (weight is always STORED in lb regardless). */
+  units?: 'imperial' | 'metric' | null;
   // User-level goals (persist across groups)
   dailyCalorieGoal?: number | null;
   workoutsPerWeek?: number | null;
@@ -55,6 +57,7 @@ export function subscribeMyProfile(
         weightCurrent: data.weightCurrent ?? null,
         weightGoal: data.weightGoal ?? null,
         weightTargetDate: data.weightTargetDate ?? null,
+        units: data.units === 'metric' ? 'metric' : data.units === 'imperial' ? 'imperial' : null,
         dailyCalorieGoal: typeof data.dailyCalorieGoal === 'number' ? data.dailyCalorieGoal : null,
         workoutsPerWeek: typeof data.workoutsPerWeek === 'number' ? data.workoutsPerWeek : null,
         logCaloriesDaysPerWeek: typeof data.logCaloriesDaysPerWeek === 'number' ? data.logCaloriesDaysPerWeek : null,

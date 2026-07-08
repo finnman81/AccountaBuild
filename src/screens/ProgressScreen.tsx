@@ -20,7 +20,8 @@ import { AuthContext } from '../store/AuthContext';
 import { useActiveGroup } from '../store/ActiveGroupContext';
 import { db } from '../firebase/firebase';
 import { subscribeGroupLogs, subscribeGroupPhotoLogs, type GroupLog } from '../services/logs';
-import { formatMinutesHM, formatDeltaLb } from '../utils/formatters';
+import { formatMinutesHM, formatDeltaForUnits } from '../utils/formatters';
+import { useMyUnits } from '../hooks/useMyUnits';
 import { colors, spacing, radius } from '../theme';
 import type { ProgressStackParamList } from '../navigation/types';
 import type { RootStackParamList } from '../navigation/types';
@@ -66,6 +67,7 @@ export default function ProgressScreen({ navigation }: Props) {
   const { user } = React.useContext(AuthContext);
   const { activeGroupId, groups, isReady, setActiveGroupId } = useActiveGroup();
   const [metric, setMetric] = useState<'weight' | 'workout' | 'calories'>('weight');
+  const units = useMyUnits();
 
   const [photoLogs, setPhotoLogs] = useState<GroupLog[]>([]);
   const [groupLogs, setGroupLogs] = useState<GroupLog[]>([]);
@@ -517,7 +519,7 @@ export default function ProgressScreen({ navigation }: Props) {
             <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs }}>
               <AppText variant="numberMd" color="primary">
                 {weeklyMetrics.totalWeightChange != null
-                  ? formatDeltaLb(weeklyMetrics.totalWeightChange)
+                  ? formatDeltaForUnits(weeklyMetrics.totalWeightChange, units)
                   : '—'}
               </AppText>
               {weeklyMetrics.totalWeightChangeDelta != null && (
@@ -633,7 +635,7 @@ export default function ProgressScreen({ navigation }: Props) {
             {(() => {
                 const insights: string[] = [];
                 if (weeklyMetrics.totalWeightChange != null && weeklyMetrics.totalWeightChange < 0) {
-                  insights.push(`Group lost ${formatDeltaLb(Math.abs(weeklyMetrics.totalWeightChange))} total`);
+                  insights.push(`Group lost ${formatDeltaForUnits(Math.abs(weeklyMetrics.totalWeightChange), units)} total`);
                 }
                 if (weeklyMetrics.totalTrainingMinutes > 0) {
                   insights.push(`${formatMinutesHM(weeklyMetrics.totalTrainingMinutes)} total training time`);

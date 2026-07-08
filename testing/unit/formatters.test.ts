@@ -1,4 +1,12 @@
-import { formatDeltaLb, formatMinutesHM, formatTimeAgo, formatWeightLb, friendlyNameFromDisplayName } from '../../src/utils/formatters';
+import {
+  formatDeltaForUnits,
+  formatDeltaLb,
+  formatMinutesHM,
+  formatTimeAgo,
+  formatWeightForUnits,
+  formatWeightLb,
+  friendlyNameFromDisplayName,
+} from '../../src/utils/formatters';
 
 describe('formatters', () => {
   test('friendlyNameFromDisplayName prefers display name, strips email', () => {
@@ -30,6 +38,21 @@ describe('formatters', () => {
     expect(formatTimeAgo(null)).toBe('—');
     // Just sanity-check output shape for recent times.
     expect(formatTimeAgo(Date.now() - 10_000)).toMatch(/ago$/);
+  });
+
+  test('formatWeightForUnits converts to kg only when metric', () => {
+    expect(formatWeightForUnits(220.462, 'metric')).toBe('100 kg');
+    expect(formatWeightForUnits(189, 'imperial')).toBe('189 lb');
+    expect(formatWeightForUnits(189, undefined)).toBe('189 lb'); // defaults to imperial
+    expect(formatWeightForUnits(189, null)).toBe('189 lb');
+    expect(formatWeightForUnits(null, 'metric')).toBe('—');
+  });
+
+  test('formatDeltaForUnits converts + keeps the sign when metric', () => {
+    expect(formatDeltaForUnits(4.4092, 'metric')).toBe('+2 kg'); // ~2kg gain
+    expect(formatDeltaForUnits(-4.4092, 'metric')).toBe('-2 kg');
+    expect(formatDeltaForUnits(1.2, 'imperial')).toBe('+1.2 lb');
+    expect(formatDeltaForUnits(null, 'metric')).toBe('—');
   });
 });
 

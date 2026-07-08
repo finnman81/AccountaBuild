@@ -1,7 +1,7 @@
 import type { GroupLog, LogType } from '../services/logs';
 import type { PublicUser } from '../services/publicUsers';
 import type { Tier } from '../mmr/types';
-import { formatMinutesHM, formatWeightLb, friendlyNameFromDisplayName } from '../utils/formatters';
+import { formatMinutesHM, formatWeightForUnits, friendlyNameFromDisplayName, type Units } from '../utils/formatters';
 
 export type ChecklistType = 'calories' | 'workout' | 'weight';
 export type Division = 1 | 2 | 3 | 4;
@@ -95,6 +95,8 @@ export function buildTodayChecklist(params: {
   myUid: string;
   today: string;
   dailyCalorieGoal?: number | null;
+  /** Viewer's display-units preference (weight is always stored in lb). */
+  units?: Units;
 }): TodayChecklist {
   const mine = params.logs.filter((l) => l.uid === params.myUid && l.date === params.today);
 
@@ -106,7 +108,7 @@ export function buildTodayChecklist(params: {
       return `${(Number(p?.calories) || 0).toLocaleString()} kcal${mealLabel}`;
     }
     if (type === 'workout') return `${prettyWorkout(p?.workoutType)} · ${formatMinutesHM(Number(p?.durationMinutes) || 0)}`;
-    return formatWeightLb(Number(p?.weight));
+    return formatWeightForUnits(Number(p?.weight), params.units);
   };
 
   const build = (type: ChecklistType, title: string): ChecklistItem => {
@@ -132,7 +134,7 @@ export function buildTodayChecklist(params: {
       valueLine = `${prettyWorkout((ofType[0].payload as any)?.workoutType)} · ${formatMinutesHM(mins)}`;
     } else {
       const latest = ofType.reduce((a, b) => ((logTsMs(b) ?? 0) >= (logTsMs(a) ?? 0) ? b : a));
-      valueLine = formatWeightLb(Number((latest.payload as any)?.weight));
+      valueLine = formatWeightForUnits(Number((latest.payload as any)?.weight), params.units);
     }
     return { type, title, logged: true, loggedAtMs, valueLine, entries };
   };
