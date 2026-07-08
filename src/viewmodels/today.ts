@@ -163,6 +163,89 @@ export function computeStreakDays(logs: GroupLog[], allowedTypes: Set<LogType>, 
   return out;
 }
 
+/**
+ * Pace-aware streak (days): a day keeps the streak alive as long as that day's
+ * weekly goal was still REACHABLE — `satisfiedThroughDay + daysLeftInWeek >=
+ * target`. So skipping a mid-week day doesn't break it while you can still hit
+ * the weekly target (e.g. 5 workouts/week, no workout Tuesday = fine); a week
+ * that closes under target breaks it (its Sunday fails the test). Weeks are
+ * Mon–Sun. Falls back to the plain consecutive-logged-day streak when the user
+ * has no weekly targets set.
+ *
+ * streakRule 'workout' → only the workout goal matters.
+ * streakRule 'any'     → the day survives if ANY tracked goal is still on pace.
+ */
+export function computeGoalStreak(params: {
+  logs: GroupLog[];
+  uid: string;
+  today: string;
+  streakRule: 'workout' | 'any';
+  targets: { workout: number; calories: number; weight: number };
+}): number {
+  const { uid, today, streakRule, targets } = params;
+  const w = new Set<string>();
+  const c = new Set<string>();
+  const g = new Set<string>();
+  const anyLog = new Set<string>();
+  const anyTypes: Set<string> = streakRule === 'any' ? new Set(['calories', 'workout', 'weight', 'photo']) : new Set(['workout']);
+  for (const l of params.logs) {
+    if (l?.uid !== uid || !l?.date) continue;
+    if (l.type === 'workout') w.add(l.date);
+    else if (l.type === 'calories') c.add(l.date);
+    else if (l.type === 'weight') g.add(l.date);
+    if (anyTypes.has(l.type)) anyLog.add(l.date);
+  }
+
+  const cats: Array<{ dates: Set<string>; target: number }> = [];
+  if (targets.workout > 0) cats.push({ dates: w, target: Math.round(targets.workout) });
+  if (streakRule === 'any') {
+    if (targets.calories > 0) cats.push({ dates: c, target: Math.round(targets.calories) });
+    if (targets.weight > 0) cats.push({ dates: g, target: Math.round(targets.weight) });
+  }
+
+  const todayDate = new Date(`${today}T00:00:00`);
+  if (Number.isNaN(todayDate.valueOf())) return 0;
+
+  // No usable weekly targets → legacy "logged every day" streak.
+  if (cats.length === 0) {
+    let streak = 0;
+    const cur = new Date(todayDate);
+    let guard = 366;
+    while (guard-- > 0 && anyLog.has(fmtLocal(cur))) { streak += 1; cur.setDate(cur.getDate() - 1); }
+    return streak;
+  }
+
+  const mondayOf = (dt: Date) => {
+    const m = new Date(dt);
+    const day = (dt.getDay() + 6) % 7; // Mon=0
+    m.setDate(dt.getDate() - day);
+    m.setHours(0, 0, 0, 0);
+    return m;
+  };
+
+  let streak = 0;
+  const cur = new Date(todayDate);
+  let guard = 400;
+  while (guard-- > 0) {
+    const dstr = fmtLocal(cur);
+    const mon = mondayOf(cur);
+    const sun = new Date(mon);
+    sun.setDate(mon.getDate() + 6);
+    const daysLeftAfter = Math.max(0, Math.round((sun.getTime() - cur.getTime()) / 86400000));
+    const monStr = fmtLocal(mon);
+    const onPace = (cat: { dates: Set<string>; target: number }) => {
+      let done = 0;
+      for (const d of cat.dates) if (d >= monStr && d <= dstr) done += 1;
+      return done + daysLeftAfter >= cat.target;
+    };
+    const good = streakRule === 'any' ? cats.some(onPace) : cats.every(onPace);
+    if (!good) break;
+    streak += 1;
+    cur.setDate(cur.getDate() - 1);
+  }
+  return streak;
+}
+
 /** Team Today rail: per-visible-member logged status, streak leader, and at-risk. */
 export function buildTeamToday(params: {
   memberUids: string[];
@@ -184,7 +267,22 @@ export function buildTeamToday(params: {
     if (l.date === params.today && allowedTypes.has(l.type)) loggedTodayByUid.add(l.uid);
   }
 
-  const streaks = computeStreakDays(params.logs, allowedTypes, params.today);
+  // Pace-aware streak per member, scored against each member's own weekly goals.
+  const streaks: Record<string, number> = {};
+  for (const uid of allowed) {
+    const p = params.publicUsers[uid];
+    streaks[uid] = computeGoalStreak({
+      logs: params.logs,
+      uid,
+      today: params.today,
+      streakRule: params.streakRule,
+      targets: {
+        workout: Number(p?.workoutsPerWeek ?? 0),
+        calories: Number(p?.logCaloriesDaysPerWeek ?? 0),
+        weight: Number(p?.logWeightDaysPerWeek ?? 0),
+      },
+    });
+  }
   let leaderUid: string | null = null;
   let leaderStreak = 0;
   for (const uid of allowed) {

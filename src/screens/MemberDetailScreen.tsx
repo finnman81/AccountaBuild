@@ -12,7 +12,7 @@ import { subscribePublicUsers, type PublicUser } from '../services/publicUsers';
 import { subscribeMyCanSeeUids } from '../services/visibility';
 import { subscribeGroupLogs, setLogReaction, type GroupLog, type LogType } from '../services/logs';
 import { enqueueSocialPush } from '../services/socialPush';
-import { computeStreakDays } from '../viewmodels/today';
+import { computeGoalStreak } from '../viewmodels/today';
 import { friendlyNameFromDisplayName } from '../utils/formatters';
 import { DEFAULT_TZ, isoWeekDatesInTz, isoWeekIdInTz, yyyyMmDdInTz } from '../mmr/time';
 import AppText from '../components/ui/AppText';
@@ -63,14 +63,24 @@ export default function MemberDetailScreen({ route, navigation }: Props) {
     const rule = (group?.streakRule ?? 'any') as 'workout' | 'any';
     const allowedTypes: Set<LogType> = rule === 'any' ? new Set(['calories', 'workout', 'weight', 'photo']) : new Set(['workout']);
     const mine = logs.filter((l) => l.uid === uid);
-    const streak = computeStreakDays(mine, allowedTypes, today)[uid] ?? 0;
+    const streak = computeGoalStreak({
+      logs: mine,
+      uid,
+      today,
+      streakRule: rule,
+      targets: {
+        workout: Number(pub?.workoutsPerWeek ?? 0),
+        calories: Number(pub?.logCaloriesDaysPerWeek ?? 0),
+        weight: Number(pub?.logWeightDaysPerWeek ?? 0),
+      },
+    });
     const weekWorkouts = mine.filter((l) => l.type === 'workout' && weekDates.includes(l.date)).length;
     const loggedByDate = new Set(mine.filter((l) => allowedTypes.has(l.type)).map((l) => l.date));
     const week = weekDates.map((d) => ({ date: d, logged: loggedByDate.has(d), today: d === today }));
     const todayTypes = new Set(mine.filter((l) => l.date === today).map((l) => l.type));
     const checklist = (['calories', 'workout', 'weight'] as const).map((t) => ({ type: t, logged: todayTypes.has(t) }));
     return { streak, weekWorkouts, week, checklist };
-  }, [logs, uid, group?.streakRule]);
+  }, [logs, uid, group?.streakRule, pub?.workoutsPerWeek, pub?.logCaloriesDaysPerWeek, pub?.logWeightDaysPerWeek]);
 
   const cheer = async () => {
     if (!user || isMe) return;

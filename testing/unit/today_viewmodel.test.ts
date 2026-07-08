@@ -1,4 +1,4 @@
-import { buildTodayChecklist, computeStreakDays, buildTeamToday, buildLeaderboardPreview } from '../../src/viewmodels/today';
+import { buildTodayChecklist, computeStreakDays, computeGoalStreak, buildTeamToday, buildLeaderboardPreview } from '../../src/viewmodels/today';
 import type { GroupLog, LogType } from '../../src/services/logs';
 import type { PublicUser } from '../../src/services/publicUsers';
 
@@ -113,5 +113,38 @@ describe('today viewmodel · buildLeaderboardPreview', () => {
     expect(rows[0].rank).toBe(1);
     expect(rows.find((r) => r.uid === 'me')!.isMe).toBe(true);
     expect(rows.find((r) => r.uid === 'a')!.tier).toBe('Gold');
+  });
+});
+
+describe('computeGoalStreak (pace-aware)', () => {
+  // Calendar anchors (self-checked): 2026-07-06 is a Monday.
+  const MON = '2026-07-06';
+  const TUE = '2026-07-07';
+  const WED = '2026-07-08';
+  const SAT = '2026-07-11';
+
+  test('sanity: 2026-07-06 is Monday', () => {
+    expect(new Date(`${MON}T00:00:00`).getDay()).toBe(1);
+  });
+
+  test('missing a mid-week day does NOT break the streak while the weekly goal is still reachable', () => {
+    // Target 5 workouts/week; 2 done (Mon+Tue), none Wed. Today = Wed.
+    const logs = [log('a', 'workout', MON), log('a', 'workout', TUE)];
+    const s = computeGoalStreak({ logs, uid: 'a', today: WED, streakRule: 'workout', targets: { workout: 5, calories: 0, weight: 0 } });
+    // Wed/Tue/Mon are all still on-pace; the prior (empty) week's Sunday breaks it.
+    expect(s).toBe(3);
+  });
+
+  test('falling behind (goal no longer reachable) breaks the streak', () => {
+    // Target 5; only 2 done by Saturday -> at most 3 possible -> behind.
+    const logs = [log('a', 'workout', MON), log('a', 'workout', TUE)];
+    const s = computeGoalStreak({ logs, uid: 'a', today: SAT, streakRule: 'workout', targets: { workout: 5, calories: 0, weight: 0 } });
+    expect(s).toBe(0);
+  });
+
+  test('no weekly targets falls back to consecutive logged days', () => {
+    const logs = [log('a', 'workout', WED), log('a', 'workout', TUE)];
+    const s = computeGoalStreak({ logs, uid: 'a', today: WED, streakRule: 'workout', targets: { workout: 0, calories: 0, weight: 0 } });
+    expect(s).toBe(2);
   });
 });
