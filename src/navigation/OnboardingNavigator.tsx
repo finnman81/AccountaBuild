@@ -8,6 +8,7 @@ import OnboardingBasicInfoScreen from '../screens/onboarding/OnboardingBasicInfo
 import OnboardingRecommendedScreen from '../screens/onboarding/OnboardingRecommendedScreen';
 import OnboardingAccountabilityScreen from '../screens/onboarding/OnboardingAccountabilityScreen';
 import OnboardingFinishScreen from '../screens/onboarding/OnboardingFinishScreen';
+import OnboardingGroupScreen from '../screens/onboarding/OnboardingGroupScreen';
 
 const Stack = createNativeStackNavigator<OnboardingStackParamList>();
 
@@ -21,6 +22,7 @@ export default function OnboardingNavigator() {
       <Stack.Screen name="Recommended" component={OnboardingRecommendedScreen} />
       <Stack.Screen name="Accountability" component={OnboardingAccountabilityScreen} />
       <Stack.Screen name="Finish" component={OnboardingFinishScreen} />
+      <Stack.Screen name="Group" component={OnboardingGroupScreen} />
     </Stack.Navigator>
   );
 }

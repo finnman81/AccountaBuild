@@ -37,6 +37,7 @@ export type OnboardingStackParamList = {
   Recommended: undefined;
   Accountability: undefined;
   Finish: undefined;
+  Group: undefined;
 };
 
 export type HomeStackParamList = {

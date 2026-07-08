@@ -85,12 +85,10 @@ export default function OnboardingFinishScreen({ navigation }: Props) {
 
     try {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      await completeOnboarding(user.uid);
-      onboardingAnalytics.completed();
 
-      // Ask for notifications + health sync at the very end of onboarding (native
-      // OS prompts). Both are non-fatal — a denial/failure never blocks finishing;
-      // the user can enable them later in Settings.
+      // Ask for notifications + health sync here (native OS prompts). Both are
+      // non-fatal — a denial/failure never blocks continuing; the user can
+      // enable them later in Settings.
       try {
         const notifGranted = await requestNotificationPermissions();
         if (notifGranted) await scheduleNotifications({ startFromTomorrow: true });
@@ -112,29 +110,12 @@ export default function OnboardingFinishScreen({ navigation }: Props) {
         console.warn('[Onboarding] health permission request failed', e);
       }
 
-      // Navigate to root MainTabs
-      // The AppNavigator will automatically show MainTabs since onboarding is now completed
-      // (useOnboardingStatus now subscribes to real-time updates)
-      // We need to reset the root navigator to get out of OnboardingNavigator
-      const parent = rootNav.getParent();
-      if (parent) {
-        parent.dispatch(
-          CommonActions.reset({
-            index: 0,
-            routes: [{ name: 'MainTabs', params: { screen: 'ProfileTab', params: { screen: 'Profile' } } }],
-          })
-        );
-      } else {
-        // Fallback: navigate directly if parent not found
-        rootNav.dispatch(
-          CommonActions.reset({
-            index: 0,
-            routes: [{ name: 'MainTabs', params: { screen: 'ProfileTab', params: { screen: 'Profile' } } }],
-          })
-        );
-      }
+      // Final step: get them into a group (onboarding completes there, so the
+      // group choice lands them straight on Today).
+      navigation.navigate('Group');
     } catch (error) {
-      console.error('[Onboarding] Error completing onboarding:', error);
+      console.error('[Onboarding] Error finishing setup:', error);
+    } finally {
       setIsSubmitting(false);
     }
   };
@@ -239,7 +220,7 @@ export default function OnboardingFinishScreen({ navigation }: Props) {
           loading={isSubmitting}
           disabled={isSubmitting}
         >
-          Finish setup
+          Continue
         </PrimaryButton>
       </View>
     </SafeAreaView>
