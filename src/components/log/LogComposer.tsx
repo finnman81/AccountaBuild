@@ -5,7 +5,7 @@ import { Text } from 'react-native-paper';
 import { AuthContext } from '../../store/AuthContext';
 import { useActiveGroup } from '../../store/ActiveGroupContext';
 import { addCaloriesLog, addWeightLog, addWorkoutLog, type LogType, type MealType, type WorkoutType } from '../../services/logs';
-import { todayYYYYMMDD } from '../../utils/dates';
+import { todayYYYYMMDD, yesterdayYYYYMMDD } from '../../utils/dates';
 import { colors } from '../../theme/colors';
 import { radius } from '../../theme/radius';
 import { spacing } from '../../theme/spacing';
@@ -153,8 +153,9 @@ export default function LogComposer({ initialType = 'weight', onClose, onSaved, 
   const [meal, setMeal] = useState<MealType>('all');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [logDay, setLogDay] = useState<'today' | 'yesterday'>('today');
 
-  const date = todayYYYYMMDD();
+  const date = logDay === 'today' ? todayYYYYMMDD() : yesterdayYYYYMMDD();
   const canSave = !!user?.uid && !!activeGroupId && mode !== 'photo' && !saving;
 
   async function handleSave() {
@@ -248,10 +249,29 @@ export default function LogComposer({ initialType = 'weight', onClose, onSaved, 
       </ScrollView>
 
       <View style={styles.footer}>
+        {mode !== 'photo' && (
         <View style={styles.dateRow}>
           <Text style={{ color: colors.textSecondary, fontSize: 14 }}>Date</Text>
-          <Text style={{ color: colors.textPrimary, fontSize: 14, fontWeight: '600' }}>Today</Text>
+          <View style={styles.dateToggle}>
+            {(['today', 'yesterday'] as const).map((d) => {
+              const active = logDay === d;
+              return (
+                <Pressable
+                  key={d}
+                  onPress={() => setLogDay(d)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                  style={[styles.dateChip, active && styles.dateChipActive]}
+                >
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: active ? colors.primaryOnDark : colors.textSecondary }}>
+                    {d === 'today' ? 'Today' : 'Yesterday'}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
+        )}
         {error && <Text style={{ color: colors.danger, fontSize: 13, marginBottom: 8 }}>{error}</Text>}
         {mode !== 'photo' && (
           <PrimaryButton onPress={handleSave} loading={saving} disabled={!canSave}>
@@ -292,7 +312,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.borderCard,
     paddingHorizontal: 16,
-    height: 52,
+    paddingVertical: 8,
+    minHeight: 52,
     marginBottom: 12,
   },
+  dateToggle: { flexDirection: 'row', gap: 6 },
+  dateChip: { height: 32, paddingHorizontal: 12, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface2 },
+  dateChipActive: { backgroundColor: colors.primary },
 });
