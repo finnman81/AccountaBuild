@@ -146,6 +146,9 @@ async function run() {
       prevMmr: TARGET.mmr,
       prevRankTier: TARGET.rankTier,
       prevRankDivision: TARGET.rankDivision,
+      // Treat this reset as a fresh start THIS week so the app's catch-up doesn't
+      // walk back and re-penalize prior weeks.
+      firstWeekId: weekId,
       lastWeekIdUpdated: weekId,
       updatedAt: now,
     },
@@ -163,7 +166,18 @@ async function run() {
     { merge: true },
   );
   await batch.commit();
-  console.log(`✅ Set uid=${uid} to ${TARGET.rankTier} ${TARGET.rankDivision} (${TARGET.mmr}).`);
+
+  // Clear existing weekly summaries. Otherwise the app's next recompute reuses a
+  // stale weekly `mmrBefore` (idempotency) and reverts this reset.
+  const weekly = await db.collection('users').doc(uid).collection('weekly').get();
+  if (!weekly.empty) {
+    const delBatch = db.batch();
+    weekly.docs.forEach((d) => delBatch.delete(d.ref));
+    await delBatch.commit();
+    console.log(`   cleared ${weekly.size} stale weekly summary doc(s)`);
+  }
+
+  console.log(`✅ Set uid=${uid} to ${TARGET.rankTier} ${TARGET.rankDivision} (${TARGET.mmr}) — durable.`);
 }
 
 run()
