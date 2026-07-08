@@ -11,6 +11,8 @@ import { db } from '../firebase/firebase';
 import { AuthContext } from '../store/AuthContext';
 import {
   challengeProgress,
+  challengeWeekIds,
+  weekIdForDate,
   setGroupChallenge,
   endGroupChallenge,
   clearGroupChallenge,
@@ -22,6 +24,7 @@ import { subscribePublicUsers, type PublicUser } from '../services/publicUsers';
 import { subscribeMyCanSeeUids } from '../services/visibility';
 import { subscribeGroupLogs, type GroupLog } from '../services/logs';
 import { DEFAULT_TZ, isoWeekIdInTz, isoWeekRangeInTz, nextIsoWeekId } from '../mmr/time';
+import { isValidYYYYMMDD } from '../utils/dates';
 import AppText from '../components/ui/AppText';
 import Avatar from '../components/ui/Avatar';
 import PrimaryButton from '../components/ui/PrimaryButton';
@@ -56,6 +59,8 @@ export default function ChallengeScreen({ route, navigation }: Props) {
   const [name, setName] = useState('');
   const [startWhen, setStartWhen] = useState<'this' | 'next'>('next');
   const [durationWeeks, setDurationWeeks] = useState(12);
+  const [customEndDate, setCustomEndDate] = useState('');
+  const [useCustomEnd, setUseCustomEnd] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(
@@ -96,6 +101,8 @@ export default function ChallengeScreen({ route, navigation }: Props) {
     setName(existing?.name ?? 'Group Challenge');
     setDurationWeeks(existing?.durationWeeks ?? 12);
     setStartWhen('next');
+    setUseCustomEnd(false);
+    setCustomEndDate('');
     setEditing(true);
   };
 
@@ -106,17 +113,40 @@ export default function ChallengeScreen({ route, navigation }: Props) {
     return { thisMon, nextMon };
   };
 
+  const selectedStartDate = () => {
+    const { thisMon, nextMon } = startDatesFor();
+    return startWhen === 'this' ? thisMon : nextMon;
+  };
+
+  // Weeks between the selected start date and a custom end date (inclusive,
+  // rounded up so a partial final week still counts as a full week).
+  const weeksFromCustomEnd = (): number | null => {
+    if (!isValidYYYYMMDD(customEndDate)) return null;
+    const start = new Date(`${selectedStartDate()}T00:00:00`);
+    const end = new Date(`${customEndDate}T00:00:00`);
+    const days = Math.round((end.getTime() - start.getTime()) / 86400000);
+    if (days < 6) return null; // must be at least ~1 week out
+    return Math.min(52, Math.ceil((days + 1) / 7));
+  };
+
+  const customWeeks = useCustomEnd ? weeksFromCustomEnd() : null;
+  const customEndError = useCustomEnd && customEndDate.trim().length > 0 && customWeeks == null;
+
   const save = async () => {
     if (!user) return;
+    const weeks = useCustomEnd ? customWeeks : durationWeeks;
+    if (!weeks) {
+      setSnack('Pick a valid end date (at least a week out).');
+      return;
+    }
     setSaving(true);
     try {
-      const { thisMon, nextMon } = startDatesFor();
       await setGroupChallenge({
         groupId,
         uid: user.uid,
         name,
-        startDate: startWhen === 'this' ? thisMon : nextMon,
-        durationWeeks,
+        startDate: selectedStartDate(),
+        durationWeeks: weeks,
       });
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setEditing(false);
@@ -196,16 +226,42 @@ export default function ChallengeScreen({ route, navigation }: Props) {
             <AppText variant="eyebrow" color="muted" style={styles.editLabel}>Duration</AppText>
             <View style={styles.chipRow}>
               {DURATIONS.map((d) => {
-                const active = durationWeeks === d;
+                const active = !useCustomEnd && durationWeeks === d;
                 return (
-                  <TouchableOpacity key={d} onPress={() => setDurationWeeks(d)} style={[styles.chip, styles.chipFlex, active && styles.chipActive]}>
+                  <TouchableOpacity key={d} onPress={() => { setUseCustomEnd(false); setDurationWeeks(d); }} style={[styles.chip, styles.chipFlex, active && styles.chipActive]}>
                     <AppText variant="rowSubtitle" style={{ color: active ? colors.primaryOnDark : colors.textSecondary, fontWeight: '600' }}>{d} wk</AppText>
                   </TouchableOpacity>
                 );
               })}
+              <TouchableOpacity onPress={() => setUseCustomEnd(true)} style={[styles.chip, styles.chipFlex, useCustomEnd && styles.chipActive]}>
+                <AppText variant="rowSubtitle" style={{ color: useCustomEnd ? colors.primaryOnDark : colors.textSecondary, fontWeight: '600' }}>Custom</AppText>
+              </TouchableOpacity>
             </View>
 
-            <PrimaryButton onPress={save} loading={saving} disabled={saving} style={{ marginTop: spacing.lg }}>Save challenge</PrimaryButton>
+            {useCustomEnd ? (
+              <View style={styles.customDateWrap}>
+                <TextField
+                  label="Custom end date"
+                  value={customEndDate}
+                  onChangeText={setCustomEndDate}
+                  editable={!saving}
+                  placeholder="YYYY-MM-DD"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                {customEndError ? (
+                  <AppText variant="rowSubtitle" color="danger" style={styles.customDateHint}>Pick a valid date at least a week after the start.</AppText>
+                ) : customWeeks != null ? (
+                  <AppText variant="rowSubtitle" color="muted" style={styles.customDateHint}>
+                    That's {customWeeks} week{customWeeks === 1 ? '' : 's'} — ends {prettyDate(isoWeekRangeInTz(challengeWeekIds(weekIdForDate(selectedStartDate()), customWeeks)[customWeeks - 1], DEFAULT_TZ).end)}.
+                  </AppText>
+                ) : (
+                  <AppText variant="rowSubtitle" color="muted" style={styles.customDateHint}>Enter the date you want the challenge to end.</AppText>
+                )}
+              </View>
+            ) : null}
+
+            <PrimaryButton onPress={save} loading={saving} disabled={saving || (useCustomEnd && !customWeeks)} style={{ marginTop: spacing.lg }}>Save challenge</PrimaryButton>
             <TouchableOpacity onPress={() => setEditing(false)} style={styles.cancelBtn}><AppText variant="rowSubtitle" color="muted">Cancel</AppText></TouchableOpacity>
           </View>
         ) : !challenge ? (
@@ -300,6 +356,8 @@ const styles = StyleSheet.create({
   chip: { paddingHorizontal: spacing.base, paddingVertical: spacing.sm, borderRadius: radius.pill, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.borderCard },
   chipFlex: { flex: 1, alignItems: 'center', minWidth: 56 },
   chipActive: { backgroundColor: colors.primaryTint, borderColor: 'rgba(62,139,255,0.5)' },
+  customDateWrap: { marginTop: spacing.md },
+  customDateHint: { marginTop: spacing.xs, lineHeight: 16 },
   cancelBtn: { alignItems: 'center', paddingVertical: spacing.md, marginTop: spacing.xs },
   ownerActions: { marginTop: spacing.lg, gap: spacing.sm },
   ownerBtn: { alignItems: 'center', paddingVertical: spacing.md, backgroundColor: colors.surface, borderRadius: radius.card, borderWidth: 1, borderColor: colors.borderCard },
