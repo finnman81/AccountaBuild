@@ -1,6 +1,5 @@
 import React, { useContext, useEffect, useState, useRef } from 'react';
 import { View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, Dimensions, Keyboard } from 'react-native';
-import { Text, TextInput, useTheme, SegmentedButtons } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as Haptics from 'expo-haptics';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -12,12 +11,16 @@ import OnboardingHeader from '../../components/onboarding/OnboardingHeader';
 import OnboardingSection from '../../components/onboarding/OnboardingSection';
 import ReadOnlyRow from '../../components/onboarding/ReadOnlyRow';
 import PrimaryButton from '../../components/ui/PrimaryButton';
+import AppText from '../../components/ui/AppText';
+import TextField from '../../components/ui/TextField';
+import SegmentedControl from '../../components/ui/SegmentedControl';
 import { updateOnboardingStep } from '../../services/onboarding';
 import { updateMyProfile } from '../../services/profile';
 import { onboardingAnalytics } from '../../services/analytics';
 import { onboardingCopy } from '../../constants/onboardingCopy';
 import { subscribeMyProfile } from '../../services/profile';
 import { db } from '../../firebase/firebase';
+import { colors } from '../../theme';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const IS_SMALL_SCREEN = SCREEN_WIDTH < 360;
@@ -25,7 +28,6 @@ const IS_SMALL_SCREEN = SCREEN_WIDTH < 360;
 type Props = NativeStackScreenProps<OnboardingStackParamList, 'BasicInfo'>;
 
 export default function OnboardingBasicInfoScreen({ navigation }: Props) {
-  const theme = useTheme();
   const { user } = useContext(AuthContext);
 
   const [displayName, setDisplayName] = useState('');
@@ -34,7 +36,7 @@ export default function OnboardingBasicInfoScreen({ navigation }: Props) {
   const [units, setUnits] = useState<'imperial' | 'metric'>('imperial');
   const [height, setHeight] = useState('');
   const [weightCurrent, setWeightCurrent] = useState('');
-  
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -84,7 +86,7 @@ export default function OnboardingBasicInfoScreen({ navigation }: Props) {
     const num = Number(value);
     if (!value.trim()) return 'Height is required';
     if (!Number.isFinite(num)) return 'Height must be a valid number';
-    
+
     if (units === 'imperial') {
       // Convert to inches: 4'0" = 48", 7'6" = 90"
       if (num < 48 || num > 90) return 'Height must be between 4\'0" and 7\'6"';
@@ -99,7 +101,7 @@ export default function OnboardingBasicInfoScreen({ navigation }: Props) {
     if (!value.trim()) return null; // Optional
     const num = Number(value);
     if (!Number.isFinite(num)) return 'Weight must be a valid number';
-    
+
     if (units === 'imperial') {
       if (num < 80 || num > 450) return 'Weight must be between 80 and 450 lbs';
     } else {
@@ -120,7 +122,8 @@ export default function OnboardingBasicInfoScreen({ navigation }: Props) {
     const displayNameError = validateDisplayName(displayName);
     if (displayNameError) newErrors.displayName = displayNameError;
 
-    if (!sex) newErrors.sex = 'Please select your sex';
+    // sex is optional — it isn't consumed by any calculation, so it shouldn't
+    // block a returning (re-onboarded) user who never set it before.
 
     const ageError = validateAge(age);
     if (ageError) newErrors.age = ageError;
@@ -186,7 +189,7 @@ export default function OnboardingBasicInfoScreen({ navigation }: Props) {
       await updateOnboardingStep(user.uid, 2);
       onboardingAnalytics.basicInfoSaved();
       onboardingAnalytics.continue(2, 3);
-      navigation.navigate('Accountability');
+      navigation.navigate('Recommended');
     } catch (error) {
       console.error('[Onboarding] Error saving basic info:', error);
       setErrors({ general: 'Failed to save. Please try again.' });
@@ -200,8 +203,8 @@ export default function OnboardingBasicInfoScreen({ navigation }: Props) {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={['top']}>
-      <OnboardingHeader currentStep={2} totalSteps={5} showBack={true} onBack={handleBack} />
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <OnboardingHeader currentStep={3} totalSteps={6} showBack={true} onBack={handleBack} />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -213,35 +216,30 @@ export default function OnboardingBasicInfoScreen({ navigation }: Props) {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.textContainer}>
-            <Text variant="headlineLarge" style={[styles.headline, { color: theme.colors.onSurface }]}>
+            <AppText variant="pageTitle" color="primary" style={styles.headline}>
               {onboardingCopy.basicInfo.headline}
-            </Text>
-            <Text variant="bodyLarge" style={[styles.subtext, { color: theme.colors.onSurfaceVariant }]}>
+            </AppText>
+            <AppText variant="body" color="secondary" style={styles.subtext}>
               {onboardingCopy.basicInfo.subtext}
-            </Text>
+            </AppText>
           </View>
 
           <View style={styles.form}>
             {/* Account Section */}
             <OnboardingSection title="Account" showDivider={true}>
-              <TextInput
+              <TextField
                 label="Display name"
                 value={displayName}
                 onChangeText={(text) => {
                   setDisplayName(text);
                   if (errors.displayName) setErrors({ ...errors, displayName: '' });
                 }}
-                error={!!errors.displayName}
-                disabled={isSubmitting}
-                style={styles.input}
+                error={errors.displayName || undefined}
+                editable={!isSubmitting}
                 returnKeyType="next"
                 onSubmitEditing={() => Keyboard.dismiss()}
+                containerStyle={styles.input}
               />
-              {errors.displayName ? (
-                <Text variant="bodySmall" style={[styles.error, { color: theme.colors.error }]}>
-                  {errors.displayName}
-                </Text>
-              ) : null}
 
               <ReadOnlyRow label="Email" value={user?.email || ''} />
             </OnboardingSection>
@@ -249,43 +247,43 @@ export default function OnboardingBasicInfoScreen({ navigation }: Props) {
             {/* Preferences Section */}
             <OnboardingSection title="Preferences" showDivider={true}>
               <View style={styles.segmentedContainer}>
-                <Text variant="labelMedium" style={[styles.segmentedLabel, { color: theme.colors.onSurface }]}>
+                <AppText variant="label" color="primary" style={styles.segmentedLabel}>
                   Sex
-                </Text>
-                <SegmentedButtons
+                </AppText>
+                <SegmentedControl
                   value={sex}
-                  onValueChange={(value) => {
+                  onChange={(value) => {
                     setSex(value as any);
                     if (errors.sex) setErrors({ ...errors, sex: '' });
                   }}
-                  buttons={[
+                  options={[
                     { value: 'male', label: 'Male' },
                     { value: 'female', label: 'Female' },
                     { value: 'other', label: 'Other' },
                   ]}
+                  variant="surface"
                   style={styles.segmented}
-                  density="medium"
                 />
                 {errors.sex ? (
-                  <Text variant="bodySmall" style={[styles.error, styles.sexError, { color: theme.colors.error }]}>
+                  <AppText variant="rowSubtitle" color="danger" style={styles.error}>
                     {errors.sex}
-                  </Text>
+                  </AppText>
                 ) : null}
               </View>
 
               <View style={styles.segmentedContainer}>
-                <Text variant="labelMedium" style={[styles.segmentedLabel, { color: theme.colors.onSurface }]}>
+                <AppText variant="label" color="primary" style={styles.segmentedLabel}>
                   Units
-                </Text>
-                <SegmentedButtons
+                </AppText>
+                <SegmentedControl
                   value={units}
-                  onValueChange={setUnits}
-                  buttons={[
+                  onChange={setUnits}
+                  options={[
                     { value: 'imperial', label: 'Imperial' },
                     { value: 'metric', label: 'Metric' },
                   ]}
+                  variant="surface"
                   style={styles.segmented}
-                  density="medium"
                 />
               </View>
             </OnboardingSection>
@@ -295,77 +293,62 @@ export default function OnboardingBasicInfoScreen({ navigation }: Props) {
               {IS_SMALL_SCREEN ? (
                 // Single column for small screens
                 <>
-                  <TextInput
+                  <TextField
                     label="Age"
                     value={age}
                     onChangeText={(text) => {
                       setAge(text.replace(/[^0-9]/g, ''));
                       if (errors.age) setErrors({ ...errors, age: '' });
                     }}
-                    error={!!errors.age}
-                    disabled={isSubmitting}
+                    error={errors.age || undefined}
+                    editable={!isSubmitting}
                     keyboardType="number-pad"
-                    style={styles.input}
                     returnKeyType="next"
                     ref={ageInputRef}
                     onSubmitEditing={() => heightInputRef.current?.focus()}
+                    containerStyle={styles.input}
                   />
-                  {errors.age ? (
-                    <Text variant="bodySmall" style={[styles.error, { color: theme.colors.error }]}>
-                      {errors.age}
-                    </Text>
-                  ) : null}
 
                   <View>
-                    <TextInput
+                    <TextField
                       label="Height"
                       value={height}
                       onChangeText={(text) => {
                         setHeight(text.replace(/[^0-9.]/g, ''));
                         if (errors.height) setErrors({ ...errors, height: '' });
                       }}
-                      error={!!errors.height}
-                      disabled={isSubmitting}
+                      error={errors.height || undefined}
+                      editable={!isSubmitting}
                       keyboardType="decimal-pad"
-                      style={styles.input}
                       returnKeyType="next"
                       ref={heightInputRef}
                       onSubmitEditing={() => weightInputRef.current?.focus()}
+                      containerStyle={styles.input}
                     />
-                    <Text variant="bodySmall" style={[styles.unitText, { color: theme.colors.onSurfaceVariant }]}>
+                    <AppText variant="rowSubtitle" color="muted" style={styles.unitText}>
                       {units === 'imperial' ? 'in' : 'cm'}
-                    </Text>
-                    {errors.height ? (
-                      <Text variant="bodySmall" style={[styles.error, { color: theme.colors.error }]}>
-                        {errors.height}
-                      </Text>
-                    ) : null}
+                    </AppText>
                   </View>
 
                   <View>
-                    <TextInput
+                    <TextField
                       label="Current weight"
                       value={weightCurrent}
                       onChangeText={(text) => {
                         setWeightCurrent(text.replace(/[^0-9.]/g, ''));
                         if (errors.weightCurrent) setErrors({ ...errors, weightCurrent: '' });
                       }}
-                      error={!!errors.weightCurrent}
-                      disabled={isSubmitting}
+                      error={errors.weightCurrent || undefined}
+                      editable={!isSubmitting}
                       keyboardType="decimal-pad"
-                      style={styles.input}
                       returnKeyType="done"
                       ref={weightInputRef}
                       onSubmitEditing={handleContinue}
+                      containerStyle={styles.input}
                     />
-                    <Text variant="bodySmall" style={[styles.unitText, { color: theme.colors.onSurfaceVariant }]}>
+                    <AppText variant="rowSubtitle" color="muted" style={styles.unitText}>
                       {units === 'imperial' ? 'lbs' : 'kg'} • Optional — helps tailor targets
-                    </Text>
-                    {errors.weightCurrent ? (
-                      <Text variant="bodySmall" style={[styles.error, { color: theme.colors.error }]}>
-                        {errors.weightCurrent}
-                      </Text>
-                    ) : null}
+                    </AppText>
                   </View>
                 </>
               ) : (
@@ -373,95 +356,80 @@ export default function OnboardingBasicInfoScreen({ navigation }: Props) {
                 <>
                   <View style={styles.twoColumnRow}>
                     <View style={styles.column}>
-                      <TextInput
+                      <TextField
                         label="Age"
                         value={age}
                         onChangeText={(text) => {
                           setAge(text.replace(/[^0-9]/g, ''));
                           if (errors.age) setErrors({ ...errors, age: '' });
                         }}
-                        error={!!errors.age}
-                        disabled={isSubmitting}
+                        error={errors.age || undefined}
+                        editable={!isSubmitting}
                         keyboardType="number-pad"
-                        style={styles.input}
                         returnKeyType="next"
                         ref={ageInputRef}
                         onSubmitEditing={() => heightInputRef.current?.focus()}
+                        containerStyle={styles.input}
                       />
-                      {errors.age ? (
-                        <Text variant="bodySmall" style={[styles.error, { color: theme.colors.error }]}>
-                          {errors.age}
-                        </Text>
-                      ) : null}
                     </View>
 
                     <View style={styles.column}>
                       <View>
-                        <TextInput
+                        <TextField
                           label="Height"
                           value={height}
                           onChangeText={(text) => {
                             setHeight(text.replace(/[^0-9.]/g, ''));
                             if (errors.height) setErrors({ ...errors, height: '' });
                           }}
-                          error={!!errors.height}
-                          disabled={isSubmitting}
+                          error={errors.height || undefined}
+                          editable={!isSubmitting}
                           keyboardType="decimal-pad"
-                          style={styles.input}
                           returnKeyType="next"
                           ref={heightInputRef}
                           onSubmitEditing={() => weightInputRef.current?.focus()}
+                          containerStyle={styles.input}
                         />
-                        <Text variant="bodySmall" style={[styles.unitText, { color: theme.colors.onSurfaceVariant }]}>
+                        <AppText variant="rowSubtitle" color="muted" style={styles.unitText}>
                           {units === 'imperial' ? 'in' : 'cm'}
-                        </Text>
-                        {errors.height ? (
-                          <Text variant="bodySmall" style={[styles.error, { color: theme.colors.error }]}>
-                            {errors.height}
-                          </Text>
-                        ) : null}
+                        </AppText>
                       </View>
                     </View>
                   </View>
 
                   <View>
-                    <TextInput
+                    <TextField
                       label="Current weight"
                       value={weightCurrent}
                       onChangeText={(text) => {
                         setWeightCurrent(text.replace(/[^0-9.]/g, ''));
                         if (errors.weightCurrent) setErrors({ ...errors, weightCurrent: '' });
                       }}
-                      error={!!errors.weightCurrent}
-                      disabled={isSubmitting}
+                      error={errors.weightCurrent || undefined}
+                      editable={!isSubmitting}
                       keyboardType="decimal-pad"
-                      style={styles.input}
                       returnKeyType="done"
                       ref={weightInputRef}
                       onSubmitEditing={handleContinue}
+                      containerStyle={styles.input}
                     />
-                    <Text variant="bodySmall" style={[styles.unitText, { color: theme.colors.onSurfaceVariant }]}>
+                    <AppText variant="rowSubtitle" color="muted" style={styles.unitText}>
                       {units === 'imperial' ? 'lbs' : 'kg'} • Optional — helps tailor targets
-                    </Text>
-                    {errors.weightCurrent ? (
-                      <Text variant="bodySmall" style={[styles.error, { color: theme.colors.error }]}>
-                        {errors.weightCurrent}
-                      </Text>
-                    ) : null}
+                    </AppText>
                   </View>
                 </>
               )}
 
               {errors.general ? (
-                <Text variant="bodySmall" style={[styles.error, { color: theme.colors.error }]}>
+                <AppText variant="rowSubtitle" color="danger" style={styles.error}>
                   {errors.general}
-                </Text>
+                </AppText>
               ) : null}
             </OnboardingSection>
           </View>
         </ScrollView>
 
-        <View style={[styles.footer, { backgroundColor: theme.colors.background }]}>
+        <View style={styles.footer}>
           <PrimaryButton
             onPress={handleContinue}
             style={styles.button}
@@ -479,12 +447,15 @@ export default function OnboardingBasicInfoScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: colors.background,
   },
   content: {
-    flex: 1,
+    // flexGrow (not flex:1) so the ScrollView content can exceed the viewport
+    // and actually scroll — flex:1 pinned it to screen height and blocked scroll.
+    flexGrow: 1,
     paddingHorizontal: 24,
     paddingTop: 32,
-    paddingBottom: 16,
+    paddingBottom: 48,
   },
   textContainer: {
     marginBottom: 32,
@@ -516,15 +487,6 @@ const styles = StyleSheet.create({
     marginTop: 4,
     marginBottom: 0,
   },
-  sexError: {
-    marginTop: 4,
-    marginBottom: 0,
-  },
-  helperText: {
-    marginTop: 4,
-    fontSize: 12,
-    opacity: 0.7,
-  },
   unitText: {
     marginTop: 4,
     fontSize: 12,
@@ -541,6 +503,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingBottom: 24,
     paddingTop: 16,
+    backgroundColor: colors.background,
   },
   button: {
     minHeight: 48,

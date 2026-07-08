@@ -1,8 +1,7 @@
 import React, { useContext, useEffect, useMemo, useState } from 'react';
-import { FlatList, KeyboardAvoidingView, Platform, View, TouchableOpacity } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
+import { FlatList, KeyboardAvoidingView, Platform, View, TouchableOpacity, StyleSheet } from 'react-native';
 import { useHeaderHeight } from '@react-navigation/elements';
-import { Button, Text, TextInput, useTheme, Checkbox, Chip } from 'react-native-paper';
+import { Checkbox } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { collection, doc, onSnapshot } from 'firebase/firestore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,15 +13,16 @@ import { GroupIssue, subscribeGroupIssues, addGroupIssue, toggleIssueResolved } 
 import { friendlyNameFromDisplayName } from '../utils/formatters';
 import { subscribePublicUsers, type PublicUser } from '../services/publicUsers';
 import { subscribeMyCanSeeUids } from '../services/visibility';
-import { colors } from '../theme/colors';
-import { spacing } from '../theme/spacing';
+import AppText from '../components/ui/AppText';
+import PrimaryButton from '../components/ui/PrimaryButton';
+import TextField from '../components/ui/TextField';
+import { colors, radius, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'Issues'>;
 
 export default function IssuesScreen({ route }: Props) {
   const { user } = useContext(AuthContext);
   const { groupId } = route.params;
-  const theme = useTheme();
   const headerHeight = useHeaderHeight();
   const insets = useSafeAreaInsets();
 
@@ -37,7 +37,7 @@ export default function IssuesScreen({ route }: Props) {
   const [group, setGroup] = useState<{ createdBy?: string } | null>(null);
 
   useEffect(() => subscribeGroupIssues(groupId, setIssues), [groupId]);
-  
+
   useEffect(() => {
     return onSnapshot(collection(db, 'groups', groupId, 'members'), (snap) => {
       const uids = snap.docs.map((d) => String((d.data() as any)?.uid ?? d.id)).filter(Boolean);
@@ -110,11 +110,11 @@ export default function IssuesScreen({ route }: Props) {
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1 }}
+      style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={headerHeight}
     >
-      <View style={{ flex: 1, paddingHorizontal: 12, paddingTop: 12 }}>
+      <View style={styles.inner}>
         <FlatList
           data={data}
           keyExtractor={(item) => item.id}
@@ -125,20 +125,16 @@ export default function IssuesScreen({ route }: Props) {
           renderItem={({ item }) => {
             const mine = user?.uid === item.uid;
             const bubbleBg = item.resolved
-              ? theme.colors.surfaceVariant
+              ? colors.surface2
               : mine
-                ? theme.colors.primary
-                : theme.colors.surfaceVariant;
-            const nameColor = item.resolved
-              ? theme.colors.onSurfaceVariant
-              : mine
-                ? theme.colors.onPrimary
-                : theme.colors.onSurfaceVariant;
+                ? colors.primary
+                : colors.surface2;
+            const nameColor = item.resolved || !mine ? colors.textSecondary : '#FFFFFF';
             const textColor = item.resolved
-              ? theme.colors.onSurfaceVariant
+              ? colors.textSecondary
               : mine
-                ? theme.colors.onPrimary
-                : theme.colors.onSurface;
+                ? '#FFFFFF'
+                : colors.textPrimary;
             const opacity = item.resolved ? 0.6 : 1;
 
             return (
@@ -156,9 +152,9 @@ export default function IssuesScreen({ route }: Props) {
                   }}
                 >
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                    <Text variant="labelSmall" style={{ color: nameColor, opacity: mine ? 0.9 : 0.8 }}>
+                    <AppText variant="rowSubtitle" style={{ color: nameColor, opacity: mine ? 0.9 : 0.8 }}>
                       {mine ? 'Me' : displayNameFor(item.uid)}
-                    </Text>
+                    </AppText>
                     {isAdmin && (
                       <TouchableOpacity
                         onPress={() => toggleResolved(item)}
@@ -168,15 +164,15 @@ export default function IssuesScreen({ route }: Props) {
                           status={item.resolved ? 'checked' : 'unchecked'}
                           onPress={() => toggleResolved(item)}
                         />
-                        <Text variant="labelSmall" style={{ color: nameColor, opacity: 0.8 }}>
+                        <AppText variant="rowSubtitle" style={{ color: nameColor, opacity: 0.8 }}>
                           {item.resolved ? 'Resolved' : 'Resolve'}
-                        </Text>
+                        </AppText>
                       </TouchableOpacity>
                     )}
                   </View>
-                  <Text variant="bodyMedium" style={{ color: textColor }}>
+                  <AppText variant="body" style={{ color: textColor }}>
                     {item.text}
-                  </Text>
+                  </AppText>
                 </View>
               </View>
             );
@@ -185,23 +181,31 @@ export default function IssuesScreen({ route }: Props) {
 
         <View
           onLayout={(e) => setComposerH(e.nativeEvent.layout.height)}
-          style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-end', paddingBottom: insets.bottom }}
+          style={[styles.composer, { paddingBottom: insets.bottom }]}
         >
-          <View style={{ flex: 1 }}>
-            <TextInput
+          <View style={styles.composerField}>
+            <TextField
               label="Issue or suggestion"
               value={text}
               onChangeText={setText}
               multiline
-              disabled={isSending}
+              editable={!isSending}
               placeholder="Describe a bug, feature request, or suggestion..."
             />
           </View>
-          <Button mode="contained" onPress={send} disabled={!text.trim() || isSending} loading={isSending}>
+          <PrimaryButton onPress={send} disabled={!text.trim() || isSending} loading={isSending} style={styles.sendBtn}>
             Send
-          </Button>
+          </PrimaryButton>
         </View>
       </View>
     </KeyboardAvoidingView>
   );
 }
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  inner: { flex: 1, paddingHorizontal: spacing.md, paddingTop: spacing.md },
+  composer: { flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-end' },
+  composerField: { flex: 1 },
+  sendBtn: { borderRadius: radius.button },
+});

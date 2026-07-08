@@ -1,4 +1,4 @@
-import { addDays } from 'date-fns';
+import { addDays, subDays } from 'date-fns';
 import { formatInTimeZone, fromZonedTime } from 'date-fns-tz';
 
 export const DEFAULT_TZ = 'America/New_York';
@@ -76,6 +76,13 @@ export function nextIsoWeekId(weekId: string, timeZone: string = DEFAULT_TZ) {
   const startUtc = fromZonedTime(`${start}T12:00:00`, timeZone);
   const next = addDays(startUtc, 7);
   return isoWeekIdInTz(next, timeZone);
+}
+
+export function prevIsoWeekId(weekId: string, timeZone: string = DEFAULT_TZ) {
+  const { start } = isoWeekRangeInTz(weekId, timeZone);
+  const startUtc = fromZonedTime(`${start}T12:00:00`, timeZone);
+  const prev = subDays(startUtc, 7);
+  return isoWeekIdInTz(prev, timeZone);
 }
 
 export function zonedNoonUtcFromYmd(yyyyMmDd: string, timeZone: string = DEFAULT_TZ) {

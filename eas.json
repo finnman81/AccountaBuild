@@ -20,10 +20,30 @@
       "android": {
         "buildType": "app-bundle"
       }
+    },
+    "production-android": {
+      "extends": "production",
+      "credentialsSource": "local"
     }
   },
   "submit": {
     "preview": {},
-    "production": {}
+    "production": {
+      "ios": {
+        "ascAppId": "6757963838"
+      },
+      "android": {
+        "serviceAccountKeyPath": "./play-service-account.json",
+        "track": "internal",
+        "releaseStatus": "completed"
+      }
+    },
+    "production-android": {
+      "android": {
+        "serviceAccountKeyPath": "./play-service-account.json",
+        "track": "internal",
+        "releaseStatus": "completed"
+      }
+    }
   }
 }

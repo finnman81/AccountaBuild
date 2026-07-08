@@ -1,16 +1,18 @@
 import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { db } from '../firebase/firebase';
-import type { OnboardingData } from '../hooks/useOnboardingStatus';
+import { CURRENT_ONBOARDING_VERSION, onboardingLocalKey, type OnboardingData } from '../hooks/useOnboardingStatus';
 
 export async function checkOnboardingStatus(uid: string): Promise<boolean> {
   if (!db) throw new Error('Firebase is not initialized');
-  
+
   const userDoc = await getDoc(doc(db, 'users', uid));
   if (!userDoc.exists()) return false;
-  
+
   const data = userDoc.data();
   const onboarding = (data.onboarding as OnboardingData | undefined) ?? { completed: false };
-  return onboarding.completed === true;
+  const seenCurrentVersion = (onboarding.version ?? 1) >= CURRENT_ONBOARDING_VERSION;
+  return onboarding.completed === true && seenCurrentVersion;
 }
 
 export async function updateOnboardingStep(uid: string, step: number): Promise<void> {
@@ -19,8 +21,8 @@ export async function updateOnboardingStep(uid: string, step: number): Promise<v
   const userRef = doc(db, 'users', uid);
   const userDoc = await getDoc(userRef);
   const existingData = userDoc.exists() ? userDoc.data() : {};
-  const existingOnboarding = (existingData.onboarding as OnboardingData | undefined) ?? {};
-  
+  const existingOnboarding: Partial<OnboardingData> = (existingData.onboarding as Partial<OnboardingData> | undefined) ?? {};
+
   await setDoc(
     userRef,
     {
@@ -43,6 +45,10 @@ export async function completeOnboarding(uid: string): Promise<void> {
   const existingData = userDoc.exists() ? userDoc.data() : {};
   const existingOnboarding = (existingData.onboarding as OnboardingData | undefined) ?? {};
   
+  // Persist a local flag FIRST so a returning user is never re-trapped in
+  // onboarding by a slow/stale Firestore read on the next cold start.
+  await AsyncStorage.setItem(onboardingLocalKey(uid), 'true').catch(() => {});
+
   await setDoc(
     userRef,
     {
@@ -50,7 +56,7 @@ export async function completeOnboarding(uid: string): Promise<void> {
         ...existingOnboarding,
         completed: true,
         completedAt: serverTimestamp(),
-        version: 1,
+        version: CURRENT_ONBOARDING_VERSION,
       },
       updatedAt: serverTimestamp(),
     },

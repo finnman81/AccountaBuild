@@ -5,7 +5,10 @@ import { getNotificationPreferences, type NotificationPreferences } from './noti
 // Configure notification behavior
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,
+    // expo-notifications 0.32 replaced `shouldShowAlert` with `shouldShowBanner`
+    // (heads-up banner) + `shouldShowList` (notification center).
+    shouldShowBanner: true,
+    shouldShowList: true,
     shouldPlaySound: true,
     shouldSetBadge: true,
   }),
@@ -58,7 +61,7 @@ export async function getNotificationPermissionsStatus(): Promise<Notifications.
     const { status } = await Notifications.getPermissionsAsync();
     return status;
   } catch (e) {
-    return 'undetermined';
+    return 'undetermined' as Notifications.PermissionStatus;
   }
 }
 
@@ -141,6 +144,7 @@ export async function scheduleNotifications(options?: { force?: boolean; startFr
           badge: 1,
         },
         trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DATE,
           date,
         },
       });

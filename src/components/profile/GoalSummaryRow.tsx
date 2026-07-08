@@ -66,7 +66,7 @@ export default function GoalSummaryRow({ label, met, total, dayDots, dayLabels, 
                         alignItems: 'center',
                       }}
                     >
-                      {met ? <Text style={{ color: colors.onPrimary }}>✓</Text> : null}
+                      {met ? <Text style={{ color: colors.textPrimary }}>✓</Text> : null}
                     </View>
                   )}
                   {dayLabels && dayLabels[idx] && (

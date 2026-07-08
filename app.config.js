@@ -1,3 +1,5 @@
+const fs = require('fs');
+
 module.exports = ({ config }) => {
   const basePlugins = Array.isArray(config.plugins) ? config.plugins : [];
   const filteredPlugins = basePlugins.filter((plugin) => {
@@ -14,7 +16,7 @@ module.exports = ({ config }) => {
         'AccountaBuild reads workouts, weight, and calories from Apple Health to keep your logs accurate. Manual logs always take priority.',
       NSHealthUpdateUsageDescription:
         'AccountaBuild can read health data from Apple Health when you enable sync.',
-      background: false, // Set to true only if using HealthKit background delivery
+      background: true, // HealthKit background delivery → near-instant sync
     },
   ];
 
@@ -38,10 +40,17 @@ module.exports = ({ config }) => {
         },
       ],
       healthKitPlugin,
+      // Android health sync via Health Connect (replaces deprecated Google Fit).
+      'react-native-health-connect',
+      // OS-scheduled background health sync (runs when the app is closed).
+      'expo-background-task',
     ],
     android: {
       ...config.android,
-      // Permissions are defined in app.json
+      // Permissions are defined in app.json.
+      // FCM config for Android push (cheer/nudge). Wired only when the file is
+      // present so a build never breaks if it hasn't been added yet.
+      ...(fs.existsSync('./google-services.json') ? { googleServicesFile: './google-services.json' } : {}),
     },
     ios: {
       ...config.ios,

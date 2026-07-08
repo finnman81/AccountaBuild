@@ -31,7 +31,10 @@ Nothing else can be verified until the app compiles and runs. Do this first.
       `const isCurrentWeek = weekId === isoWeekIdInTz(new Date(), DEFAULT_TZ);`
       This was a half-finished "don't penalize the in-progress current week" feature (introduced in the `deployment push` commits). Confirm the two guard sites (413 missed-week, 477 penalty) express the intended behavior, then keep it.
 - [x] **Get the app compiling at runtime.** `npx tsc --noEmit` after the fix shows the `isCurrentWeek` error is gone. NOTE (measured 2026-07-01): there are **186 pre-existing type errors**, but they are NOT run-blockers. Expo/Metro bundles via Babel, which strips types without type-checking, so build 22 shipped to TestFlight with all 186 present. Only `isCurrentWeek` (an undefined variable, a real runtime `ReferenceError`) actually broke execution, and it is fixed. Driving `tsc` to zero is a separate, bounded type-hygiene task, not a Phase 0 gate (see below).
-- [ ] **(Separate ~1-day task) Drive `tsc --noEmit` to zero.** 130 of the 186 errors (70%) are a single pattern: `db` is typed `Firestore | null` and every `collection(db,...)`/`doc(db,...)` call refuses to narrow it (`TS2769`). One narrowed `db` accessor clears all 130. The remaining ~56 are genuine per-site fixes (null-safety, wrong theme tokens, navigation param types). One is a real UX bug, not just noise: `src/firebase/firebase.ts:4` imports `getReactNativePersistence`, which Firebase v12 no longer exports, so **native auth persistence is broken and users are logged out on every app restart** — fix during Phase 2/3.
+- [x] **Clear the `db`-null error class.** DONE (2026-07-01): narrowed the `auth`/`db`/`storage` exports in `src/firebase/firebase.ts` to non-null. This dropped the count from **186 to 53** errors and introduced none. Tests stayed green (25/25).
+- [x] **Drive the last 53 `tsc` errors to zero.** DONE (2026-07-01): `tsc --noEmit` is now fully clean (186 -> 0), tests still 25/25. Fixed navigation param-list typing (correct nested stacks + CompositeScreenProps), theme tokens, expo-notifications trigger/permission types, MMR legacy `deltaLP` read, `SeasonHistory` Extract, null guards, and Google Fit dynamic-method casts. Two notable findings surfaced and were addressed:
+  - **Native auth persistence is broken** — `getReactNativePersistence` was removed in Firebase v12 (confirmed absent at runtime), so users are logged out on app restart. Compile error fixed and current behavior preserved; the actual persistence restore is flagged inline in `firebase.ts` as a **Phase 2/3** task (needs the Firebase v12 RN persistence approach + device testing).
+  - **Onboarding goals prefill was dead code** — the units/goalMode fetch sat after a `return` in the effect and never ran; restructured so it executes (latent bug fixed).
 - [ ] **Run the test suite.** `npm test`. There are 9 test files (MMR math, formatters, memberSummary, a few component/smoke). Get them green as the baseline.
 - [ ] **Boot it.** `npm start`, load in a dev client, confirm login -> group -> log flow works end to end. Establish "it runs" before changing anything.
 - [ ] **Add `.gitattributes`** with `* text=auto eol=lf` (root of the app). The repo has no `.gitattributes`, so Windows CRLF is polluting `git status` (5 files show as modified with only line-ending changes). Fix this now so the diffs in Phase 1 are real.
@@ -66,18 +69,24 @@ These are what actually killed the beta. Both are native crashes, so they cannot
 
 **Root cause (from the crash log):** `Thread 8: Swift runtime failure: unhandled C++ / Objective-C exception` at `CoreModule.requestAuthorization(toRequest:) + 564 (CoreModule.swift:183)` inside the `@kingstinct/react-native-healthkit` native module. **This is a native trap, so the JS `try/catch` in `requestHealthKitPermissions` (healthKitService.ts:146) can never catch it.** The team already knew this: the code comment at `healthKitService.ts:85-90` explains they removed the Food correlation type because "some iOS versions can throw an Objective-C exception when requesting correlation types... which would crash the app at auth time." That mitigation (the `health sync upates` commit) was never shipped in a new build.
 
-- [ ] **Ship a fresh build first.** The existing mitigation may already resolve the Jan 20 crash. Cut a new build before assuming more work is needed.
-- [ ] **De-duplicate the HealthKit plugin config.** It is declared twice with conflicting shapes: `app.json` registers `@kingstinct/react-native-healthkit` with `healthSharePermission`/`healthUpdatePermission` keys, while `app.config.js` filters that out and re-adds it with `NSHealthShareUsageDescription`/`NSHealthUpdateUsageDescription` plus a `background` key. Pick one source of truth (prefer `app.config.js` since it is dynamic) and make the config keys match what the plugin version actually expects. Conflicting config is a prime suspect for a malformed entitlement.
-- [ ] **Verify the HealthKit capability is actually provisioned.** The entitlement `com.apple.developer.healthkit` is set in config, but if the Apple Developer App ID / provisioning profile does not have HealthKit enabled, `requestAuthorization` throws exactly this native exception. Confirm in the Apple Developer portal and in the EAS credentials.
-- [ ] **Check the New Architecture + Nitro interaction.** `newArchEnabled: true` and kingstinct v13 uses `react-native-nitro-modules`. Confirm the installed versions are mutually compatible for SDK 54 / RN 0.81; a mismatch here produces native crashes. If it stays fragile, consider pinning/patching the library or gating health sync behind a feature flag for the friends relaunch.
-- [ ] **Guard the UX regardless.** Because JS cannot catch the native throw, make the "Enable health sync" action explicit and skippable, never on the launch path, so a failure can at worst break one optional button and not the app.
+**PROGRESS (2026-07-01, code side done; device verification remains):**
+
+- [x] **De-duplicated the HealthKit plugin config.** `app.json` was registering the plugin with the WRONG keys (`healthSharePermission`/`healthUpdatePermission`, which the v13 plugin ignores) while `app.config.js` re-added it with the correct keys. Removed the `app.json` duplicate so `app.config.js` is the single source. **Verified via `expo config --type introspect`:** the resolved native config now has `com.apple.developer.healthkit: true`, the correct usage strings, and — importantly — **no `com.apple.developer.healthkit.background-delivery` entitlement** (because `app.config.js` passes `background:false`). A stray, unprovisioned background-delivery entitlement is a classic cause of this exact `requestAuthorization` crash, so this alone may fix it.
+- [x] **Confirmed the requested types are valid v13 identifiers.** Checked the installed `@kingstinct/react-native-healthkit@13.1.0` types: `'HKWorkoutTypeIdentifier'`, `'HKQuantityTypeIdentifierDietaryEnergyConsumed'`, `'HKQuantityTypeIdentifierBodyMass'` are all valid `toRead` (`ObjectTypeIdentifier`) entries, so the crash is NOT a malformed-identifier issue. The Food-correlation type (a known thrower) was already removed in `healthKitService.ts`.
+- [ ] **(DEVICE, you) Verify the HealthKit capability is provisioned.** This is now the leading remaining suspect. The entitlement is in the config, but if the Apple Developer App ID / provisioning profile does not have HealthKit enabled, `requestAuthorization` throws exactly this native exception. Confirm HealthKit is enabled on the App ID at developer.apple.com and that the EAS build's provisioning profile includes it (`eas credentials`).
+- [ ] **(DEVICE, you) Ship a fresh build and test the permission prompt.** Build 22 never shipped the Food-correlation fix; with that plus the clean config, the prompt may now succeed. Consider bumping `@kingstinct/react-native-healthkit` (13.1.0 → 13.x latest; 14.x is a major bump, defer) if it still throws.
+- [x] **Guard note:** the permission request is already user-initiated (from HealthSettingsScreen), not on the launch path, and `HealthAutoSync` only calls `checkHealthPermissions` (not `requestAuthorization`). So a failure is contained to an explicit button, not startup.
 
 ### 2b. Leaderboard crash (Hermes `instanceOfOperator` segfault)
 
 **Root cause (from the crash log):** `Thread 3: EXC_BAD_ACCESS (SIGSEGV)` deep in Hermes: `instanceOfOperator_RJS` -> `Interpreter::interpretFunction` -> `generatorPrototypeNext`. It is a null-deref inside the JS engine during an `async` function resume doing an `instanceof`. The committed `leaderboard crash fix` did **not** resolve it (tester reported the crash the same day, after the commit).
 
 - [ ] **Reproduce with realistic data.** `LeaderboardScreen` subscribes via `subscribeGroupLogs(groupId, setLogs, undefined, 400)` (line 83) and then does a 365-day backward streak walk per user. Populate a group with a few hundred logs and several members and try to trigger it on device. The streak loop is already wrapped in try/catch, so the segfault is likely below JS (engine or Firebase SDK internal `instanceof` on an async path), not in the visible screen logic.
-- [ ] **Bump the RN/Hermes patch and Firebase JS SDK.** Native Hermes `instanceof` segfaults are frequently engine bugs fixed in point releases. `firebase@^12.8` and `react-native@0.81.5` should be moved to the latest compatible patch and retested. This is the cheapest high-probability fix.
+- [x] **Bumped deps — the cheapest high-probability fix (APPLIED 2026-07-01).** Native Hermes `instanceof` segfaults are frequently engine/SDK bugs fixed in point releases.
+  - `firebase` 12.8.0 → **12.15.0** applied (Firestore does heavy internal `instanceof` on async paths — most directly relevant to the crash).
+  - `npx expo install --fix` applied: `expo` 54.0.31→54.0.35, `expo-notifications` 0.29→**0.32.17**, `expo-updates` 29.0.16→29.0.18, plus related patches. `expo install --check` now reports "Dependencies are up to date."
+  - The `expo-notifications` 0.32 jump changed `NotificationBehavior` (`shouldShowAlert` → `shouldShowBanner` + `shouldShowList`); handler updated.
+  - **Verified at JS level:** `tsc --noEmit` clean (0 errors), 25/25 tests pass. **Native effect on the crash is NOT yet verified** — that needs an EAS build + on-device leaderboard testing (yours).
 - [ ] **Reduce and defensively shape the data.** Drop the 400-log live subscription in favor of reading pre-aggregated public rank fields (see Phase 5's `publicUsers` mirror) so the leaderboard does not need to stream raw logs at all. Sorting members by `mmrPublic` needs no log stream; the streak number can come from a stored per-user value rather than a client recompute. This removes the entire async/data path implicated in the crash.
 - [ ] If still reproducible after the above, isolate by temporarily rendering the list without `RankBadge` (it loads tier PNGs via `require`) to rule the image component in or out.
 
@@ -86,6 +95,18 @@ Exit criterion: a build survives repeated leaderboard opens and health-permissio
 ---
 
 ## Phase 3 — MMR correctness and economy (2-3 days)
+
+> **STATUS 2026-07-01 — mostly done, tsc clean, 41/41 tests pass.**
+> Landed:
+> - [x] `isCurrentWeek` blocker (Phase 0).
+> - [x] Removed all six "5 shields for testing" defaults → spec behavior (0 default, 2 on tier promotion, breaks after 2 missed weeks). Extracted to a pure, tested `nextShieldWeeks` in `src/mmr/progression.ts`.
+> - [x] Replaced the economy-breaking `lowerTierBonus` (full division/week) with a flat **+50** for completed weeks in Iron–Gold (`lowerTierProgressBonus`, tested). Difficulty tables now matter from Iron.
+> - [x] Fixed calorie-day counting: `calorieDaysHitFromTotals` (pure, tested) now counts only days at/under the budget instead of any logged day.
+> - [x] Completion-bonus race: the +300 weight-goal bonus is now gated on a `tx.get` of the goal doc **inside** the transaction, so re-runs and concurrent runs can't double-award it.
+> - [x] `mmrProjection.ts` now shares the same `progression.ts` helpers (no more silent drift on shields / lower-tier bonus).
+> Deferred:
+> - [ ] Full `computeWeeklyDelta` unification (the buggy pieces are now shared pure helpers; the remaining ~150-line scoring duplication between update and projection is a Phase-5 Cloud-Function enabler and gets its own careful pass).
+> - [ ] Missing badges: Endgame Crusher, Consistency (nice-to-have).
 
 The `src/mmr/` engine (constants, difficulty, scoring, ranks, time, risk, badges) is pure, dependency-free, spec-faithful, and well-tested. The problems are all in the service orchestration layer (`mmrUpdate.ts`) and are a mix of the compile blocker, an idempotency race, and test scaffolding that was never removed.
 
@@ -112,7 +133,16 @@ The `src/mmr/` engine (constants, difficulty, scoring, ranks, time, risk, badges
 
 ---
 
-## Phase 4 — God-screen refactor (3-5 days)
+## Phase 4 — "Midnight Blue" redesign (supersedes the god-screen refactor)
+
+> **DIRECTION CHANGE:** Phase 4 is now the full Midnight Blue redesign (see `Notes/` design handoff). Rebuilding each screen to the new design produces exactly the decomposition (hooks + viewmodels + card components) the refactor was going to do, so the redesign *is* the refactor. The god-screen notes below still apply as the decomposition target for each rebuilt screen.
+>
+> **STATUS 2026-07-01 — design-system foundation DONE (tsc clean, 41/41 tests, rendered live in Expo web with zero errors).**
+> - [x] Midnight Blue tokens: `theme/colors.ts` (+ `tierColors`), `radius.ts`, `spacing.ts`, `typography.ts`, `shadows.ts`. Backward-compatible (every key existing screens import is preserved), so the whole app shifts palette at once.
+> - [x] New primitives in `components/ui/`: `RankEmblem` (SVG faceted diamond — replaces the PNG `RankBadge`), `SegmentedControl` (surface + primary variants), `StatTile`, `ComplianceRing` (SVG).
+> - [x] Enhanced existing primitives: `Card` (radius 20 + hairline border), `Avatar` (status ring + at-risk dot), `PrimaryButton` (54px CTA + blue glow).
+> - [x] `screens/DesignShowcase.tsx` — unrouted dev reference for all primitives; render it via the `accountabuild-expo-web` launch config.
+> Next: rebuild screens in value order — Today → Log composer → Profile/Rank → Leaderboard → Groups → Progress → onboarding/welcome/sign-in → chat → moments (rank-up) → settings/edit. Backend features (reactions, nudges, `effectiveWeekId`, compliance %, rank-up detection) land with the screen that first needs each.
 
 Four screens carry most of the complexity: `GroupDetailScreen` (1,115), `ProgressScreen` (826), `ProfileScreen` (581), `HealthSettingsScreen` (581). The codebase **already has the right pattern**, it is just under-applied: services (`subscribeX`), a pure viewmodel layer (`viewmodels/memberSummary.ts`), stateful hooks (`hooks/useOnboardingStatus.ts`), and presentational components (`components/profile/*`). `ProfileScreen` is the closest to correct and is the reference shape. The target for each screen: guards -> one `use...Data()` hook -> pure viewmodel call(s) -> JSX composed of extracted cards.
 

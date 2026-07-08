@@ -19,7 +19,7 @@ export default function HomeScreen({ navigation }: Props) {
 
   useEffect(() => {
     if (!activeGroupId) return;
-    navigation.replace('GroupDetail', { groupId: activeGroupId });
+    navigation.replace('Today');
   }, [activeGroupId, navigation]);
 
   if (!isReady) {

@@ -1,5 +1,5 @@
 /**
- * Spacing scale - use only these values
+ * Spacing scale - use only these values.
  */
 
 export const spacing = {
@@ -13,11 +13,11 @@ export const spacing = {
 } as const;
 
 /**
- * Default spacing values
+ * Default spacing values ("Midnight Blue").
  */
 export const spacingDefaults = {
-  screenPadding: spacing.base, // 16
+  screenPadding: spacing.lg, // 20 (screen gutter)
   cardPadding: spacing.base, // 16
   sectionSpacing: spacing.xl, // 24
-  cardGap: spacing.md, // 12
+  cardGap: 14, // vertical rhythm between cards
 } as const;

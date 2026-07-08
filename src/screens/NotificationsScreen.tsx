@@ -1,15 +1,18 @@
 import React, { useContext, useEffect, useRef, useState } from 'react';
-import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, Switch, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
-import { Button, Card, Modal, Portal, Text, useTheme } from 'react-native-paper';
+import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, Switch, TouchableOpacity, TouchableWithoutFeedback, View, StyleSheet } from 'react-native';
+import { Modal, Portal } from 'react-native-paper';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 
-import Screen from '../components/layout/Screen';
+import AppText from '../components/ui/AppText';
+import Card from '../components/ui/Card';
+import PrimaryButton from '../components/ui/PrimaryButton';
+import TimePicker from '../components/ui/TimePicker';
 import { AuthContext } from '../store/AuthContext';
 import { getNotificationPreferences, saveNotificationPreferences, type NotificationPreferences } from '../services/notificationPreferences';
 import { scheduleNotifications, cancelAllNotifications, requestNotificationPermissions, getNotificationPermissionsStatus } from '../services/notifications';
-import TimePicker from '../components/ui/TimePicker';
+import { colors, radius, spacing } from '../theme';
 
 function isValidTime(timeStr: string): boolean {
   const match = /^([0-1]?[0-9]|2[0-3]):([0-5][0-9])$/.exec(timeStr);
@@ -18,7 +21,6 @@ function isValidTime(timeStr: string): boolean {
 
 export default function NotificationsScreen() {
   const { user } = useContext(AuthContext);
-  const theme = useTheme();
   const headerHeight = useHeaderHeight();
   const insets = useSafeAreaInsets();
 
@@ -97,7 +99,7 @@ export default function NotificationsScreen() {
     setError(null);
     setSaved(null);
     setSaving(true);
-    
+
     try {
       // Validate times
       for (let i = 0; i < count; i++) {
@@ -146,17 +148,21 @@ export default function NotificationsScreen() {
 
   if (!user) {
     return (
-      <Screen>
-        <Text>You must be signed in.</Text>
-      </Screen>
+      <View style={styles.container}>
+        <View style={styles.centered}>
+          <AppText variant="body" color="secondary">You must be signed in.</AppText>
+        </View>
+      </View>
     );
   }
 
   if (loading) {
     return (
-      <Screen>
-        <Text>Loading...</Text>
-      </Screen>
+      <View style={styles.container}>
+        <View style={styles.centered}>
+          <AppText variant="body" color="secondary">Loading...</AppText>
+        </View>
+      </View>
     );
   }
 
@@ -164,40 +170,46 @@ export default function NotificationsScreen() {
   const canEdit = !permissionDenied || !enabled;
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={headerHeight}
-    >
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-        <ScrollView
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode={Platform.OS === 'ios' ? 'on-drag' : 'none'}
-          contentContainerStyle={{
-            flexGrow: 1,
-            padding: 16,
-            paddingBottom: 16 + insets.bottom,
-          }}
-        >
-          <Card>
-            <Card.Title title="Notification Settings" subtitle="Get reminders to log your workouts" />
-            <Card.Content>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                <Text variant="titleMedium">Enable notifications</Text>
-                <Switch value={enabled} onValueChange={setEnabled} disabled={saving || permissionDenied} />
+    <View style={styles.container}>
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={headerHeight}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode={Platform.OS === 'ios' ? 'on-drag' : 'none'}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={[styles.content, { paddingBottom: spacing.xxl + insets.bottom }]}
+          >
+            <Card>
+              <AppText variant="cardLabel" color="primary">Notification Settings</AppText>
+              <AppText variant="rowSubtitle" color="muted" style={styles.subLine}>Get reminders to log your workouts</AppText>
+
+              <View style={styles.toggleRow}>
+                <AppText variant="rowTitle" color="primary">Enable notifications</AppText>
+                <Switch
+                  value={enabled}
+                  onValueChange={setEnabled}
+                  disabled={saving || permissionDenied}
+                  trackColor={{ false: colors.ringNotLogged, true: colors.primary }}
+                  thumbColor="#FFFFFF"
+                  ios_backgroundColor={colors.ringNotLogged}
+                />
               </View>
 
               {permissionDenied && enabled && (
-                <View style={{ marginBottom: 16, padding: 12, backgroundColor: theme.colors.errorContainer, borderRadius: 8 }}>
-                  <Text variant="bodySmall" style={{ color: theme.colors.onErrorContainer }}>
+                <View style={styles.warnBox}>
+                  <AppText variant="rowSubtitle" color="danger">
                     Notification permissions are denied. Please enable them in your device settings to receive reminders.
-                  </Text>
+                  </AppText>
                 </View>
               )}
 
               {enabled && (
                 <>
-                  <Text variant="titleMedium" style={{ marginBottom: 8 }}>Notifications per day</Text>
+                  <AppText variant="eyebrow" color="muted" style={styles.fieldLabel}>Notifications per day</AppText>
                   <TouchableOpacity
                     onPress={() => {
                       setTempCount(count);
@@ -210,26 +222,17 @@ export default function NotificationsScreen() {
                       });
                     }}
                     disabled={saving || !canEdit}
-                    style={{
-                      backgroundColor: theme.colors.surfaceVariant,
-                      borderColor: theme.colors.outline,
-                      borderWidth: 1,
-                      borderRadius: 10,
-                      paddingVertical: 12,
-                      paddingHorizontal: 16,
-                      marginBottom: 16,
-                    }}
+                    activeOpacity={0.7}
+                    style={styles.selectBox}
                   >
-                    <Text variant="titleMedium">{count}</Text>
+                    <AppText variant="rowTitle" color="primary">{count}</AppText>
                   </TouchableOpacity>
 
-                  <View style={{ height: 16 }} />
-
                   {Array.from({ length: count }).map((_, index) => (
-                    <View key={index} style={{ marginBottom: 24 }}>
-                      <Text variant="titleSmall" style={{ marginBottom: 8 }}>
+                    <View key={index} style={styles.timeBlock}>
+                      <AppText variant="eyebrow" color="muted" style={styles.fieldLabel}>
                         Notification {index + 1} time
-                      </Text>
+                      </AppText>
                       <TimePicker
                         value={times[index] ?? '09:00'}
                         onChange={(v) => updateTime(index, v)}
@@ -241,61 +244,36 @@ export default function NotificationsScreen() {
               )}
 
               {error ? (
-                <>
-                  <View style={{ height: 12 }} />
-                  <Text style={{ color: 'crimson' }}>{error}</Text>
-                </>
+                <AppText variant="rowSubtitle" color="danger" style={styles.feedback}>{error}</AppText>
               ) : null}
               {saved ? (
-                <>
-                  <View style={{ height: 12 }} />
-                  <Text style={{ color: 'green' }}>{saved}</Text>
-                </>
+                <AppText variant="rowSubtitle" color="success" style={styles.feedback}>{saved}</AppText>
               ) : null}
 
-              <View style={{ height: 16 }} />
-              <Button mode="contained" onPress={save} disabled={saving || !canEdit} loading={saving}>
+              <PrimaryButton onPress={save} disabled={saving || !canEdit} loading={saving} style={styles.saveBtn}>
                 Save settings
-              </Button>
-            </Card.Content>
-          </Card>
+              </PrimaryButton>
+            </Card>
 
-          <View style={{ height: 16 }} />
-
-          <Card>
-            <Card.Title title="About" />
-            <Card.Content>
-              <Text variant="bodySmall" style={{ opacity: 0.75 }}>
+            <Card style={styles.spacedCard}>
+              <AppText variant="cardLabel" color="primary">About</AppText>
+              <AppText variant="rowSubtitle" color="secondary" style={styles.aboutText}>
                 You'll receive reminders at the times you set to log your workouts. If you don't log anything after the first reminder, a badge will appear on the app icon.
-              </Text>
-            </Card.Content>
-          </Card>
-        </ScrollView>
-      </TouchableWithoutFeedback>
+              </AppText>
+            </Card>
+          </ScrollView>
+        </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
       <Portal>
         <Modal
           visible={countModalVisible}
           onDismiss={() => setCountModalVisible(false)}
-          contentContainerStyle={{
-            margin: 20,
-            borderRadius: 16,
-            padding: 20,
-            backgroundColor: theme.colors.surface,
-          }}
+          contentContainerStyle={styles.modalCard}
         >
-          <Text variant="titleLarge" style={{ marginBottom: 16 }}>
+          <AppText variant="cardLabel" color="primary" style={styles.modalTitle}>
             Notifications per day
-          </Text>
-          <View
-            style={{
-              height: COUNT_ITEM_HEIGHT * 5,
-              borderRadius: 12,
-              borderWidth: 1,
-              borderColor: theme.colors.outline,
-              overflow: 'hidden',
-              backgroundColor: theme.colors.surface,
-            }}
-          >
+          </AppText>
+          <View style={[styles.pickerFrame, { height: COUNT_ITEM_HEIGHT * 5 }]}>
             <ScrollView
               ref={countScrollRef}
               showsVerticalScrollIndicator={false}
@@ -319,37 +297,81 @@ export default function NotificationsScreen() {
                   <TouchableOpacity
                     key={opt}
                     onPress={() => setTempCount(opt)}
-                    style={{
-                      height: COUNT_ITEM_HEIGHT,
-                      justifyContent: 'center',
-                      alignItems: 'center',
-                      backgroundColor: isSelected ? 'rgba(59, 130, 246, 0.2)' : 'transparent',
-                    }}
+                    style={[
+                      styles.pickerItem,
+                      { height: COUNT_ITEM_HEIGHT },
+                      isSelected ? styles.pickerItemActive : null,
+                    ]}
                   >
-                    <Text variant="titleLarge" style={{ color: isSelected ? theme.colors.primary : theme.colors.onSurface }}>
+                    <AppText variant="numberMd" color={isSelected ? 'accent' : 'secondary'}>
                       {opt}
-                    </Text>
+                    </AppText>
                   </TouchableOpacity>
                 );
               })}
             </ScrollView>
           </View>
-          <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 16, gap: 12 }}>
-            <Button mode="text" onPress={() => setCountModalVisible(false)}>
+          <View style={styles.modalActions}>
+            <PrimaryButton secondary onPress={() => setCountModalVisible(false)} style={styles.modalBtn}>
               Cancel
-            </Button>
-            <Button
-              mode="contained"
+            </PrimaryButton>
+            <PrimaryButton
+              secondary
               onPress={() => {
                 applyCountChange(tempCount);
                 setCountModalVisible(false);
               }}
+              style={styles.modalBtn}
             >
               Done
-            </Button>
+            </PrimaryButton>
           </View>
         </Modal>
       </Portal>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  flex: { flex: 1 },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.lg },
+  content: { flexGrow: 1, paddingHorizontal: spacing.lg, paddingTop: spacing.base },
+  subLine: { marginTop: 2, marginBottom: spacing.base },
+  toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: spacing.sm },
+  warnBox: { marginTop: spacing.md, padding: spacing.md, backgroundColor: colors.dangerTint, borderRadius: radius.tile },
+  fieldLabel: { marginTop: spacing.base, marginBottom: spacing.sm },
+  selectBox: {
+    backgroundColor: colors.surface2,
+    borderColor: colors.borderCard,
+    borderWidth: 1,
+    borderRadius: radius.tile,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.base,
+  },
+  timeBlock: { marginTop: spacing.md },
+  feedback: { marginTop: spacing.md },
+  saveBtn: { marginTop: spacing.lg },
+  spacedCard: { marginTop: spacing.md },
+  aboutText: { marginTop: spacing.sm, lineHeight: 18 },
+  modalCard: {
+    margin: spacing.lg,
+    borderRadius: radius.card,
+    padding: spacing.lg,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderCard,
+  },
+  modalTitle: { marginBottom: spacing.base },
+  pickerFrame: {
+    borderRadius: radius.tile,
+    borderWidth: 1,
+    borderColor: colors.borderCard,
+    overflow: 'hidden',
+    backgroundColor: colors.surface2,
+  },
+  pickerItem: { justifyContent: 'center', alignItems: 'center' },
+  pickerItemActive: { backgroundColor: colors.primaryTint },
+  modalActions: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: spacing.base, gap: spacing.md },
+  modalBtn: { minWidth: 100 },
+});

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { TouchableOpacity, View } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -15,17 +15,19 @@ import type {
   TabsParamList,
 } from './types';
 
-import GroupDetailScreen from '../screens/GroupDetailScreen';
-import GroupChartsScreen from '../screens/GroupChartsScreen';
 import GroupChatScreen from '../screens/GroupChatScreen';
 import ViewPhotosScreen from '../screens/ViewPhotosScreen';
 import IssuesScreen from '../screens/IssuesScreen';
-import SetGoalsScreen from '../screens/SetGoalsScreen';
 import GroupSettingsScreen from '../screens/GroupSettingsScreen';
 import GroupListScreen from '../screens/GroupListScreen';
+import GroupInfoScreen from '../screens/GroupInfoScreen';
+import ChallengeScreen from '../screens/ChallengeScreen';
 import CreateGroupScreen from '../screens/CreateGroupScreen';
 import JoinGroupScreen from '../screens/JoinGroupScreen';
 import ProfileScreen from '../screens/ProfileScreen';
+import SettingsScreen from '../screens/SettingsScreen';
+import RankChangeWatcher from '../components/mmr/RankChangeWatcher';
+import PushRegistrar from '../components/system/PushRegistrar';
 import SeasonHistoryScreen from '../screens/SeasonHistoryScreen';
 import MMRHistoryScreen from '../screens/MMRHistoryScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
@@ -33,8 +35,9 @@ import HealthSettingsScreen from '../screens/HealthSettingsScreen';
 import ProgressScreen from '../screens/ProgressScreen';
 import HomeScreen from '../screens/HomeScreen';
 import LeaderboardScreen from '../screens/LeaderboardScreen';
-import LogActionSheet from '../components/ui/LogActionSheet';
-import { useActiveGroup } from '../store/ActiveGroupContext';
+import { colors } from '../theme/colors';
+import HomeTodayScreen from '../screens/HomeTodayScreen';
+import ActivityScreen from '../screens/ActivityScreen';
 
 const Tab = createBottomTabNavigator<TabsParamList>();
 const HomeStack = createNativeStackNavigator<HomeStackParamList>();
@@ -46,13 +49,12 @@ function HomeStackNavigator() {
   return (
     <HomeStack.Navigator>
       <HomeStack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
-      <HomeStack.Screen name="GroupDetail" component={GroupDetailScreen} options={{ title: 'Home' }} />
+      <HomeStack.Screen name="Today" component={HomeTodayScreen} options={{ headerShown: false }} />
+      <HomeStack.Screen name="Activity" component={ActivityScreen} options={{ headerShown: false }} />
       <HomeStack.Screen name="Leaderboard" component={LeaderboardScreen} options={{ title: 'Leaderboard' }} />
-      <HomeStack.Screen name="GroupCharts" component={GroupChartsScreen} options={{ title: 'Charts' }} />
       <HomeStack.Screen name="GroupChat" component={GroupChatScreen} options={{ title: 'Chat' }} />
       <HomeStack.Screen name="ViewPhotos" component={ViewPhotosScreen} options={{ title: 'Photos' }} />
       <HomeStack.Screen name="Issues" component={IssuesScreen} options={{ title: 'Issues / Suggestions' }} />
-      <HomeStack.Screen name="SetGoals" component={SetGoalsScreen} options={{ title: 'Goals' }} />
       <HomeStack.Screen name="GroupSettings" component={GroupSettingsScreen} options={{ title: 'Group settings' }} />
     </HomeStack.Navigator>
   );
@@ -61,9 +63,16 @@ function HomeStackNavigator() {
 function GroupsStackNavigator() {
   return (
     <GroupsStack.Navigator>
-      <GroupsStack.Screen name="GroupList" component={GroupListScreen} options={{ title: 'Groups' }} />
+      <GroupsStack.Screen name="GroupList" component={GroupListScreen} options={{ headerShown: false }} />
       <GroupsStack.Screen name="CreateGroup" component={CreateGroupScreen} options={{ title: 'Create group' }} />
       <GroupsStack.Screen name="JoinGroup" component={JoinGroupScreen} options={{ title: 'Join group' }} />
+      <GroupsStack.Screen name="GroupInfo" component={GroupInfoScreen} options={{ headerShown: false }} />
+      <GroupsStack.Screen name="Challenge" component={ChallengeScreen} options={{ headerShown: false }} />
+      <GroupsStack.Screen name="GroupChat" component={GroupChatScreen} options={{ title: 'Chat' }} />
+      <GroupsStack.Screen name="ViewPhotos" component={ViewPhotosScreen} options={{ title: 'Photos' }} />
+      <GroupsStack.Screen name="Leaderboard" component={LeaderboardScreen} options={{ title: 'Leaderboard' }} />
+      <GroupsStack.Screen name="Issues" component={IssuesScreen} options={{ title: 'Issues / Suggestions' }} />
+      <GroupsStack.Screen name="GroupSettings" component={GroupSettingsScreen} options={{ title: 'Group settings' }} />
     </GroupsStack.Navigator>
   );
 }
@@ -80,6 +89,7 @@ function ProfileStackNavigator() {
   return (
     <ProfileStack.Navigator>
       <ProfileStack.Screen name="Profile" component={ProfileScreen} options={{ headerShown: false }} />
+      <ProfileStack.Screen name="Settings" component={SettingsScreen} options={{ headerShown: false }} />
       <ProfileStack.Screen name="SeasonHistory" component={SeasonHistoryScreen} options={{ title: 'Season history' }} />
       <ProfileStack.Screen name="MMRHistory" component={MMRHistoryScreen} options={{ title: 'MMR history' }} />
       <ProfileStack.Screen name="Notifications" component={NotificationsScreen} options={{ title: 'Notifications' }} />
@@ -94,16 +104,14 @@ function LogPlaceholder() {
 
 export default function TabsNavigator() {
   const theme = useTheme();
-  const { activeGroupId } = useActiveGroup();
   const rootNav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const [isLogOpen, setIsLogOpen] = useState(false);
 
   const tabBarStyle = useMemo(
     () => ({
-      backgroundColor: theme.colors.surface,
-      borderTopColor: theme.colors.outlineVariant,
+      backgroundColor: colors.tabBar,
+      borderTopColor: colors.divider,
     }),
-    [theme.colors.outlineVariant, theme.colors.surface],
+    [],
   );
 
   return (
@@ -113,6 +121,7 @@ export default function TabsNavigator() {
           headerShown: false,
           tabBarStyle,
           tabBarActiveTintColor: theme.colors.primary,
+          tabBarInactiveTintColor: colors.textMuted,
         }}
       >
         <Tab.Screen
@@ -141,8 +150,8 @@ export default function TabsNavigator() {
             tabBarIcon: ({ color, size }) => <Icon source="plus" color={color} size={size} />,
             tabBarButton: (props) => (
               <TouchableOpacity
-                {...props}
-                onPress={() => setIsLogOpen(true)}
+                {...(props as any)}
+                onPress={() => rootNav.navigate('LogComposer')}
                 style={{
                   marginTop: -18,
                   width: 64,
@@ -164,7 +173,7 @@ export default function TabsNavigator() {
           listeners={{
             tabPress: (e) => {
               e.preventDefault();
-              setIsLogOpen(true);
+              rootNav.navigate('LogComposer');
             },
           }}
         />
@@ -187,32 +196,8 @@ export default function TabsNavigator() {
           }}
         />
       </Tab.Navigator>
-
-      <LogActionSheet
-        visible={isLogOpen}
-        onDismiss={() => setIsLogOpen(false)}
-        groupId={activeGroupId}
-        onGoToGroups={() => {
-          setIsLogOpen(false);
-          rootNav.navigate('MainTabs' as any, { screen: 'GroupsTab' } as any);
-        }}
-        onLogWorkout={(groupId) => {
-          setIsLogOpen(false);
-          rootNav.navigate('AddWorkout', { groupId });
-        }}
-        onLogCalories={(groupId) => {
-          setIsLogOpen(false);
-          rootNav.navigate('AddCalories', { groupId });
-        }}
-        onLogWeight={(groupId) => {
-          setIsLogOpen(false);
-          rootNav.navigate('AddWeight', { groupId });
-        }}
-        onAddPhoto={(groupId) => {
-          setIsLogOpen(false);
-          rootNav.navigate('AddPhoto', { groupId });
-        }}
-      />
+      <RankChangeWatcher />
+      <PushRegistrar />
     </>
   );
 }

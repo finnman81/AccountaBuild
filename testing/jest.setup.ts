@@ -19,6 +19,22 @@ jest.mock('react-native-safe-area-context', () => {
   };
 });
 
+// Icon-font mock. On device, react-native-paper renders MaterialCommunityIcons
+// via @expo/vector-icons (installed). In the node/jest env that package pulls in
+// native font modules that don't load, so paper would fall back and warn
+// ("none of the required icon libraries are installed") — misleading noise now
+// that the real dependency is present. Provide a lightweight stand-in so the
+// icon resolves cleanly in tests.
+jest.mock('@expo/vector-icons/MaterialCommunityIcons', () => {
+  const React = require('react');
+  const { Text } = require('react-native');
+  return {
+    __esModule: true,
+    default: ({ name, color, size }: any) =>
+      React.createElement(Text, { accessibilityRole: 'image', style: { color, fontSize: size } }, name),
+  };
+});
+
 // Reanimated mock (required by many RN setups).
 jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock'));
 

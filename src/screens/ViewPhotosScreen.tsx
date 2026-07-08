@@ -1,11 +1,11 @@
 import React, { useContext, useEffect, useMemo, useState } from 'react';
-import { FlatList, Image, View } from 'react-native';
+import { FlatList, Image, View, StyleSheet } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { Card, Text } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import type { CompositeScreenProps } from '@react-navigation/native';
 import { collection, onSnapshot } from 'firebase/firestore';
 
-import { RootStackParamList } from '../navigation/types';
+import { HomeStackParamList, RootStackParamList } from '../navigation/types';
 import { db } from '../firebase/firebase';
 import { AuthContext } from '../store/AuthContext';
 import { GroupLog, subscribeGroupPhotoLogs } from '../services/logs';
@@ -14,8 +14,15 @@ import { friendlyNameFromDisplayName } from '../utils/formatters';
 import EmptyState from '../components/state/EmptyState';
 import { subscribePublicUsers, type PublicUser } from '../services/publicUsers';
 import { subscribeMyCanSeeUids } from '../services/visibility';
+import Card from '../components/ui/Card';
+import AppText from '../components/ui/AppText';
+import { colors, radius, spacing } from '../theme';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'ViewPhotos'>;
+// ViewPhotos is in the Home stack but navigates to the root-level AddPhoto modal.
+type Props = CompositeScreenProps<
+  NativeStackScreenProps<HomeStackParamList, 'ViewPhotos'>,
+  NativeStackScreenProps<RootStackParamList>
+>;
 
 export default function ViewPhotosScreen({ route, navigation }: Props) {
   const { user } = useContext(AuthContext);
@@ -61,52 +68,46 @@ export default function ViewPhotosScreen({ route, navigation }: Props) {
 
   if (!user) {
     return (
-      <View style={{ flex: 1, padding: 16, justifyContent: 'center' }}>
-        <Text>You must be signed in.</Text>
+      <View style={styles.centered}>
+        <AppText variant="body" color="secondary">You must be signed in.</AppText>
       </View>
     );
   }
 
   return (
-    <View style={{ flex: 1, padding: 16 }}>
+    <View style={styles.container}>
       <FlatList
         data={data}
         keyExtractor={(p) => p.id}
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <Card>
-            <Card.Content>
-              <EmptyState
-                title="No photos yet"
-                message="Upload one to start the feed."
-                ctaLabel="Add progress photo"
-                onCta={() => navigation.navigate('AddPhoto', { groupId })}
-              />
-            </Card.Content>
+            <EmptyState
+              title="No photos yet"
+              message="Upload one to start the feed."
+              ctaLabel="Add progress photo"
+              onCta={() => navigation.navigate('AddPhoto', { groupId })}
+            />
           </Card>
         }
         renderItem={({ item }) => {
           const url = String((item.payload as any)?.url ?? '');
           const caption = ((item.payload as any)?.caption ?? null) as string | null;
           return (
-            <Card style={{ marginBottom: 16 }}>
-              <Card.Title title={displayNameFor(item.uid)} subtitle={item.date} />
-              <Card.Content>
-                {url ? (
-                  <Image
-                    source={{ uri: url }}
-                    style={{ width: '100%', height: 280, borderRadius: 12, backgroundColor: '#111' }}
-                    resizeMode="cover"
-                  />
-                ) : (
-                  <Text>Missing image URL.</Text>
-                )}
-                {caption ? (
-                  <>
-                    <View style={{ height: 12 }} />
-                    <Text variant="bodyMedium">{caption}</Text>
-                  </>
-                ) : null}
-              </Card.Content>
+            <Card style={styles.photoCard}>
+              <View style={styles.photoHeader}>
+                <AppText variant="rowTitle" color="primary">{displayNameFor(item.uid)}</AppText>
+                <AppText variant="rowSubtitle" color="muted">{item.date}</AppText>
+              </View>
+              {url ? (
+                <Image source={{ uri: url }} style={styles.photo} resizeMode="cover" />
+              ) : (
+                <AppText variant="body" color="secondary">Missing image URL.</AppText>
+              )}
+              {caption ? (
+                <AppText variant="body" color="secondary" style={styles.caption}>{caption}</AppText>
+              ) : null}
             </Card>
           );
         }}
@@ -115,4 +116,17 @@ export default function ViewPhotosScreen({ route, navigation }: Props) {
   );
 }
 
-
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  centered: { flex: 1, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center', padding: spacing.lg },
+  listContent: { paddingHorizontal: spacing.lg, paddingTop: spacing.base, paddingBottom: spacing.xxl },
+  photoCard: { marginBottom: spacing.base, gap: spacing.md },
+  photoHeader: { gap: 2 },
+  photo: {
+    width: '100%',
+    height: 280,
+    borderRadius: radius.tile,
+    backgroundColor: colors.surface2,
+  },
+  caption: { marginTop: spacing.xs },
+});

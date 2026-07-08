@@ -1,5 +1,5 @@
 import React from 'react';
-import { View } from 'react-native';
+import { View, type DimensionValue } from 'react-native';
 import { ActivityIndicator, Card, Text, useTheme } from 'react-native-paper';
 
 type Props = {
@@ -10,7 +10,7 @@ type Props = {
 
 function SkeletonCard() {
   const theme = useTheme();
-  const block = (h: number, w: string | number, r: number = 8) => (
+  const block = (h: number, w: DimensionValue, r: number = 8) => (
     <View
       style={{
         height: h,

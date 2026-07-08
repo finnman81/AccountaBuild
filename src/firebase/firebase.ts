@@ -1,10 +1,21 @@
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { initializeApp, getApp, getApps } from 'firebase/app';
-import { getAuth, initializeAuth, getReactNativePersistence } from 'firebase/auth';
+import { getAuth, initializeAuth } from 'firebase/auth';
+import * as FirebaseAuthModule from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// `getReactNativePersistence` was removed from `firebase/auth` in Firebase JS
+// SDK v11+ (confirmed absent at runtime in 12.8). Access it defensively so this
+// compiles; when it is missing (the current case) native auth falls back to
+// in-memory persistence below.
+// KNOWN ISSUE (Phase 2/3): native session persistence is therefore inactive —
+// users are signed out on app restart. Restoring it requires the Firebase v12
+// React Native persistence approach.
+const getReactNativePersistence: ((storage: unknown) => any) | undefined =
+  (FirebaseAuthModule as any).getReactNativePersistence;
 
 type FirebaseConfig = {
   apiKey?: string;
@@ -137,8 +148,13 @@ if (firebaseApp && isFirebaseConfigured() && !firebaseInitError) {
   }
 }
 
-export const auth = authInstance;
-export const db = dbInstance;
-export const storage = storageInstance;
+// These are typed as non-null for ergonomics: the app gates all Firestore/Auth
+// usage behind the bootstrap above and renders FirebaseConfigErrorScreen when
+// Firebase is unconfigured, so by the time any service touches these they are
+// initialized. `firebaseInitError` / `isFirebaseConfigured()` remain the runtime
+// source of truth for the unconfigured case.
+export const auth = authInstance as NonNullable<typeof authInstance>;
+export const db = dbInstance as NonNullable<typeof dbInstance>;
+export const storage = storageInstance as NonNullable<typeof storageInstance>;
 
 

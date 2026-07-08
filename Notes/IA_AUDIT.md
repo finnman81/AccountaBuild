@@ -1,0 +1,97 @@
+# AccountaBuild — Information Architecture & HCI Audit (July 2026)
+
+User's felt symptoms: "confusing, layered, awkward"; group settings feels embedded/weird; chat feels buried. This audit explains why, structurally, and proposes the fix.
+
+## Current structure
+
+```
+Tabs: Today | Progress | [+ Log] | Groups | Profile
+├─ Today stack: Today → GroupDetail (LEGACY HUB) → {Leaderboard, GroupCharts, GroupChat, ViewPhotos, Issues, SetGoals, GroupSettings}
+├─ Groups stack: GroupList → {CreateGroup, JoinGroup}
+└─ Profile stack: Profile → {Settings, SeasonHistory, MMRHistory, Notifications, HealthSettings}
+Root modals: LogComposer, MemberDetail, RankUp, EditProfile, MMRGoals, LogToday(legacy), Add*(legacy editors)
+```
+
+## Root causes of the "layered/awkward" feeling
+
+1. **GroupDetail is a second home screen.** The 1121-line legacy hub predates the redesign. It duplicates Today's content (member statuses, recent activity) and is the ONLY gateway to chat/charts/photos/settings. The redesign built Today as the home, but never retired the hub — so the app has two competing "centers," and everything social hides behind the old one.
+2. **Chat is 3 taps deep.** Today → group chip → GroupDetail → Chat. For a group-accountability app, chat is a core loop and has zero surface presence. (Design mock 10 treats chat as one tap from Today.)
+3. **The group chip lies.** Design 04 says the Today group chip = group SWITCHER. It currently navigates to the GroupDetail hub — the single biggest source of "where am I?"
+4. **Ownership conflicts (same concept, multiple owners):**
+   - Group management: Groups tab AND GroupDetail hub both claim it.
+   - Goals: MMRGoals (personal, now consolidated) AND SetGoals (group-scoped, inside hub) — two goal surfaces again after we just unified goals.
+   - Logging: LogComposer (new) AND LogToday + Add* screens (legacy) both still routed.
+5. **Screen-level fidelity gaps:** GroupSettings is one long embedded form (logo picker + streak rule + rename + delete stacked) instead of the grouped-rows pattern Settings uses; GroupChat inherits an old stack header (mock has a custom header with member count + pinned bar flush beneath).
+
+## Target structure (aligns with the design spec — no new invention)
+
+```
+Tabs: Today | Progress | [+ Log] | Groups | Profile
+
+Today (home, single center)
+├─ header: group chip → GROUP SWITCHER SHEET (list groups + "Manage groups")
+├─ header: 💬 chat icon (1 tap → GroupChat) + 🔔 bell
+├─ Team rail → MemberDetail sheet (done)
+└─ Leaderboard preview → Leaderboard (podium)
+
+Groups tab (owns ALL group management)
+├─ GroupList → tap group = make it active + go Today (current)
+├─ per-group "⋯/info" → GroupInfo (slim): members, invite code, chat btn,
+│    charts, photos, and ⚙ Group settings (ONE path in)
+└─ Create / Join
+
+Profile tab (owns everything personal) — unchanged, already clean.
+
+RETIRE: GroupDetail hub (absorb: members→GroupInfo, activity→chat log-cards),
+        SetGoals (fold anything unique into MMRGoals or GroupSettings),
+        LogToday + Add* as reachable destinations (composer owns logging;
+        keep Add* only as edit-modals launched from log rows until composer
+        supports editing).
+```
+
+**Rules that keep it un-confusing:**
+- One owner per concept: Today=today, Groups=group mgmt, Profile=me, FAB=logging.
+- Nothing important >2 taps deep. Chat = 1 tap. Group settings = Groups → group → gear.
+- Hubs are forbidden; sheets/modals for quick tasks (switcher, member detail), pushes for destinations.
+
+## Fidelity fixes riding along
+- GroupSettings → grouped-rows layout (Identity: name/logo · Rules: streak rule · Danger: delete) matching SettingsScreen.
+- GroupChat → custom header (name + "N members", back, overflow) with pinned status bar flush beneath; kill the native title bar.
+- GroupCharts/ViewPhotos/Issues get reachable homes inside GroupInfo (charts may later merge into Progress).
+
+## Personal side (Profile + Settings) — same disease, less obvious
+Profile "Settings & Controls" list (Settings·Edit profile·Goals·Season history·MMR history·Notifications·Health·Units) DUPLICATES the Settings screen and creates multiple owners:
+- **Edit profile reachable 3×** (Profile list + Settings→Account + avatar pencil).
+- **TWO different Notifications screens**: Profile→NotificationsScreen (reminder count/times scheduler) vs Settings→Notifications (toggles streak/team/nudges/chat). Disconnected, overlapping.
+- **Health reachable 2×** (Profile "Health & Fitness" + Settings "Apple Health sync") — both → HealthSettings.
+- **"Units" is a DEAD link** 🐛 — navigates EditProfile?focusField=units, but EditProfile went identity-only (no units field) → goes nowhere useful. FIX or remove.
+- Profile's fat list re-implements Settings. Design mock 07 = a SHORT Profile list (Season history / Notifications / Health sync) + gear → full Settings.
+
+Fix: Profile bottom list shrinks to the design's short set (or collapses into gear→Settings); Settings becomes the single home for toggles/account/health/sign-out; the reminder-scheduler screen becomes reachable FROM the Settings "Streak reminder" toggle, not a separate entry; delete the dead Units link.
+
+## DECISIONS (locked — from user, July 2026)
+1. **Group model:** single "main group" feel, but multiple supported. Groups tab manages/adds; switching is secondary.
+2. **Daily motivation** = check on crew (1st), then log (2nd), then rank (3rd) — but **Today layout order = You → Crew → Standing** (your log checklist stays up top for fast logging, crew rail right below).
+3. **Chat = one-tap 💬 icon on the Today header** (not a tab).
+4. **Tab bar unchanged:** Today · Progress · (+) · Groups · Profile.
+5. **Today header** = `[group chip → SWITCHER SHEET] ....... [◆ compact rank chip] [💬 chat] [🔔 bell]` (rank chip may sit near the greeting if the header is too busy). Body order: Your log · Team today · Leaderboard preview.
+6. **Group chip → group-switcher sheet** (list groups + Manage/Create). NOT the old GroupDetail hub.
+7. **Groups tab: tapping a group = set active + go to Today.** A gear/⋯ affordance on the card opens **GroupInfo**.
+8. **GroupInfo** (new, Groups stack) owns: members, invite code, chat link, **compliance charts**, **progress-photo grid**, and ⚙ group settings — the ONE home for group stuff.
+9. **Charts + photos live under the group (GroupInfo)**, not in Progress.
+10. Profile side: shrink Profile's fat "Settings & Controls" list to the design-07 short set + gear→Settings; Settings is the one home; merge the two Notifications screens; **delete the dead Units link** (points at removed EditProfile units field).
+
+## Execution order (each shippable alone)
+1. Group switcher sheet + chat icon on Today header (kills 90% of the felt confusion; chip stops navigating to the hub).
+2. GroupInfo slim screen in the Groups stack + GroupSettings restyle; move charts/photos/issues links there.
+3. Retire GroupDetail route (redirect → Today), delete after a release of soak.
+4. De-route LogToday/Add* from primary nav; SetGoals fold-in.
+```
+
+## STATUS — ALL 4 STEPS SHIPPED (July 2026 overnight run)
+- **IA-1 ✅** (7019f32): Today group chip → `GroupSwitcherSheet` (was → hub); 1-tap 💬 `chat-outline` icon → GroupChat; compact rank chip (diamond + tier); replaced placeholder header glyphs (music-note "bell", text chevron) with real vector icons.
+- **IA-2 ✅** (d556008): new `GroupInfoScreen` (Groups stack) = the one group home (hero, invite code, Chat/Charts/Photos/Leaderboard/Issues links, member list, ⚙ settings). Gear on each `GroupCard` opens it; card body still = set active + go Today. **Group admin member management** lives here (`removeMemberAsAdmin`, self-heals removed user's list via membership check in `subscribeMyGroups`). GroupSettings → grouped rows (Rules · Identity · Danger). Also removed leftover debug `fetch` to 127.0.0.1:7242 in groups.ts.
+- **IA-3 ✅** (0e7fa44): GroupDetailScreen gutted to a thin redirect (was 1121 lines). Create → GroupInfo (active set); Join → active set + Today. Issues de-orphaned into Groups stack. SetGoals/LogToday de-routed (still registered for soak).
+- **IA-4 ✅** (f69722b): Profile fat list → short "Profile & progress" set (Goals·Season·MMR·Health sync·Settings). Dead **Units** link + Privacy/Export placeholders deleted. Reminder scheduler now reached from Settings → "Reminder schedule".
+
+Follow-ups left for a later pass: delete the retired GroupDetail/SetGoals/LogToday files+routes after a soak release; charts may later merge into Progress; GroupChat custom header (name + "N members" + pinned bar) still uses the native stack header.

@@ -1,35 +1,45 @@
 import React from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
-import { Icon, useTheme } from 'react-native-paper';
+import { Icon } from 'react-native-paper';
+
 import ProgressBar from '../ui/ProgressBar';
+import AppText from '../ui/AppText';
+import { colors, spacing, radius } from '../../theme';
 
 type OnboardingHeaderProps = {
   currentStep: number;
   totalSteps: number;
   showBack: boolean;
   onBack: () => void;
+  /** Show the "n/total" step label on the right (design 02). */
+  showStepLabel?: boolean;
 };
 
-export default function OnboardingHeader({ currentStep, totalSteps, showBack, onBack }: OnboardingHeaderProps) {
-  const theme = useTheme();
+export default function OnboardingHeader({ currentStep, totalSteps, showBack, onBack, showStepLabel = true }: OnboardingHeaderProps) {
   const progress = currentStep / totalSteps;
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View style={styles.container}>
       <View style={styles.content}>
         {showBack && (
           <TouchableOpacity
             onPress={onBack}
-            style={[styles.backButton, { backgroundColor: theme.colors.surface }]}
+            style={styles.backButton}
             accessibilityLabel="Go back"
             accessibilityRole="button"
+            hitSlop={8}
           >
-            <Icon source="chevron-left" size={24} color={theme.colors.onSurface} />
+            <Icon source="chevron-left" size={22} color={colors.textPrimary} />
           </TouchableOpacity>
         )}
         <View style={styles.progressContainer}>
-          <ProgressBar progress={progress} height={4} />
+          <ProgressBar progress={progress} height={5} />
         </View>
+        {showStepLabel && (
+          <AppText variant="label" color="muted" style={styles.stepLabel}>
+            {currentStep}/{totalSteps}
+          </AppText>
+        )}
       </View>
     </View>
   );
@@ -37,23 +47,28 @@ export default function OnboardingHeader({ currentStep, totalSteps, showBack, on
 
 const styles = StyleSheet.create({
   container: {
-    paddingTop: 16,
-    paddingBottom: 12,
-    paddingHorizontal: 16,
+    paddingTop: spacing.base,
+    paddingBottom: spacing.md,
+    paddingHorizontal: spacing.lg,
   },
   content: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: spacing.md,
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
+    width: 36,
+    height: 36,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surface,
     justifyContent: 'center',
     alignItems: 'center',
   },
   progressContainer: {
     flex: 1,
+  },
+  stepLabel: {
+    minWidth: 28,
+    textAlign: 'right',
   },
 });

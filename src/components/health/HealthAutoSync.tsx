@@ -5,6 +5,8 @@ import Constants from 'expo-constants';
 import { AuthContext } from '../../store/AuthContext';
 import { useActiveGroup } from '../../store/ActiveGroupContext';
 import { subscribeHealthSettings, type HealthSettings } from '../../services/healthSettings';
+// Importing this module also defines the background task (required at import time).
+import { registerBackgroundHealthSync } from '../../services/health/backgroundHealthSync';
 
 /**
  * Component that automatically syncs health data when app comes to foreground
@@ -59,6 +61,36 @@ export default function HealthAutoSync() {
       });
   }, [user, activeGroupId, settings]);
 
+  // Register the OS-scheduled background sync task once (runs even when the app
+  // is closed). It self-checks user/group/settings, so registering is safe.
+  useEffect(() => {
+    if (isExpoGo) return;
+    void registerBackgroundHealthSync();
+  }, [isExpoGo]);
+
+  // iOS HealthKit background delivery: fire a sync near-instantly when new
+  // workouts/calories/weight land in Apple Health (Strava-style). No-op on
+  // Android (covered by the periodic background task).
+  useEffect(() => {
+    if (isExpoGo || !user || !activeGroupId || !settings) return;
+    if (!settings.syncWorkouts && !settings.syncCalories && !settings.syncWeight) return;
+
+    let cleanup: (() => void) | null = null;
+    let active = true;
+    void import('../../services/health/healthService')
+      .then((HS) => HS.setupBackgroundObservers(() => triggerSync('foreground')))
+      .then((c) => {
+        if (active) cleanup = c;
+        else c();
+      })
+      .catch((e) => console.warn('[HealthAutoSync] background observers setup failed', e));
+
+    return () => {
+      active = false;
+      if (cleanup) cleanup();
+    };
+  }, [user, activeGroupId, settings, isExpoGo, triggerSync]);
+
   // Subscribe to health settings
   useEffect(() => {
     if (isExpoGo) {
@@ -75,6 +107,10 @@ export default function HealthAutoSync() {
     return subscribeHealthSettings(
       user.uid,
       (newSettings) => {
+        if (!newSettings) {
+          setSettings(null);
+          return;
+        }
         console.log('[HealthAutoSync] Settings loaded:', {
           syncWorkouts: newSettings.syncWorkouts,
           syncCalories: newSettings.syncCalories,

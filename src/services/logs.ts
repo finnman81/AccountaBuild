@@ -8,6 +8,7 @@ import {
   orderBy,
   query,
   serverTimestamp,
+  setDoc,
   where,
 } from 'firebase/firestore';
 
@@ -44,6 +45,8 @@ export type GroupLog = {
   ts?: unknown;
   source?: 'self_reported' | 'apple_health' | 'google_fit' | 'mixed' | string;
   payload: Record<string, unknown>;
+  /** Cheers/reactions on this log: uid → emoji. */
+  reactions?: Record<string, string>;
 };
 
 function normalizeLogDate(date?: string) {
@@ -144,6 +147,45 @@ export async function addPhotoLog(params: {
   });
   await touchGroupActivity(params.groupId);
   return res;
+}
+
+/**
+ * Idempotent upsert of a log at a caller-chosen doc id (used by health sync, which
+ * derives a stable id from the sample UUID so re-syncing overwrites instead of
+ * duplicating). Returns the log id.
+ */
+export async function upsertGroupLogById(
+  groupId: string,
+  logId: string,
+  data: { uid: string; type: LogType; date?: string; source?: string; payload: Record<string, unknown> },
+): Promise<string> {
+  await setDoc(
+    doc(db, 'groups', groupId, 'logs', logId),
+    {
+      uid: data.uid,
+      type: data.type,
+      date: normalizeLogDate(data.date),
+      ts: serverTimestamp(),
+      source: data.source ?? 'self_reported',
+      payload: data.payload,
+    },
+    { merge: true },
+  );
+  await touchGroupActivity(groupId);
+  return logId;
+}
+
+/** Delete a log by id (used when a synced health sample was deleted in Health). */
+export async function deleteGroupLogById(groupId: string, logId: string): Promise<void> {
+  await deleteDoc(doc(db, 'groups', groupId, 'logs', logId));
+}
+
+/**
+ * Toggle a reaction (cheer) on a log. Reactions are stored as a map on the log
+ * doc: `reactions[uid] = emoji`. Passing null clears the current user's reaction.
+ */
+export async function setLogReaction(groupId: string, logId: string, uid: string, emoji: string | null): Promise<void> {
+  await setDoc(doc(db, 'groups', groupId, 'logs', logId), { reactions: { [uid]: emoji } }, { merge: true });
 }
 
 export function subscribeGroupLogs(

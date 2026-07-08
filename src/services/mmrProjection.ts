@@ -4,8 +4,9 @@ import { db } from '../firebase/firebase';
 import { missedWeekPenalty, partialWeekPenalty, streakMultiplier } from '../mmr/constants';
 import { D_calDays, D_minutes, D_workouts, D_weightGain, D_weightLoss } from '../mmr/difficulty';
 import { applyRankWithDemotionRules, bandForMMR } from '../mmr/ranks';
-import { combineWeekScore, goalScore } from '../mmr/scoring';
-import { DEFAULT_TZ, isoWeekIdInTz, isoWeekRangeInTz } from '../mmr/time';
+import { lowerTierProgressBonus } from '../mmr/progression';
+import { breadthFactor, combineWeekScore, coreCategoryCount, goalScore } from '../mmr/scoring';
+import { DEFAULT_TZ, isoWeekIdInTz, isoWeekRangeInTz, yyyyMmDdInTz } from '../mmr/time';
 import type { Tier } from '../mmr/types';
 
 type GoalDoc = any;
@@ -90,7 +91,16 @@ function computeProjection(params: {
   weights: Array<{ date: string; weight: number; tsMs: number | null }>;
   calorieDaysMet: Set<string>;
 }): MmrProjection {
-  const { start, end } = isoWeekRangeInTz(params.weekId, DEFAULT_TZ);
+  const { start, end, dates } = isoWeekRangeInTz(params.weekId, DEFAULT_TZ);
+
+  // Pace-aware achievement: judge "are you on track SO FAR", not "did you finish
+  // the whole week's target already". Early in the week, hitting your per-day pace
+  // counts as on-track (1 of 5 workouts on Monday is perfect pace, not a miss).
+  // At week's end elapsedFrac = 1, so this collapses to actual/target.
+  const today = yyyyMmDdInTz(new Date(), DEFAULT_TZ);
+  const daysElapsed = today > end ? 7 : Math.max(1, Math.min(7, dates.filter((d) => d <= today).length));
+  const elapsedFrac = daysElapsed / 7;
+  const paceA = (actual: number, target: number) => clamp(0, 1, actual / Math.max(0.0001, (target || 1) * elapsedFrac));
 
   let workoutsDone = 0;
   let minutesDone = 0;
@@ -107,7 +117,7 @@ function computeProjection(params: {
 
   if ((params.goals.workouts?.status ?? 'active') === 'active' && Number.isFinite(params.goals.workouts?.targetWorkoutsPerWeek)) {
     const t = Number(params.goals.workouts.targetWorkoutsPerWeek);
-    const A = clamp(0, 1, workoutsDone / (t || 1));
+    const A = paceA(workoutsDone, t);
     const D = D_workouts(t);
     const O = A;
     active.push({ id: 'workouts', type: 'workouts', D, A, O, score: goalScore(D, A, O) });
@@ -115,7 +125,7 @@ function computeProjection(params: {
 
   if ((params.goals.minutes?.status ?? 'active') === 'active' && Number.isFinite(params.goals.minutes?.targetMinutesPerWeek)) {
     const t = Number(params.goals.minutes.targetMinutesPerWeek);
-    const A = clamp(0, 1, minutesDone / (t || 1));
+    const A = paceA(minutesDone, t);
     const D = D_minutes(t);
     const O = A;
     active.push({ id: 'minutes', type: 'minutes', D, A, O, score: goalScore(D, A, O) });
@@ -123,7 +133,7 @@ function computeProjection(params: {
 
   if ((params.goals.calorieDays?.status ?? 'active') === 'active' && Number.isFinite(params.goals.calorieDays?.targetDaysPerWeek)) {
     const t = Number(params.goals.calorieDays.targetDaysPerWeek);
-    const A = clamp(0, 1, calorieDaysHit / (t || 1));
+    const A = paceA(calorieDaysHit, t);
     const D = D_calDays(t);
     const O = A;
     active.push({ id: 'calorieDays', type: 'calorieDays', D, A, O, score: goalScore(D, A, O) });
@@ -178,25 +188,17 @@ function computeProjection(params: {
   const missedIfEndedNow = !anyActivity || A_total < 0.5;
   const partialIfEndedNow = !missedIfEndedNow && !completedIfEndedNow;
 
-  const weekScore = combineWeekScore(active.map((g) => g.score));
+  const breadth = breadthFactor(coreCategoryCount(active.map((g) => g.id)));
+  const weekScore = combineWeekScore(active.map((g) => g.score)) * breadth;
   const streakIfEndedNow = completedIfEndedNow ? params.streakWeeks + 1 : 0;
   const S = streakMultiplier(streakIfEndedNow);
 
   const penalty = missedIfEndedNow ? missedWeekPenalty(params.mmrBefore) : partialIfEndedNow ? partialWeekPenalty(params.mmrBefore) : 0;
   
-  // Lower tier progression bonus: Give bonus MMR for completed weeks in lower tiers
+  // Small flat encouragement bonus for a completed week in the lower tiers.
   const oldBand = bandForMMR(params.mmrBefore);
-  const lowerTierBonus = (() => {
-    if (!completedIfEndedNow) return 0;
-    const tier = oldBand.tier;
-    // Only apply to lower tiers: Iron, Bronze, Silver, Gold
-    if (tier === 'Iron' || tier === 'Bronze' || tier === 'Silver' || tier === 'Gold') {
-      const divisionWidth = oldBand.max - oldBand.min + 1;
-      return divisionWidth;
-    }
-    return 0;
-  })();
-  
+  const lowerTierBonus = lowerTierProgressBonus(oldBand.tier, completedIfEndedNow);
+
   const deltaMMRProjected = weekScore * S - penalty + lowerTierBonus;
   const mmrProjected = Math.max(0, Math.round(params.mmrBefore + deltaMMRProjected));
   const ranked = applyRankWithDemotionRules({
@@ -236,7 +238,7 @@ export function subscribeMyMmrProjection(uid: string, onChange: (p: MmrProjectio
   let userMmr: number | null = null;
   let userMp: number | null = null;
   let streakWeeks = 0;
-  let tierShieldWeeksRemaining = 5; // Default 5 shields for testing
+  let tierShieldWeeksRemaining = 0;
   let seasonId = '';
   let goals: Record<string, GoalDoc> = {};
   let workouts: Array<{ date: string; durationMinutes: number }> = [];
@@ -304,7 +306,7 @@ export function subscribeMyMmrProjection(uid: string, onChange: (p: MmrProjectio
         userMmr = typeof d?.mmr === 'number' ? Number(d.mmr) : null;
         userMp = typeof d?.mp === 'number' ? Number(d.mp) : typeof d?.lp === 'number' ? Number(d.lp) : 0; // Backward compat
         streakWeeks = typeof d?.streakWeeks === 'number' ? Number(d.streakWeeks) : 0;
-        tierShieldWeeksRemaining = typeof d?.tierShieldWeeksRemaining === 'number' ? Number(d.tierShieldWeeksRemaining) : 5; // Default 5 shields for testing
+        tierShieldWeeksRemaining = typeof d?.tierShieldWeeksRemaining === 'number' ? Number(d.tierShieldWeeksRemaining) : 0;
         seasonId = String(d?.currentSeasonId ?? '').trim();
         emit();
       },

@@ -10,19 +10,22 @@ service firebase.storage {
         firestore.get(/databases/(default)/documents/groups/$(groupId)).data.createdBy == request.auth.uid;
     }
 
+    // Group progress photos (timeline of files under photos/{uid}/).
     match /groups/{groupId}/photos/{uid}/{allPaths=**} {
       allow read: if signedIn();
       allow write: if signedIn() && request.auth.uid == uid;
     }
 
-    // User profile avatars
-    match /users/{uid}/avatar/{allPaths=**} {
+    // User profile files (e.g. users/{uid}/avatar.jpg). The owner may write; any
+    // signed-in user may read (avatars show across groups).
+    match /users/{uid}/{allPaths=**} {
       allow read: if signedIn();
       allow write: if signedIn() && request.auth.uid == uid;
     }
 
-    // Group logos (creator/admin controlled)
-    match /groups/{groupId}/logo/{allPaths=**} {
+    // Group logo (a single file directly under the group folder, e.g. logo.jpg).
+    // The nested photos/ rule above is more specific and still governs photos.
+    match /groups/{groupId}/{logoFile} {
       allow read: if signedIn();
       allow write: if isGroupCreator(groupId);
     }

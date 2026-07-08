@@ -60,6 +60,11 @@ service cloud.firestore {
       match /healthSettings/{settingsId} {
         allow read, write: if signedIn() && request.auth.uid == uid;
       }
+      // Activity feed (cheers/nudges received, rank changes). The owner reads +
+      // marks read; the Cloud Function writes via admin (bypasses rules).
+      match /activity/{activityId} {
+        allow read, write: if signedIn() && request.auth.uid == uid;
+      }
     }
 
     // Global season metadata (for countdown / UI). Any signed-in user can read.
@@ -81,6 +86,18 @@ service cloud.firestore {
     // Per-viewer visibility index: visibility/{viewerUid}/canSee/{targetUid}
     match /visibility/{viewerUid}/canSee/{targetUid} {
       allow read, write: if signedIn() && request.auth.uid == viewerUid;
+    }
+
+    // Social-push queue: the app enqueues a cheer/nudge here; a Cloud Function
+    // (admin) reads it, sends the push, and deletes it. Clients may only CREATE
+    // their own outgoing items and never read the queue (recipients' push tokens
+    // stay private, read only by the function).
+    match /pushQueue/{id} {
+      allow create: if signedIn()
+        && request.resource.data.fromUid == request.auth.uid
+        && request.resource.data.toUid is string
+        && (request.resource.data.type == 'cheer' || request.resource.data.type == 'nudge');
+      allow read, update, delete: if false;
     }
 
     // Join-code lookup table so non-members can join without reading all groups.
@@ -106,8 +123,8 @@ service cloud.firestore {
         return request.resource.data.diff(resource.data).changedKeys().hasOnly(['memberCount', 'lastActivityAt', 'updatedAt']);
       }
       function isGroupSettingsUpdate() {
-        // Allow admins to update lightweight settings.
-        return request.resource.data.diff(resource.data).changedKeys().hasOnly(['streakRule', 'updatedAt']);
+        // Allow admins to update lightweight settings (streak rule + challenge).
+        return request.resource.data.diff(resource.data).changedKeys().hasOnly(['streakRule', 'challenge', 'updatedAt']);
       }
       allow update: if (signedIn() && request.auth.uid == resource.data.createdBy) ||
         (isGroupMember(groupId) && isGroupMetaUpdate()) ||
@@ -126,13 +143,24 @@ service cloud.firestore {
         // Note: We don't check groupExists() because exists() requires read permission.
         // If the join code exists, the group exists (join codes are cleaned up on delete).
         allow create: if signedIn() && request.auth.uid == uid;
-        allow update, delete: if signedIn() && request.auth.uid == uid;
+        // A user manages their own membership; a group admin may also update
+        // (promote/demote) or delete (remove) any member EXCEPT the creator.
+        allow update, delete: if signedIn() && (
+          request.auth.uid == uid ||
+          (isGroupAdmin(groupId) && get(/databases/$(database)/documents/groups/$(groupId)).data.createdBy != uid)
+        );
       }
 
       match /logs/{logId} {
         allow read: if isGroupMember(groupId);
         allow create: if isGroupMember(groupId);
-        allow update, delete: if signedIn() && request.auth.uid == resource.data.uid;
+        // The log owner may edit/delete their log. Any group member may update
+        // ONLY the `reactions` map (cheers) on another member's log.
+        allow update: if signedIn() && (
+          request.auth.uid == resource.data.uid ||
+          (isGroupMember(groupId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions']))
+        );
+        allow delete: if signedIn() && request.auth.uid == resource.data.uid;
       }
 
       match /goals/{uid} {

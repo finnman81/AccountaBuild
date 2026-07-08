@@ -13,10 +13,12 @@ import {
 } from 'firebase/firestore';
 
 import { db } from '../firebase/firebase';
-import { RULES_VERSION, missedWeekPenalty, partialWeekPenalty, streakMultiplier } from '../mmr/constants';
+import { RULES_VERSION, STARTING_MMR, missedWeekPenalty, partialWeekPenalty, streakMultiplier } from '../mmr/constants';
 import { D_calDays, D_minutes, D_workouts, D_weightGain, D_weightLoss } from '../mmr/difficulty';
 import { bandForMMR, bandOrderIndex, applyRankWithDemotionRules, isStrictlyHigher, mpForMMR } from '../mmr/ranks';
-import { combineWeekScore, goalScore } from '../mmr/scoring';
+import { calorieDaysHitFromTotals } from '../mmr/adherence';
+import { lowerTierProgressBonus, nextShieldWeeks } from '../mmr/progression';
+import { breadthFactor, combineWeekScore, coreCategoryCount, goalScore } from '../mmr/scoring';
 import { DEFAULT_TZ, isoWeekIdInTz, isoWeekRangeInTz, nextIsoWeekId, seasonIdFromDate, zonedNoonUtcFromYmd } from '../mmr/time';
 
 type GoalDoc = any;
@@ -135,13 +137,6 @@ async function getWeekCalorieTotalsFromLogs(
   return { totalsByDate, totalCalories };
 }
 
-function countCalorieDaysHitFromTotals(
-  totalsByDate: Record<string, number>,
-  dailyCalorieGoal: number | null,
-): number {
-  // Simple binary check: if calories were logged for the day, it counts
-  return Object.values(totalsByDate).reduce((sum, total) => (total > 0 ? sum + 1 : sum), 0);
-}
 function pickWeeklyWeights(weights: Array<{ date: string; weight: number; tsMs: number | null }>, start: string, end: string) {
   // We want "latest weigh-in per day" (same logic as Profile chart dedupe).
   // Also treat pending timestamps (tsMs=null) as newest so same-day updates show immediately.
@@ -304,7 +299,7 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
     calorieDaysHit = calorieDayHits;
     calorieTotalsByDate = calorieTotals.totalsByDate;
     totalCaloriesLogged = calorieTotals.totalCalories;
-    const calorieDaysFromLogs = countCalorieDaysHitFromTotals(calorieTotalsByDate, dailyCalorieGoal);
+    const calorieDaysFromLogs = calorieDaysHitFromTotals(calorieTotalsByDate, dailyCalorieGoal);
     if (calorieDaysFromLogs > calorieDaysHit) {
       calorieDaysHit = calorieDaysFromLogs;
     }
@@ -346,7 +341,7 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
   }
 
   // Weight loss / gain (optional)
-  let weightBonus = 0;
+  let weightBonusRaw = 0;
   let weightGoalUpdate: { docId: string; patch: Record<string, unknown> } | null = null;
 
   const weightGoal = (goals.weightLoss?.status === 'active' ? goals.weightLoss : goals.weightGain?.status === 'active' ? goals.weightGain : null) as any | null;
@@ -376,7 +371,7 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
 
         const reached = Wt <= Wg;
         if (reached && !weightGoal.completionBonusAwarded) {
-          weightBonus = 300 * D_base;
+          weightBonusRaw = 300 * D_base;
           weightGoalUpdate = { docId: 'weightLoss', patch: { completionBonusAwarded: true, status: 'completed', completionDate: serverTimestamp() } };
         }
       } else {
@@ -396,7 +391,7 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
 
         const reached = Wt >= Wg;
         if (reached && !weightGoal.completionBonusAwarded) {
-          weightBonus = 300 * D_base;
+          weightBonusRaw = 300 * D_base;
           weightGoalUpdate = { docId: 'weightGain', patch: { completionBonusAwarded: true, status: 'completed', completionDate: serverTimestamp() } };
         }
       }
@@ -418,7 +413,10 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
   const partialWeek = !missedWeek && !completedWeek;
 
   const scores = active.map((g) => g.score);
-  const weekScore = combineWeekScore(scores);
+  // Breadth: tracking more of the 3 core categories levels you up faster.
+  const coreCategories = coreCategoryCount(active.map((g) => g.id));
+  const breadth = breadthFactor(coreCategories);
+  const weekScore = combineWeekScore(scores) * breadth;
 
   // Transaction update
   try {
@@ -432,10 +430,22 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
     const weeklySnap = await tx.get(weeklyRef);
     const weeklyData = weeklySnap.exists() ? (weeklySnap.data() as any) : null;
 
+    // Weight-goal completion bonus, gated on a read of the goal doc *inside* this
+    // transaction. Because the goal doc is both read here and written below when we
+    // award, Firestore serializes competing writers, so re-runs and concurrent runs
+    // of the same week can no longer double-award the +300 bonus.
+    let weightBonus = 0;
+    if (weightGoalUpdate) {
+      const goalRef = doc(db, 'users', uid, 'goals', weightGoalUpdate.docId);
+      const goalSnap = await tx.get(goalRef);
+      const alreadyAwarded = goalSnap.exists() && (goalSnap.data() as any)?.completionBonusAwarded === true;
+      if (!alreadyAwarded) weightBonus = weightBonusRaw;
+    }
+
     // Idempotency: if this week was already computed once, reuse the same baseline
     // so re-running doesn't stack penalties/deltas.
     // Safety: ensure mmrBefore is never negative (fixes any bad data)
-    const rawMmrBefore = weeklyData && typeof weeklyData?.mmrBefore === 'number' ? Number(weeklyData.mmrBefore) : typeof userData?.mmr === 'number' ? Number(userData.mmr) : 1000;
+    const rawMmrBefore = weeklyData && typeof weeklyData?.mmrBefore === 'number' ? Number(weeklyData.mmrBefore) : typeof userData?.mmr === 'number' ? Number(userData.mmr) : STARTING_MMR;
     const mmrBefore = Math.max(0, rawMmrBefore); // Ensure never negative
     const oldBand = bandForMMR(mmrBefore);
     const rankBefore = rankObjFromBand(mmrBefore, oldBand);
@@ -452,7 +462,7 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
         ? Number(weeklyData.shieldBefore)
         : typeof userData?.tierShieldWeeksRemaining === 'number'
           ? Number(userData.tierShieldWeeksRemaining)
-          : 5; // Default 5 shields for testing
+          : 0;
 
     // Track first participation week: only count missed weeks from when user started
     // This prevents counting weeks before the user joined as "missed"
@@ -480,23 +490,9 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
     // Only apply penalties for past weeks that were actually missed
     const penalty = isCurrentWeek ? 0 : (missedWeek ? missedWeekPenalty(mmrBefore) : partialWeek ? partialWeekPenalty(mmrBefore) : 0);
     
-    // Lower tier progression bonus: Give bonus MMR for completed weeks in lower tiers to ensure ~1 division progress per week
-    // Completed week = A_total >= 0.7 (user hit all their marks)
-    const lowerTierBonus = (() => {
-      if (!completedWeek) return 0;
-      const tier = oldBand.tier;
-      // Only apply to lower tiers: Iron, Bronze, Silver, Gold
-      if (tier === 'Iron' || tier === 'Bronze' || tier === 'Silver' || tier === 'Gold') {
-        // Calculate how much MMR is needed to reach the next division
-        // Each division is roughly 200-250 MMR wide
-        // We want to give enough bonus to guarantee at least 1 division progress
-        const divisionWidth = oldBand.max - oldBand.min + 1; // e.g., 250 for Iron IV, 200 for Bronze IV
-        // Give bonus equal to division width to ensure promotion to next division
-        return divisionWidth;
-      }
-      return 0;
-    })();
-    
+    // Small flat encouragement bonus for a completed week in the lower tiers.
+    const lowerTierBonus = lowerTierProgressBonus(oldBand.tier, completedWeek);
+
     const bonus = weightBonus + lowerTierBonus;
     const deltaMMR = weekScore * S - penalty + bonus;
     // Ensure MMR never goes below 0 (safety check)
@@ -508,14 +504,26 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
     const rankAfter = { tier: band.tier, division: band.division ?? null, mp };
 
     const tierPromoted = band.tier !== oldBand.tier && isStrictlyHigher(band, oldBand);
-    let shieldAfter = tierPromoted ? 2 : shieldBefore;
-    if (completedWeek && shieldAfter > 0 && !tierPromoted) shieldAfter = Math.max(0, shieldAfter - 1);
+
+    // Log a rank change to the user's Activity feed (deterministic id per week +
+    // kind so idempotent recomputes don't duplicate).
+    const ROMAN_A = ['', 'I', 'II', 'III', 'IV'];
+    const rankLabel = `${band.tier}${band.division ? ` ${ROMAN_A[band.division]}` : ''}`;
+    if (bandOrderIndex(band) > bandOrderIndex(oldBand)) {
+      tx.set(doc(db, 'users', uid, 'activity', `${weekId}-promotion`), {
+        type: 'promotion', title: '⬆ Promoted!', body: `You climbed to ${rankLabel}.`, read: false, createdAt: serverTimestamp(),
+      }, { merge: true });
+    } else if (bandOrderIndex(band) < bandOrderIndex(oldBand)) {
+      tx.set(doc(db, 'users', uid, 'activity', `${weekId}-demotion`), {
+        type: 'demotion', title: '⬇ Rank slipped', body: `You dropped to ${rankLabel}. Log this week to climb back.`, read: false, createdAt: serverTimestamp(),
+      }, { merge: true });
+    }
 
     // Don't count missed weeks for weeks before user joined
     const consecutiveMissedWeeks = isWeekBeforeFirst ? 0 : (missedWeek ? missedBefore + 1 : 0);
-    // Only reset shields to 0 if user has 2+ consecutive missed weeks AND shields are low (testing: preserve manually set high shields)
-    // This allows admins to manually set shields to 5 for testing without them being immediately reset
-    if (consecutiveMissedWeeks >= 2 && shieldAfter < 3) shieldAfter = 0;
+    // Shield: granted (2) on tier promotion, ticks down on completed weeks,
+    // breaks after 2 consecutive missed weeks (see mmr/progression.ts).
+    const shieldAfter = nextShieldWeeks({ shieldBefore, tierPromoted, completedWeek, consecutiveMissedWeeks });
 
     // Season peak tracking (current season only)
     const peak = (userData?.seasonPeak?.seasonId === seasonId ? userData.seasonPeak : null) as
@@ -599,9 +607,13 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
         // Summary
         A_total,
         weekScore,
+        breadthFactor: breadth,
+        coreCategories,
         streakMultiplier: S,
         penalty,
         bonus,
+        weightBonus,
+        lowerTierBonus,
         deltaMMR,
         mmrBefore: Math.max(0, mmrBefore), // Safety: ensure never negative in weekly record
         mmrAfter: newMMR,
@@ -632,6 +644,11 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
       rankTier: band.tier,
       rankDivision: band.division ?? null,
       mp,
+      // Snapshot the rank entering this week (= last week's close) so the
+      // leaderboard can show week-over-week movement arrows.
+      prevMmr: mmrBefore,
+      prevRankTier: oldBand.tier,
+      prevRankDivision: oldBand.division ?? null,
       streakWeeks: streakAfter,
       tierShieldWeeksRemaining: shieldAfter,
       consecutiveMissedWeeks,
@@ -655,13 +672,17 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
         rankTierPublic: band.tier,
         rankDivisionPublic: band.division ?? null,
         mpPublic: mp,
+        // Week-over-week baseline for leaderboard movement arrows.
+        prevMmrPublic: mmrBefore,
         seasonIdPublic: seasonId,
         updatedAtPublic: serverTimestamp(),
       },
       { merge: true },
     );
 
-    if (weightGoalUpdate) {
+    // Only write the goal's completion patch when we actually awarded the bonus
+    // this run, so a re-run (which reads alreadyAwarded=true) is a no-op.
+    if (weightGoalUpdate && weightBonus > 0) {
       tx.set(doc(db, 'users', uid, 'goals', weightGoalUpdate.docId), weightGoalUpdate.patch, { merge: true });
     }
     });

@@ -29,6 +29,9 @@ export type PublicUser = {
   rankTierPublic?: string | null;
   rankDivisionPublic?: number | null;
   mpPublic?: number | null;
+  prevMmrPublic?: number | null;
+  /** Whether teammates are allowed to nudge this user (mirrors the setting). */
+  allowNudges?: boolean;
 };
 
 function chunk<T>(arr: T[], size: number) {
@@ -50,6 +53,7 @@ export async function upsertMyPublicUser(uid: string, data: Partial<PublicUser>)
   if (data.workoutsPerWeek !== undefined) patch.workoutsPerWeek = data.workoutsPerWeek;
   if (data.logCaloriesDaysPerWeek !== undefined) patch.logCaloriesDaysPerWeek = data.logCaloriesDaysPerWeek;
   if (data.logWeightDaysPerWeek !== undefined) patch.logWeightDaysPerWeek = data.logWeightDaysPerWeek;
+  if (data.allowNudges !== undefined) patch.allowNudges = data.allowNudges;
 
   await setDoc(doc(db, 'publicUsers', uid), patch, { merge: true });
 }
@@ -96,6 +100,8 @@ export function subscribePublicUsers(uids: string[], onChange: (map: Record<stri
           rankTierPublic: data?.rankTierPublic ?? null,
           rankDivisionPublic: typeof data?.rankDivisionPublic === 'number' ? data.rankDivisionPublic : null,
           mpPublic: typeof data?.mpPublic === 'number' ? data.mpPublic : typeof data?.lpPublic === 'number' ? data.lpPublic : null, // Backward compat
+          prevMmrPublic: typeof data?.prevMmrPublic === 'number' ? data.prevMmrPublic : null,
+          allowNudges: data?.allowNudges === true,
         };
       }
       emit();

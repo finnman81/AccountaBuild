@@ -26,7 +26,7 @@
       "notificationMode": "production"
     },
     "android": {
-      "package": "com.accountabuild.app",
+      "package": "com.munitor.accountabuild",
       "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
@@ -36,7 +36,10 @@
         "android.permission.ACTIVITY_RECOGNITION",
         "android.permission.BODY_SENSORS",
         "android.permission.ACCESS_FINE_LOCATION",
-        "android.permission.POST_NOTIFICATIONS"
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.health.READ_EXERCISE",
+        "android.permission.health.READ_NUTRITION",
+        "android.permission.health.READ_WEIGHT"
       ],
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
@@ -59,13 +62,6 @@
         {
           "photosPermission": "AccountaBuild needs access to your photos to upload progress photos and profile pictures.",
           "cameraPermission": "AccountaBuild needs access to your camera to take photos for your progress logs."
-        }
-      ],
-      [
-        "@kingstinct/react-native-healthkit",
-        {
-          "healthSharePermission": "AccountaBuild needs access to your health data to automatically sync workouts, calories, and weight from Apple Health.",
-          "healthUpdatePermission": "AccountaBuild needs permission to read your health data from Apple Health."
         }
       ]
     ],

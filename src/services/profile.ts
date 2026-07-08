@@ -5,6 +5,16 @@ import { upsertMyPublicUser } from './publicUsers';
 import { upsertGoal } from './mmrGoals';
 import { DEFAULT_TZ, yyyyMmDdInTz } from '../mmr/time';
 
+/** Add N days to a YYYY-MM-DD string (noon anchor avoids DST edge cases). */
+function addDaysToYmd(ymd: string, days: number): string {
+  const d = new Date(`${ymd}T12:00:00`);
+  d.setDate(d.getDate() + days);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dd}`;
+}
+
 export type UserProfile = {
   uid: string;
   email: string | null;
@@ -15,6 +25,8 @@ export type UserProfile = {
   weightCurrent: number | null;
   weightGoal: number | null;
   weightTargetDate: string | null; // YYYY-MM-DD
+  /** Display-units preference (weight is always STORED in lb regardless). */
+  units?: 'imperial' | 'metric' | null;
   // User-level goals (persist across groups)
   dailyCalorieGoal?: number | null;
   workoutsPerWeek?: number | null;
@@ -45,6 +57,7 @@ export function subscribeMyProfile(
         weightCurrent: data.weightCurrent ?? null,
         weightGoal: data.weightGoal ?? null,
         weightTargetDate: data.weightTargetDate ?? null,
+        units: data.units === 'metric' ? 'metric' : data.units === 'imperial' ? 'imperial' : null,
         dailyCalorieGoal: typeof data.dailyCalorieGoal === 'number' ? data.dailyCalorieGoal : null,
         workoutsPerWeek: typeof data.workoutsPerWeek === 'number' ? data.workoutsPerWeek : null,
         logCaloriesDaysPerWeek: typeof data.logCaloriesDaysPerWeek === 'number' ? data.logCaloriesDaysPerWeek : null,
@@ -106,24 +119,14 @@ export async function updateMyProfile(params: {
     const snap = await getDoc(doc(db, 'users', params.uid));
     const u = snap.exists() ? ((snap.data() as any) ?? {}) : {};
     const weightGoal = u.weightGoal as number | null | undefined;
-    const targetDate = (u.weightTargetDate as string | null | undefined) ?? null;
-
-    // If either is missing/cleared, pause both weight goals.
-    if (!weightGoal || !targetDate) {
-      await Promise.all([
-        upsertGoal(params.uid, 'weightLoss', { type: 'weightLoss', status: 'paused' }),
-        upsertGoal(params.uid, 'weightGain', { type: 'weightGain', status: 'paused' }),
-      ]);
-      return;
-    }
 
     // Start of timeline: lock in start date + start weight when first enabled.
     const today = yyyyMmDdInTz(new Date(), DEFAULT_TZ);
     const startDate = (u.weightGoalStartDate as string | null | undefined) ?? today;
     const startWeight = (u.weightGoalStartWeight as number | null | undefined) ?? (u.weightCurrent as number | null | undefined);
 
-    if (!startWeight || startWeight <= 0) {
-      // Can't build a timeline without a start weight; pause until user sets current weight.
+    // Need a goal + a start weight to build a timeline; otherwise pause.
+    if (!weightGoal || !startWeight || startWeight <= 0) {
       await Promise.all([
         upsertGoal(params.uid, 'weightLoss', { type: 'weightLoss', status: 'paused' }),
         upsertGoal(params.uid, 'weightGain', { type: 'weightGain', status: 'paused' }),
@@ -131,10 +134,15 @@ export async function updateMyProfile(params: {
       return;
     }
 
-    // Persist locked timeline anchors if missing.
+    // Default the target end date to 12 weeks out from the start when the user
+    // hasn't picked one (start date already defaults to today, above).
+    const targetDate = ((u.weightTargetDate as string | null | undefined) ?? null) || addDaysToYmd(startDate, 84);
+
+    // Persist locked timeline anchors + the defaulted target date if missing.
     const anchorsPatch: Record<string, unknown> = {};
     if (u.weightGoalStartDate == null) anchorsPatch.weightGoalStartDate = startDate;
     if (u.weightGoalStartWeight == null) anchorsPatch.weightGoalStartWeight = startWeight;
+    if (u.weightTargetDate == null) anchorsPatch.weightTargetDate = targetDate;
     if (Object.keys(anchorsPatch).length) {
       await setDoc(doc(db, 'users', params.uid), anchorsPatch, { merge: true });
     }

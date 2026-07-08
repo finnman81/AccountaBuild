@@ -3,6 +3,7 @@ import { doc, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase/firebase';
 import type { Tier } from '../mmr/types';
 import { bandForMMR, mpForMMR, BANDS, type Band } from '../mmr/ranks';
+import { STARTING_MMR } from '../mmr/constants';
 import { DEFAULT_TZ, seasonIdFromDate } from '../mmr/time';
 
 function findBandForRank(tier: Tier, division?: 1 | 2 | 3 | 4): Band {
@@ -86,7 +87,7 @@ export async function ensureSeasonRollover(uid: string) {
     const lastRolledTo = String(u?.lastSeasonRolledTo ?? '').trim();
     if (lastRolledTo === currentSeasonId) return;
 
-    const mmrBefore = typeof u?.mmr === 'number' ? Number(u.mmr) : 1000;
+    const mmrBefore = typeof u?.mmr === 'number' ? Number(u.mmr) : STARTING_MMR;
     const bandBefore = bandForMMR(mmrBefore);
     const mpBefore = mpForMMR(mmrBefore, bandBefore);
 
@@ -178,7 +179,7 @@ export async function ensureSeasonRollover(uid: string) {
 
         // Reset season-scoped counters
         streakWeeks: 0,
-        tierShieldWeeksRemaining: 5, // Default 5 shields for testing
+        tierShieldWeeksRemaining: 0, // Cleared on season reset (re-earned on tier promotion)
         consecutiveMissedWeeks: 0,
 
         // Initialize season peak for new season

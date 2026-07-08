@@ -4,7 +4,6 @@ export type RootStackParamList = {
   ForgotPassword: undefined;
   Onboarding: undefined;
   MainTabs: undefined;
-  LogToday: { groupId: string };
   AddCalories: {
     groupId: string;
     edit?: { logId: string; date: string; calories: number; meal: import('../services/logs').MealType; note?: string | null };
@@ -25,25 +24,30 @@ export type RootStackParamList = {
     | { focusField?: 'displayName' | 'height' | 'age' | 'weightCurrent' | 'weightGoal' | 'weightTargetDate' | 'units' }
     | undefined;
   MMRGoals: undefined;
+  LogComposer: { initialType?: import('../services/logs').LogType } | undefined;
+  MemberDetail: { groupId: string; uid: string };
+  RankUp: { tier: import('../mmr/types').Tier; division: number | null; kind: 'promotion' | 'demotion'; mmr?: number };
 };
 
 export type OnboardingStackParamList = {
   Welcome: undefined;
-  BasicInfo: undefined;
-  Accountability: undefined;
   Goals: undefined;
+  MMRIntro: undefined;
+  BasicInfo: undefined;
+  Recommended: undefined;
+  Accountability: undefined;
   Finish: undefined;
+  Group: undefined;
 };
 
 export type HomeStackParamList = {
   Home: undefined;
-  GroupDetail: { groupId: string };
+  Today: undefined;
+  Activity: undefined;
   Leaderboard: { groupId: string };
-  GroupCharts: { groupId: string };
   GroupChat: { groupId: string };
   ViewPhotos: { groupId: string };
   Issues: { groupId: string };
-  SetGoals: { groupId: string };
   GroupSettings: { groupId: string };
 };
 
@@ -51,6 +55,13 @@ export type GroupsStackParamList = {
   GroupList: undefined;
   CreateGroup: undefined;
   JoinGroup: undefined;
+  GroupInfo: { groupId: string };
+  GroupChat: { groupId: string };
+  Challenge: { groupId: string };
+  ViewPhotos: { groupId: string };
+  Leaderboard: { groupId: string };
+  Issues: { groupId: string };
+  GroupSettings: { groupId: string };
 };
 
 export type ProgressStackParamList = {
@@ -59,6 +70,7 @@ export type ProgressStackParamList = {
 
 export type ProfileStackParamList = {
   Profile: undefined;
+  Settings: undefined;
   SeasonHistory: undefined;
   MMRHistory: undefined;
   Notifications: undefined;

@@ -1,6 +1,6 @@
-import React, { useContext } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import React, { useContext, useEffect } from 'react';
 import { DarkTheme as NavDarkTheme, NavigationContainer } from '@react-navigation/native';
+import * as SplashScreen from 'expo-splash-screen';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { IconButton, useTheme } from 'react-native-paper';
 
@@ -14,14 +14,17 @@ import AddCaloriesScreen from '../screens/AddCaloriesScreen';
 import AddWorkoutScreen from '../screens/AddWorkoutScreen';
 import AddWeightScreen from '../screens/AddWeightScreen';
 import AddPhotoScreen from '../screens/AddPhotoScreen';
-import LogTodayScreen from '../screens/LogTodayScreen';
 import EditProfileScreen from '../screens/EditProfileScreen';
 import MMRGoalsScreen from '../screens/MMRGoalsScreen';
+import LogComposerScreen from '../screens/LogComposerScreen';
+import MemberDetailScreen from '../screens/MemberDetailScreen';
+import RankUpScreen from '../screens/RankUpScreen';
 import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
 import { RootStackParamList } from './types';
 import TabsNavigator from './TabsNavigator';
 import OnboardingNavigator from './OnboardingNavigator';
+import { navigationRef, flushPendingNavigation } from './navigationRef';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -30,20 +33,31 @@ export default function AppNavigator() {
   const theme = useTheme();
   const { isCompleted: onboardingCompleted, isLoading: onboardingLoading } = useOnboardingStatus(user?.uid ?? null);
 
-  if (!isFirebaseConfigured() || firebaseInitError) {
+  const configError = !isFirebaseConfigured() || firebaseInitError;
+  const ready = configError || (!isLoading && !onboardingLoading);
+
+  // Reveal the app (hide the held native splash) only once we know the first
+  // screen. A 6s safety net hides it regardless, so a hung read can't strand
+  // the user on the splash.
+  useEffect(() => {
+    if (ready) SplashScreen.hideAsync().catch(() => {});
+  }, [ready]);
+  useEffect(() => {
+    const t = setTimeout(() => SplashScreen.hideAsync().catch(() => {}), 6000);
+    return () => clearTimeout(t);
+  }, []);
+
+  if (configError) {
     return <FirebaseConfigErrorScreen />;
   }
 
-  if (isLoading || onboardingLoading) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator />
-      </View>
-    );
-  }
+  // Keep the native splash up until ready (render nothing rather than a spinner).
+  if (!ready) return null;
 
   return (
     <NavigationContainer
+      ref={navigationRef}
+      onReady={flushPendingNavigation}
       theme={{
         ...NavDarkTheme,
         colors: {
@@ -66,17 +80,9 @@ export default function AppNavigator() {
       >
         {!user ? (
           <>
-            <Stack.Screen name="Login" component={LoginScreen} options={{ title: 'Login' }} />
-            <Stack.Screen
-              name="Register"
-              component={RegisterScreen}
-              options={{ title: 'Create Account' }}
-            />
-            <Stack.Screen
-              name="ForgotPassword"
-              component={ForgotPasswordScreen}
-              options={{ title: 'Reset Password' }}
-            />
+            <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="Register" component={RegisterScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} options={{ headerShown: false }} />
           </>
         ) : !onboardingCompleted ? (
           <Stack.Screen name="Onboarding" component={OnboardingNavigator} options={{ headerShown: false }} />
@@ -84,14 +90,6 @@ export default function AppNavigator() {
           <>
             <Stack.Screen name="MainTabs" component={TabsNavigator} options={{ headerShown: false }} />
 
-            <Stack.Screen
-              name="LogToday"
-              component={LogTodayScreen}
-              options={{
-                title: 'Log today',
-                headerBackTitle: 'Group',
-              }}
-            />
             <Stack.Screen name="AddCalories" component={AddCaloriesScreen} options={{ title: 'Log Calories' }} />
             <Stack.Screen name="AddWorkout" component={AddWorkoutScreen} options={{ title: 'Log Workout' }} />
             <Stack.Screen name="AddWeight" component={AddWeightScreen} options={{ title: 'Log Weight' }} />
@@ -99,9 +97,24 @@ export default function AppNavigator() {
             <Stack.Screen
               name="EditProfile"
               component={EditProfileScreen}
-              options={{ title: 'Edit profile', presentation: 'modal' }}
+              options={{ headerShown: false, presentation: 'modal' }}
             />
             <Stack.Screen name="MMRGoals" component={MMRGoalsScreen} options={{ title: 'Goals', presentation: 'modal' }} />
+            <Stack.Screen
+              name="LogComposer"
+              component={LogComposerScreen}
+              options={{ headerShown: false, presentation: 'modal' }}
+            />
+            <Stack.Screen
+              name="MemberDetail"
+              component={MemberDetailScreen}
+              options={{ headerShown: false, presentation: 'transparentModal', animation: 'fade' }}
+            />
+            <Stack.Screen
+              name="RankUp"
+              component={RankUpScreen}
+              options={{ headerShown: false, presentation: 'fullScreenModal', animation: 'fade' }}
+            />
           </>
         )}
       </Stack.Navigator>

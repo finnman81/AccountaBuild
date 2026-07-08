@@ -1,6 +1,5 @@
 import React, { useContext, useState } from 'react';
-import { Image, KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
-import { Button, Card, Text, TextInput } from 'react-native-paper';
+import { Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useHeaderHeight } from '@react-navigation/elements';
@@ -10,8 +9,12 @@ import { RootStackParamList } from '../navigation/types';
 import { AuthContext } from '../store/AuthContext';
 import { uploadGroupPhoto } from '../services/photos';
 import { addPhotoLog } from '../services/logs';
-import LogDateField from '../components/ui/LogDateField';
-import { isFutureYYYYMMDD, isValidYYYYMMDD, todayYYYYMMDD } from '../utils/dates';
+import { isFutureYYYYMMDD, isValidYYYYMMDD, todayYYYYMMDD, yesterdayYYYYMMDD } from '../utils/dates';
+import AppText from '../components/ui/AppText';
+import Card from '../components/ui/Card';
+import TextField from '../components/ui/TextField';
+import PrimaryButton from '../components/ui/PrimaryButton';
+import { colors, radius, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'AddPhoto'>;
 
@@ -36,7 +39,7 @@ export default function AddPhotoScreen({ route, navigation }: Props) {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ["images"] as ImagePicker.MediaType[],
       allowsEditing: true,
       quality: 0.85,
     });
@@ -90,68 +93,102 @@ export default function AddPhotoScreen({ route, navigation }: Props) {
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1 }}
+      style={styles.flex}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={headerHeight}
     >
-      <ScrollView
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{
-          flexGrow: 1,
-          padding: 16,
-          paddingBottom: 16 + insets.bottom,
-          justifyContent: 'center',
-        }}
-      >
-        <Card>
-          <Card.Title title="Upload a photo" subtitle="Share with your group" />
-          <Card.Content>
-            <LogDateField value={logDate} onChange={setLogDate} disabled={isSubmitting} />
-            <View style={{ height: 12 }} />
-            <View style={{ flexDirection: 'row', gap: 12 }}>
-              <Button mode="contained" onPress={takePhoto} disabled={isSubmitting} style={{ flex: 1 }}>
+      <View style={styles.container}>
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={[styles.content, { paddingBottom: spacing.base + insets.bottom }]}
+        >
+          <Card>
+            <AppText variant="rowTitle" color="primary">Upload a photo</AppText>
+            <AppText variant="rowSubtitle" color="muted" style={styles.subtitle}>Share with your group</AppText>
+
+            <AppText variant="eyebrow" color="muted" style={styles.fieldLabel}>Log date</AppText>
+            <TextField
+              value={logDate}
+              onChangeText={setLogDate}
+              editable={!isSubmitting}
+              autoCapitalize="none"
+              autoCorrect={false}
+              placeholder={todayYYYYMMDD()}
+            />
+            <View style={styles.dateChips}>
+              <TouchableOpacity
+                style={styles.dateChip}
+                disabled={isSubmitting}
+                onPress={() => setLogDate(todayYYYYMMDD())}
+                activeOpacity={0.8}
+              >
+                <AppText variant="rowSubtitle" color="secondary">Today</AppText>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.dateChip}
+                disabled={isSubmitting}
+                onPress={() => setLogDate(yesterdayYYYYMMDD())}
+                activeOpacity={0.8}
+              >
+                <AppText variant="rowSubtitle" color="secondary">Yesterday</AppText>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.photoActions}>
+              <PrimaryButton onPress={takePhoto} disabled={isSubmitting} style={styles.photoBtn}>
                 Take photo
-              </Button>
-              <Button mode="outlined" onPress={choosePhoto} disabled={isSubmitting} style={{ flex: 1 }}>
+              </PrimaryButton>
+              <PrimaryButton secondary onPress={choosePhoto} disabled={isSubmitting} style={styles.photoBtn}>
                 Choose photo
-              </Button>
+              </PrimaryButton>
             </View>
 
             {uri ? (
               <>
-                <View style={{ height: 12 }} />
-                <Image
-                  source={{ uri }}
-                  style={{ width: '100%', height: 240, borderRadius: 12, backgroundColor: '#eee' }}
-                  resizeMode="cover"
-                />
-                <View style={{ height: 12 }} />
-                <TextInput
-                  label="Description (optional)"
-                  value={caption}
-                  onChangeText={setCaption}
-                  disabled={isSubmitting}
-                  multiline
-                />
+                <Image source={{ uri }} style={styles.preview} resizeMode="cover" />
+                <AppText variant="eyebrow" color="muted" style={styles.fieldLabel}>Description (optional)</AppText>
+                <TextField value={caption} onChangeText={setCaption} editable={!isSubmitting} multiline />
               </>
             ) : null}
 
             {error ? (
-              <>
-                <View style={{ height: 12 }} />
-                <Text style={{ color: 'crimson' }}>{error}</Text>
-              </>
+              <AppText variant="rowSubtitle" color="danger" style={styles.error}>{error}</AppText>
             ) : null}
 
-            <View style={{ height: 16 }} />
-            <Button mode="contained" onPress={upload} disabled={!uri || isSubmitting} loading={isSubmitting}>
+            <PrimaryButton onPress={upload} disabled={!uri || isSubmitting} loading={isSubmitting} style={styles.submit}>
               Upload
-            </Button>
-          </Card.Content>
-        </Card>
-      </ScrollView>
+            </PrimaryButton>
+          </Card>
+        </ScrollView>
+      </View>
     </KeyboardAvoidingView>
   );
 }
 
-
+const styles = StyleSheet.create({
+  flex: { flex: 1 },
+  container: { flex: 1, backgroundColor: colors.background },
+  content: { flexGrow: 1, paddingHorizontal: spacing.lg, paddingTop: spacing.base, justifyContent: 'center' },
+  subtitle: { marginTop: spacing.xs },
+  fieldLabel: { marginTop: spacing.base, marginBottom: spacing.sm },
+  dateChips: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
+  dateChip: {
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surface2,
+    borderWidth: 1,
+    borderColor: colors.borderCard,
+  },
+  photoActions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.base },
+  photoBtn: { flex: 1 },
+  preview: {
+    width: '100%',
+    height: 240,
+    borderRadius: radius.tile,
+    backgroundColor: colors.surface2,
+    marginTop: spacing.base,
+  },
+  error: { marginTop: spacing.md },
+  submit: { marginTop: spacing.lg },
+});

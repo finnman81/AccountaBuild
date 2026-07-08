@@ -1,18 +1,33 @@
 import React, { useContext, useEffect, useMemo, useState } from 'react';
-import { View } from 'react-native';
-import { Button, Card, Dialog, Portal, SegmentedButtons, Text } from 'react-native-paper';
+import { ScrollView, View, StyleSheet, TouchableOpacity } from 'react-native';
+import { Button, Dialog, Portal, Icon, ActivityIndicator } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as ImagePicker from 'expo-image-picker';
 import { doc, onSnapshot } from 'firebase/firestore';
 
-import Screen from '../components/layout/Screen';
 import { HomeStackParamList } from '../navigation/types';
 import { db } from '../firebase/firebase';
 import { AuthContext } from '../store/AuthContext';
 import { deleteGroupAsCreator, setGroupLogoUrl, setGroupStreakRule } from '../services/groups';
 import { uploadGroupLogo } from '../services/photos';
+import AppText from '../components/ui/AppText';
+import SegmentedControl from '../components/ui/SegmentedControl';
+import { colors, radius, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'GroupSettings'>;
+
+function NavRow({ title, value, onPress, danger, loading, divider = true }: { title: string; value?: string; onPress?: () => void; danger?: boolean; loading?: boolean; divider?: boolean }) {
+  return (
+    <>
+      <TouchableOpacity style={styles.row} onPress={onPress} disabled={!onPress || loading} activeOpacity={0.7}>
+        <AppText variant="rowTitle" color={danger ? 'danger' : 'primary'} style={{ flex: 1 }}>{title}</AppText>
+        {loading ? <ActivityIndicator size={16} color={colors.textMuted} /> : value ? <AppText variant="rowSubtitle" color="muted" style={{ marginRight: spacing.sm }}>{value}</AppText> : null}
+        {onPress && !danger && !loading ? <Icon source="chevron-right" size={20} color={colors.textMuted} /> : null}
+      </TouchableOpacity>
+      {divider ? <View style={styles.divider} /> : null}
+    </>
+  );
+}
 
 type GroupDoc = {
   createdBy?: string;
@@ -61,7 +76,7 @@ export default function GroupSettingsScreen({ route, navigation }: Props) {
       if (status !== 'granted') return;
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ["images"] as ImagePicker.MediaType[],
         allowsEditing: true,
         quality: 0.9,
         aspect: [1, 1],
@@ -99,69 +114,89 @@ export default function GroupSettingsScreen({ route, navigation }: Props) {
   };
 
   return (
-    <Screen>
+    <View style={styles.container}>
       <Portal>
-        <Dialog visible={deleteDialogVisible} onDismiss={() => setDeleteDialogVisible(false)}>
+        <Dialog visible={deleteDialogVisible} onDismiss={() => !isDeletingGroup && setDeleteDialogVisible(false)}>
           <Dialog.Title>Delete group?</Dialog.Title>
           <Dialog.Content>
-            <Text>This will delete the group and its join code. Members will no longer be able to access it.</Text>
+            <AppText variant="body" color="secondary">
+              This will delete the group and its join code. Members will no longer be able to access it.
+            </AppText>
           </Dialog.Content>
           <Dialog.Actions>
             <Button onPress={() => setDeleteDialogVisible(false)} disabled={isDeletingGroup}>
               Cancel
             </Button>
-            <Button onPress={onDeleteGroup} loading={isDeletingGroup} disabled={isDeletingGroup}>
+            <Button onPress={onDeleteGroup} loading={isDeletingGroup} disabled={isDeletingGroup} textColor={colors.danger}>
               Delete
             </Button>
           </Dialog.Actions>
         </Dialog>
       </Portal>
 
-      <Card>
-        <Card.Title title="Group settings" subtitle={group?.name ?? undefined} />
-        <Card.Content>
-          {!isAdmin ? <Text variant="bodyMedium">Only group admins can change settings.</Text> : null}
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {group?.name ? (
+          <AppText variant="rowSubtitle" color="muted" style={styles.groupName}>{group.name}</AppText>
+        ) : null}
 
-          <Text variant="titleMedium" style={{ marginTop: 4 }}>
-            Streak rule
-          </Text>
-          <Text variant="bodySmall" style={{ opacity: 0.75 }}>
-            Controls what counts as a “streak day” for members in this group.
-          </Text>
-          <View style={{ height: 8 }} />
-          <SegmentedButtons
-            value={(group?.streakRule ?? 'workout') as any}
-            onValueChange={(v) => void onChangeStreakRule(v as any)}
-            buttons={[
-              { value: 'workout', label: 'Workout only', disabled: !isAdmin || isSavingStreakRule },
-              { value: 'any', label: 'Any log', disabled: !isAdmin || isSavingStreakRule },
-            ]}
-          />
+        {!isAdmin ? (
+          <View style={styles.notice}>
+            <AppText variant="rowSubtitle" color="muted">Only group admins can change these settings.</AppText>
+          </View>
+        ) : null}
 
-          <View style={{ height: 16 }} />
+        <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>Rules</AppText>
+        <View style={styles.group}>
+          <View style={styles.ruleBlock}>
+            <AppText variant="rowTitle" color="primary">Streak rule</AppText>
+            <AppText variant="rowSubtitle" color="muted" style={styles.ruleHelp}>
+              What counts as a “streak day” for members in this group.
+            </AppText>
+            <SegmentedControl
+              options={[
+                { value: 'workout', label: 'Workout only' },
+                { value: 'any', label: 'Any log' },
+              ]}
+              value={(group?.streakRule ?? 'workout') as 'workout' | 'any'}
+              onChange={(v) => isAdmin && void onChangeStreakRule(v)}
+              style={styles.segmented}
+            />
+          </View>
+        </View>
 
-          {!isCreator ? (
-            <Text variant="bodySmall" style={{ opacity: 0.75 }}>
-              Only the group creator can change logo or delete the group.
-            </Text>
-          ) : (
-            <>
-              <Button mode="outlined" onPress={changeGroupLogo} loading={isUploadingLogo} disabled={isUploadingLogo}>
-                Set group logo
-              </Button>
-              <View style={{ height: 8 }} />
-              <Button
-                mode="outlined"
-                onPress={() => setDeleteDialogVisible(true)}
-                disabled={isUploadingLogo || isDeletingGroup}
-              >
-                Delete group
-              </Button>
-            </>
-          )}
-        </Card.Content>
-      </Card>
-    </Screen>
+        {isCreator ? (
+          <>
+            <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>Identity</AppText>
+            <View style={styles.group}>
+              <NavRow title="Group logo" value={group?.logoUrl ? 'Change' : 'Set'} onPress={changeGroupLogo} loading={isUploadingLogo} divider={false} />
+            </View>
+
+            <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>Danger zone</AppText>
+            <View style={styles.group}>
+              <NavRow title="Delete group" danger onPress={() => setDeleteDialogVisible(true)} divider={false} />
+            </View>
+          </>
+        ) : (
+          <AppText variant="rowSubtitle" color="muted" style={styles.footnote}>
+            Only the group creator can change the logo or delete the group.
+          </AppText>
+        )}
+      </ScrollView>
+    </View>
   );
 }
 
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  content: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.xxl },
+  groupName: { marginBottom: spacing.xs, marginLeft: spacing.xs },
+  notice: { backgroundColor: colors.surface2, borderRadius: radius.tile, padding: spacing.base, marginTop: spacing.sm },
+  sectionLabel: { marginTop: spacing.lg, marginBottom: spacing.sm, marginLeft: spacing.xs },
+  group: { backgroundColor: colors.surface, borderRadius: radius.listGroup, borderWidth: 1, borderColor: colors.borderCard, paddingHorizontal: spacing.base },
+  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.md, gap: spacing.md, minHeight: 52 },
+  divider: { height: 1, backgroundColor: colors.divider },
+  ruleBlock: { paddingVertical: spacing.md, gap: spacing.xs },
+  ruleHelp: { lineHeight: 18, marginBottom: spacing.sm },
+  segmented: { marginTop: spacing.xs },
+  footnote: { marginTop: spacing.lg, marginLeft: spacing.xs, lineHeight: 18 },
+});

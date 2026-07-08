@@ -1,17 +1,23 @@
 import React, { useContext, useState } from 'react';
-import { KeyboardAvoidingView, Platform, View } from 'react-native';
-import { Button, Card, Text, TextInput } from 'react-native-paper';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 
-import { RootStackParamList } from '../navigation/types';
+import { GroupsStackParamList } from '../navigation/types';
 import { AuthContext } from '../store/AuthContext';
+import { useActiveGroup } from '../store/ActiveGroupContext';
 import { createGroup } from '../services/groups';
 import { friendlyNameFromDisplayName } from '../utils/formatters';
+import AppText from '../components/ui/AppText';
+import Card from '../components/ui/Card';
+import TextField from '../components/ui/TextField';
+import PrimaryButton from '../components/ui/PrimaryButton';
+import { colors, spacing } from '../theme';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'CreateGroup'>;
+type Props = NativeStackScreenProps<GroupsStackParamList, 'CreateGroup'>;
 
 export default function CreateGroupScreen({ navigation }: Props) {
   const { user } = useContext(AuthContext);
+  const { setActiveGroupId } = useActiveGroup();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -32,7 +38,10 @@ export default function CreateGroupScreen({ navigation }: Props) {
         name,
         description,
       });
-      navigation.replace('GroupDetail', { groupId: res.groupId });
+      // New group becomes active; land on its GroupInfo so the creator can grab
+      // the invite code and add members right away.
+      await setActiveGroupId(res.groupId);
+      navigation.replace('GroupInfo', { groupId: res.groupId });
     } catch (e) {
       setError('Failed to create group.');
     } finally {
@@ -41,38 +50,56 @@ export default function CreateGroupScreen({ navigation }: Props) {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <View style={{ flex: 1, padding: 16, justifyContent: 'center' }}>
-        <Card>
-          <Card.Title title="Create a group" subtitle="Invite friends with a join code" />
-          <Card.Content>
-            <TextInput label="Group name" value={name} onChangeText={setName} disabled={isSubmitting} />
-            <View style={{ height: 12 }} />
-            <TextInput
-              label="Description (optional)"
-              value={description}
-              onChangeText={setDescription}
-              disabled={isSubmitting}
-              multiline
-            />
-            {error ? (
-              <>
-                <View style={{ height: 12 }} />
-                <Text style={{ color: 'crimson' }}>{error}</Text>
-              </>
-            ) : null}
-            <View style={{ height: 16 }} />
-            <Button mode="contained" onPress={onSubmit} loading={isSubmitting} disabled={isSubmitting}>
-              Create group
-            </Button>
-          </Card.Content>
-        </Card>
-      </View>
-    </KeyboardAvoidingView>
+    <View style={styles.container}>
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>New group</AppText>
+          <Card>
+            <AppText variant="pageTitle" color="primary">Create a group</AppText>
+            <AppText variant="rowSubtitle" color="muted" style={styles.subtitle}>
+              Invite friends with a join code
+            </AppText>
+
+            <View style={styles.form}>
+              <TextField
+                label="Group name"
+                value={name}
+                onChangeText={setName}
+                editable={!isSubmitting}
+              />
+              <TextField
+                label="Description (optional)"
+                value={description}
+                onChangeText={setDescription}
+                editable={!isSubmitting}
+                multiline
+              />
+              {error ? (
+                <AppText variant="rowSubtitle" color="danger">{error}</AppText>
+              ) : null}
+              <PrimaryButton onPress={onSubmit} loading={isSubmitting} disabled={isSubmitting}>
+                Create group
+              </PrimaryButton>
+            </View>
+          </Card>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
-
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  flex: { flex: 1 },
+  content: { flexGrow: 1, paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.xxl, justifyContent: 'center' },
+  sectionLabel: { marginBottom: spacing.sm, marginLeft: spacing.xs },
+  subtitle: { marginTop: spacing.xs },
+  form: { marginTop: spacing.lg, gap: spacing.md },
+});

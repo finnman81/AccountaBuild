@@ -2,13 +2,18 @@ import { Platform } from 'react-native';
 import {
   requestAuthorization,
   queryWorkoutSamples,
+  queryWorkoutSamplesWithAnchor,
   queryQuantitySamples,
+  queryQuantitySamplesWithAnchor,
   queryCorrelationSamples,
   queryStatisticsForQuantitySeparateBySource,
   querySources,
   queryStatisticsForQuantity,
   getMostRecentQuantitySample,
   isHealthDataAvailable,
+  enableBackgroundDelivery,
+  subscribeToChanges,
+  UpdateFrequency,
 } from '@kingstinct/react-native-healthkit';
 import { mapHealthKitWorkoutType } from './workoutMapper';
 import { WorkoutType } from '../logs';
@@ -19,6 +24,7 @@ export type HealthKitWorkout = {
   durationMinutes: number;
   startDate: Date;
   endDate: Date;
+  uuid?: string;
 };
 
 export type HealthKitCalories = {
@@ -32,12 +38,14 @@ export type HealthKitCalorieEntry = {
   meal: 'breakfast' | 'lunch' | 'dinner' | 'snack' | 'all'; // Inferred or from metadata
   timestamp: Date; // When the entry was recorded
   source?: string; // Source app name if available
+  uuid?: string;
 };
 
 export type HealthKitWeight = {
   weight: number; // in pounds
   date: string; // YYYY-MM-DD
   timestamp: Date;
+  uuid?: string;
 };
 
 function coerceNumber(value: any): number {
@@ -220,131 +228,166 @@ export async function checkHealthKitPermissions(): Promise<{
 }
 
 /**
+ * Map a single HealthKit workout sample/proxy to our HealthKitWorkout shape.
+ * Returns null if the activity type can't be mapped. Shared by the today-window
+ * read and the anchored (delta) read so both classify workouts identically.
+ */
+export function mapWorkoutSample(w: any): HealthKitWorkout | null {
+  // Enhanced workout type detection using multiple signals
+  let workoutType = mapHealthKitWorkoutType(w.workoutActivityType);
+
+  // Special handling for ambiguous type 52 (can be Walking OR TraditionalStrengthTraining)
+  const rawType = w.workoutActivityType;
+  if (rawType === 52 || rawType === '52') {
+    // Check for distance - strength training typically doesn't have distance
+    const distance = w.totalDistance || w.distance || w.totalDistanceValue;
+    const hasDistance = distance && typeof distance === 'number' && distance > 0;
+
+    // Check source app
+    const sourceName = (w.source?.name || w.sourceRevision?.source?.name || w.sourceName || '').toLowerCase();
+    const isStrengthApp = sourceName.includes('strong') || sourceName.includes('jefit') ||
+                         sourceName.includes('gym') || sourceName.includes('weight');
+
+    // Check metadata
+    const metadata = w.metadata || {};
+    const metadataType = String(metadata.HKWorkoutActivityType || metadata.workoutType || '').toLowerCase();
+
+    if (hasDistance || metadataType.includes('walk') || metadataType.includes('run')) {
+      // Has distance or metadata suggests walking/running
+      workoutType = 'jogging';
+      console.log('[HealthKit] Resolved ambiguous type 52 to jogging (has distance or walk/run metadata)');
+    } else if (isStrengthApp || metadataType.includes('strength') || metadataType.includes('weight')) {
+      // Source or metadata suggests strength training
+      workoutType = 'weightLifting';
+      console.log('[HealthKit] Resolved ambiguous type 52 to weightLifting (strength app/metadata)');
+    }
+    // Otherwise keep as jogging (default for 52)
+  }
+
+  // If we got weightLifting as default, try to infer from metadata/distance
+  if (workoutType === 'weightLifting') {
+    // Check for distance data - running/jogging typically have distance
+    const distance = w.totalDistance || w.distance || w.totalDistanceValue;
+    const hasDistance = distance && typeof distance === 'number' && distance > 0;
+
+    // Check source app name for clues
+    const sourceName = (w.source?.name || w.sourceRevision?.source?.name || w.sourceName || '').toLowerCase();
+    const isRunningApp = sourceName.includes('runna') || sourceName.includes('nike') ||
+                        sourceName.includes('strava') || sourceName.includes('runkeeper') ||
+                        sourceName.includes('runtastic') || sourceName.includes('garmin');
+
+    // Check metadata for workout type hints
+    const metadata = w.metadata || {};
+    const metadataType = String(metadata.HKWorkoutActivityType || metadata.workoutType || '').toLowerCase();
+
+    // If we have distance and it's from a running app, it's likely running/jogging
+    if (hasDistance && (isRunningApp || metadataType.includes('run'))) {
+      // Determine running vs jogging based on pace (if available)
+      const durationSeconds = deriveWorkoutDurationMinutes(w) * 60;
+      const pace = durationSeconds > 0 && distance > 0 ? (durationSeconds / 60) / (distance / 1609.34) : null; // minutes per mile
+      // If pace is reasonable for running (< 12 min/mile), classify as running
+      // Otherwise, classify as jogging
+      workoutType = (pace && pace < 12) ? 'running' : 'jogging';
+      console.log('[HealthKit] Inferred workout type from distance/source:', {
+        originalType: w.workoutActivityType,
+        inferredType: workoutType,
+        distance,
+        sourceName,
+        pace,
+      });
+    } else if (hasDistance && !isRunningApp) {
+      // Has distance but not from running app - could still be running/jogging
+      workoutType = 'jogging'; // Default to jogging for unknown distance-based workouts
+      console.log('[HealthKit] Inferred jogging from distance:', {
+        originalType: w.workoutActivityType,
+        distance,
+        sourceName,
+      });
+    }
+  }
+
+  if (!workoutType) return null;
+
+  const durationMinutes = deriveWorkoutDurationMinutes(w);
+
+  const startDate = w.startDate instanceof Date ? w.startDate : new Date(w.startDate);
+  const endDate = w.endDate instanceof Date ? w.endDate : new Date(w.endDate);
+
+  return {
+    workoutType,
+    durationMinutes,
+    startDate,
+    endDate,
+    uuid: w.uuid ? String(w.uuid) : undefined,
+  };
+}
+
+/**
  * Read workouts for today
  */
 export async function readTodayWorkouts(): Promise<HealthKitWorkout[]> {
+  return readRecentWorkouts(0);
+}
+
+/**
+ * Read workouts within the last `daysBack` days (0 = today only). Used by sync
+ * to import a recent window directly, so data isn't permanently missed when the
+ * anchored delta read's cursor has already advanced past it.
+ */
+export async function readRecentWorkouts(daysBack = 0): Promise<HealthKitWorkout[]> {
   if (Platform.OS !== 'ios') return [];
   if (!(await isHealthKitAvailable())) return [];
 
   try {
     const now = new Date();
-    const startOfToday = new Date(now);
-    startOfToday.setHours(0, 0, 0, 0);
+    const start = new Date(now);
+    start.setDate(start.getDate() - Math.max(0, daysBack));
+    start.setHours(0, 0, 0, 0);
 
     const result: any = await queryWorkoutSamples({
-      startDate: startOfToday,
+      startDate: start,
       endDate: now,
       ascending: true,
       limit: 0,
     } as any);
 
-    // Handle both array response and object with samples property
     const workouts = Array.isArray(result) ? result : (result?.samples || []);
 
     return workouts
-      .map((w: any) => {
-        // Enhanced workout type detection using multiple signals
-        let workoutType = mapHealthKitWorkoutType(w.workoutActivityType);
-        
-        // Special handling for ambiguous type 52 (can be Walking OR TraditionalStrengthTraining)
-        const rawType = w.workoutActivityType;
-        if (rawType === 52 || rawType === '52') {
-          // Check for distance - strength training typically doesn't have distance
-          const distance = w.totalDistance || w.distance || w.totalDistanceValue;
-          const hasDistance = distance && typeof distance === 'number' && distance > 0;
-          
-          // Check source app
-          const sourceName = (w.source?.name || w.sourceRevision?.source?.name || w.sourceName || '').toLowerCase();
-          const isStrengthApp = sourceName.includes('strong') || sourceName.includes('jefit') || 
-                               sourceName.includes('gym') || sourceName.includes('weight');
-          
-          // Check metadata
-          const metadata = w.metadata || {};
-          const metadataType = String(metadata.HKWorkoutActivityType || metadata.workoutType || '').toLowerCase();
-          
-          if (hasDistance || metadataType.includes('walk') || metadataType.includes('run')) {
-            // Has distance or metadata suggests walking/running
-            workoutType = 'jogging';
-            console.log('[HealthKit] Resolved ambiguous type 52 to jogging (has distance or walk/run metadata)');
-          } else if (isStrengthApp || metadataType.includes('strength') || metadataType.includes('weight')) {
-            // Source or metadata suggests strength training
-            workoutType = 'weightLifting';
-            console.log('[HealthKit] Resolved ambiguous type 52 to weightLifting (strength app/metadata)');
-          }
-          // Otherwise keep as jogging (default for 52)
-        }
-        
-        // If we got weightLifting as default, try to infer from metadata/distance
-        if (workoutType === 'weightLifting') {
-          // Check for distance data - running/jogging typically have distance
-          const distance = w.totalDistance || w.distance || w.totalDistanceValue;
-          const hasDistance = distance && typeof distance === 'number' && distance > 0;
-          
-          // Check source app name for clues
-          const sourceName = (w.source?.name || w.sourceRevision?.source?.name || w.sourceName || '').toLowerCase();
-          const isRunningApp = sourceName.includes('runna') || sourceName.includes('nike') || 
-                              sourceName.includes('strava') || sourceName.includes('runkeeper') ||
-                              sourceName.includes('runtastic') || sourceName.includes('garmin');
-          
-          // Check metadata for workout type hints
-          const metadata = w.metadata || {};
-          const metadataType = String(metadata.HKWorkoutActivityType || metadata.workoutType || '').toLowerCase();
-          
-          // If we have distance and it's from a running app, it's likely running/jogging
-          if (hasDistance && (isRunningApp || metadataType.includes('run'))) {
-            // Determine running vs jogging based on pace (if available)
-            const durationSeconds = deriveWorkoutDurationMinutes(w) * 60;
-            const pace = durationSeconds > 0 && distance > 0 ? (durationSeconds / 60) / (distance / 1609.34) : null; // minutes per mile
-            // If pace is reasonable for running (< 12 min/mile), classify as running
-            // Otherwise, classify as jogging
-            workoutType = (pace && pace < 12) ? 'running' : 'jogging';
-            console.log('[HealthKit] Inferred workout type from distance/source:', {
-              originalType: w.workoutActivityType,
-              inferredType: workoutType,
-              distance,
-              sourceName,
-              pace,
-            });
-          } else if (hasDistance && !isRunningApp) {
-            // Has distance but not from running app - could still be running/jogging
-            workoutType = 'jogging'; // Default to jogging for unknown distance-based workouts
-            console.log('[HealthKit] Inferred jogging from distance:', {
-              originalType: w.workoutActivityType,
-              distance,
-              sourceName,
-            });
-          }
-        }
-        
-        if (!workoutType) return null;
-
-        const durationMinutes = deriveWorkoutDurationMinutes(w);
-
-        const startDate = w.startDate instanceof Date ? w.startDate : new Date(w.startDate);
-        const endDate = w.endDate instanceof Date ? w.endDate : new Date(w.endDate);
-
-        // Log workout details for debugging
-        console.log('[HealthKit] Mapped workout:', {
-          workoutActivityType: w.workoutActivityType,
-          mappedType: workoutType,
-          durationMinutes,
-          source: w.source?.name || w.sourceRevision?.source?.name || w.sourceName,
-          distance: w.totalDistance || w.distance || w.totalDistanceValue,
-          metadata: w.metadata ? Object.keys(w.metadata).slice(0, 5) : [],
-        });
-
-        return {
-          workoutType,
-          durationMinutes,
-          startDate,
-          endDate,
-        };
-      })
+      .map(mapWorkoutSample)
       .filter((w: HealthKitWorkout | null): w is HealthKitWorkout => w !== null)
-      .filter((w: HealthKitWorkout) => w.startDate >= startOfToday && w.startDate <= now);
+      .filter((w: HealthKitWorkout) => w.startDate >= start && w.startDate <= now);
   } catch (error) {
     console.error('Error reading HealthKit workouts:', error);
     return [];
+  }
+}
+
+export type AnchoredResult<T> = { items: T[]; deletedUuids: string[]; newAnchor?: string };
+
+/**
+ * Delta read of workouts since `anchor` (undefined = first run, returns full
+ * history — the caller date-bounds imports via isRecentImportDate). Returns the
+ * new/changed workouts, the uuids of workouts deleted in Health, and the next
+ * anchor to persist.
+ */
+export async function readWorkoutsSinceAnchor(anchor?: string): Promise<AnchoredResult<HealthKitWorkout>> {
+  if (Platform.OS !== 'ios') return { items: [], deletedUuids: [] };
+  if (!(await isHealthKitAvailable())) return { items: [], deletedUuids: [] };
+
+  try {
+    const res: any = await queryWorkoutSamplesWithAnchor({ limit: 0, anchor } as any);
+    const rawWorkouts = Array.isArray(res?.workouts) ? res.workouts : [];
+    const items = rawWorkouts
+      .map(mapWorkoutSample)
+      .filter((w: HealthKitWorkout | null): w is HealthKitWorkout => w !== null);
+    const deletedUuids = (Array.isArray(res?.deletedSamples) ? res.deletedSamples : [])
+      .map((d: any) => (d?.uuid ? String(d.uuid) : ''))
+      .filter(Boolean);
+    return { items, deletedUuids, newAnchor: res?.newAnchor ? String(res.newAnchor) : undefined };
+  } catch (error) {
+    console.error('[HealthKit] Error reading workouts since anchor:', error);
+    return { items: [], deletedUuids: [] };
   }
 }
 
@@ -387,6 +430,77 @@ function extractMealType(sample: any): 'breakfast' | 'lunch' | 'dinner' | 'snack
   // Infer from time if no metadata
   const startDate = sample.startDate ? new Date(sample.startDate) : new Date();
   return inferMealTypeFromTime(startDate);
+}
+
+/**
+ * Map a single dietary-energy quantity sample to a calorie entry (dated by the
+ * sample's own start time). Returns null for zero/invalid quantities. No window
+ * filtering — callers apply their own date bounds. Shared by the today read and
+ * the anchored (delta) read.
+ */
+export function mapDietaryEnergySample(sample: any): HealthKitCalorieEntry | null {
+  let qty = 0;
+  if (typeof sample.quantity === 'number') {
+    qty = sample.quantity;
+  } else if (typeof sample.value === 'number') {
+    qty = sample.value;
+  } else if (typeof sample.quantity?.quantity === 'number') {
+    qty = sample.quantity.quantity;
+  } else if (typeof sample.quantity?.value === 'number') {
+    qty = sample.quantity.value;
+  } else if (sample.quantityValue && typeof sample.quantityValue === 'number') {
+    qty = sample.quantityValue;
+  }
+
+  if (qty <= 0) return null;
+
+  const startDate = sample.startDate ? new Date(sample.startDate) : (sample.startTime ? new Date(sample.startTime) : new Date());
+  if (Number.isNaN(startDate.valueOf())) return null;
+
+  const meal = extractMealType(sample);
+  const source = sample.source?.name || sample.sourceRevision?.source?.name || sample.sourceName || undefined;
+
+  return {
+    calories: Math.round(qty),
+    date: formatYYYYMMDDLocal(startDate),
+    meal,
+    timestamp: startDate,
+    source,
+    uuid: sample.uuid ? String(sample.uuid) : undefined,
+  };
+}
+
+/**
+ * Delta read of dietary-energy entries since `anchor` (undefined = first run,
+ * full history — caller date-bounds via isRecentImportDate). Returns new/changed
+ * entries, uuids deleted in Health, and the next anchor to persist.
+ *
+ * Note: only individual dietary-energy samples participate in anchored sync.
+ * The food-correlation and daily-statistics fallbacks (used when no per-sample
+ * data exists) have no stable sample UUID/anchor and stay on the today read.
+ */
+export async function readCalorieEntriesSinceAnchor(anchor?: string): Promise<AnchoredResult<HealthKitCalorieEntry>> {
+  if (Platform.OS !== 'ios') return { items: [], deletedUuids: [] };
+  if (!(await isHealthKitAvailable())) return { items: [], deletedUuids: [] };
+
+  try {
+    const res: any = await queryQuantitySamplesWithAnchor(HKQuantityTypeIdentifierDietaryEnergyConsumed, {
+      limit: 0,
+      anchor,
+      unit: 'kcal',
+    } as any);
+    const rawSamples = Array.isArray(res?.samples) ? res.samples : [];
+    const items = rawSamples
+      .map(mapDietaryEnergySample)
+      .filter((e: HealthKitCalorieEntry | null): e is HealthKitCalorieEntry => e !== null);
+    const deletedUuids = (Array.isArray(res?.deletedSamples) ? res.deletedSamples : [])
+      .map((d: any) => (d?.uuid ? String(d.uuid) : ''))
+      .filter(Boolean);
+    return { items, deletedUuids, newAnchor: res?.newAnchor ? String(res.newAnchor) : undefined };
+  } catch (error) {
+    console.error('[HealthKit] Error reading calories since anchor:', error);
+    return { items: [], deletedUuids: [] };
+  }
 }
 
 /**
@@ -524,47 +638,16 @@ export async function readTodayCalorieEntries(): Promise<HealthKitCalorieEntry[]
       console.log('[HealthKit] Sample preview:', preview);
     }
 
-    // Convert each sample to an entry
+    // Convert each sample to an entry (today-window only)
     const entries: HealthKitCalorieEntry[] = [];
 
     console.log('[HealthKit] Processing', samples.length, 'samples into entries...');
     for (let i = 0; i < samples.length; i++) {
-      const sample = samples[i];
-      
-      // Try multiple ways to extract quantity
-      let qty = 0;
-      if (typeof sample.quantity === 'number') {
-        qty = sample.quantity;
-      } else if (typeof sample.value === 'number') {
-        qty = sample.value;
-      } else if (typeof sample.quantity?.quantity === 'number') {
-        qty = sample.quantity.quantity;
-      } else if (typeof sample.quantity?.value === 'number') {
-        qty = sample.quantity.value;
-      } else if (sample.quantityValue && typeof sample.quantityValue === 'number') {
-        qty = sample.quantityValue;
-      }
-      
-      if (qty <= 0) {
-        console.log(`[HealthKit] Skipping sample ${i + 1} - quantity is 0 or invalid`);
-        continue;
-      }
-
-      const startDate = sample.startDate ? new Date(sample.startDate) : (sample.startTime ? new Date(sample.startTime) : new Date());
-      if (startDate < startOfToday || startDate > now) {
-        continue;
-      }
-      const meal = extractMealType(sample);
-      const source = sample.source?.name || sample.sourceRevision?.source?.name || sample.sourceName || undefined;
-      const entryDate = formatYYYYMMDDLocal(startDate);
-
-      entries.push({
-        calories: Math.round(qty),
-        date: entryDate,
-        meal,
-        timestamp: startDate,
-        source,
-      });
+      const entry = mapDietaryEnergySample(samples[i]);
+      if (!entry) continue;
+      // Keep only samples in today's window (guard against out-of-range reads).
+      if (entry.timestamp < startOfToday || entry.timestamp > now) continue;
+      entries.push(entry);
     }
 
     console.log('[HealthKit] Returning', entries.length, 'calorie entries out of', samples.length, 'samples');
@@ -671,11 +754,103 @@ export async function readTodayWeight(): Promise<HealthKitWeight | null> {
       weight: Math.round(weightInPounds * 10) / 10, // Round to 1 decimal place
       date: todayYYYYMMDD(),
       timestamp: sampleDate,
+      uuid: sample.uuid ? String(sample.uuid) : undefined,
     };
   } catch (error) {
     console.error('Error reading HealthKit weight:', error);
     return null;
   }
+}
+
+/**
+ * Read weight entries for the last `daysBack` days — the latest sample per local
+ * day (used by sync backfill so unopened-app days still get their weigh-ins).
+ */
+export async function readRecentWeights(daysBack = 7): Promise<HealthKitWeight[]> {
+  if (Platform.OS !== 'ios') return [];
+  if (!(await isHealthKitAvailable())) return [];
+
+  try {
+    const now = new Date();
+    const start = new Date(now);
+    start.setDate(start.getDate() - daysBack);
+    start.setHours(0, 0, 0, 0);
+
+    const result: any = await queryQuantitySamples(HKQuantityTypeIdentifierBodyMass, {
+      startDate: start,
+      endDate: now,
+      ascending: true,
+      limit: 0,
+    } as any);
+    const samples: any[] = Array.isArray(result) ? result : (result?.samples ?? []);
+
+    const byDate = new Map<string, HealthKitWeight>();
+    for (const sample of samples) {
+      const qty = typeof sample.quantity === 'number' ? sample.quantity : null;
+      if (qty == null || qty <= 0) continue;
+      const ts = sample.startDate instanceof Date ? sample.startDate : new Date(sample.startDate);
+      if (Number.isNaN(ts.valueOf())) continue;
+      const unit = String(sample.unit ?? '').toLowerCase();
+      const lbs = unit === 'kg' || unit.includes('kilogram') ? qty * 2.2046226218 : qty;
+      const date = formatYYYYMMDDLocal(ts);
+      const prev = byDate.get(date);
+      if (!prev || ts.getTime() >= prev.timestamp.getTime()) {
+        byDate.set(date, {
+          weight: Math.round(lbs * 10) / 10,
+          date,
+          timestamp: ts,
+          uuid: sample.uuid ? String(sample.uuid) : undefined,
+        });
+      }
+    }
+    return Array.from(byDate.values());
+  } catch (error) {
+    console.error('[HealthKit] Error reading recent weights:', error);
+    return [];
+  }
+}
+
+/**
+ * Enable HealthKit background delivery + change observers so new workouts /
+ * calories / weight trigger a near-instant sync (Strava-style), even when the
+ * app is backgrounded. `onChange` is fired when HealthKit signals new data.
+ * Returns a cleanup that removes the observers. iOS-only; fully guarded.
+ */
+export async function setupBackgroundObservers(onChange: () => void): Promise<() => void> {
+  if (Platform.OS !== 'ios') return () => {};
+  const types = [
+    HKWorkoutTypeIdentifier,
+    HKQuantityTypeIdentifierDietaryEnergyConsumed,
+    HKQuantityTypeIdentifierBodyMass,
+  ];
+  const subs: Array<{ remove: () => boolean }> = [];
+  for (const t of types) {
+    try {
+      await enableBackgroundDelivery(t as any, UpdateFrequency.immediate);
+    } catch (e) {
+      console.warn('[HealthKit] enableBackgroundDelivery failed for', t, e);
+    }
+    try {
+      subs.push(subscribeToChanges(t as any, () => {
+        try {
+          onChange();
+        } catch {
+          /* non-fatal */
+        }
+      }));
+    } catch (e) {
+      console.warn('[HealthKit] subscribeToChanges failed for', t, e);
+    }
+  }
+  return () => {
+    for (const s of subs) {
+      try {
+        s.remove();
+      } catch {
+        /* non-fatal */
+      }
+    }
+  };
 }
 
 /**

@@ -1,6 +1,5 @@
 import React, { useContext, useEffect, useState } from 'react';
-import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, TouchableWithoutFeedback, View } from 'react-native';
-import { Button, Card, Menu, Text, TextInput } from 'react-native-paper';
+import { Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,11 +7,23 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RootStackParamList } from '../navigation/types';
 import { AuthContext } from '../store/AuthContext';
 import { addCaloriesLog, MealType } from '../services/logs';
-import LogDateField from '../components/ui/LogDateField';
-import { isFutureYYYYMMDD, isValidYYYYMMDD, todayYYYYMMDD } from '../utils/dates';
+import { isFutureYYYYMMDD, isValidYYYYMMDD, todayYYYYMMDD, yesterdayYYYYMMDD } from '../utils/dates';
 import { updateGroupLog } from '../services/logEdits';
+import AppText from '../components/ui/AppText';
+import Card from '../components/ui/Card';
+import TextField from '../components/ui/TextField';
+import PrimaryButton from '../components/ui/PrimaryButton';
+import { colors, radius, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'AddCalories'>;
+
+const MEALS: { label: string; value: MealType }[] = [
+  { label: 'Breakfast', value: 'breakfast' },
+  { label: 'Lunch', value: 'lunch' },
+  { label: 'Dinner', value: 'dinner' },
+  { label: 'Snack', value: 'snack' },
+  { label: 'All', value: 'all' },
+];
 
 export default function AddCaloriesScreen({ route, navigation }: Props) {
   const { user } = useContext(AuthContext);
@@ -22,7 +33,6 @@ export default function AddCaloriesScreen({ route, navigation }: Props) {
   const [logDate, setLogDate] = useState(todayYYYYMMDD());
   const [calories, setCalories] = useState('');
   const [meal, setMeal] = useState<MealType>('all');
-  const [mealMenuVisible, setMealMenuVisible] = useState(false);
   const [note, setNote] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,22 +44,6 @@ export default function AddCaloriesScreen({ route, navigation }: Props) {
     setMeal(edit.meal);
     setNote(String(edit.note ?? ''));
   }, [edit?.logId]); // intentionally only on edit change
-
-  const mealLabel = (m: MealType) => {
-    switch (m) {
-      case 'breakfast':
-        return 'Breakfast';
-      case 'lunch':
-        return 'Lunch';
-      case 'dinner':
-        return 'Dinner';
-      case 'snack':
-        return 'Snack';
-      case 'all':
-      default:
-        return 'All';
-    }
-  };
 
   const onSubmit = async () => {
     if (!user) return;
@@ -90,80 +84,122 @@ export default function AddCaloriesScreen({ route, navigation }: Props) {
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1 }}
+      style={styles.flex}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={headerHeight}
     >
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-        <ScrollView
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode={Platform.OS === 'ios' ? 'on-drag' : 'none'}
-          contentContainerStyle={{
-            flexGrow: 1,
-            padding: 16,
-            paddingBottom: 16 + insets.bottom,
-            justifyContent: 'center',
-          }}
-        >
-          <Card>
-            <Card.Title title={edit?.logId ? 'Edit calories' : 'Log calories'} subtitle="Add entries anytime during the day" />
-            <Card.Content>
-              <LogDateField value={logDate} onChange={setLogDate} disabled={isSubmitting} />
-              <View style={{ height: 12 }} />
-              <TextInput
-                label="Calories"
+      <View style={styles.container}>
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode={Platform.OS === 'ios' ? 'on-drag' : 'none'}
+            contentContainerStyle={[styles.content, { paddingBottom: spacing.base + insets.bottom }]}
+          >
+            <Card>
+              <AppText variant="rowTitle" color="primary">{edit?.logId ? 'Edit calories' : 'Log calories'}</AppText>
+              <AppText variant="rowSubtitle" color="muted" style={styles.subtitle}>Add entries anytime during the day</AppText>
+
+              <AppText variant="eyebrow" color="muted" style={styles.fieldLabel}>Log date</AppText>
+              <TextField
+                value={logDate}
+                onChangeText={setLogDate}
+                editable={!isSubmitting}
+                autoCapitalize="none"
+                autoCorrect={false}
+                placeholder={todayYYYYMMDD()}
+              />
+              <View style={styles.dateChips}>
+                <TouchableOpacity
+                  style={styles.dateChip}
+                  disabled={isSubmitting}
+                  onPress={() => setLogDate(todayYYYYMMDD())}
+                  activeOpacity={0.8}
+                >
+                  <AppText variant="rowSubtitle" color="secondary">Today</AppText>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.dateChip}
+                  disabled={isSubmitting}
+                  onPress={() => setLogDate(yesterdayYYYYMMDD())}
+                  activeOpacity={0.8}
+                >
+                  <AppText variant="rowSubtitle" color="secondary">Yesterday</AppText>
+                </TouchableOpacity>
+              </View>
+
+              <AppText variant="eyebrow" color="muted" style={styles.fieldLabel}>Calories</AppText>
+              <TextField
                 keyboardType="number-pad"
                 value={calories}
                 onChangeText={setCalories}
-                disabled={isSubmitting}
+                editable={!isSubmitting}
               />
-              <View style={{ height: 12 }} />
-              <Text variant="labelMedium">Meal</Text>
-              <View style={{ height: 8 }} />
-              <Menu
-                visible={mealMenuVisible}
-                onDismiss={() => setMealMenuVisible(false)}
-                anchor={
-                  <Button
-                    mode="outlined"
-                    disabled={isSubmitting}
-                    onPress={() => setMealMenuVisible(true)}
-                    contentStyle={{ justifyContent: 'space-between' }}
-                    icon="chevron-down"
-                  >
-                    {mealLabel(meal)}
-                  </Button>
-                }
-              >
-                {(['breakfast', 'lunch', 'dinner', 'snack', 'all'] as MealType[]).map((m) => (
-                  <Menu.Item
-                    key={m}
-                    title={mealLabel(m)}
-                    onPress={() => {
-                      setMeal(m);
-                      setMealMenuVisible(false);
-                    }}
-                  />
-                ))}
-              </Menu>
-              <View style={{ height: 12 }} />
-              <TextInput label="Note (optional)" value={note} onChangeText={setNote} disabled={isSubmitting} multiline />
+
+              <AppText variant="eyebrow" color="muted" style={styles.fieldLabel}>Meal</AppText>
+              <View style={styles.chipRow}>
+                {MEALS.map((m) => {
+                  const active = m.value === meal;
+                  return (
+                    <Pressable
+                      key={m.value}
+                      onPress={() => setMeal(m.value)}
+                      disabled={isSubmitting}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: active }}
+                      style={[styles.chip, active ? styles.chipActive : styles.chipIdle]}
+                    >
+                      <AppText variant="rowSubtitle" style={{ color: active ? colors.primaryOnDark : colors.textSecondary, fontWeight: '600' }}>
+                        {m.label}
+                      </AppText>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              <AppText variant="eyebrow" color="muted" style={styles.fieldLabel}>Note (optional)</AppText>
+              <TextField value={note} onChangeText={setNote} editable={!isSubmitting} multiline />
+
               {error ? (
-                <>
-                  <View style={{ height: 12 }} />
-                  <Text style={{ color: 'crimson' }}>{error}</Text>
-                </>
+                <AppText variant="rowSubtitle" color="danger" style={styles.error}>{error}</AppText>
               ) : null}
-              <View style={{ height: 16 }} />
-              <Button mode="contained" onPress={onSubmit} loading={isSubmitting} disabled={isSubmitting}>
+
+              <PrimaryButton onPress={onSubmit} loading={isSubmitting} disabled={isSubmitting} style={styles.submit}>
                 {edit?.logId ? 'Update' : 'Save'}
-              </Button>
-            </Card.Content>
-          </Card>
-        </ScrollView>
-      </TouchableWithoutFeedback>
+              </PrimaryButton>
+            </Card>
+          </ScrollView>
+        </TouchableWithoutFeedback>
+      </View>
     </KeyboardAvoidingView>
   );
 }
 
-
+const styles = StyleSheet.create({
+  flex: { flex: 1 },
+  container: { flex: 1, backgroundColor: colors.background },
+  content: { flexGrow: 1, paddingHorizontal: spacing.lg, paddingTop: spacing.base, justifyContent: 'center' },
+  subtitle: { marginTop: spacing.xs },
+  fieldLabel: { marginTop: spacing.base, marginBottom: spacing.sm },
+  dateChips: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
+  dateChip: {
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surface2,
+    borderWidth: 1,
+    borderColor: colors.borderCard,
+  },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  chip: {
+    height: 40,
+    paddingHorizontal: spacing.base,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
+  chipActive: { backgroundColor: colors.primaryTint, borderColor: 'rgba(62,139,255,0.5)' },
+  chipIdle: { backgroundColor: colors.surface2, borderColor: 'transparent' },
+  error: { marginTop: spacing.md },
+  submit: { marginTop: spacing.lg },
+});

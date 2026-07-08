@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "364977359326",
+    "project_id": "accountabuild",
+    "storage_bucket": "accountabuild.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:364977359326:android:2eca72f77a39d508b1b54f",
+        "android_client_info": {
+          "package_name": "com.munitor.accountabuild"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD1VitOVfyrw_VEV0b5fDSZ3hVN_ezBj9w"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

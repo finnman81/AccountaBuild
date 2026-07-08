@@ -1,19 +1,29 @@
 import React, { useContext, useState } from 'react';
-import { KeyboardAvoidingView, Platform, View } from 'react-native';
-import { Button, Card, Text, TextInput, Snackbar, useTheme } from 'react-native-paper';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { Snackbar } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useNavigation } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 
-import { RootStackParamList } from '../navigation/types';
+import { GroupsStackParamList } from '../navigation/types';
+import type { RootStackParamList } from '../navigation/types';
 import { AuthContext } from '../store/AuthContext';
+import { useActiveGroup } from '../store/ActiveGroupContext';
 import { joinGroupByCode } from '../services/groups';
 import { friendlyNameFromDisplayName } from '../utils/formatters';
+import AppText from '../components/ui/AppText';
+import Card from '../components/ui/Card';
+import TextField from '../components/ui/TextField';
+import PrimaryButton from '../components/ui/PrimaryButton';
+import { colors, spacing } from '../theme';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'JoinGroup'>;
+type Props = NativeStackScreenProps<GroupsStackParamList, 'JoinGroup'>;
 
 export default function JoinGroupScreen({ navigation }: Props) {
   const { user } = useContext(AuthContext);
-  const theme = useTheme();
+  const { setActiveGroupId } = useActiveGroup();
+  const rootNav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [joinCode, setJoinCode] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -23,35 +33,21 @@ export default function JoinGroupScreen({ navigation }: Props) {
     if (!user) return;
     setError(null);
     setIsSubmitting(true);
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/d78cd2b8-8a4c-4720-ac47-838b1499e885', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sessionId: 'debug-session',
-        runId: 'pre-fix',
-        hypothesisId: 'H4',
-        location: 'screens/JoinGroupScreen.tsx:23',
-        message: 'join submit pressed',
-        data: { joinCodeLen: joinCode.trim().length, hasUser: !!user },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
     try {
       const res = await joinGroupByCode({
         uid: user.uid,
         displayName: user.displayName ?? friendlyNameFromDisplayName(user.email ?? null, user.uid),
         joinCode,
       });
-      
+
       // Show success notification with haptic feedback
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setShowSuccess(true);
-      
-      // Navigate after a brief delay so user sees the success message
+
+      // Make the joined group active and drop the user on Today.
+      await setActiveGroupId(res.groupId);
       setTimeout(() => {
-        navigation.replace('GroupDetail', { groupId: res.groupId });
+        rootNav.navigate('MainTabs', { screen: 'HomeTab' } as any);
       }, 800);
     } catch (e) {
       console.error('[JoinGroup] Error joining group:', e);
@@ -63,46 +59,60 @@ export default function JoinGroupScreen({ navigation }: Props) {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <View style={{ flex: 1, padding: 16, justifyContent: 'center' }}>
-        <Card>
-          <Card.Title title="Join a group" subtitle="Ask a friend for the 6‑char code" />
-          <Card.Content>
-            <TextInput
-              label="Join code"
-              autoCapitalize="characters"
-              value={joinCode}
-              onChangeText={setJoinCode}
-              disabled={isSubmitting}
-            />
-            {error ? (
-              <>
-                <View style={{ height: 12 }} />
-                <Text style={{ color: 'crimson' }}>{error}</Text>
-              </>
-            ) : null}
-            <View style={{ height: 16 }} />
-            <Button mode="contained" onPress={onSubmit} loading={isSubmitting} disabled={isSubmitting}>
-              Join
-            </Button>
-          </Card.Content>
-        </Card>
-      </View>
-      
+    <View style={styles.container}>
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>Join with a code</AppText>
+          <Card>
+            <AppText variant="pageTitle" color="primary">Join a group</AppText>
+            <AppText variant="rowSubtitle" color="muted" style={styles.subtitle}>
+              Ask a friend for the 6‑char code
+            </AppText>
+
+            <View style={styles.form}>
+              <TextField
+                label="Join code"
+                autoCapitalize="characters"
+                value={joinCode}
+                onChangeText={setJoinCode}
+                editable={!isSubmitting}
+              />
+              {error ? (
+                <AppText variant="rowSubtitle" color="danger">{error}</AppText>
+              ) : null}
+              <PrimaryButton onPress={onSubmit} loading={isSubmitting} disabled={isSubmitting}>
+                Join
+              </PrimaryButton>
+            </View>
+          </Card>
+        </ScrollView>
+      </KeyboardAvoidingView>
+
       <Snackbar
         visible={showSuccess}
         onDismiss={() => setShowSuccess(false)}
         duration={2000}
-        style={{ backgroundColor: '#22C55E' }}
+        style={{ backgroundColor: colors.success }}
         theme={{ colors: { onSurface: '#FFFFFF' } }}
       >
         Successfully joined group!
       </Snackbar>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 
-
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  flex: { flex: 1 },
+  content: { flexGrow: 1, paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.xxl, justifyContent: 'center' },
+  sectionLabel: { marginBottom: spacing.sm, marginLeft: spacing.xs },
+  subtitle: { marginTop: spacing.xs },
+  form: { marginTop: spacing.lg, gap: spacing.md },
+});

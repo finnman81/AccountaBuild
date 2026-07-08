@@ -1,10 +1,16 @@
 import React, { useContext, useState } from 'react';
-import { KeyboardAvoidingView, Platform, View } from 'react-native';
-import { Button, Card, Text, TextInput } from 'react-native-paper';
+import { KeyboardAvoidingView, Platform, View, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import { RootStackParamList } from '../navigation/types';
 import { AuthContext } from '../store/AuthContext';
+import GlowBackground from '../components/ui/GlowBackground';
+import AppText from '../components/ui/AppText';
+import TextField from '../components/ui/TextField';
+import PrimaryButton from '../components/ui/PrimaryButton';
+import AuthHeader from '../components/auth/AuthHeader';
+import { spacing } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ForgotPassword'>;
 
@@ -30,47 +36,47 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <View style={{ flex: 1, padding: 16, justifyContent: 'center' }}>
-        <Card>
-          <Card.Title title="Reset your password" />
-          <Card.Content>
-            <TextInput
-              label="Email"
-              autoCapitalize="none"
-              keyboardType="email-address"
-              value={email}
-              onChangeText={setEmail}
-              disabled={isSubmitting}
-            />
-            {error ? (
-              <>
-                <View style={{ height: 12 }} />
-                <Text style={{ color: 'crimson' }}>{error}</Text>
-              </>
-            ) : null}
-            {message ? (
-              <>
-                <View style={{ height: 12 }} />
-                <Text style={{ color: 'green' }}>{message}</Text>
-              </>
-            ) : null}
-            <View style={{ height: 16 }} />
-            <Button mode="contained" onPress={onSubmit} loading={isSubmitting} disabled={isSubmitting}>
+    <GlowBackground>
+      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+        <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            <AuthHeader title="Reset your password" subline="We'll email you a link to set a new one." />
+
+            <View style={styles.form}>
+              <TextField
+                placeholder="you@email.com"
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="email-address"
+                value={email}
+                onChangeText={setEmail}
+                editable={!isSubmitting}
+              />
+              {error ? <AppText variant="rowSubtitle" color="danger">{error}</AppText> : null}
+              {message ? <AppText variant="rowSubtitle" color="success">{message}</AppText> : null}
+            </View>
+          </ScrollView>
+
+          <View style={styles.footer}>
+            <PrimaryButton onPress={onSubmit} loading={isSubmitting} disabled={isSubmitting} style={styles.cta}>
               Send reset email
-            </Button>
-            <View style={{ height: 12 }} />
-            <Button onPress={() => navigation.navigate('Login')} disabled={isSubmitting}>
-              Back to login
-            </Button>
-          </Card.Content>
-        </Card>
-      </View>
-    </KeyboardAvoidingView>
+            </PrimaryButton>
+            <TouchableOpacity onPress={() => navigation.navigate('Login')} disabled={isSubmitting} style={styles.backWrap}>
+              <AppText variant="rowSubtitle" color="accent">Back to sign in</AppText>
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </GlowBackground>
   );
 }
 
-
+const styles = StyleSheet.create({
+  safe: { flex: 1 },
+  flex: { flex: 1 },
+  content: { flexGrow: 1, paddingHorizontal: spacing.xl, paddingTop: spacing.xxl },
+  form: { gap: spacing.md },
+  footer: { paddingHorizontal: spacing.xl, paddingBottom: spacing.base, paddingTop: spacing.sm },
+  cta: { width: '100%' },
+  backWrap: { alignItems: 'center', marginTop: spacing.base, paddingVertical: spacing.xs },
+});

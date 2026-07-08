@@ -1,10 +1,17 @@
 import React, { useContext, useState } from 'react';
-import { KeyboardAvoidingView, Platform, View } from 'react-native';
-import { Button, Card, Text, TextInput } from 'react-native-paper';
+import { KeyboardAvoidingView, Platform, View, ScrollView, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import { RootStackParamList } from '../navigation/types';
 import { AuthContext } from '../store/AuthContext';
+import GlowBackground from '../components/ui/GlowBackground';
+import AppText from '../components/ui/AppText';
+import TextField from '../components/ui/TextField';
+import PrimaryButton from '../components/ui/PrimaryButton';
+import SocialAuthButtons from '../components/auth/SocialAuthButtons';
+import AuthHeader from '../components/auth/AuthHeader';
+import { colors, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Register'>;
 
@@ -18,12 +25,12 @@ export default function RegisterScreen({ navigation }: Props) {
 
   const onSubmit = async () => {
     setError(null);
+    if (!displayName.trim()) {
+      setError('Please enter a display name.');
+      return;
+    }
     setIsSubmitting(true);
     try {
-      if (!displayName.trim()) {
-        setError('Please enter a display name.');
-        return;
-      }
       await register(displayName, email, password);
     } catch (e) {
       const err = e as { code?: string; message?: string };
@@ -55,56 +62,56 @@ export default function RegisterScreen({ navigation }: Props) {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <View style={{ flex: 1, padding: 16, justifyContent: 'center' }}>
-        <Card>
-          <Card.Title title="Create your account" />
-          <Card.Content>
-            <TextInput
-              label="Display name"
-              value={displayName}
-              onChangeText={setDisplayName}
-              disabled={isSubmitting}
+    <GlowBackground>
+      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+        <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            <AuthHeader title="Create your account" subline="Start your first week and bring your crew." />
+
+            <SocialAuthButtons
+              onApple={() => Alert.alert('Coming soon', 'Apple sign-up is on the way — use email for now.')}
+              onGoogle={() => Alert.alert('Coming soon', 'Google sign-up is on the way — use email for now.')}
             />
-            <View style={{ height: 12 }} />
-            <TextInput
-              label="Email"
-              autoCapitalize="none"
-              keyboardType="email-address"
-              value={email}
-              onChangeText={setEmail}
-              disabled={isSubmitting}
-            />
-            <View style={{ height: 12 }} />
-            <TextInput
-              label="Password"
-              secureTextEntry
-              value={password}
-              onChangeText={setPassword}
-              disabled={isSubmitting}
-            />
-            {error ? (
-              <>
-                <View style={{ height: 12 }} />
-                <Text style={{ color: 'crimson' }}>{error}</Text>
-              </>
-            ) : null}
-            <View style={{ height: 16 }} />
-            <Button mode="contained" onPress={onSubmit} loading={isSubmitting} disabled={isSubmitting}>
+
+            <View style={styles.divider}>
+              <View style={styles.hairline} />
+              <AppText variant="label" color="muted">or with email</AppText>
+              <View style={styles.hairline} />
+            </View>
+
+            <View style={styles.form}>
+              <TextField placeholder="Display name" value={displayName} onChangeText={setDisplayName} editable={!isSubmitting} autoCapitalize="words" />
+              <TextField placeholder="you@email.com" autoCapitalize="none" autoCorrect={false} keyboardType="email-address" value={email} onChangeText={setEmail} editable={!isSubmitting} />
+              <TextField placeholder="Password (min 6 characters)" secure value={password} onChangeText={setPassword} editable={!isSubmitting} />
+              {error ? <AppText variant="rowSubtitle" color="danger">{error}</AppText> : null}
+            </View>
+          </ScrollView>
+
+          <View style={styles.footer}>
+            <PrimaryButton onPress={onSubmit} loading={isSubmitting} disabled={isSubmitting} style={styles.cta}>
               Create account
-            </Button>
-            <View style={{ height: 12 }} />
-            <Button onPress={() => navigation.navigate('Login')} disabled={isSubmitting}>
-              Back to login
-            </Button>
-          </Card.Content>
-        </Card>
-      </View>
-    </KeyboardAvoidingView>
+            </PrimaryButton>
+            <View style={styles.footerRow}>
+              <AppText variant="rowSubtitle" color="muted">Already have an account? </AppText>
+              <TouchableOpacity onPress={() => navigation.navigate('Login')} disabled={isSubmitting}>
+                <AppText variant="rowSubtitle" color="accent">Sign in</AppText>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </GlowBackground>
   );
 }
 
-
+const styles = StyleSheet.create({
+  safe: { flex: 1 },
+  flex: { flex: 1 },
+  content: { flexGrow: 1, paddingHorizontal: spacing.xl, paddingTop: spacing.xxl },
+  divider: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginVertical: spacing.lg },
+  hairline: { flex: 1, height: 1, backgroundColor: colors.divider },
+  form: { gap: spacing.md },
+  footer: { paddingHorizontal: spacing.xl, paddingBottom: spacing.base, paddingTop: spacing.sm },
+  cta: { width: '100%' },
+  footerRow: { flexDirection: 'row', justifyContent: 'center', marginTop: spacing.base },
+});

@@ -6,6 +6,7 @@ export type HealthWorkout = {
   durationMinutes: number;
   startDate: Date;
   endDate: Date;
+  uuid?: string;
 };
 
 export type HealthCalories = {
@@ -19,12 +20,14 @@ export type HealthCalorieEntry = {
   meal: 'breakfast' | 'lunch' | 'dinner' | 'snack' | 'all';
   timestamp: Date;
   source?: string;
+  uuid?: string;
 };
 
 export type HealthWeight = {
   weight: number;
   date: string; // YYYY-MM-DD
   timestamp: Date;
+  uuid?: string;
 };
 
 export type HealthPermissions = {
@@ -32,6 +35,8 @@ export type HealthPermissions = {
   calories: boolean;
   weight: boolean;
 };
+
+export type AnchoredResult<T> = { items: T[]; deletedUuids: string[]; newAnchor?: string };
 
 // NOTE: Expo Go cannot load HealthKit/Google Fit (NitroModules).
 // These dynamic imports + Expo Go guard prevent runtime crashes.
@@ -55,12 +60,14 @@ async function getHealthKitService() {
 }
 
 async function getGoogleFitService() {
-  // Only block in Expo Go - custom dev clients can use native modules
+  // Only block in Expo Go - custom dev clients can use native modules.
+  // Android health now uses Health Connect (react-native-health-connect), which
+  // exposes the same googleFit* function names this module dispatches to.
   if (isExpoGo) return null;
   try {
-    return await import('./googleFitService');
+    return await import('./healthConnectService');
   } catch (error) {
-    console.error('Google Fit service unavailable:', error);
+    console.error('Health Connect service unavailable:', error);
     return null;
   }
 }
@@ -132,6 +139,95 @@ export async function readTodayWorkouts(): Promise<HealthWorkout[]> {
     return await service.readTodayWorkouts();
   }
   return [];
+}
+
+/**
+ * Delta read of workouts since the given anchor (idempotent, honors deletions).
+ * Android has no anchored path yet, so it returns an empty passthrough.
+ */
+export async function readWorkoutsSinceAnchor(anchor?: string): Promise<AnchoredResult<HealthWorkout>> {
+  if (Platform.OS === 'ios') {
+    const service = await getHealthKitService();
+    if (!service || typeof (service as any).readWorkoutsSinceAnchor !== 'function') {
+      return { items: [], deletedUuids: [], newAnchor: anchor };
+    }
+    return await (service as any).readWorkoutsSinceAnchor(anchor);
+  }
+  if (Platform.OS === 'android') {
+    // Health Connect has no anchored workout read wired yet; wrap the last
+    // week's workouts as a delta (deterministic ids keep it idempotent).
+    const service = await getGoogleFitService();
+    if (!service) return { items: [], deletedUuids: [], newAnchor: anchor };
+    const items = await service.readTodayWorkouts(7);
+    return { items, deletedUuids: [], newAnchor: anchor };
+  }
+  return { items: [], deletedUuids: [], newAnchor: anchor };
+}
+
+/**
+ * Delta read of dietary-energy entries since the given anchor.
+ * Android wraps the last week's Health Connect entries (idempotent, no deletions).
+ */
+export async function readCalorieEntriesSinceAnchor(anchor?: string): Promise<AnchoredResult<HealthCalorieEntry>> {
+  if (Platform.OS === 'ios') {
+    const service = await getHealthKitService();
+    if (!service || typeof (service as any).readCalorieEntriesSinceAnchor !== 'function') {
+      return { items: [], deletedUuids: [], newAnchor: anchor };
+    }
+    return await (service as any).readCalorieEntriesSinceAnchor(anchor);
+  }
+  if (Platform.OS === 'android') {
+    const service = await getGoogleFitService();
+    if (!service) return { items: [], deletedUuids: [], newAnchor: anchor };
+    const items = await service.readTodayCalorieEntries(7);
+    return { items, deletedUuids: [], newAnchor: anchor };
+  }
+  return { items: [], deletedUuids: [], newAnchor: anchor };
+}
+
+/** Workouts within the last `daysBack` days — direct read for robust sync import. */
+export async function readRecentWorkouts(daysBack = 7): Promise<HealthWorkout[]> {
+  if (Platform.OS === 'ios') {
+    const service = await getHealthKitService();
+    if (!service || typeof (service as any).readRecentWorkouts !== 'function') return [];
+    return await (service as any).readRecentWorkouts(daysBack);
+  }
+  if (Platform.OS === 'android') {
+    const service = await getGoogleFitService();
+    if (!service || typeof (service as any).readRecentWorkouts !== 'function') return [];
+    return await (service as any).readRecentWorkouts(daysBack);
+  }
+  return [];
+}
+
+/** Weight entries for the last `daysBack` days (latest per day) — sync backfill. */
+export async function readRecentWeights(daysBack = 7): Promise<HealthWeight[]> {
+  if (Platform.OS === 'ios') {
+    const service = await getHealthKitService();
+    if (!service || typeof (service as any).readRecentWeights !== 'function') return [];
+    return await (service as any).readRecentWeights(daysBack);
+  }
+  if (Platform.OS === 'android') {
+    const service = await getGoogleFitService();
+    if (!service || typeof (service as any).readRecentWeights !== 'function') return [];
+    return await (service as any).readRecentWeights(daysBack);
+  }
+  return [];
+}
+
+/**
+ * Set up near-instant background sync triggers (iOS HealthKit background delivery
+ * + change observers). Android relies on the periodic background task instead, so
+ * this is a no-op there. Returns a cleanup function.
+ */
+export async function setupBackgroundObservers(onChange: () => void): Promise<() => void> {
+  if (Platform.OS === 'ios') {
+    const service = await getHealthKitService();
+    if (service && typeof (service as any).setupBackgroundObservers === 'function') {
+      return (service as any).setupBackgroundObservers(onChange);
+    }
+  }
+  return () => {};
 }
 
 /**

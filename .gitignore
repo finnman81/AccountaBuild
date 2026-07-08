@@ -45,3 +45,23 @@ yarn-error.*
 /android
 accountabuild-firebase-adminsdk-fbsvc-96d847c201.json
 /accountabuild-firebase-adminsdk-fbsvc-96d847c201.json
+# Any Firebase Admin SDK service-account key (never commit these)
+*firebase-adminsdk*.json
+*-adminsdk-*.json
+serviceAccount*.json
+# Google Play submit service-account key
+play-service-account.json
+*play*service*account*.json
+
+# Android upload keystore + local EAS credentials (never commit)
+credentials.json
+credentials/
+*.keystore
+
+# Build-artifact + wrapper junk (kept out of the repo)
+logs/
+*.aab
+*.zip
+.cursor/
+# Cross-project nightly digest (written by a scheduled task, not part of the app)
+brain.md
