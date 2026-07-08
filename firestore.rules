@@ -60,6 +60,11 @@ service cloud.firestore {
       match /healthSettings/{settingsId} {
         allow read, write: if signedIn() && request.auth.uid == uid;
       }
+      // Activity feed (cheers/nudges received, rank changes). The owner reads +
+      // marks read; the Cloud Function writes via admin (bypasses rules).
+      match /activity/{activityId} {
+        allow read, write: if signedIn() && request.auth.uid == uid;
+      }
     }
 
     // Global season metadata (for countdown / UI). Any signed-in user can read.

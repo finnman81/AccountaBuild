@@ -37,6 +37,7 @@ import HomeScreen from '../screens/HomeScreen';
 import LeaderboardScreen from '../screens/LeaderboardScreen';
 import { colors } from '../theme/colors';
 import HomeTodayScreen from '../screens/HomeTodayScreen';
+import ActivityScreen from '../screens/ActivityScreen';
 
 const Tab = createBottomTabNavigator<TabsParamList>();
 const HomeStack = createNativeStackNavigator<HomeStackParamList>();
@@ -49,6 +50,7 @@ function HomeStackNavigator() {
     <HomeStack.Navigator>
       <HomeStack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
       <HomeStack.Screen name="Today" component={HomeTodayScreen} options={{ headerShown: false }} />
+      <HomeStack.Screen name="Activity" component={ActivityScreen} options={{ headerShown: false }} />
       <HomeStack.Screen name="Leaderboard" component={LeaderboardScreen} options={{ title: 'Leaderboard' }} />
       <HomeStack.Screen name="GroupChat" component={GroupChatScreen} options={{ title: 'Chat' }} />
       <HomeStack.Screen name="ViewPhotos" component={ViewPhotosScreen} options={{ title: 'Photos' }} />

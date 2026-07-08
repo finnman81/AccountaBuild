@@ -83,9 +83,13 @@ export default function TodayHeader({
             <Icon source={unreadChat > 0 ? 'chat' : 'chat-outline'} size={26} color={unreadChat > 0 ? colors.primary : colors.textSecondary} />
             {unreadChat > 0 && <View style={styles.dot} />}
           </Pressable>
-          <Pressable onPress={onBell} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Notifications">
-            <Icon source="bell-outline" size={26} color={colors.textSecondary} />
-            {unreadCount > 0 && <View style={styles.dot} />}
+          <Pressable onPress={onBell} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel={unreadCount > 0 ? `Activity, ${unreadCount} new` : 'Activity'}>
+            <Icon source={unreadCount > 0 ? 'bell' : 'bell-outline'} size={26} color={unreadCount > 0 ? colors.primary : colors.textSecondary} />
+            {unreadCount > 0 && (
+              <View style={styles.countBadge}>
+                <Text style={styles.countBadgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+              </View>
+            )}
           </Pressable>
         </View>
       </View>
@@ -119,6 +123,12 @@ const styles = StyleSheet.create({
   iconBtn: { width: 42, height: 42, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
   iconBtnHighlight: { backgroundColor: colors.primaryTint },
   dot: { position: 'absolute', top: 7, right: 7, width: 9, height: 9, borderRadius: 5, backgroundColor: colors.primary, borderWidth: 1.5, borderColor: colors.background },
+  countBadge: {
+    position: 'absolute', top: 4, right: 3, minWidth: 16, height: 16, borderRadius: 8,
+    backgroundColor: colors.danger, alignItems: 'center', justifyContent: 'center',
+    paddingHorizontal: 3, borderWidth: 1.5, borderColor: colors.background,
+  },
+  countBadgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '800' },
   dateEyebrow: { fontSize: 11, fontWeight: '700', letterSpacing: 0.8, color: colors.textMuted, marginTop: 18 },
   greeting: { fontSize: 26, fontWeight: '700', letterSpacing: -0.4, color: colors.textPrimary, marginTop: 4 },
 });

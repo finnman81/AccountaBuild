@@ -505,6 +505,20 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
 
     const tierPromoted = band.tier !== oldBand.tier && isStrictlyHigher(band, oldBand);
 
+    // Log a rank change to the user's Activity feed (deterministic id per week +
+    // kind so idempotent recomputes don't duplicate).
+    const ROMAN_A = ['', 'I', 'II', 'III', 'IV'];
+    const rankLabel = `${band.tier}${band.division ? ` ${ROMAN_A[band.division]}` : ''}`;
+    if (bandOrderIndex(band) > bandOrderIndex(oldBand)) {
+      tx.set(doc(db, 'users', uid, 'activity', `${weekId}-promotion`), {
+        type: 'promotion', title: '⬆ Promoted!', body: `You climbed to ${rankLabel}.`, read: false, createdAt: serverTimestamp(),
+      }, { merge: true });
+    } else if (bandOrderIndex(band) < bandOrderIndex(oldBand)) {
+      tx.set(doc(db, 'users', uid, 'activity', `${weekId}-demotion`), {
+        type: 'demotion', title: '⬇ Rank slipped', body: `You dropped to ${rankLabel}. Log this week to climb back.`, read: false, createdAt: serverTimestamp(),
+      }, { merge: true });
+    }
+
     // Don't count missed weeks for weeks before user joined
     const consecutiveMissedWeeks = isWeekBeforeFirst ? 0 : (missedWeek ? missedBefore + 1 : 0);
     // Shield: granted (2) on tier promotion, ticks down on completed weeks,

@@ -11,6 +11,7 @@ import { useActiveGroup } from '../store/ActiveGroupContext';
 import { subscribeGroupChallenge, challengeProgress, type GroupChallenge } from '../services/challenges';
 import { subscribeLatestGroupMessage, type GroupMessage } from '../services/chat';
 import { subscribeMyGroupMeta } from '../services/groups';
+import { subscribeUnreadActivityCount } from '../services/activity';
 import { buildLeaderboardPreview, buildTeamToday, buildTodayChecklist, type ChecklistType } from '../viewmodels/today';
 import TodayHeader from '../components/today/TodayHeader';
 import TodaysLogCard from '../components/today/TodaysLogCard';
@@ -74,6 +75,12 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
     return toMs(latestMsg.createdAt) > toMs(chatSeenAt);
   }, [latestMsg, chatSeenAt, user?.uid]);
 
+  const [unreadActivity, setUnreadActivity] = useState(0);
+  useEffect(() => {
+    if (!user?.uid) { setUnreadActivity(0); return; }
+    return subscribeUnreadActivityCount(user.uid, setUnreadActivity);
+  }, [user?.uid]);
+
   const today = todayYYYYMMDD();
   const now = new Date();
   const pastCutoff = now.getHours() >= 18;
@@ -117,6 +124,7 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
         rankTier={rankTier}
         rankDivision={rankDivision}
         unreadChat={hasUnreadChat ? 1 : 0}
+        unreadCount={unreadActivity}
         onSwitchGroup={onSwitchGroup ?? (() => {})}
         onChat={onChat ?? (() => {})}
         onBell={onBell ?? (() => {})}

@@ -43,6 +43,7 @@ export type OnboardingStackParamList = {
 export type HomeStackParamList = {
   Home: undefined;
   Today: undefined;
+  Activity: undefined;
   Leaderboard: { groupId: string };
   GroupChat: { groupId: string };
   ViewPhotos: { groupId: string };

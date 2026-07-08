@@ -34,7 +34,7 @@ export default function HomeTodayScreen() {
             (nav as any).navigate('MainTabs', { screen: 'GroupsTab', params: { screen: 'Challenge', params: { groupId: activeGroupId } } });
           }
         }}
-        onBell={() => (nav as any).navigate('MainTabs', { screen: 'ProfileTab', params: { screen: 'Notifications', initial: false } })}
+        onBell={() => nav.navigate('Activity')}
         onOpenMember={(uid: string) => {
           if (activeGroupId && uid) (nav as any).navigate('MemberDetail', { groupId: activeGroupId, uid });
         }}
