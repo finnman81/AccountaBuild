@@ -9,6 +9,8 @@ import { friendlyNameFromDisplayName } from '../utils/formatters';
 import { useTodayData } from '../hooks/useTodayData';
 import { useActiveGroup } from '../store/ActiveGroupContext';
 import { subscribeGroupChallenge, challengeProgress, type GroupChallenge } from '../services/challenges';
+import { subscribeLatestGroupMessage, type GroupMessage } from '../services/chat';
+import { subscribeMyGroupMeta } from '../services/groups';
 import { buildLeaderboardPreview, buildTeamToday, buildTodayChecklist, type ChecklistType } from '../viewmodels/today';
 import TodayHeader from '../components/today/TodayHeader';
 import TodaysLogCard from '../components/today/TodaysLogCard';
@@ -55,6 +57,23 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
   }, [activeGroupId]);
   const challengeInfo = useMemo(() => (challenge ? challengeProgress(challenge) : null), [challenge]);
 
+  // Unread-chat signal: latest message newer than my last-seen, and not mine.
+  const [latestMsg, setLatestMsg] = useState<GroupMessage | null>(null);
+  const [chatSeenAt, setChatSeenAt] = useState<any>(null);
+  useEffect(() => {
+    if (!activeGroupId) { setLatestMsg(null); return; }
+    return subscribeLatestGroupMessage(activeGroupId, setLatestMsg);
+  }, [activeGroupId]);
+  useEffect(() => {
+    if (!activeGroupId || !user?.uid) { setChatSeenAt(null); return; }
+    return subscribeMyGroupMeta(user.uid, activeGroupId, (meta) => setChatSeenAt(meta?.chatLastSeenAt ?? null));
+  }, [activeGroupId, user?.uid]);
+  const toMs = (t: any) => (t?.toMillis ? t.toMillis() : typeof t?.seconds === 'number' ? t.seconds * 1000 : 0);
+  const hasUnreadChat = useMemo(() => {
+    if (!latestMsg?.createdAt || latestMsg.uid === user?.uid) return false;
+    return toMs(latestMsg.createdAt) > toMs(chatSeenAt);
+  }, [latestMsg, chatSeenAt, user?.uid]);
+
   const today = todayYYYYMMDD();
   const now = new Date();
   const pastCutoff = now.getHours() >= 18;
@@ -97,6 +116,7 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
         greeting={greetingFor(now.getHours())}
         rankTier={rankTier}
         rankDivision={rankDivision}
+        unreadChat={hasUnreadChat ? 1 : 0}
         onSwitchGroup={onSwitchGroup ?? (() => {})}
         onChat={onChat ?? (() => {})}
         onBell={onBell ?? (() => {})}

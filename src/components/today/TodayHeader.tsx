@@ -74,12 +74,17 @@ export default function TodayHeader({
 
         <View style={styles.actions}>
           {rankTier ? <RankChip tier={rankTier} division={rankDivision} /> : null}
-          <Pressable onPress={onChat} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Group chat">
-            <Icon source="chat-outline" size={22} color={colors.textSecondary} />
+          <Pressable
+            onPress={onChat}
+            style={[styles.iconBtn, unreadChat > 0 && styles.iconBtnHighlight]}
+            accessibilityRole="button"
+            accessibilityLabel={unreadChat > 0 ? 'Group chat, new messages' : 'Group chat'}
+          >
+            <Icon source={unreadChat > 0 ? 'chat' : 'chat-outline'} size={26} color={unreadChat > 0 ? colors.primary : colors.textSecondary} />
             {unreadChat > 0 && <View style={styles.dot} />}
           </Pressable>
           <Pressable onPress={onBell} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Notifications">
-            <Icon source="bell-outline" size={22} color={colors.textSecondary} />
+            <Icon source="bell-outline" size={26} color={colors.textSecondary} />
             {unreadCount > 0 && <View style={styles.dot} />}
           </Pressable>
         </View>
@@ -111,8 +116,9 @@ const styles = StyleSheet.create({
     marginRight: 4,
   },
   rankChipText: { fontSize: 12, fontWeight: '700', color: colors.textSecondary },
-  iconBtn: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
-  dot: { position: 'absolute', top: 8, right: 8, width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primary },
+  iconBtn: { width: 42, height: 42, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
+  iconBtnHighlight: { backgroundColor: colors.primaryTint },
+  dot: { position: 'absolute', top: 7, right: 7, width: 9, height: 9, borderRadius: 5, backgroundColor: colors.primary, borderWidth: 1.5, borderColor: colors.background },
   dateEyebrow: { fontSize: 11, fontWeight: '700', letterSpacing: 0.8, color: colors.textMuted, marginTop: 18 },
   greeting: { fontSize: 26, fontWeight: '700', letterSpacing: -0.4, color: colors.textPrimary, marginTop: 4 },
 });
