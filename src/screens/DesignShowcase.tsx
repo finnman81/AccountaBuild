@@ -43,9 +43,9 @@ const MOCK_TEAM: TeamToday = {
 };
 
 const MOCK_LEADERBOARD: LeaderboardPreviewRow[] = [
-  { rank: 1, uid: 'marcus', name: 'Marcus', tier: 'Gold', division: 1, mmr: 1872, isMe: false },
-  { rank: 2, uid: 'me', name: 'You', tier: 'Gold', division: 2, mmr: 1654, isMe: true },
-  { rank: 3, uid: 'jules', name: 'Jules', tier: 'Silver', division: 1, mmr: 1601, isMe: false },
+  { rank: 1, isTied: false, uid: 'marcus', name: 'Marcus', tier: 'Gold', division: 1, mmr: 1872, isMe: false },
+  { rank: 2, isTied: false, uid: 'me', name: 'You', tier: 'Gold', division: 2, mmr: 1654, isMe: true },
+  { rank: 3, isTied: false, uid: 'jules', name: 'Jules', tier: 'Silver', division: 1, mmr: 1601, isMe: false },
 ];
 
 const TIERS: Tier[] = ['Iron', 'Bronze', 'Silver', 'Gold', 'Platinum', 'Diamond', 'Master', 'Challenger'];

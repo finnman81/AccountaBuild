@@ -10,6 +10,8 @@ export type Movement = 'up' | 'down' | 'same';
 
 export type LeaderboardRow = {
   rank: number;
+  /** True when one or more other rows share this exact rank (equal MMR). */
+  isTied: boolean;
   uid: string;
   name: string;
   photoURL: string | null;
@@ -77,8 +79,18 @@ export function buildLeaderboard(params: {
       };
     });
 
+  // Stable secondary order by name (so ties don't reshuffle between reloads),
+  // but the RANK NUMBER itself uses standard competition ranking (1224): equal
+  // MMR shares the same rank, and the next distinct MMR skips to its true
+  // position (e.g. two people tied at #1, next person is #3 — not #2).
   rows.sort((a, b) => (b.mmr ?? -1) - (a.mmr ?? -1) || a.name.localeCompare(b.name));
-  const ranked: LeaderboardRow[] = rows.map((r, i) => ({ rank: i + 1, ...r }));
+  const ranks: number[] = rows.map((r, i) => (i > 0 && r.mmr === rows[i - 1].mmr ? -1 : i + 1));
+  for (let i = 0; i < ranks.length; i += 1) if (ranks[i] === -1) ranks[i] = ranks[i - 1]!;
+  const ranked: LeaderboardRow[] = rows.map((r, i) => ({
+    rank: ranks[i]!,
+    isTied: (i > 0 && ranks[i] === ranks[i - 1]) || (i < ranks.length - 1 && ranks[i] === ranks[i + 1]),
+    ...r,
+  }));
 
   const topMmr = ranked[0]?.mmr ?? null;
   const me = ranked.find((r) => r.isMe);

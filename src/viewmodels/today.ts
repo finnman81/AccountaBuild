@@ -39,6 +39,7 @@ export type TeamToday = { members: TeamMemberToday[]; loggedCount: number; total
 
 export type LeaderboardPreviewRow = {
   rank: number;
+  isTied: boolean;
   uid: string;
   name: string;
   tier: Tier | null;
@@ -344,6 +345,15 @@ export function buildLeaderboardPreview(params: {
         isMe: uid === params.myUid,
       };
     });
+  // Standard competition ranking (1224): equal MMR shares a rank, computed
+  // against the full field so a tie at the visible edge (e.g. #3) is still
+  // correct even though its tied partner may fall just outside the slice.
   rows.sort((a, b) => (b.mmr ?? -1) - (a.mmr ?? -1) || a.name.localeCompare(b.name));
-  return rows.slice(0, params.limit ?? 3).map((r, i) => ({ rank: i + 1, ...r }));
+  const ranks: number[] = rows.map((r, i) => (i > 0 && r.mmr === rows[i - 1].mmr ? -1 : i + 1));
+  for (let i = 0; i < ranks.length; i += 1) if (ranks[i] === -1) ranks[i] = ranks[i - 1]!;
+  return rows.slice(0, params.limit ?? 3).map((r, i) => ({
+    rank: ranks[i]!,
+    isTied: (i > 0 && ranks[i] === ranks[i - 1]) || (i < ranks.length - 1 && ranks[i] === ranks[i + 1]),
+    ...r,
+  }));
 }

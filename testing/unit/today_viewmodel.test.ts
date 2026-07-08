@@ -114,6 +114,24 @@ describe('today viewmodel · buildLeaderboardPreview', () => {
     expect(rows.find((r) => r.uid === 'me')!.isMe).toBe(true);
     expect(rows.find((r) => r.uid === 'a')!.tier).toBe('Gold');
   });
+
+  it('gives equal MMR the same rank (standard competition ranking) and flags ties', () => {
+    // a and b tied at 1800; c distinct behind them -> ranks should be 1, 1, 3 (not 1, 2, 3).
+    const members = ['a', 'b', 'c'];
+    const publicUsers = {
+      a: pub('a', { mmrPublic: 1800 }),
+      b: pub('b', { mmrPublic: 1800 }),
+      c: pub('c', { mmrPublic: 1500 }),
+    };
+    const rows = buildLeaderboardPreview({ memberUids: members, publicUsers, canSee: new Set(members), myUid: 'a', limit: 3 });
+    const byUid = Object.fromEntries(rows.map((r) => [r.uid, r]));
+    expect(byUid.a.rank).toBe(1);
+    expect(byUid.b.rank).toBe(1);
+    expect(byUid.a.isTied).toBe(true);
+    expect(byUid.b.isTied).toBe(true);
+    expect(byUid.c.rank).toBe(3); // skips 2 — two people are tied for #1
+    expect(byUid.c.isTied).toBe(false);
+  });
 });
 
 describe('computeGoalStreak (pace-aware)', () => {

@@ -42,7 +42,12 @@ function PodiumColumn({ row, place, onPress }: { row?: LeaderboardRow; place: 1 
         <AppText variant="rowSubtitle" color="secondary">{mmrText(row.mmr)}</AppText>
       </View>
       <View style={[styles.pedestal, { height }, place === 1 && styles.pedestalGold]}>
-        <AppText variant="statBig" style={[styles.pedestalNum, place === 1 && styles.pedestalNumGold]}>{place}</AppText>
+        <AppText
+          variant="statBig"
+          style={[styles.pedestalNum, place === 1 && styles.pedestalNumGold, row.isTied && styles.pedestalNumTied]}
+        >
+          {row.isTied ? `T-${row.rank}` : row.rank}
+        </AppText>
       </View>
     </TouchableOpacity>
   );
@@ -117,7 +122,7 @@ export default function LeaderboardScreen({ route }: Props) {
               <View style={styles.list}>
                 {listRows.map((r) => (
                   <TouchableOpacity key={r.uid} style={[styles.row, r.isMe && styles.rowMe]} activeOpacity={0.85} onPress={() => openMember(r.uid)}>
-                    <AppText variant="rowSubtitle" color="muted" style={styles.rank}>{r.rank}</AppText>
+                    <AppText variant="rowSubtitle" color="muted" style={styles.rank}>{r.isTied ? `T-${r.rank}` : r.rank}</AppText>
                     <Avatar photoURL={r.photoURL} name={r.name} size={34} />
                     <View style={styles.rowInfo}>
                       <AppText variant="rowTitle" color={r.isMe ? 'accent' : 'primary'} numberOfLines={1}>{r.name}</AppText>
@@ -174,6 +179,7 @@ const styles = StyleSheet.create({
   pedestalGold: { backgroundColor: 'rgba(233,181,66,0.14)', borderWidth: 1, borderColor: 'rgba(233,181,66,0.4)' },
   pedestalNum: { color: colors.textSecondary },
   pedestalNumGold: { color: colors.rankGold },
+  pedestalNumTied: { fontSize: 22 },
 
   list: { gap: spacing.sm },
   row: {
@@ -188,7 +194,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.base,
   },
   rowMe: { borderColor: 'rgba(62,139,255,0.35)' },
-  rank: { width: 18, textAlign: 'center' },
+  rank: { width: 26, textAlign: 'center' },
   rowInfo: { flex: 1, gap: 2 },
   rowMmr: { minWidth: 48, textAlign: 'right' },
   riskTag: { backgroundColor: colors.dangerTint, borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 3 },

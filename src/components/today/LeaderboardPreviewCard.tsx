@@ -19,7 +19,7 @@ export default function LeaderboardPreviewCard({ rows, onViewAll }: { rows: Lead
       <View style={{ marginTop: 8 }}>
         {rows.map((r, i) => (
           <View key={r.uid} style={[styles.row, i > 0 && styles.rowBorder]}>
-            <Text style={styles.rank}>{r.rank}</Text>
+            <Text style={styles.rank}>{r.isTied ? `T-${r.rank}` : r.rank}</Text>
             <View style={styles.emblem}>{r.tier ? <RankEmblem tier={r.tier} size={22} inline /> : null}</View>
             <Text style={[styles.name, r.isMe && { color: colors.primaryOnDark }]} numberOfLines={1}>
               {r.name}
@@ -40,7 +40,7 @@ const styles = StyleSheet.create({
   viewAll: { fontSize: 13, fontWeight: '600', color: colors.primary },
   row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },
   rowBorder: { borderTopWidth: 1, borderTopColor: colors.divider },
-  rank: { width: 18, fontSize: 13, fontWeight: '600', color: colors.textMuted, fontVariant: ['tabular-nums'] },
+  rank: { width: 28, fontSize: 13, fontWeight: '600', color: colors.textMuted, fontVariant: ['tabular-nums'] },
   emblem: { width: 30, alignItems: 'center' },
   name: { flex: 1, fontSize: 14.5, fontWeight: '600', color: colors.textPrimary, marginLeft: 4 },
   mmr: { fontSize: 14.5, fontWeight: '700', color: colors.textPrimary, fontVariant: ['tabular-nums'] },
