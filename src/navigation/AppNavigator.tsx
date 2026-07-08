@@ -24,6 +24,7 @@ import RegisterScreen from '../screens/RegisterScreen';
 import { RootStackParamList } from './types';
 import TabsNavigator from './TabsNavigator';
 import OnboardingNavigator from './OnboardingNavigator';
+import { navigationRef, flushPendingNavigation } from './navigationRef';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -55,6 +56,8 @@ export default function AppNavigator() {
 
   return (
     <NavigationContainer
+      ref={navigationRef}
+      onReady={flushPendingNavigation}
       theme={{
         ...NavDarkTheme,
         colors: {
