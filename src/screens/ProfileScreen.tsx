@@ -111,7 +111,12 @@ export default function ProfileScreen() {
 
   const didAutoCatchUpRef = useRef(false);
   useEffect(() => {
-    if (!user || !mmrState) return;
+    // NOTE: do NOT gate on `mmrState` here. It's null both while loading AND
+    // when the user has no `mmr` field yet — gating on it deadlocks brand-new /
+    // never-computed users (null state → skip init → still no mmr, forever), so
+    // they'd show "no rank" until a manual pull-to-refresh. Run the (idempotent)
+    // catch-up regardless; it seeds mmr from STARTING_MMR when none exists.
+    if (!user) return;
     if (didAutoCatchUpRef.current) return;
     if (mmrBusy || refreshing) return;
 
@@ -120,9 +125,10 @@ export default function ProfileScreen() {
     setMmrBusy(true);
     void ensureSeasonRollover(user.uid)
       .then(() => {
-        // Only catch up MMR if the user is behind the current ISO week.
+        // Skip only when we already have state that's current for this ISO week;
+        // otherwise (no state yet, or behind) run the catch-up.
         const currentWeekId = isoWeekIdInTz(new Date(), DEFAULT_TZ);
-        if (mmrState.lastWeekIdUpdated === currentWeekId) return;
+        if (mmrState && mmrState.lastWeekIdUpdated === currentWeekId) return;
         return updateGlobalMmrUpToCurrentWeek(user.uid);
       })
       .catch((err) => {
