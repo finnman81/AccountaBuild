@@ -269,7 +269,8 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
   let calorieTotalsByDate: Record<string, number> = {};
   let totalCaloriesLogged = 0;
   let dailyCalorieGoal: number | null = null;
-  
+  let goalMode: 'cut' | 'bulk' | 'maintenance' | null = null;
+
   try {
     const [goalsResult, groupIdsResult, weightsResult, userSnap] = await Promise.all([
       getMyGlobalGoals(uid),
@@ -282,11 +283,28 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
     weights = weightsResult;
     const userData = userSnap.exists() ? (userSnap.data() as any) : {};
     dailyCalorieGoal = typeof userData?.dailyCalorieGoal === 'number' ? Number(userData.dailyCalorieGoal) : null;
+    goalMode = userData?.goalMode === 'cut' || userData?.goalMode === 'bulk' || userData?.goalMode === 'maintenance' ? userData.goalMode : null;
   } catch (error) {
     console.error('[MMR Update] Error fetching user data:', error);
     throw new Error(`Failed to fetch user data: ${error instanceof Error ? error.message : String(error)}`);
   }
-  
+
+  // Fairness (audit F1): score each week against the goals it STARTED with.
+  // The weekly doc snapshots the goals on its first compute; recomputes (idempotent
+  // catch-ups, mid-week refreshes) reuse the snapshot, so editing goals no longer
+  // retroactively rescores the in-progress week or past weeks. This finally
+  // enforces the "changes apply from next week" promise the Goals screen makes
+  // (goalsEffectiveWeekId was written but never consumed).
+  try {
+    const weeklyPre = await getDoc(doc(db, 'users', uid, 'weekly', weekId));
+    const snap = weeklyPre.exists() ? (weeklyPre.data() as any)?.goalsSnapshot : null;
+    if (snap && typeof snap === 'object' && Object.keys(snap).length > 0) {
+      goals = snap as Record<string, GoalDoc>;
+    }
+  } catch {
+    // Non-fatal: fall back to current goals.
+  }
+
   try {
     const [workoutTotals, calorieDayHits, calorieTotals] = await Promise.all([
       getWeekWorkoutTotals(uid, groupIds, start, end),
@@ -299,7 +317,7 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
     calorieDaysHit = calorieDayHits;
     calorieTotalsByDate = calorieTotals.totalsByDate;
     totalCaloriesLogged = calorieTotals.totalCalories;
-    const calorieDaysFromLogs = calorieDaysHitFromTotals(calorieTotalsByDate, dailyCalorieGoal);
+    const calorieDaysFromLogs = calorieDaysHitFromTotals(calorieTotalsByDate, dailyCalorieGoal, goalMode);
     if (calorieDaysFromLogs > calorieDaysHit) {
       calorieDaysHit = calorieDaysFromLogs;
     }
@@ -591,6 +609,10 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
         rulesVersion: RULES_VERSION,
         updatedAt: serverTimestamp(),
         dataSource: 'self_reported',
+        // Snapshot the goals this week is scored against (first compute only,
+        // and only once there ARE goals — a brand-new user whose first compute
+        // races onboarding keeps using live goals until some exist).
+        ...((weeklyData as any)?.goalsSnapshot || Object.keys(goals).length === 0 ? {} : { goalsSnapshot: goals }),
 
         // Raw totals
         workoutsDone,

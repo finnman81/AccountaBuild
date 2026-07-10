@@ -24,4 +24,14 @@ describe('mmr/adherence · calorieDaysHitFromTotals', () => {
   it('treats a non-positive budget as "no budget" (any logged day counts)', () => {
     expect(calorieDaysHitFromTotals({ a: 5000, b: 100 }, 0)).toBe(2);
   });
+
+  it('BULK mode counts days at or ABOVE budget (surplus is the goal)', () => {
+    // 2800 budget: 3000 hit, 2800 hit, 2200 miss (under = failed surplus).
+    expect(calorieDaysHitFromTotals({ a: 3000, b: 2800, c: 2200 }, 2800, 'bulk')).toBe(2);
+  });
+
+  it('cut/maintenance keep the at-or-under-budget direction', () => {
+    expect(calorieDaysHitFromTotals({ a: 1500, b: 2500 }, 2000, 'cut')).toBe(1);
+    expect(calorieDaysHitFromTotals({ a: 1500, b: 2500 }, 2000, 'maintenance')).toBe(1);
+  });
 });

@@ -106,6 +106,8 @@ async function run() {
           prevMmr: TARGET.mmr,
           prevRankTier: TARGET.rankTier,
           prevRankDivision: TARGET.rankDivision,
+          // Fresh start THIS week so catch-up doesn't re-penalize prior weeks.
+          firstWeekId: weekId,
           lastWeekIdUpdated: weekId,
           updatedAt: now,
         },
@@ -123,6 +125,16 @@ async function run() {
         { merge: true },
       );
       await batch.commit();
+
+      // Durability: clear stale weekly summaries, or the app's next recompute
+      // reuses the old weekly `mmrBefore` baseline and silently reverts this
+      // reset (this bit us on the single-user script — same fix).
+      const weekly = await db.collection('users').doc(uid).collection('weekly').get();
+      if (!weekly.empty) {
+        const delBatch = db.batch();
+        weekly.docs.forEach((d) => delBatch.delete(d.ref));
+        await delBatch.commit();
+      }
     }
     processed += 1;
     if (processed % 25 === 0) console.log(`Processed ${processed}/${usersSnap.size}...`);
