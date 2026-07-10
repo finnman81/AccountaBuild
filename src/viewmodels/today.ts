@@ -167,16 +167,19 @@ export function computeStreakDays(logs: GroupLog[], allowedTypes: Set<LogType>, 
 }
 
 /**
- * Pace-aware streak (days): a day keeps the streak alive as long as that day's
- * weekly goal was still REACHABLE — `satisfiedThroughDay + daysLeftInWeek >=
- * target`. So skipping a mid-week day doesn't break it while you can still hit
- * the weekly target (e.g. 5 workouts/week, no workout Tuesday = fine); a week
- * that closes under target breaks it (its Sunday fails the test). Weeks are
- * Mon–Sun. Falls back to the plain consecutive-logged-day streak when the user
- * has no weekly targets set.
+ * Pace-aware streak (days): a day COUNTS toward the streak only when the user
+ * actually logged something relevant that day. A day with no log doesn't break
+ * the streak as long as that day's weekly goal was still REACHABLE
+ * (`satisfiedThroughDay + daysLeftInWeek >= target`) — it just doesn't add to
+ * it. So skipping a mid-week day is fine (5 workouts/week, no workout Tuesday =
+ * streak preserved), but zero activity never MANUFACTURES a streak: a user who
+ * hasn't logged at all is 0, and a week that closes under target breaks the
+ * chain (its Sunday fails the reachability test). Weeks are Mon–Sun. Falls back
+ * to the plain consecutive-logged-day streak when no weekly targets are set.
  *
- * streakRule 'workout' → only the workout goal matters.
- * streakRule 'any'     → the day survives if ANY tracked goal is still on pace.
+ * streakRule 'workout' → only workout logs/goal matter.
+ * streakRule 'any'     → any tracked category's log counts a day, and the day
+ *                        survives if ANY tracked goal is still on pace.
  */
 export function computeGoalStreak(params: {
   logs: GroupLog[];
@@ -226,11 +229,25 @@ export function computeGoalStreak(params: {
     return m;
   };
 
+  // The set of dates that COUNT as active days (logged in a tracked category).
+  const loggedDates = new Set<string>();
+  for (const cat of cats) for (const d of cat.dates) loggedDates.add(d);
+
   let streak = 0;
   const cur = new Date(todayDate);
   let guard = 400;
   while (guard-- > 0) {
     const dstr = fmtLocal(cur);
+
+    if (loggedDates.has(dstr)) {
+      // Actually logged that day → counts.
+      streak += 1;
+      cur.setDate(cur.getDate() - 1);
+      continue;
+    }
+
+    // No log that day: the streak survives (without counting) only if the
+    // weekly goal was still reachable as of that day.
     const mon = mondayOf(cur);
     const sun = new Date(mon);
     sun.setDate(mon.getDate() + 6);
@@ -243,7 +260,6 @@ export function computeGoalStreak(params: {
     };
     const good = streakRule === 'any' ? cats.some(onPace) : cats.every(onPace);
     if (!good) break;
-    streak += 1;
     cur.setDate(cur.getDate() - 1);
   }
   return streak;

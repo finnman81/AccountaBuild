@@ -134,27 +134,43 @@ describe('today viewmodel · buildLeaderboardPreview', () => {
   });
 });
 
-describe('computeGoalStreak (pace-aware)', () => {
+describe('computeGoalStreak (pace-aware, logged days only)', () => {
   // Calendar anchors (self-checked): 2026-07-06 is a Monday.
   const MON = '2026-07-06';
   const TUE = '2026-07-07';
   const WED = '2026-07-08';
+  const FRI = '2026-07-10';
   const SAT = '2026-07-11';
 
   test('sanity: 2026-07-06 is Monday', () => {
     expect(new Date(`${MON}T00:00:00`).getDay()).toBe(1);
   });
 
-  test('missing a mid-week day does NOT break the streak while the weekly goal is still reachable', () => {
+  test('missing a mid-week day does NOT break the streak — but only logged days count', () => {
     // Target 5 workouts/week; 2 done (Mon+Tue), none Wed. Today = Wed.
     const logs = [log('a', 'workout', MON), log('a', 'workout', TUE)];
     const s = computeGoalStreak({ logs, uid: 'a', today: WED, streakRule: 'workout', targets: { workout: 5, calories: 0, weight: 0 } });
-    // Wed/Tue/Mon are all still on-pace; the prior (empty) week's Sunday breaks it.
-    expect(s).toBe(3);
+    // Wed is a no-log day that's still on pace (survives, doesn't count);
+    // Mon + Tue were logged (count) → streak 2, not 3.
+    expect(s).toBe(2);
+  });
+
+  test('ZERO activity never manufactures a streak (Chrizzz repro: inactive since January)', () => {
+    // No logs at all this week (or ever). Old logic said "5-day streak" on
+    // Friday because the weekly goal was "still reachable" — must be 0.
+    const s = computeGoalStreak({ logs: [], uid: 'a', today: FRI, streakRule: 'workout', targets: { workout: 3, calories: 0, weight: 0 } });
+    expect(s).toBe(0);
+  });
+
+  test('a gap day preserves the chain across it without counting', () => {
+    // Logged Mon and Wed (skipped Tue), target 3, today Wed → 2 logged days.
+    const logs = [log('a', 'workout', MON), log('a', 'workout', WED)];
+    const s = computeGoalStreak({ logs, uid: 'a', today: WED, streakRule: 'workout', targets: { workout: 3, calories: 0, weight: 0 } });
+    expect(s).toBe(2);
   });
 
   test('falling behind (goal no longer reachable) breaks the streak', () => {
-    // Target 5; only 2 done by Saturday -> at most 3 possible -> behind.
+    // Target 5; only 2 done by Saturday (no log Sat) -> at most 4 possible -> behind.
     const logs = [log('a', 'workout', MON), log('a', 'workout', TUE)];
     const s = computeGoalStreak({ logs, uid: 'a', today: SAT, streakRule: 'workout', targets: { workout: 5, calories: 0, weight: 0 } });
     expect(s).toBe(0);
