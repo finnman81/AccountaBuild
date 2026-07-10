@@ -8,8 +8,10 @@
  * the push via Expo, then deletes the queue doc.
  */
 const { onDocumentCreated } = require('firebase-functions/v2/firestore');
+const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
+const { computeUserUpToCurrentWeek } = require('./mmr-compute');
 
 initializeApp();
 const db = getFirestore();
@@ -82,3 +84,37 @@ exports.sendSocialPush = onDocumentCreated('pushQueue/{id}', async (event) => {
     await cleanup();
   }
 });
+
+/**
+ * updateMmrScheduled: closes/refreshes every user's weekly MMR on a schedule.
+ *
+ * WHY: MMR previously only recomputed on a user's OWN device (Profile-screen
+ * catch-up) — anyone who didn't open the app kept a frozen score forever
+ * (verified in production). This runs the same idempotent weekly compute
+ * (functions/mmr-compute.js, parity-tested against the client math) for ALL
+ * users: every 6 hours it refreshes the in-progress week and, after each ISO
+ * week rolls over, closes the finished week (penalties included) whether or
+ * not the user ever opens the app. Client-side computes remain and interleave
+ * safely (both anchor to the weekly-doc baselines).
+ *
+ * TODO(season): season rollover (ensureSeasonRollover) is still client-only —
+ * inactive users won't soft-reset at the quarter boundary (next: Oct 1).
+ */
+exports.updateMmrScheduled = onSchedule(
+  { schedule: 'every 6 hours', timeZone: 'America/New_York', timeoutSeconds: 540, memory: '256MiB' },
+  async () => {
+    const users = await db.collection('users').get();
+    let ok = 0;
+    let failed = 0;
+    for (const u of users.docs) {
+      try {
+        await computeUserUpToCurrentWeek(db, { uid: u.id, apply: true });
+        ok += 1;
+      } catch (e) {
+        failed += 1;
+        console.error('[updateMmrScheduled] failed for', u.id, e);
+      }
+    }
+    console.log(`[updateMmrScheduled] done: ${ok} ok, ${failed} failed of ${users.size}`);
+  },
+);
