@@ -372,7 +372,9 @@ export default function ProgressScreen({ navigation }: Props) {
       return { title: 'Workout (Avg minutes)', yLabel: 'Minutes', series: history.map((h) => h.avgMins), history };
     }
     if (metric === 'calories') {
-      return { title: 'Calories under goal (avg)', yLabel: 'Calories', series: history.map((h) => h.avgCals), history };
+      // NOTE: the data here is average calories LOGGED per member per day —
+      // the old "Calories under goal" title misdescribed it.
+      return { title: 'Calories logged (avg)', yLabel: 'Calories', series: history.map((h) => h.avgCals), history };
     }
     // weight
     return {
@@ -384,12 +386,16 @@ export default function ProgressScreen({ navigation }: Props) {
   }, [activeGroupId, groupLogs, groupMeta?.memberCount, memberUids.length, metric, weekDates]);
 
   // Build a clean chart model per metric so all three trends are consistent:
+  // - ONLY ELAPSED days are plotted: the line ends at today instead of diving
+  //   to a fake zero-cliff across the not-yet-happened rest of the week.
   // - weight: missing days are carried forward (0% would be a false plunge),
   //   axis is tight around the real values.
-  // - workout/calories: a missing day genuinely IS zero, so the axis is anchored
-  //   at 0 and topped by the week's max.
+  // - workout/calories: a missing PAST day genuinely IS zero, so the axis is
+  //   anchored at 0 and topped by the week's max.
   const chart = useMemo(() => {
-    const raw = aggregates.history.map((h: any) => {
+    const todayStr = formatYYYYMMDD(new Date());
+    const elapsed = aggregates.history.filter((h: any) => h.date <= todayStr);
+    const raw = elapsed.map((h: any) => {
       if (metric === 'weight') return { v: h.avgPct as number | null, has: h.avgPct != null };
       if (metric === 'workout') return { v: h.avgMins as number, has: h.avgMins > 0 };
       return { v: h.avgCals as number, has: h.avgCals > 0 };
@@ -418,7 +424,7 @@ export default function ProgressScreen({ navigation }: Props) {
       yMin = 0;
       yMax = Math.max(1, ...series) * 1.1;
     }
-    return { series, yMin, yMax, realCount };
+    return { series, yMin, yMax, realCount, dates: elapsed.map((h: any) => h.date as string) };
   }, [aggregates.history, metric]);
 
   const yTicks = useMemo(() => {
@@ -429,9 +435,10 @@ export default function ProgressScreen({ navigation }: Props) {
   }, [chart, metric]);
 
   const formatPointLabel = useMemo(() => {
+    // Zero-days get no label (a row of "0"s was pure clutter).
     if (metric === 'weight') return (v: number) => `${Math.round(v * 100) / 100}%`;
-    if (metric === 'workout') return (v: number) => `${Math.round(v)}m`;
-    return (v: number) => `${Math.round(v)}`;
+    if (metric === 'workout') return (v: number) => (v > 0 ? `${Math.round(v)}m` : '');
+    return (v: number) => (v > 0 ? `${Math.round(v)}` : '');
   }, [metric]);
 
   if (!user) {
@@ -720,8 +727,10 @@ export default function ProgressScreen({ navigation }: Props) {
                           formatPointLabel={formatPointLabel}
                           labelColor={colors.textPrimary}
                         />
+                        {/* X labels must match the plotted (elapsed-only) days,
+                            or they'd misalign with the truncated series. */}
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6, paddingHorizontal: 4 }}>
-                          {weekDates.map((d, i) => {
+                          {chart.dates.map((d, i) => {
                             const idx = parseYYYYMMDDLocal(d).getDay();
                             return (
                               <AppText key={`${d}-${i}`} variant="label" color="muted">
