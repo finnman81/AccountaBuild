@@ -9,6 +9,7 @@ import {
   query,
   serverTimestamp,
   setDoc,
+  Timestamp,
   where,
 } from 'firebase/firestore';
 
@@ -153,19 +154,26 @@ export async function addPhotoLog(params: {
  * Idempotent upsert of a log at a caller-chosen doc id (used by health sync, which
  * derives a stable id from the sample UUID so re-syncing overwrites instead of
  * duplicating). Returns the log id.
+ *
+ * `eventAt` (the sample's real event time) should be passed for synced logs:
+ * it keeps `ts` STABLE across re-syncs and orders the log where the activity
+ * actually happened. Without it, every re-sync rewrote ts=serverTimestamp(),
+ * which made synced logs perpetually jump to the top of the chat feed in a
+ * jumbled clump.
  */
 export async function upsertGroupLogById(
   groupId: string,
   logId: string,
-  data: { uid: string; type: LogType; date?: string; source?: string; payload: Record<string, unknown> },
+  data: { uid: string; type: LogType; date?: string; source?: string; payload: Record<string, unknown>; eventAt?: Date },
 ): Promise<string> {
+  const eventAtValid = data.eventAt instanceof Date && !Number.isNaN(data.eventAt.valueOf());
   await setDoc(
     doc(db, 'groups', groupId, 'logs', logId),
     {
       uid: data.uid,
       type: data.type,
       date: normalizeLogDate(data.date),
-      ts: serverTimestamp(),
+      ts: eventAtValid ? Timestamp.fromDate(data.eventAt as Date) : serverTimestamp(),
       source: data.source ?? 'self_reported',
       payload: data.payload,
     },

@@ -53,7 +53,9 @@ export default function LogCard({ log, name, myUid, onToggleReaction }: Props) {
         <View style={styles.iconTile}>
           <Icon source={TYPE_ICON[log.type] ?? 'check'} size={18} color={colors.primary} />
         </View>
-        <View style={{ flex: 1 }}>
+        {/* flexShrink (NOT flex:1): inside an alignSelf:flex-start card, flex:1
+            collapses to min-content width and letter-wraps the text. */}
+        <View style={{ flexShrink: 1 }}>
           <AppText variant="rowTitle" color="primary">{titleFor(log, units)}</AppText>
           <AppText variant="rowSubtitle" color="muted">{name} logged a {log.type === 'photo' ? 'photo' : log.type}</AppText>
         </View>

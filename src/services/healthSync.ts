@@ -100,6 +100,8 @@ export async function syncHealthData(uid: string, groupId: string, settings: Hea
                 type: 'workout',
                 date,
                 source,
+                // Real event time -> stable ts across re-syncs + correct chat ordering.
+                eventAt: w.startDate,
                 payload: { workoutType: w.workoutType as WorkoutType, durationMinutes: w.durationMinutes, note: `Synced from ${sourceLabel}` },
               });
               synced += 1;
@@ -136,6 +138,7 @@ export async function syncHealthData(uid: string, groupId: string, settings: Hea
                 type: 'calories',
                 date: entry.date,
                 source,
+                eventAt: entry.timestamp,
                 payload: { calories: entry.calories, meal: entry.meal, note: entry.source ? `Synced from ${sourceLabel} (${entry.source})` : `Synced from ${sourceLabel}` },
               });
               synced += 1;
@@ -156,6 +159,7 @@ export async function syncHealthData(uid: string, groupId: string, settings: Hea
                 type: 'calories',
                 date: entry.date,
                 source,
+                eventAt: entry.timestamp,
                 payload: { calories: entry.calories, meal: entry.meal, note: entry.source ? `Synced from ${sourceLabel} (${entry.source})` : `Synced from ${sourceLabel}` },
               });
               synced += 1;
@@ -192,6 +196,7 @@ export async function syncHealthData(uid: string, groupId: string, settings: Hea
                 type: 'weight',
                 date: weight.date,
                 source,
+                eventAt: weight.timestamp,
                 payload: { weight: weight.weight, note: `Synced from ${sourceLabel}` },
               });
               await upsertUserWeightHistoryFromGroupLog({ uid, groupId, groupLogId: logId, date: weight.date, weight: weight.weight });
