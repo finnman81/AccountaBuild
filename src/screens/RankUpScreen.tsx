@@ -77,7 +77,7 @@ export default function RankUpScreen({ route, navigation }: Props) {
           <View style={styles.recap}>
             <AppText variant="eyebrow" color="muted">This week's result</AppText>
             <AppText variant="statBig" style={{ color: accent, marginTop: 4 }}>
-              {mmr != null ? `${Math.round(mmr).toLocaleString()} MMR` : `${tier}${division ? ` ${ROMAN[division]}` : ''}`}
+              {mmr != null ? `${Math.round(mmr).toLocaleString()} FP` : `${tier}${division ? ` ${ROMAN[division]}` : ''}`}
             </AppText>
           </View>
         </View>

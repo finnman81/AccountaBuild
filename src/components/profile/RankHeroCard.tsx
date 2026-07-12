@@ -75,7 +75,7 @@ export default function RankHeroCard({ mmrState, onPress, onViewLeaderboard }: P
               {rankLabel}
             </Text>
             <Text variant="bodySmall" style={{ color: colors.textSecondary }}>
-              MMR {mmrState.mmr} • {mmrState.mp ?? 0} MP
+              {mmrState.mmr} FP • {mmrState.mp ?? 0} MP
             </Text>
             {nextDivisionLabel && (
               <View style={{ marginTop: spacing.xs }}>

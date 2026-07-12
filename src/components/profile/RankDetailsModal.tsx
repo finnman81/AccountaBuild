@@ -79,7 +79,7 @@ export default function RankDetailsModal({ visible, mmrState, badges, onDismiss 
                         {rankDetails.rankLabel}
                       </Text>
                       <Text variant="bodyMedium" style={{ color: colors.textSecondary }}>
-                        MMR {rankDetails.mmr} • {rankDetails.mp} MP
+                        {rankDetails.mmr} FP • {rankDetails.mp} MP
                       </Text>
                     </View>
                   </View>
@@ -89,10 +89,10 @@ export default function RankDetailsModal({ visible, mmrState, badges, onDismiss 
                       Rank Calculation
                     </Text>
                     <Text variant="bodySmall" style={{ color: colors.textSecondary }}>
-                      Your MMR determines your rank. Each tier is divided into divisions (IV, III, II, I), and Master Points (MP) show your progress within your current division.
+                      Your Fitness Points (FP) determine your rank. Each tier is divided into divisions (IV, III, II, I), and Master Points (MP) show your progress within your current division.
                     </Text>
                     <Text variant="bodySmall" style={{ color: colors.textSecondary }}>
-                      MP = 100 × (MMR - Division Min) / (Division Max - Division Min)
+                      MP = 100 × (FP - Division Min) / (Division Max - Division Min)
                     </Text>
                     {rankDetails.nextDivisionLabel && (
                       <Text variant="bodySmall" style={{ color: colors.textSecondary }}>

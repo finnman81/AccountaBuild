@@ -14,7 +14,7 @@ export const onboardingCopy = {
     valueRows: [
       { icon: 'clock-fast', tint: 'primary', title: 'Log in seconds', subtitle: 'Calories, workouts, weight — one tap each' },
       { icon: 'account-group', tint: 'success', title: 'Your crew sees you', subtitle: 'Everyone knows who showed up today' },
-      { icon: 'diamond-stone', tint: 'gold', title: 'Climb the ranks', subtitle: 'Seasonal MMR from Iron to Challenger' },
+      { icon: 'diamond-stone', tint: 'gold', title: 'Climb the ranks', subtitle: 'Seasonal Fitness Points from Iron to Challenger' },
     ] as const,
   },
 
@@ -39,7 +39,7 @@ export const onboardingCopy = {
   // MMR explainer — between the intent picker and Basic Info.
   mmrIntro: {
     headline: "Climb the ranks",
-    subtext: "Every week you hit your goals, you earn MMR and move up the ladder — from Iron all the way to Challenger.",
+    subtext: "Every week you hit your goals, you earn Fitness Points (FP) and move up the ladder — from Iron all the way to Challenger.",
     cta: "Got it",
     rows: [
       { icon: 'calendar-check', tint: 'primary', title: 'Win your week', subtitle: 'Hit your weekly goals to earn rank points' },
@@ -60,7 +60,7 @@ export const onboardingCopy = {
     subtextPersonalized: "Based on your stats and goal — tweak anything before you lock it in.",
     subtextFallback: "Solid starting points for your goal — tweak anything before you lock it in.",
     cta: "Looks good",
-    note: "You can change these anytime in Goals. Harder targets earn more MMR.",
+    note: "You can change these anytime in Goals. Harder targets earn more FP.",
   },
   
   // Screen 3: Accountability

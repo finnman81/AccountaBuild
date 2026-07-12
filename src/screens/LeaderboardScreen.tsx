@@ -148,7 +148,7 @@ export default function LeaderboardScreen({ route }: Props) {
                 <View style={{ flex: 1 }}>
                   <AppText variant="eyebrow" color="accent">Your gap to #1</AppText>
                   <AppText variant="rowTitle" color="primary" style={{ marginTop: 2 }}>
-                    {gapToTop.toLocaleString()} MMR · ~{strongWeeks} strong week{strongWeeks === 1 ? '' : 's'}
+                    {gapToTop.toLocaleString()} FP · ~{strongWeeks} strong week{strongWeeks === 1 ? '' : 's'}
                   </AppText>
                 </View>
                 <TouchableOpacity style={styles.planPill} activeOpacity={0.85} onPress={() => nav.navigate('MMRGoals' as any)}>

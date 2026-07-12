@@ -98,7 +98,7 @@ export default function ProjectionDetailsModal({ visible, projection, onDismiss 
 
                   <View style={{ gap: spacing.sm }}>
                     <Text variant="titleSmall" style={{ color: colors.textPrimary, fontWeight: '600' }}>
-                      MMR Projection
+                      FP Projection
                     </Text>
                     <View style={{ gap: spacing.xs }}>
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
@@ -189,7 +189,7 @@ export default function ProjectionDetailsModal({ visible, projection, onDismiss 
                       Your weekly score is calculated from your active goals (workouts, minutes, weight, calories). The score is then multiplied by your streak bonus and reduced by any penalties for missed or partial weeks.
                     </Text>
                     <Text variant="bodySmall" style={{ color: colors.textSecondary }}>
-                      Formula: ΔMMR = Week Score × Streak Multiplier - Penalty
+                      Formula: ΔFP = Week Score × Streak Multiplier - Penalty
                     </Text>
                   </View>
                 </View>

@@ -529,7 +529,7 @@ export default function ProfileScreen() {
             items={[
               { title: 'Goals', icon: 'target', onPress: () => nav.navigate('MMRGoals') },
               { title: 'Season history', icon: 'trophy', onPress: () => (nav as any).navigate('SeasonHistory') },
-              { title: 'MMR history', icon: 'chart-line', onPress: () => (nav as any).navigate('MMRHistory') },
+              { title: 'FP history', icon: 'chart-line', onPress: () => (nav as any).navigate('MMRHistory') },
               { title: 'Health sync', icon: 'heart-pulse', onPress: () => (nav as any).navigate('HealthSettings') },
               { title: 'Settings', icon: 'cog', onPress: () => (nav as any).navigate('Settings') },
             ]}

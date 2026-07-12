@@ -96,7 +96,7 @@ export default function SeasonHistoryScreen() {
                           {tier ? `Final: ${rankLabel(tier, division ?? undefined, mp ?? undefined)}` : 'Final: —'}
                         </AppText>
                         {mmr != null ? (
-                          <AppText variant="rowSubtitle" color="muted">{`MMR: ${Math.round(mmr)}`}</AppText>
+                          <AppText variant="rowSubtitle" color="muted">{`FP: ${Math.round(mmr)}`}</AppText>
                         ) : null}
                       </View>
                     </View>

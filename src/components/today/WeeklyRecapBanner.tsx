@@ -57,7 +57,7 @@ export default function WeeklyRecapBanner({ onOpen }: Props) {
   };
 
   const delta = Math.round(summary.deltaMMR);
-  const deltaLabel = `${delta >= 0 ? '+' : ''}${delta} MMR`;
+  const deltaLabel = `${delta >= 0 ? '+' : ''}${delta} FP`;
   const deltaColor = delta > 0 ? colors.success : delta < 0 ? colors.danger : colors.textSecondary;
 
   const rankChangeLabel = summary.promotion

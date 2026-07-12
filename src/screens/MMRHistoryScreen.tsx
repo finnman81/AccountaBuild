@@ -59,16 +59,16 @@ export default function MMRHistoryScreen() {
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Card>
-          <AppText variant="cardLabel" color="primary">MMR history</AppText>
+          <AppText variant="cardLabel" color="primary">FP history</AppText>
           <AppText variant="rowSubtitle" color="muted" style={styles.subLine}>Weekly (global)</AppText>
           <AppText variant="rowSubtitle" color="secondary" style={styles.blurb}>
-            Shows your end-of-week MMR after scoring. Pull-to-refresh on Profile updates the latest week.
+            Shows your end-of-week Fitness Points after scoring. Pull-to-refresh on Profile updates the latest week.
           </AppText>
           {series.length === 0 ? (
             <PlaceholderLineChart height={160} />
           ) : (
             <>
-              <AppText variant="eyebrow" color="muted" style={styles.chartLabel}>MMR</AppText>
+              <AppText variant="eyebrow" color="muted" style={styles.chartLabel}>FP</AppText>
               <SimpleLineChart
                 values={series}
                 height={160}
@@ -123,7 +123,7 @@ export default function MMRHistoryScreen() {
                     </AppText>
                   ) : null}
                   <View style={styles.deltaAccent}>
-                    <AppText variant="rowSubtitle" style={{ color: deltaColor }}>MMR change {deltaTxt}</AppText>
+                    <AppText variant="rowSubtitle" style={{ color: deltaColor }}>FP change {deltaTxt}</AppText>
                   </View>
                 </Card>
               );
