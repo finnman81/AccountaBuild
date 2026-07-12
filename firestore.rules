@@ -109,8 +109,11 @@ service cloud.firestore {
     }
 
     // Join-code lookup table so non-members can join without reading all groups.
+    // get-only: `read` would also allow LISTING the collection, letting anyone
+    // harvest every group's code. The app only ever looks up exact codes.
     match /joinCodes/{code} {
-      allow read: if signedIn();
+      allow get: if signedIn();
+      allow list: if false;
       allow create, update: if signedIn() && request.auth.uid == request.resource.data.createdBy;
       allow delete: if signedIn() && request.auth.uid == resource.data.createdBy;
     }

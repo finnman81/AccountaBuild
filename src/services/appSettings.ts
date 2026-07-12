@@ -11,6 +11,7 @@ export type AppNotificationSettings = {
   teamActivity: boolean;
   nudgesAllowed: boolean; // also mirrored to the user profile so teammates know
   chatMessages: boolean;
+  weeklyRecap: boolean; // Monday recap + rank-change pushes
 };
 
 const KEY = 'app_notification_settings';
@@ -19,6 +20,7 @@ const DEFAULTS: AppNotificationSettings = {
   teamActivity: true,
   nudgesAllowed: false,
   chatMessages: true,
+  weeklyRecap: true,
 };
 
 export async function getAppNotificationSettings(): Promise<AppNotificationSettings> {
@@ -56,6 +58,7 @@ export async function setAppNotificationSetting<K extends keyof AppNotificationS
             streakReminder: next.streakReminder,
             teamActivity: next.teamActivity,
             chatMessages: next.chatMessages,
+            weeklyRecap: next.weeklyRecap,
           },
           updatedAt: serverTimestamp(),
         },
@@ -102,6 +105,7 @@ export async function syncNotifPrefsToServer(uid: string): Promise<void> {
           streakReminder: s.streakReminder,
           teamActivity: s.teamActivity,
           chatMessages: s.chatMessages,
+          weeklyRecap: s.weeklyRecap,
         },
       },
       { merge: true },

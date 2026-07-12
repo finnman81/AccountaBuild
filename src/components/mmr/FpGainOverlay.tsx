@@ -55,6 +55,8 @@ export default function FpGainOverlay() {
       lastIncrease.current = { delta, at: now };
       if (now <= armedUntil.current) {
         armedUntil.current = 0;
+        // Consume the increase so a rapid second save can't re-show it.
+        lastIncrease.current = null;
         show(delta);
       }
     });

@@ -103,7 +103,7 @@ export default function ProjectionDetailsModal({ visible, projection, onDismiss 
                     <View style={{ gap: spacing.xs }}>
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                         <Text variant="bodySmall" style={{ color: colors.textSecondary }}>
-                          Current MMR:
+                          Current FP:
                         </Text>
                         <Text variant="bodySmall" style={{ color: colors.textPrimary }}>
                           {details.mmrBefore}
@@ -111,7 +111,7 @@ export default function ProjectionDetailsModal({ visible, projection, onDismiss 
                       </View>
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                         <Text variant="bodySmall" style={{ color: colors.textSecondary }}>
-                          Projected MMR:
+                          Projected FP:
                         </Text>
                         <Text variant="bodySmall" style={{ color: colors.textPrimary }}>
                           {details.mmrProjected} ({details.deltaMMR >= 0 ? '+' : ''}
@@ -170,7 +170,7 @@ export default function ProjectionDetailsModal({ visible, projection, onDismiss 
                       >
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                           <Text variant="bodyMedium" style={{ color: colors.textPrimary, fontWeight: '600' }}>
-                            Delta MMR:
+                            Delta FP:
                           </Text>
                           <Text variant="bodyMedium" style={{ color: colors.textPrimary, fontWeight: '600' }}>
                             {details.deltaMMR >= 0 ? '+' : ''}
