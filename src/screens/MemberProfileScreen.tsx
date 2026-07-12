@@ -206,6 +206,15 @@ export default function MemberProfileScreen({ route, navigation }: Props) {
           <StatTile label="Weeks done" value={completedWeeks} unit={`of ${weeks.length || '—'}`} style={styles.tile} />
           <StatTile label="Best week" value={bestWeek != null ? `+${bestWeek}` : '—'} unit={bestWeek != null ? 'FP' : ''} style={styles.tile} />
         </View>
+        {pub?.badgesPublic && pub.badgesPublic.length > 0 ? (
+          <View style={styles.badgeRow}>
+            {pub.badgesPublic.slice(0, 8).map((b) => (
+              <View key={b.id} style={styles.badgeChip}>
+                <AppText variant="label" style={styles.badgeChipText}>🏅 {b.label}</AppText>
+              </View>
+            ))}
+          </View>
+        ) : null}
 
         <Card style={styles.chartCard}>
           <AppText variant="cardLabel" color="primary">FP history</AppText>
@@ -252,6 +261,16 @@ const styles = StyleSheet.create({
   tiles: { flexDirection: 'row', gap: spacing.sm },
   tile: { flex: 1 },
   weekCard: { marginTop: spacing.md },
+  badgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.md },
+  badgeChip: {
+    backgroundColor: 'rgba(233,181,66,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(233,181,66,0.35)',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  badgeChipText: { color: colors.rankGold, fontWeight: '700' },
   weekRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: spacing.sm },
   chartCard: { marginTop: spacing.md, borderRadius: radius.card },
   axisRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: spacing.sm, paddingHorizontal: spacing.xs },

@@ -28,6 +28,7 @@ import ProfileScreen from '../screens/ProfileScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import RankChangeWatcher from '../components/mmr/RankChangeWatcher';
 import FpGainOverlay from '../components/mmr/FpGainOverlay';
+import BadgeCelebrationWatcher from '../components/mmr/BadgeCelebrationWatcher';
 import PushRegistrar from '../components/system/PushRegistrar';
 import SeasonHistoryScreen from '../screens/SeasonHistoryScreen';
 import MMRHistoryScreen from '../screens/MMRHistoryScreen';
@@ -199,6 +200,7 @@ export default function TabsNavigator() {
       </Tab.Navigator>
       <RankChangeWatcher />
       <FpGainOverlay />
+      <BadgeCelebrationWatcher />
       <PushRegistrar />
     </>
   );
