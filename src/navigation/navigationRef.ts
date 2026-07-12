@@ -28,3 +28,10 @@ export function navigateToActivity() {
     navigationRef.navigate('MainTabs', { screen: 'HomeTab', params: { screen: 'Activity' } } as any);
   });
 }
+
+/** Deep-link to a group's chat (used by chat/team-activity push taps). */
+export function navigateToGroupChat(groupId: string) {
+  runOrQueue(() => {
+    navigationRef.navigate('MainTabs', { screen: 'HomeTab', params: { screen: 'GroupChat', params: { groupId } } } as any);
+  });
+}

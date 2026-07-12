@@ -1,23 +1,58 @@
 /**
  * AccountaBuild Cloud Functions.
  *
- * sendSocialPush: delivers cheers/nudges. The app enqueues a doc under
- * `pushQueue`; this trigger looks up the RECIPIENT's Expo push token
- * server-side (tokens are private — clients never read them), gates nudges on
- * the recipient's allowNudges setting, records an in-app Activity item, sends
- * the push via Expo, then deletes the queue doc.
+ * Push types (all delivered via functions/push-helper.js, which parses Expo
+ * tickets and clears dead tokens):
+ *  - sendSocialPush:       cheers/nudges from the pushQueue (client enqueues)
+ *  - sendChatPush:         new group chat messages (throttled per recipient)
+ *  - sendTeamActivityPush: a teammate's first log of the day
+ *  - streakRiskReminder:   daily 18:00 ET "log today or fall off pace"
+ *  - updateMmrScheduled:   weekly FP compute + rank-change & Monday-recap pushes
+ *
+ * Prefs: users/{uid}.notifPrefs mirrors the app's local toggles
+ * (chatMessages / teamActivity / streakReminder / weeklyRecap); a missing
+ * field means enabled. Nudges additionally require allowNudges === true.
  */
 const { onDocumentCreated } = require('firebase-functions/v2/firestore');
 const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { initializeApp } = require('firebase-admin/app');
-const { getFirestore, FieldValue } = require('firebase-admin/firestore');
+const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestore');
 const { computeUserUpToCurrentWeek } = require('./mmr-compute');
+const { evaluateStreakRisk } = require('./notif-logic');
+const core = require('./mmr-core');
+const { sendExpoPushes, isExpoToken, prefEnabled, inQuietHours } = require('./push-helper');
 
 initializeApp();
 const db = getFirestore();
 
-const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
+const TZ = core.DEFAULT_TZ; // America/New_York
+const CHAT_THROTTLE_MS = 10 * 60 * 1000; // one chat push per recipient per group per 10 min
 
+const ROMAN = ['', 'I', 'II', 'III', 'IV'];
+function rankLabel(band) {
+  return `${band.tier}${band.division ? ` ${ROMAN[band.division]}` : ''}`;
+}
+
+async function getGroupMemberUids(groupId) {
+  const snap = await db.collection('groups').doc(groupId).collection('members').get();
+  return snap.docs.map((d) => d.id);
+}
+
+/** Batch-fetch user docs; returns Map<uid, data>. */
+async function getUsers(uids) {
+  const out = new Map();
+  await Promise.all(
+    uids.map(async (uid) => {
+      const snap = await db.doc(`users/${uid}`).get();
+      if (snap.exists) out.set(uid, snap.data() || {});
+    }),
+  );
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// Cheers / nudges (pushQueue)
+// ---------------------------------------------------------------------------
 exports.sendSocialPush = onDocumentCreated('pushQueue/{id}', async (event) => {
   const snap = event.data;
   if (!snap) return;
@@ -59,24 +94,16 @@ exports.sendSocialPush = onDocumentCreated('pushQueue/{id}', async (event) => {
       createdAt: FieldValue.serverTimestamp(),
     }).catch((e) => console.warn('[sendSocialPush] activity write failed', e));
 
-    // Send the push only if we have a valid Expo token.
-    if (token && typeof token === 'string' && token.indexOf('ExponentPushToken') === 0) {
-      const res = await fetch(EXPO_PUSH_URL, {
-        method: 'POST',
-        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          to: token,
-          sound: 'default',
+    if (isExpoToken(token)) {
+      await sendExpoPushes(db, [
+        {
+          uid: toUid,
+          token,
           title: message.title,
           body: message.body,
           data: { type, fromUid: fromUid || null, screen: 'Activity' },
-          channelId: 'default',
-        }),
-      });
-      if (!res.ok) {
-        const text = await res.text().catch(() => '');
-        console.warn('[sendSocialPush] Expo push non-OK', res.status, text);
-      }
+        },
+      ]);
     }
   } catch (e) {
     console.error('[sendSocialPush] failed', e);
@@ -85,36 +112,236 @@ exports.sendSocialPush = onDocumentCreated('pushQueue/{id}', async (event) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// Chat message pushes
+// ---------------------------------------------------------------------------
+exports.sendChatPush = onDocumentCreated('groups/{groupId}/messages/{messageId}', async (event) => {
+  const snap = event.data;
+  if (!snap) return;
+  const msg = snap.data() || {};
+  const groupId = event.params.groupId;
+  const senderUid = String(msg.uid || '');
+  const text = String(msg.text || '').trim();
+  if (!senderUid || !text) return;
+  if (inQuietHours(new Date(), TZ)) return;
+
+  try {
+    const [memberUids, groupSnap, senderSnap] = await Promise.all([
+      getGroupMemberUids(groupId),
+      db.doc(`groups/${groupId}`).get(),
+      db.doc(`publicUsers/${senderUid}`).get(),
+    ]);
+    const groupName = (groupSnap.exists && groupSnap.data().name) || 'Group chat';
+    const senderName = (senderSnap.exists && senderSnap.data().displayName) || 'A teammate';
+
+    const recipients = memberUids.filter((uid) => uid !== senderUid);
+    if (!recipients.length) return;
+    const users = await getUsers(recipients);
+
+    const now = Date.now();
+    const items = [];
+    for (const uid of recipients) {
+      const u = users.get(uid);
+      if (!u || !isExpoToken(u.expoPushToken)) continue;
+      if (!prefEnabled(u, 'chatMessages')) continue;
+      const marker = u.chatPushMarkers && u.chatPushMarkers[groupId];
+      const markerMs = marker && typeof marker.toMillis === 'function' ? marker.toMillis() : 0;
+      if (now - markerMs < CHAT_THROTTLE_MS) continue;
+      items.push({
+        uid,
+        token: u.expoPushToken,
+        title: `💬 ${groupName}`,
+        body: `${senderName}: ${text.length > 120 ? `${text.slice(0, 117)}…` : text}`,
+        data: { type: 'chat', screen: 'GroupChat', groupId },
+      });
+    }
+    if (!items.length) return;
+
+    await sendExpoPushes(db, items);
+    await Promise.all(
+      items.map((m) =>
+        db
+          .doc(`users/${m.uid}`)
+          .set({ chatPushMarkers: { [groupId]: Timestamp.now() } }, { merge: true })
+          .catch(() => {}),
+      ),
+    );
+  } catch (e) {
+    console.error('[sendChatPush] failed', e);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Teammate activity pushes (first log of the day only)
+// ---------------------------------------------------------------------------
+const LOG_VERBS = {
+  workout: 'logged a workout 💪',
+  calories: 'logged calories 🍽️',
+  weight: 'logged a weigh-in ⚖️',
+  photo: 'posted a progress photo 📸',
+};
+
+exports.sendTeamActivityPush = onDocumentCreated('groups/{groupId}/logs/{logId}', async (event) => {
+  const snap = event.data;
+  if (!snap) return;
+  const log = snap.data() || {};
+  const groupId = event.params.groupId;
+  const authorUid = String(log.uid || '');
+  const type = String(log.type || '');
+  const date = String(log.date || '');
+  const verb = LOG_VERBS[type];
+  if (!authorUid || !verb) return;
+
+  const now = new Date();
+  // Health syncs backfill older days — only announce logs for today.
+  if (date !== core.yyyyMmDdInTz(now, TZ)) return;
+  if (inQuietHours(now, TZ)) return;
+
+  try {
+    // Only the author's FIRST log of the day triggers a push (anti-spam:
+    // someone logging 4 meals shouldn't ping the group 4 times).
+    const todaysLogs = await db
+      .collection('groups').doc(groupId).collection('logs')
+      .where('uid', '==', authorUid)
+      .where('date', '==', date)
+      .limit(2)
+      .get();
+    if (todaysLogs.size > 1) return;
+
+    const [memberUids, authorSnap] = await Promise.all([
+      getGroupMemberUids(groupId),
+      db.doc(`publicUsers/${authorUid}`).get(),
+    ]);
+    const authorName = (authorSnap.exists && authorSnap.data().displayName) || 'A teammate';
+
+    const recipients = memberUids.filter((uid) => uid !== authorUid);
+    if (!recipients.length) return;
+    const users = await getUsers(recipients);
+
+    const items = [];
+    for (const uid of recipients) {
+      const u = users.get(uid);
+      if (!u || !isExpoToken(u.expoPushToken)) continue;
+      if (!prefEnabled(u, 'teamActivity')) continue;
+      items.push({
+        uid,
+        token: u.expoPushToken,
+        title: '🏋️ Team activity',
+        body: `${authorName} ${verb}`,
+        data: { type: 'teamActivity', screen: 'GroupChat', groupId },
+      });
+    }
+    if (items.length) await sendExpoPushes(db, items);
+  } catch (e) {
+    console.error('[sendTeamActivityPush] failed', e);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Smart streak-at-risk reminder (daily 18:00 ET)
+// ---------------------------------------------------------------------------
+exports.streakRiskReminder = onSchedule(
+  { schedule: '0 18 * * *', timeZone: TZ, timeoutSeconds: 540, memory: '256MiB' },
+  async () => {
+    const { items, evaluated } = await evaluateStreakRisk(db, new Date());
+    const result = items.length ? await sendExpoPushes(db, items) : { sent: 0 };
+    console.log(`[streakRiskReminder] evaluated ${evaluated} users, sent ${result.sent}`);
+  },
+);
+
+// ---------------------------------------------------------------------------
+// Weekly FP compute + rank-change & Monday-recap pushes
+// ---------------------------------------------------------------------------
 /**
- * updateMmrScheduled: closes/refreshes every user's weekly MMR on a schedule.
+ * updateMmrScheduled: closes/refreshes every user's weekly FP on a schedule.
  *
- * WHY: MMR previously only recomputed on a user's OWN device (Profile-screen
+ * WHY: FP previously only recomputed on a user's OWN device (Profile-screen
  * catch-up) — anyone who didn't open the app kept a frozen score forever
  * (verified in production). This runs the same idempotent weekly compute
  * (functions/mmr-compute.js, parity-tested against the client math) for ALL
- * users: every 6 hours it refreshes the in-progress week and, after each ISO
- * week rolls over, closes the finished week (penalties included) whether or
- * not the user ever opens the app. Client-side computes remain and interleave
- * safely (both anchor to the weekly-doc baselines).
+ * users every 6 hours. Client-side computes remain and interleave safely.
+ *
+ * Piggybacked pushes (only between 09:00–21:00 ET so the 6h schedule never
+ * wakes anyone at 3am):
+ *  - rank change: compare the user's band before/after the compute
+ *  - Monday recap: last week's closed weekly doc, once per user per week
  *
  * TODO(season): season rollover (ensureSeasonRollover) is still client-only —
  * inactive users won't soft-reset at the quarter boundary (next: Oct 1).
  */
 exports.updateMmrScheduled = onSchedule(
-  { schedule: 'every 6 hours', timeZone: 'America/New_York', timeoutSeconds: 540, memory: '256MiB' },
+  { schedule: 'every 6 hours', timeZone: TZ, timeoutSeconds: 540, memory: '256MiB' },
   async () => {
+    const now = new Date();
+    const hourEt = Number(new Intl.DateTimeFormat('en-US', { timeZone: TZ, hour: 'numeric', hour12: false }).format(now));
+    const pushWindow = hourEt >= 9 && hourEt < 21;
+    const isMondayEt = new Intl.DateTimeFormat('en-US', { timeZone: TZ, weekday: 'short' }).format(now) === 'Mon';
+    const currentWeekId = core.isoWeekIdInTz(now, TZ);
+    const weekDates = core.isoWeekDatesInTz(currentWeekId, TZ);
+    const prevWeekEnd = new Date(core.zonedNoonUtcFromYmd(weekDates[0], TZ).getTime() - 24 * 60 * 60 * 1000);
+    const prevWeekId = core.isoWeekIdInTz(prevWeekEnd, TZ);
+
     const users = await db.collection('users').get();
     let ok = 0;
     let failed = 0;
+    const pushes = [];
+
     for (const u of users.docs) {
+      const before = u.data() || {};
       try {
         await computeUserUpToCurrentWeek(db, { uid: u.id, apply: true });
         ok += 1;
       } catch (e) {
         failed += 1;
         console.error('[updateMmrScheduled] failed for', u.id, e);
+        continue;
+      }
+
+      if (!pushWindow || !isExpoToken(before.expoPushToken)) continue;
+
+      try {
+        const afterSnap = await db.doc(`users/${u.id}`).get();
+        const after = afterSnap.exists ? afterSnap.data() || {} : {};
+
+        // Rank change: band moved during THIS compute run.
+        if (typeof before.mmr === 'number' && typeof after.mmr === 'number') {
+          const bandBefore = core.bandForMMR(before.mmr);
+          const bandAfter = core.bandForMMR(after.mmr);
+          if (rankLabel(bandBefore) !== rankLabel(bandAfter)) {
+            const up = core.bandOrderIndex(bandAfter) > core.bandOrderIndex(bandBefore);
+            pushes.push({
+              uid: u.id,
+              token: before.expoPushToken,
+              title: up ? `📈 Promoted to ${rankLabel(bandAfter)}!` : `📉 Dropped to ${rankLabel(bandAfter)}`,
+              body: up ? 'Your week of work paid off. Keep the streak alive.' : 'Log consistently this week to climb back.',
+              data: { type: 'rankChange', screen: 'Activity' },
+            });
+          }
+        }
+
+        // Monday recap: once per user per week, gated on the weeklyRecap pref.
+        if (isMondayEt && prefEnabled(after, 'weeklyRecap') && after.recapPushedWeekId !== prevWeekId) {
+          const wkSnap = await db.doc(`users/${u.id}/weekly/${prevWeekId}`).get();
+          if (wkSnap.exists) {
+            const wk = wkSnap.data() || {};
+            const delta = Math.round(Number(wk.deltaMMR) || 0);
+            const band = core.bandForMMR(Number(after.mmr) || 0);
+            pushes.push({
+              uid: u.id,
+              token: before.expoPushToken,
+              title: `📊 Weekly recap: ${delta >= 0 ? '+' : ''}${delta} FP`,
+              body: `You're ${rankLabel(band)}. ${delta >= 0 ? 'New week, keep climbing.' : 'Fresh week, fresh start — log today.'}`,
+              data: { type: 'weeklyRecap', screen: 'Activity' },
+            });
+            await db.doc(`users/${u.id}`).set({ recapPushedWeekId: prevWeekId }, { merge: true }).catch(() => {});
+          }
+        }
+      } catch (e) {
+        console.warn('[updateMmrScheduled] push eval failed for', u.id, e);
       }
     }
-    console.log(`[updateMmrScheduled] done: ${ok} ok, ${failed} failed of ${users.size}`);
+
+    const result = pushes.length ? await sendExpoPushes(db, pushes) : { sent: 0 };
+    console.log(`[updateMmrScheduled] done: ${ok} ok, ${failed} failed of ${users.size}; pushes sent ${result.sent}`);
   },
 );

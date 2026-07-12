@@ -3,12 +3,13 @@ import * as Notifications from 'expo-notifications';
 
 import { AuthContext } from '../../store/AuthContext';
 import { useNotificationBadge } from '../../hooks/useNotificationBadge';
-import { navigateToActivity } from '../../navigation/navigationRef';
+import { navigateToActivity, navigateToGroupChat } from '../../navigation/navigationRef';
 
 /** Route a tapped push to the right in-app screen based on its data payload. */
 function handleNotificationTap(response: Notifications.NotificationResponse) {
-  const data = response.notification.request.content.data as { screen?: string } | undefined;
-  if (data?.screen === 'Activity') navigateToActivity();
+  const data = response.notification.request.content.data as { screen?: string; groupId?: string } | undefined;
+  if (data?.screen === 'GroupChat' && data.groupId) navigateToGroupChat(data.groupId);
+  else if (data?.screen === 'Activity') navigateToActivity();
 }
 
 export function NotificationProvider({ children }: { children: React.ReactNode }) {

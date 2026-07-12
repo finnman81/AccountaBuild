@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { AuthContext } from '../../store/AuthContext';
 import { registerPushToken } from '../../services/pushTokens';
+import { syncNotifPrefsToServer } from '../../services/appSettings';
 
 const ASKED_KEY_PREFIX = 'pushPermissionAsked';
 
@@ -41,6 +42,8 @@ export default function PushRegistrar() {
 
         // Registers only if permission ended up granted (no-ops otherwise).
         await registerPushToken(uid);
+        // Mirror local notification toggles so server pushes respect them.
+        await syncNotifPrefsToServer(uid);
       } catch (e) {
         console.warn('[PushRegistrar] failed', e);
       }

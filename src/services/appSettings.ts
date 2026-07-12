@@ -45,6 +45,27 @@ export async function setAppNotificationSetting<K extends keyof AppNotificationS
   const next = { ...current, [key]: value };
   await AsyncStorage.setItem(KEY, JSON.stringify(next));
 
+  // Mirror every toggle server-side: Cloud Functions gate chat / team-activity /
+  // streak-risk pushes on users/{uid}.notifPrefs (missing field = enabled).
+  if (uid && db) {
+    try {
+      await setDoc(
+        doc(db, 'users', uid),
+        {
+          notifPrefs: {
+            streakReminder: next.streakReminder,
+            teamActivity: next.teamActivity,
+            chatMessages: next.chatMessages,
+          },
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true },
+      );
+    } catch {
+      /* non-fatal */
+    }
+  }
+
   if (key === 'streakReminder') {
     try {
       const prefs = await getNotificationPreferences();
@@ -62,5 +83,30 @@ export async function setAppNotificationSetting<K extends keyof AppNotificationS
     } catch {
       /* non-fatal */
     }
+  }
+}
+
+/**
+ * One-shot mirror of the CURRENT local toggles to users/{uid}.notifPrefs.
+ * Runs at sign-in (PushRegistrar) so users who set their toggles before the
+ * server-side pushes existed still get their prefs honored.
+ */
+export async function syncNotifPrefsToServer(uid: string): Promise<void> {
+  if (!db) return;
+  try {
+    const s = await getAppNotificationSettings();
+    await setDoc(
+      doc(db, 'users', uid),
+      {
+        notifPrefs: {
+          streakReminder: s.streakReminder,
+          teamActivity: s.teamActivity,
+          chatMessages: s.chatMessages,
+        },
+      },
+      { merge: true },
+    );
+  } catch {
+    /* non-fatal */
   }
 }

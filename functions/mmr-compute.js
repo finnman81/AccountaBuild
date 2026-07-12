@@ -516,4 +516,4 @@ async function computeUserUpToCurrentWeek(db, { uid, apply = true, now = new Dat
   return results;
 }
 
-module.exports = { computeUserWeek, computeUserUpToCurrentWeek };
+module.exports = { computeUserWeek, computeUserUpToCurrentWeek, getGoals, getGroupIds, getWeekTotals };
