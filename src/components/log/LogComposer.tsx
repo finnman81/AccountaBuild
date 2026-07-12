@@ -5,6 +5,7 @@ import { Text } from 'react-native-paper';
 import { AuthContext } from '../../store/AuthContext';
 import { useActiveGroup } from '../../store/ActiveGroupContext';
 import { addCaloriesLog, addWeightLog, addWorkoutLog, type LogType, type MealType, type WorkoutType } from '../../services/logs';
+import { notifyLogSaved } from '../../services/fpEvents';
 import { todayYYYYMMDD, yesterdayYYYYMMDD } from '../../utils/dates';
 import { colors } from '../../theme/colors';
 import { radius } from '../../theme/radius';
@@ -166,6 +167,7 @@ export default function LogComposer({ initialType = 'weight', onClose, onSaved, 
       if (mode === 'weight') await addWeightLog({ groupId: activeGroupId, uid: user.uid, weight, date });
       else if (mode === 'workout') await addWorkoutLog({ groupId: activeGroupId, uid: user.uid, workoutType, durationMinutes: duration, date });
       else if (mode === 'calories') await addCaloriesLog({ groupId: activeGroupId, uid: user.uid, calories, meal, date });
+      notifyLogSaved();
       onSaved?.();
       onClose?.();
     } catch (e: any) {
