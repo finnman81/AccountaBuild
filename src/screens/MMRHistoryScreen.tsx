@@ -2,7 +2,7 @@ import React, { useContext, useEffect, useMemo, useState } from 'react';
 import { View, StyleSheet, ScrollView, useWindowDimensions } from 'react-native';
 import { useTheme } from 'react-native-paper';
 
-import SimpleLineChart from '../components/charts/SimpleLineChart';
+import TrendLineChart from '../components/charts/TrendLineChart';
 import PlaceholderLineChart from '../components/charts/PlaceholderLineChart';
 import AppText from '../components/ui/AppText';
 import Card from '../components/ui/Card';
@@ -69,7 +69,7 @@ export default function MMRHistoryScreen() {
           ) : (
             <>
               <AppText variant="eyebrow" color="muted" style={styles.chartLabel}>FP</AppText>
-              <SimpleLineChart
+              <TrendLineChart
                 values={series}
                 height={160}
                 width={Math.max(260, windowWidth - spacing.lg * 2 - spacing.base * 2)}

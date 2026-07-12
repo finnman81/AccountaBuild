@@ -13,7 +13,7 @@ import { subscribeGroupLogs, type GroupLog } from '../services/logs';
 import { computeGoalStreak } from '../viewmodels/today';
 import { friendlyNameFromDisplayName } from '../utils/formatters';
 import { DEFAULT_TZ, isoWeekDatesInTz, isoWeekIdInTz, yyyyMmDdInTz } from '../mmr/time';
-import SimpleLineChart from '../components/charts/SimpleLineChart';
+import TrendLineChart from '../components/charts/TrendLineChart';
 import AppText from '../components/ui/AppText';
 import Avatar from '../components/ui/Avatar';
 import Card from '../components/ui/Card';
@@ -215,7 +215,7 @@ export default function MemberProfileScreen({ route, navigation }: Props) {
             </AppText>
           ) : (
             <>
-              <SimpleLineChart
+              <TrendLineChart
                 values={fpSeries}
                 height={140}
                 width={Math.max(240, windowWidth - spacing.lg * 2 - spacing.base * 2)}

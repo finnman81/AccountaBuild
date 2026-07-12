@@ -8,7 +8,7 @@ import { useNavigation } from '@react-navigation/native';
 
 import Screen from '../components/layout/Screen';
 import EmptyState from '../components/state/EmptyState';
-import SimpleLineChart from '../components/charts/SimpleLineChart';
+import TrendLineChart from '../components/charts/TrendLineChart';
 import ComplianceBars from '../components/progress/ComplianceBars';
 import { subscribeMyCanSeeUids } from '../services/visibility';
 import { subscribePublicUsers } from '../services/publicUsers';
@@ -716,7 +716,7 @@ export default function ProgressScreen({ navigation }: Props) {
                         <AppText variant="label" color="muted" style={{ textAlign: 'right' }}>{yTicks.bot}</AppText>
                       </View>
                       <View style={{ flex: 1, overflow: 'hidden' }}>
-                        <SimpleLineChart
+                        <TrendLineChart
                           values={chart.series}
                           height={160}
                           width={chartW}

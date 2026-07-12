@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
-import { LayoutChangeEvent, View } from 'react-native';
-import Svg, { Rect, Text as SvgText } from 'react-native-svg';
+import React, { useEffect, useRef } from 'react';
+import { Animated, Easing, StyleSheet, View } from 'react-native';
 
-import { colors } from '../../theme';
+import AppText from '../ui/AppText';
+import { colors, radius } from '../../theme';
 
 export type ComplianceBar = { label: string; pct: number; ratio: string };
 
@@ -26,58 +26,57 @@ function colorForPercent(percent: number, redHex: string, greenHex: string) {
   return rgbToHex(lerp(a.r, b.r, t), lerp(a.g, b.g, t), lerp(a.b, b.b, t));
 }
 
-/** Weekly group-compliance bars (weight/calories/workouts % toward goals). */
-export default function ComplianceBars({ bars, height = 150 }: { bars: ComplianceBar[]; height?: number }) {
-  const [chartWidth, setChartWidth] = useState(0);
+function BarColumn({ bar, trackHeight }: { bar: ComplianceBar; trackHeight: number }) {
+  const pct = Math.max(0, Math.min(100, bar.pct));
+  const fill = colorForPercent(pct, colors.danger, colors.success);
+  const anim = useRef(new Animated.Value(0)).current;
 
-  const paddingLeft = 8;
-  const paddingRight = 8;
-  const paddingTop = 20;
-  const paddingBottom = 40;
-  const xDomainPadding = 8;
+  useEffect(() => {
+    Animated.timing(anim, {
+      toValue: pct,
+      duration: 500,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false, // animating height
+    }).start();
+  }, [pct, anim]);
 
-  const plotW = chartWidth > 0 ? chartWidth - paddingLeft - paddingRight : 0;
-  const maxH = height - paddingTop - paddingBottom;
-  const baseline = height - paddingBottom;
-
-  const barCount = bars.length;
-  const gap = Math.max(12, Math.round(plotW * 0.06));
-  const availableWidth = plotW - 2 * xDomainPadding;
-  const barW = barCount > 0 ? Math.max(48, Math.floor((availableWidth - gap * (barCount - 1)) / barCount)) : 0;
-
-  const handleLayout = (event: LayoutChangeEvent) => {
-    const { width } = event.nativeEvent.layout;
-    if (width > 0 && width !== chartWidth) setChartWidth(width);
-  };
+  const fillHeight = anim.interpolate({ inputRange: [0, 100], outputRange: [4, trackHeight] });
 
   return (
-    <View style={{ width: '100%', height }} onLayout={handleLayout}>
-      {chartWidth > 0 && (
-        <Svg width={chartWidth} height={height}>
-          {bars.map((b, idx) => {
-            const startX = paddingLeft + xDomainPadding;
-            const x = startX + idx * (barW + gap);
-            const h = Math.max(2, Math.round((Math.max(0, Math.min(100, b.pct)) / 100) * maxH));
-            const y = baseline - h;
-            const fill = colorForPercent(b.pct, colors.danger, colors.success);
-            return (
-              <React.Fragment key={b.label}>
-                <Rect x={x} y={baseline - maxH} width={barW} height={maxH} rx={10} ry={10} fill={colors.surface2} />
-                <Rect x={x} y={y} width={barW} height={h} rx={10} ry={10} fill={fill} />
-                <SvgText x={x + barW / 2} y={y - 6} fontSize="12" fontWeight="700" fill={colors.textPrimary} textAnchor="middle">
-                  {b.pct}%
-                </SvgText>
-                <SvgText x={x + barW / 2} y={baseline + 18} fontSize="12" fill={colors.textPrimary} textAnchor="middle">
-                  {b.label}
-                </SvgText>
-                <SvgText x={x + barW / 2} y={baseline + 34} fontSize="11" fill={colors.textMuted} textAnchor="middle">
-                  {b.ratio}
-                </SvgText>
-              </React.Fragment>
-            );
-          })}
-        </Svg>
-      )}
+    <View style={styles.col}>
+      <AppText variant="rowTitle" color="primary" style={styles.pct}>{pct}%</AppText>
+      <View style={[styles.track, { height: trackHeight }]}>
+        <Animated.View style={[styles.fill, { height: fillHeight, backgroundColor: fill }]} />
+      </View>
+      <AppText variant="rowSubtitle" color="primary" style={styles.label}>{bar.label}</AppText>
+      <AppText variant="label" color="muted">{bar.ratio}</AppText>
     </View>
   );
 }
+
+/** Weekly group-compliance bars (weight/calories/workouts % toward goals). */
+export default function ComplianceBars({ bars, height = 150 }: { bars: ComplianceBar[]; height?: number }) {
+  const trackHeight = Math.max(60, height - 76); // room for % above and labels below
+  return (
+    <View style={styles.row}>
+      {bars.map((b) => (
+        <BarColumn key={b.label} bar={b} trackHeight={trackHeight} />
+      ))}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  row: { flexDirection: 'row', gap: 14, alignItems: 'flex-end' },
+  col: { flex: 1, alignItems: 'center' },
+  pct: { marginBottom: 6, fontVariant: ['tabular-nums'] },
+  track: {
+    alignSelf: 'stretch',
+    backgroundColor: colors.surface2,
+    borderRadius: radius.tile,
+    overflow: 'hidden',
+    justifyContent: 'flex-end',
+  },
+  fill: { borderRadius: radius.tile },
+  label: { marginTop: 8 },
+});
