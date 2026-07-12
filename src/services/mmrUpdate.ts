@@ -702,6 +702,24 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
       { merge: true },
     );
 
+    // Public weekly mirror so teammates can render each other's FP history
+    // (users/{uid}/weekly is owner-private; server compute mirrors this too).
+    tx.set(
+      doc(db, 'publicUsers', uid, 'weeklyPublic', weekId),
+      {
+        weekId,
+        seasonId,
+        mmrAfter: newMMR,
+        deltaMMR,
+        tier: band.tier,
+        division: band.division ?? null,
+        completedWeek,
+        workoutsDone,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true },
+    );
+
     // Only write the goal's completion patch when we actually awarded the bonus
     // this run, so a re-run (which reads alreadyAwarded=true) is a no-op.
     if (weightGoalUpdate && weightBonus > 0) {

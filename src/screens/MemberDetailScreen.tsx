@@ -151,6 +151,14 @@ export default function MemberDetailScreen({ route, navigation }: Props) {
             <StatTile label="Rank" value={tier ? `${tier[0]}${division ?? ''}` : '—'} />
           </View>
 
+          <TouchableOpacity
+            style={styles.fullProfileBtn}
+            activeOpacity={0.85}
+            onPress={() => (navigation as any).replace('MemberProfile', { groupId, uid })}
+          >
+            <AppText variant="rowTitle" color="accent">View full profile & KPIs</AppText>
+          </TouchableOpacity>
+
           <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>Today</AppText>
           <View style={styles.group}>
             {stats.checklist.map((c, i) => (
@@ -213,6 +221,7 @@ const styles = StyleSheet.create({
   streakChipText: { color: colors.rankGold, fontSize: 9 },
   tierRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   tiles: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.lg },
+  fullProfileBtn: { alignItems: 'center', paddingVertical: spacing.md, marginTop: spacing.md, borderRadius: radius.tile, backgroundColor: colors.primaryTint },
   sectionLabel: { marginTop: spacing.lg, marginBottom: spacing.sm },
   group: { backgroundColor: colors.surface2, borderRadius: radius.tile, paddingHorizontal: spacing.base },
   checkRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.md },

@@ -2,7 +2,9 @@ import {
   collection,
   doc,
   documentId,
+  limit,
   onSnapshot,
+  orderBy,
   query,
   serverTimestamp,
   setDoc,
@@ -38,6 +40,52 @@ function chunk<T>(arr: T[], size: number) {
   const out: T[][] = [];
   for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
   return out;
+}
+
+/** Shareable weekly FP summary (publicUsers/{uid}/weeklyPublic/{weekId}). */
+export type WeeklyPublic = {
+  weekId: string;
+  seasonId?: string;
+  mmrAfter: number;
+  deltaMMR: number;
+  tier?: string | null;
+  division?: number | null;
+  completedWeek?: boolean;
+  workoutsDone?: number;
+};
+
+/** A teammate's FP history, ascending by week (doc ids are YYYY-WNN). */
+export function subscribeWeeklyPublic(
+  uid: string,
+  max: number,
+  onChange: (weeks: WeeklyPublic[]) => void,
+  onError?: (err: unknown) => void,
+) {
+  const ref = query(collection(db, 'publicUsers', uid, 'weeklyPublic'), orderBy(documentId(), 'desc'), limit(max));
+  return onSnapshot(
+    ref,
+    (snap) => {
+      const rows = snap.docs
+        .map((d) => {
+          const data = d.data() as any;
+          const mmrAfter = Number(data?.mmrAfter);
+          if (!Number.isFinite(mmrAfter)) return null;
+          return {
+            weekId: d.id,
+            seasonId: data?.seasonId ?? undefined,
+            mmrAfter,
+            deltaMMR: Number(data?.deltaMMR) || 0,
+            tier: data?.tier ?? null,
+            division: data?.division ?? null,
+            completedWeek: Boolean(data?.completedWeek),
+            workoutsDone: Number(data?.workoutsDone) || 0,
+          } as WeeklyPublic;
+        })
+        .filter(Boolean) as WeeklyPublic[];
+      onChange(rows.reverse());
+    },
+    (err) => onError?.(err),
+  );
 }
 
 export async function upsertMyPublicUser(uid: string, data: Partial<PublicUser>) {

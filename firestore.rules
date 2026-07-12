@@ -81,6 +81,14 @@ service cloud.firestore {
       allow read: if signedIn() && (request.auth.uid == uid ||
         exists(/databases/$(database)/documents/visibility/$(request.auth.uid)/canSee/$(uid)));
       allow write: if signedIn() && request.auth.uid == uid;
+
+      // Shareable FP history subset (mirrored by the server compute and the
+      // owner's client) so teammates can render each other's history graphs.
+      match /weeklyPublic/{weekId} {
+        allow read: if signedIn() && (request.auth.uid == uid ||
+          exists(/databases/$(database)/documents/visibility/$(request.auth.uid)/canSee/$(uid)));
+        allow write: if signedIn() && request.auth.uid == uid;
+      }
     }
 
     // Per-viewer visibility index: visibility/{viewerUid}/canSee/{targetUid}

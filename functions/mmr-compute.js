@@ -468,6 +468,24 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
       { merge: true },
     );
 
+    // Public weekly mirror: teammates can render each other's FP history
+    // (users/{uid}/weekly is owner-private; this is the shareable subset).
+    tx.set(
+      publicRef.collection('weeklyPublic').doc(weekId),
+      {
+        weekId,
+        seasonId,
+        mmrAfter: newMMR,
+        deltaMMR,
+        tier: band.tier,
+        division: band.division ?? null,
+        completedWeek,
+        workoutsDone,
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+
     if (weightGoalUpdate && weightBonus > 0 && goalRef) {
       tx.set(goalRef, weightGoalUpdate.patch, { merge: true });
     }

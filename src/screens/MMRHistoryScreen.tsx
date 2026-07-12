@@ -114,7 +114,7 @@ export default function MMRHistoryScreen() {
                     <Tag label={status} variant="subtle" />
                   </View>
                   <View style={styles.tiles}>
-                    <StatTile label="ΔMMR" value={deltaTxt} unit={deltaMPTxt ?? undefined} delta={`${Math.round(w.mmrBefore)} → ${Math.round(w.mmrAfter)}`} deltaColor={colors.textMuted} style={styles.tile} />
+                    <StatTile label="ΔFP" value={deltaTxt} unit={deltaMPTxt ?? undefined} delta={`${Math.round(w.mmrBefore)} → ${Math.round(w.mmrAfter)}`} deltaColor={colors.textMuted} style={styles.tile} />
                     <StatTile label="Streak" value={`×${w.streakMultiplier.toFixed(2)}`} delta={`Bonus ${Math.round(w.bonus)} · Penalty ${Math.round(w.penalty)}`} deltaColor={colors.textMuted} style={styles.tile} />
                   </View>
                   {promo ? (
