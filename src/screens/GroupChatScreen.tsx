@@ -1,6 +1,6 @@
 import React, { useContext, useEffect, useMemo, useState } from 'react';
 import { FlatList, KeyboardAvoidingView, Platform, View, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { Icon } from 'react-native-paper';
 import * as Haptics from 'expo-haptics';
@@ -22,7 +22,10 @@ import AppText from '../components/ui/AppText';
 import LogCard from '../components/chat/LogCard';
 import { colors, radius, spacing } from '../theme';
 
-type FeedItem = { kind: 'message'; id: string; ms: number; msg: GroupMessage } | { kind: 'log'; id: string; ms: number; log: GroupLog };
+type FeedItem =
+  | { kind: 'message'; id: string; ms: number; msg: GroupMessage }
+  | { kind: 'log'; id: string; ms: number; log: GroupLog }
+  | { kind: 'day'; id: string; ms: number; label: string };
 
 function tsMs(ts: any): number {
   if (ts && typeof ts.toMillis === 'function') return ts.toMillis();
@@ -30,11 +33,32 @@ function tsMs(ts: any): number {
   return 0;
 }
 
+function dayKey(ms: number): string {
+  const d = new Date(ms);
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+
+function dayLabel(ms: number): string {
+  const d = new Date(ms);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const that = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const diffDays = Math.round((today.getTime() - that.getTime()) / 86400000);
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Yesterday';
+  return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+function timeLabel(ms: number): string {
+  return new Date(ms).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+}
+
 type Props = NativeStackScreenProps<HomeStackParamList, 'GroupChat'>;
 
 export default function GroupChatScreen({ route }: Props) {
   const { user } = useContext(AuthContext);
   const { groupId } = route.params;
+  const nav = useNavigation();
   const headerHeight = useHeaderHeight();
   const insets = useSafeAreaInsets();
 
@@ -45,6 +69,7 @@ export default function GroupChatScreen({ route }: Props) {
   const [logs, setLogs] = useState<GroupLog[]>([]);
   const [text, setText] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [sendFailed, setSendFailed] = useState(false);
   const [composerH, setComposerH] = useState(0);
 
   useEffect(() => subscribeGroupMessages(groupId, setMessages), [groupId]);
@@ -93,7 +118,20 @@ export default function GroupChatScreen({ route }: Props) {
       items.push({ kind: 'log', id: `l_${l.id}`, ms: tsMs(l.ts), log: l });
     }
     items.sort((a, b) => b.ms - a.ms);
-    return items;
+
+    // Day separators. The list is inverted (data[0] renders at the bottom), so
+    // a day's header must come AFTER its last (oldest) item in the array to
+    // appear visually above the day's messages.
+    const withDays: FeedItem[] = [];
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i]!;
+      withDays.push(item);
+      const next = items[i + 1];
+      if (!next || dayKey(next.ms) !== dayKey(item.ms)) {
+        withDays.push({ kind: 'day', id: `d_${dayKey(item.ms)}`, ms: item.ms, label: dayLabel(item.ms) });
+      }
+    }
+    return withDays;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, logs, memberUids, canSee, user?.uid]);
 
@@ -117,9 +155,13 @@ export default function GroupChatScreen({ route }: Props) {
   const send = async () => {
     if (!user || !text.trim()) return;
     setIsSending(true);
+    setSendFailed(false);
     try {
       await sendGroupMessage({ groupId, uid: user.uid, text });
       setText('');
+    } catch {
+      // Keep the text in the input so a retry is one tap away.
+      setSendFailed(true);
     } finally {
       setIsSending(false);
     }
@@ -150,7 +192,25 @@ export default function GroupChatScreen({ route }: Props) {
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
           contentContainerStyle={{ paddingHorizontal: spacing.base, paddingTop: spacing.md, paddingBottom: composerH + spacing.md + insets.bottom }}
+          ListEmptyComponent={
+            <View style={styles.emptyWrap}>
+              <Icon source="chat-outline" size={32} color={colors.textMuted} />
+              <AppText variant="rowTitle" color="secondary" style={{ marginTop: spacing.md }}>Say hi to your crew</AppText>
+              <AppText variant="rowSubtitle" color="muted" style={{ marginTop: 4, textAlign: 'center' }}>
+                Messages and everyone's logs show up here.
+              </AppText>
+            </View>
+          }
           renderItem={({ item }) => {
+            if (item.kind === 'day') {
+              return (
+                <View style={styles.dayRow}>
+                  <View style={styles.dayLine} />
+                  <AppText variant="label" color="muted" style={styles.dayText}>{item.label}</AppText>
+                  <View style={styles.dayLine} />
+                </View>
+              );
+            }
             if (item.kind === 'log') {
               return (
                 <View style={styles.msgRow}>
@@ -159,9 +219,21 @@ export default function GroupChatScreen({ route }: Props) {
               );
             }
             const mine = user?.uid === item.msg.uid;
+            const isSystem = (item.msg as any).system === true;
+            if (isSystem) {
+              return (
+                <View style={styles.systemRow}>
+                  <AppText variant="rowSubtitle" color="secondary" style={styles.systemText}>{item.msg.text}</AppText>
+                </View>
+              );
+            }
             return (
               <View style={[styles.msgRow, { alignItems: mine ? 'flex-end' : 'flex-start' }]}>
-                {!mine && <AppText variant="label" color="muted" style={styles.sender}>{nameFor(item.msg.uid)}</AppText>}
+                {!mine && (
+                  <AppText variant="label" color="muted" style={styles.sender}>
+                    {nameFor(item.msg.uid)}  ·  {timeLabel(item.ms)}
+                  </AppText>
+                )}
                 <View
                   style={[
                     styles.bubble,
@@ -171,15 +243,27 @@ export default function GroupChatScreen({ route }: Props) {
                 >
                   <AppText variant="body" style={{ color: mine ? '#FFFFFF' : colors.textPrimary }}>{item.msg.text}</AppText>
                 </View>
+                {mine && <AppText variant="label" color="muted" style={styles.mineTime}>{timeLabel(item.ms)}</AppText>}
               </View>
             );
           }}
         />
 
+        {sendFailed && (
+          <TouchableOpacity onPress={send} style={styles.sendFailedRow} activeOpacity={0.85}>
+            <Icon source="alert-circle-outline" size={16} color={colors.danger} />
+            <AppText variant="rowSubtitle" style={{ color: colors.danger }}>Message failed to send — tap to retry</AppText>
+          </TouchableOpacity>
+        )}
         <View onLayout={(e) => setComposerH(e.nativeEvent.layout.height)} style={[styles.composer, { paddingBottom: insets.bottom || spacing.sm }]}>
-          <View style={styles.plusCircle}>
-            <Icon source="plus" size={20} color={colors.textSecondary} />
-          </View>
+          <TouchableOpacity
+            onPress={() => (nav as any).navigate('AddPhoto', { groupId })}
+            style={styles.plusCircle}
+            accessibilityRole="button"
+            accessibilityLabel="Add a progress photo"
+          >
+            <Icon source="camera-outline" size={20} color={colors.textSecondary} />
+          </TouchableOpacity>
           <TextInput
             style={styles.input}
             value={text}
@@ -214,6 +298,31 @@ const styles = StyleSheet.create({
   pinnedText: { flex: 1 },
   msgRow: { marginBottom: spacing.sm },
   sender: { marginBottom: 3, marginLeft: spacing.sm },
+  mineTime: { marginTop: 3, marginRight: spacing.sm },
+  dayRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginVertical: spacing.md },
+  dayLine: { flex: 1, height: 1, backgroundColor: colors.divider },
+  dayText: { letterSpacing: 0.4 },
+  systemRow: {
+    alignSelf: 'center',
+    maxWidth: '92%',
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderCard,
+    borderRadius: 14,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  systemText: { lineHeight: 19 },
+  emptyWrap: { alignItems: 'center', paddingVertical: 60, transform: [{ scaleY: -1 }] },
+  sendFailedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.dangerTint,
+  },
   bubble: { maxWidth: '82%', paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderBottomLeftRadius: 18, borderBottomRightRadius: 18 },
   bubbleMine: { backgroundColor: colors.primary },
   bubbleTheirs: { backgroundColor: colors.surface },

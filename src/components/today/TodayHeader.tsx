@@ -19,6 +19,10 @@ type Props = {
   unreadChat?: number;
   rankTier?: Tier | null;
   rankDivision?: number | null;
+  /** Current daily streak; the chip renders only when > 0. */
+  streakDays?: number;
+  /** Past the 6 PM cutoff without logging — chip turns red ("save it"). */
+  streakAtRisk?: boolean;
   onSwitchGroup: () => void;
   onChat: () => void;
   onBell: () => void;
@@ -32,6 +36,18 @@ function GroupTile({ name, logoURL }: { name: string; logoURL?: string | null })
   return (
     <View style={[styles.tileImg, styles.tilePlaceholder]}>
       <Text style={{ color: colors.textSecondary, fontSize: 13, fontWeight: '700' }}>{initials}</Text>
+    </View>
+  );
+}
+
+function StreakChip({ days, atRisk }: { days: number; atRisk: boolean }) {
+  return (
+    <View
+      style={[styles.streakChip, atRisk ? styles.streakChipRisk : styles.streakChipSafe]}
+      accessibilityLabel={atRisk ? `${days} day streak, log today to keep it` : `${days} day streak`}
+    >
+      <Icon source="fire" size={15} color={atRisk ? colors.danger : colors.success} />
+      <Text style={[styles.streakChipText, { color: atRisk ? colors.danger : colors.success }]}>{days}d</Text>
     </View>
   );
 }
@@ -57,6 +73,8 @@ export default function TodayHeader({
   unreadChat = 0,
   rankTier,
   rankDivision,
+  streakDays = 0,
+  streakAtRisk = false,
   onSwitchGroup,
   onChat,
   onBell,
@@ -73,6 +91,7 @@ export default function TodayHeader({
         </Pressable>
 
         <View style={styles.actions}>
+          {streakDays > 0 ? <StreakChip days={streakDays} atRisk={streakAtRisk} /> : null}
           {rankTier ? <RankChip tier={rankTier} division={rankDivision} /> : null}
           <Pressable
             onPress={onChat}
@@ -120,6 +139,18 @@ const styles = StyleSheet.create({
     marginRight: 4,
   },
   rankChipText: { fontSize: 12, fontWeight: '700', color: colors.textSecondary },
+  streakChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginRight: 4,
+  },
+  streakChipSafe: { backgroundColor: colors.successTint },
+  streakChipRisk: { backgroundColor: colors.dangerTint },
+  streakChipText: { fontSize: 12, fontWeight: '800', fontVariant: ['tabular-nums'] },
   iconBtn: { width: 42, height: 42, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
   iconBtnHighlight: { backgroundColor: colors.primaryTint },
   dot: { position: 'absolute', top: 7, right: 7, width: 9, height: 9, borderRadius: 5, backgroundColor: colors.primary, borderWidth: 1.5, borderColor: colors.background },

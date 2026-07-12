@@ -11,6 +11,7 @@ import { addWeightLog } from '../services/logs';
 import { syncMyMemberProfileToAllGroups, updateMyProfile } from '../services/profile';
 import { db } from '../firebase/firebase';
 import { isFutureYYYYMMDD, isValidYYYYMMDD, todayYYYYMMDD, yesterdayYYYYMMDD } from '../utils/dates';
+import { useMyUnits } from '../hooks/useMyUnits';
 import { updateGroupLog, upsertUserWeightHistoryFromGroupLog } from '../services/logEdits';
 import AppText from '../components/ui/AppText';
 import Card from '../components/ui/Card';
@@ -25,8 +26,11 @@ export default function AddWeightScreen({ route, navigation }: Props) {
   const { groupId, edit } = route.params;
   const headerHeight = useHeaderHeight();
   const insets = useSafeAreaInsets();
+  const units = useMyUnits();
+  const metric = units === 'metric';
+  const KG_PER_LB = 0.45359237;
   const [logDate, setLogDate] = useState(todayYYYYMMDD());
-  const [weight, setWeight] = useState('');
+  const [weight, setWeight] = useState(''); // in the viewer's display units
   const [note, setNote] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,9 +38,11 @@ export default function AddWeightScreen({ route, navigation }: Props) {
   useEffect(() => {
     if (!edit) return;
     setLogDate(edit.date);
-    setWeight(String(edit.weight));
+    // Stored weights are always lb; show in the viewer's units.
+    setWeight(String(metric ? Math.round(edit.weight * KG_PER_LB * 10) / 10 : edit.weight));
     setNote(String(edit.note ?? ''));
-  }, [edit?.logId]); // intentionally only on edit change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [edit?.logId, metric]); // intentionally only on edit/units change
 
   const onSubmit = async () => {
     if (!user) return;
@@ -52,11 +58,13 @@ export default function AddWeightScreen({ route, navigation }: Props) {
         setError('Log date cannot be in the future.');
         return;
       }
-      const value = Number(weight);
-      if (!Number.isFinite(value) || value <= 0) {
+      const entered = Number(weight);
+      if (!Number.isFinite(entered) || entered <= 0) {
         setError('Enter a valid weight.');
         return;
       }
+      // Convert display units back to lb — the storage unit everywhere.
+      const value = Math.round((metric ? entered / KG_PER_LB : entered) * 10) / 10;
       if (edit?.logId) {
         await updateGroupLog({
           groupId,
@@ -140,7 +148,7 @@ export default function AddWeightScreen({ route, navigation }: Props) {
                 </TouchableOpacity>
               </View>
 
-              <AppText variant="eyebrow" color="muted" style={styles.fieldLabel}>Weight (lb)</AppText>
+              <AppText variant="eyebrow" color="muted" style={styles.fieldLabel}>{metric ? 'Weight (kg)' : 'Weight (lb)'}</AppText>
               <TextField
                 keyboardType="decimal-pad"
                 value={weight}

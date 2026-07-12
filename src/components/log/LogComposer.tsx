@@ -1,11 +1,13 @@
-import React, { useContext, useState } from 'react';
+import React, { useContext, useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { Text } from 'react-native-paper';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { AuthContext } from '../../store/AuthContext';
 import { useActiveGroup } from '../../store/ActiveGroupContext';
 import { addCaloriesLog, addWeightLog, addWorkoutLog, type LogType, type MealType, type WorkoutType } from '../../services/logs';
 import { notifyLogSaved } from '../../services/fpEvents';
+import { useMyUnits } from '../../hooks/useMyUnits';
 import { todayYYYYMMDD, yesterdayYYYYMMDD } from '../../utils/dates';
 import { colors } from '../../theme/colors';
 import { radius } from '../../theme/radius';
@@ -21,6 +23,11 @@ type Props = {
   /** Photo logging is a separate flow (upload); the composer hands off to it. */
   onOpenPhoto?: () => void;
 };
+
+const LAST_VALUES_KEY_PREFIX = 'logComposerLast';
+const KG_PER_LB = 0.45359237;
+
+type LastValues = { weightLb?: number; calories?: number; duration?: number; workoutType?: WorkoutType; meal?: MealType };
 
 const MODE_OPTIONS: ReadonlyArray<{ value: LogType; label: string }> = [
   { value: 'calories', label: 'Calories' },
@@ -145,9 +152,12 @@ function Hero({
 export default function LogComposer({ initialType = 'weight', onClose, onSaved, onOpenPhoto }: Props) {
   const { user } = useContext(AuthContext);
   const { activeGroupId } = useActiveGroup();
+  const units = useMyUnits();
 
   const [mode, setMode] = useState<LogType>(initialType);
-  const [weight, setWeight] = useState(180);
+  // Weight is kept in lb internally (the storage unit everywhere in Firestore)
+  // and converted to the viewer's units only at the display boundary.
+  const [weightLb, setWeightLb] = useState(180);
   const [duration, setDuration] = useState(45);
   const [workoutType, setWorkoutType] = useState<WorkoutType>('weightLifting');
   const [calories, setCalories] = useState(2000);
@@ -155,6 +165,36 @@ export default function LogComposer({ initialType = 'weight', onClose, onSaved, 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [logDay, setLogDay] = useState<'today' | 'yesterday'>('today');
+  const restoredRef = useRef(false);
+
+  // Prefill from the user's last-entered values so nobody drags the dial from
+  // 180 lb every single day.
+  useEffect(() => {
+    if (!user?.uid || restoredRef.current) return;
+    restoredRef.current = true;
+    AsyncStorage.getItem(`${LAST_VALUES_KEY_PREFIX}:${user.uid}`)
+      .then((raw) => {
+        if (!raw) return;
+        const last = JSON.parse(raw) as LastValues;
+        if (Number.isFinite(last.weightLb) && (last.weightLb as number) > 0) setWeightLb(last.weightLb as number);
+        if (Number.isFinite(last.calories) && (last.calories as number) > 0) setCalories(last.calories as number);
+        if (Number.isFinite(last.duration) && (last.duration as number) > 0) setDuration(last.duration as number);
+        if (last.workoutType) setWorkoutType(last.workoutType);
+        if (last.meal) setMeal(last.meal);
+      })
+      .catch(() => {});
+  }, [user?.uid]);
+
+  const metric = units === 'metric';
+  const weightUnit = metric ? 'kg' : 'lb';
+  const displayWeight = metric ? Math.round(weightLb * KG_PER_LB * 10) / 10 : weightLb;
+  const weightMin = metric ? 23 : 50;
+  const weightMax = metric ? 227 : 500;
+  const commitDisplayWeight = (v: number) => {
+    const clamped = Math.max(weightMin, Math.min(weightMax, v));
+    const lb = metric ? clamped / KG_PER_LB : clamped;
+    setWeightLb(Math.round(lb * 100) / 100);
+  };
 
   const date = logDay === 'today' ? todayYYYYMMDD() : yesterdayYYYYMMDD();
   const canSave = !!user?.uid && !!activeGroupId && mode !== 'photo' && !saving;
@@ -164,9 +204,12 @@ export default function LogComposer({ initialType = 'weight', onClose, onSaved, 
     setSaving(true);
     setError(null);
     try {
+      const weight = Math.round(weightLb * 10) / 10;
       if (mode === 'weight') await addWeightLog({ groupId: activeGroupId, uid: user.uid, weight, date });
       else if (mode === 'workout') await addWorkoutLog({ groupId: activeGroupId, uid: user.uid, workoutType, durationMinutes: duration, date });
       else if (mode === 'calories') await addCaloriesLog({ groupId: activeGroupId, uid: user.uid, calories, meal, date });
+      const last: LastValues = { weightLb: weight, calories, duration, workoutType, meal };
+      void AsyncStorage.setItem(`${LAST_VALUES_KEY_PREFIX}:${user.uid}`, JSON.stringify(last)).catch(() => {});
       notifyLogSaved();
       onSaved?.();
       onClose?.();
@@ -192,13 +235,13 @@ export default function LogComposer({ initialType = 'weight', onClose, onSaved, 
         {mode === 'weight' && (
           <View style={styles.body}>
             <Hero
-              value={weight}
+              value={displayWeight}
               decimals={1}
-              unit="lb"
-              onCommit={(v) => setWeight(Math.max(50, Math.min(500, v)))}
-              onStep={(d) => setWeight((w) => Math.max(50, Math.min(500, Math.round((w + d) * 10) / 10)))}
+              unit={weightUnit}
+              onCommit={commitDisplayWeight}
+              onStep={(d) => commitDisplayWeight(Math.round((displayWeight + d) * 10) / 10)}
             />
-            <RulerDial value={weight} onChange={setWeight} min={50} max={500} step={0.1} majorEvery={10} />
+            <RulerDial value={displayWeight} onChange={commitDisplayWeight} min={weightMin} max={weightMax} step={0.1} majorEvery={10} />
           </View>
         )}
 
@@ -275,6 +318,11 @@ export default function LogComposer({ initialType = 'weight', onClose, onSaved, 
         </View>
         )}
         {error && <Text style={{ color: colors.danger, fontSize: 13, marginBottom: 8 }}>{error}</Text>}
+        {!activeGroupId && !!user?.uid && (
+          <Text style={{ color: colors.textSecondary, fontSize: 13, marginBottom: 8, textAlign: 'center' }}>
+            Join a group to start logging — logs live with your crew.
+          </Text>
+        )}
         {mode !== 'photo' && (
           <PrimaryButton onPress={handleSave} loading={saving} disabled={!canSave}>
             {`Save ${mode}`}

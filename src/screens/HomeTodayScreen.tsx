@@ -39,6 +39,8 @@ export default function HomeTodayScreen() {
         onOpenMember={(uid: string) => {
           if (activeGroupId && uid) (nav as any).navigate('MemberDetail', { groupId: activeGroupId, uid });
         }}
+        onJoinGroup={() => (nav as any).navigate('MainTabs', { screen: 'GroupsTab', params: { screen: 'JoinGroup' } })}
+        onCreateGroup={() => (nav as any).navigate('MainTabs', { screen: 'GroupsTab', params: { screen: 'CreateGroup' } })}
         onEditEntry={(entry) => {
           if (!activeGroupId) return;
           const p = (entry.payload ?? {}) as any;

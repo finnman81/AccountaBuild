@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useMemo, useState } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Image, Alert } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Image, Alert, Share } from 'react-native';
 import { Icon, Snackbar } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -79,6 +79,17 @@ export default function GroupInfoScreen({ route, navigation }: Props) {
     setSnack('Join code copied');
   };
 
+  const shareInvite = async () => {
+    if (!group?.joinCode) return;
+    try {
+      await Share.share({
+        message: `Join my group "${group.name ?? 'my crew'}" on AccountaBuild — we keep each other on track with workouts, calories, and weekly goals. Open the app, tap Join group, and enter code ${group.joinCode}`,
+      });
+    } catch {
+      /* user dismissed the sheet */
+    }
+  };
+
   const confirmRemove = (m: GroupMember) => {
     const name = friendlyNameFromDisplayName(pub[m.uid]?.displayName ?? null, m.uid);
     Alert.alert('Remove member?', `Remove ${name} from this group? They can rejoin with the code.`, [
@@ -154,7 +165,12 @@ export default function GroupInfoScreen({ route, navigation }: Props) {
               <AppText variant="eyebrow" color="muted">INVITE CODE</AppText>
               <AppText variant="rowTitle" color="primary" style={styles.codeText}>{group.joinCode}</AppText>
             </View>
-            <Icon source="content-copy" size={18} color={colors.textSecondary} />
+            <View style={styles.codeActions}>
+              <TouchableOpacity onPress={shareInvite} hitSlop={8} accessibilityLabel="Share invite" style={styles.codeActionBtn}>
+                <Icon source="share-variant" size={18} color={colors.primary} />
+              </TouchableOpacity>
+              <Icon source="content-copy" size={18} color={colors.textSecondary} />
+            </View>
           </TouchableOpacity>
         ) : null}
 
@@ -222,6 +238,8 @@ const styles = StyleSheet.create({
   heroLogo: { width: 72, height: 72, borderRadius: radius.card, backgroundColor: colors.surface2, marginBottom: spacing.sm },
   heroLogoPlaceholder: { alignItems: 'center', justifyContent: 'center' },
   heroName: { textAlign: 'center' },
+  codeActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.base },
+  codeActionBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
   codePill: {
     flexDirection: 'row',
     alignItems: 'center',

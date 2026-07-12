@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useMemo, useState } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Share } from 'react-native';
 import { Button, Dialog, Portal, Snackbar, Icon } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -90,6 +90,17 @@ export default function GroupListScreen({ navigation }: Props) {
     setSnack('Join code copied');
   };
 
+  const shareInvite = async () => {
+    if (!inviteGroup?.joinCode) return;
+    try {
+      await Share.share({
+        message: `Join my group "${inviteGroup.name ?? 'my crew'}" on AccountaBuild — we keep each other on track with workouts, calories, and weekly goals. Open the app, tap Join group, and enter code ${inviteGroup.joinCode}`,
+      });
+    } catch {
+      /* user dismissed the sheet */
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <Portal>
@@ -154,6 +165,10 @@ export default function GroupListScreen({ navigation }: Props) {
               <AppText variant="rowTitle" color="primary" style={styles.codeText}>{inviteGroup.joinCode}</AppText>
               <Icon source="content-copy" size={16} color={colors.textSecondary} />
             </TouchableOpacity>
+            <TouchableOpacity onPress={shareInvite} activeOpacity={0.85} style={styles.shareBtn}>
+              <Icon source="share-variant" size={16} color="#FFFFFF" />
+              <AppText variant="rowSubtitle" style={{ color: '#FFFFFF', fontWeight: '700' }}>Share invite</AppText>
+            </TouchableOpacity>
           </View>
         ) : null}
 
@@ -199,5 +214,16 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   codeText: { fontFamily: 'monospace', letterSpacing: 2 },
+  shareBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    alignSelf: 'stretch',
+    backgroundColor: colors.primary,
+    borderRadius: radius.pill,
+    paddingVertical: spacing.md,
+    marginTop: spacing.sm,
+  },
   signOut: { alignItems: 'center', marginTop: spacing.xl, paddingVertical: spacing.sm },
 });

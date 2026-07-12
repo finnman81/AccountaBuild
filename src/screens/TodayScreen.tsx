@@ -34,6 +34,8 @@ type Props = {
   onOpenChallenge?: () => void;
   onOpenWeeklyRecap?: () => void;
   onEditEntry?: (entry: TodayLogEntry) => void;
+  onJoinGroup?: () => void;
+  onCreateGroup?: () => void;
 };
 
 const TIERS: Tier[] = ['Iron', 'Bronze', 'Silver', 'Gold', 'Platinum', 'Diamond', 'Master', 'Challenger'];
@@ -49,7 +51,7 @@ function dateLabel(d: Date): string {
   return d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
 }
 
-export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember, onSwitchGroup, onChat, onBell, onOpenChallenge, onOpenWeeklyRecap, onEditEntry }: Props) {
+export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember, onSwitchGroup, onChat, onBell, onOpenChallenge, onOpenWeeklyRecap, onEditEntry, onJoinGroup, onCreateGroup }: Props) {
   const { user, group, memberUids, canSee, publicUsers, logs, myProfile } = useTodayData();
   const { activeGroupId } = useActiveGroup();
   const [entriesItem, setEntriesItem] = useState<ChecklistItem | null>(null);
@@ -114,8 +116,54 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
   }
 
   const userName = friendlyNameFromDisplayName(publicUsers[myUid]?.displayName ?? myProfile?.displayName ?? null, myUid);
+
+  // No active group: the checklist/log flow can't work (logs live under a
+  // group), so show a "find your crew" state instead of dead buttons.
+  if (!activeGroupId) {
+    return (
+      <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ padding: spacing.lg, paddingTop: 56, paddingBottom: 32 }}>
+        <Text style={{ fontSize: 11, fontWeight: '700', letterSpacing: 0.8, color: colors.textMuted }}>{dateLabel(now).toUpperCase()}</Text>
+        <Text style={{ fontSize: 26, fontWeight: '700', letterSpacing: -0.4, color: colors.textPrimary, marginTop: 4 }}>
+          {greetingFor(now.getHours())}, {userName}
+        </Text>
+        <View
+          style={{
+            marginTop: 28,
+            backgroundColor: colors.surface,
+            borderWidth: 1,
+            borderColor: colors.borderCard,
+            borderRadius: 16,
+            padding: spacing.lg,
+            alignItems: 'center',
+          }}
+        >
+          <Icon source="account-group" size={40} color={colors.primary} />
+          <Text style={{ color: colors.textPrimary, fontSize: 18, fontWeight: '700', marginTop: 12 }}>Find your crew</Text>
+          <Text style={{ color: colors.textSecondary, fontSize: 14, textAlign: 'center', marginTop: 6, lineHeight: 20 }}>
+            Fitness is a team sport. Join a group with a code from a friend, or start your own — logging unlocks once you're in.
+          </Text>
+          <Pressable
+            onPress={onJoinGroup ?? (() => {})}
+            accessibilityRole="button"
+            style={{ alignSelf: 'stretch', marginTop: 18, height: 48, borderRadius: 12, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' }}
+          >
+            <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '700' }}>Join with a code</Text>
+          </Pressable>
+          <Pressable
+            onPress={onCreateGroup ?? (() => {})}
+            accessibilityRole="button"
+            style={{ alignSelf: 'stretch', marginTop: 10, height: 48, borderRadius: 12, backgroundColor: colors.surface2, alignItems: 'center', justifyContent: 'center' }}
+          >
+            <Text style={{ color: colors.textPrimary, fontSize: 15, fontWeight: '600' }}>Create a group</Text>
+          </Pressable>
+        </View>
+      </ScrollView>
+    );
+  }
   const rankTier = asTier(publicUsers[myUid]?.rankTierPublic);
   const rankDivision = typeof publicUsers[myUid]?.rankDivisionPublic === 'number' ? publicUsers[myUid]?.rankDivisionPublic : null;
+  const myStreak = team.members.find((m) => m.uid === myUid)?.streakDays ?? 0;
+  const loggedToday = logs.some((l) => l.uid === myUid && l.date === today);
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ padding: spacing.lg, paddingTop: 56, paddingBottom: 32 }}>
@@ -127,6 +175,8 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
         greeting={greetingFor(now.getHours())}
         rankTier={rankTier}
         rankDivision={rankDivision}
+        streakDays={myStreak}
+        streakAtRisk={pastCutoff && !loggedToday}
         unreadChat={hasUnreadChat ? 1 : 0}
         unreadCount={unreadActivity}
         onSwitchGroup={onSwitchGroup ?? (() => {})}
