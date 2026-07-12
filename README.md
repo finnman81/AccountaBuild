@@ -8,21 +8,20 @@ AccountaBuild is a **fitness + social accountability** app built with **Expo (Re
 
 ## Repo layout (important)
 
-This repo is a wrapper folder. The actual Expo app lives here:
-
-- **App root**: `AccountaBuild/`
-
-Most commands must be run from `AccountaBuild/`, not the repo root.
+The repo root **is** the Expo app root (flattened July 2026 — there is no longer
+a nested `AccountaBuild/` wrapper folder). Run all commands from the repo root.
 
 ## Tech stack
 
 - **Expo SDK 54** + **React Native**
 - **React Navigation** (stack + bottom tabs)
 - **react-native-paper** (UI)
+- **victory-native (XL) + @shopify/react-native-skia** (charts)
 - **Firebase**
   - Auth
   - Firestore (app data)
   - Storage (avatars, group logos, progress photos)
+  - Cloud Functions v2 (`functions/`): push delivery + scheduled weekly FP compute
 - **Jest + React Native Testing Library** (local testing)
 
 ## Key features (current)
@@ -33,7 +32,13 @@ Most commands must be run from `AccountaBuild/`, not the repo root.
 - **Progress**: charts + daily history + photos
 - **Profile**: dashboard-style profile view + separate edit modal
 - **Universal identity**: user profile data via `publicUsers/{uid}` + visibility index (reduces duplication across groups)
-- **Global MMR system** (LoL-style): rank ladder + LP, seasons, badges, leaderboard, history
+- **Global MMR system** (LoL-style): rank ladder + LP, seasons, badges, leaderboard, history.
+  **Displayed to users as "Fitness Points (FP)"** — all internals/schema keep the `mmr` naming.
+- **Push notifications** (Cloud Functions → Expo push): cheers/nudges (`pushQueue`),
+  chat messages, teammate first-log-of-day, smart streak-at-risk reminder (18:00 ET),
+  weekly recap + rank changes. Per-user toggles mirror to `users/{uid}.notifPrefs`.
+- **Teammate profiles**: full KPI screen (training, consistency, rank + FP history via
+  the `publicUsers/{uid}/weeklyPublic` mirror; body weight deliberately excluded)
 
 ## Global MMR system (LoL-style)
 
