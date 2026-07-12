@@ -2,7 +2,7 @@ import { collection, getDocs, limit, onSnapshot, orderBy, query, where, writeBat
 
 import { db } from '../firebase/firebase';
 
-export type ActivityType = 'cheer' | 'nudge' | 'promotion' | 'demotion';
+export type ActivityType = 'cheer' | 'nudge' | 'reaction' | 'promotion' | 'demotion';
 
 export type ActivityItem = {
   id: string;

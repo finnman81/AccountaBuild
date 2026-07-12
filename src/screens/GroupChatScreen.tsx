@@ -14,6 +14,7 @@ import { AuthContext } from '../store/AuthContext';
 import { GroupMessage, sendGroupMessage, subscribeGroupMessages } from '../services/chat';
 import { markGroupChatSeen } from '../services/groups';
 import { subscribeGroupLogs, setLogReaction, type GroupLog } from '../services/logs';
+import { enqueueSocialPush } from '../services/socialPush';
 import { friendlyNameFromDisplayName } from '../utils/formatters';
 import { subscribePublicUsers, type PublicUser } from '../services/publicUsers';
 import { subscribeMyCanSeeUids } from '../services/visibility';
@@ -138,8 +139,22 @@ export default function GroupChatScreen({ route }: Props) {
   const toggleReaction = async (logId: string, emoji: string, mine: boolean) => {
     if (!user) return;
     try {
+      // Notify the log's author on this user's FIRST reaction to the log
+      // (adding, not removing/changing) — the Strava-kudos loop.
+      const log = logs.find((l) => l.id === logId);
+      const hadReacted = !!log?.reactions?.[user.uid];
       await setLogReaction(groupId, logId, user.uid, mine ? null : emoji);
       await Haptics.selectionAsync();
+      if (!mine && !hadReacted && log && log.uid !== user.uid) {
+        void enqueueSocialPush({
+          toUid: log.uid,
+          fromUid: user.uid,
+          fromName: nameFor(user.uid),
+          type: 'reaction',
+          emoji,
+          logType: log.type,
+        }).catch(() => {});
+      }
     } catch {
       /* non-fatal */
     }

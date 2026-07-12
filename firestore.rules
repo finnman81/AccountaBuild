@@ -104,7 +104,9 @@ service cloud.firestore {
       allow create: if signedIn()
         && request.resource.data.fromUid == request.auth.uid
         && request.resource.data.toUid is string
-        && (request.resource.data.type == 'cheer' || request.resource.data.type == 'nudge');
+        && (request.resource.data.type == 'cheer'
+            || request.resource.data.type == 'nudge'
+            || request.resource.data.type == 'reaction');
       allow read, update, delete: if false;
     }
 

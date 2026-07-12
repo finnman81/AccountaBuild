@@ -60,7 +60,7 @@ exports.sendSocialPush = onDocumentCreated('pushQueue/{id}', async (event) => {
   const { toUid, fromUid, fromName, type } = data;
   const cleanup = () => snap.ref.delete().catch(() => {});
 
-  if (!toUid || (type !== 'cheer' && type !== 'nudge')) {
+  if (!toUid || (type !== 'cheer' && type !== 'nudge' && type !== 'reaction')) {
     await cleanup();
     return;
   }
@@ -70,17 +70,21 @@ exports.sendSocialPush = onDocumentCreated('pushQueue/{id}', async (event) => {
     const user = userSnap.exists ? userSnap.data() : null;
     const token = user && user.expoPushToken;
 
-    // Nudges require the recipient to have opted in; cheers are always allowed.
+    // Nudges require the recipient to have opted in; cheers/reactions are always allowed.
     if (type === 'nudge' && !(user && user.allowNudges === true)) {
       await cleanup();
       return;
     }
 
     const name = (fromName && String(fromName)) || 'A teammate';
+    const emoji = (data.emoji && String(data.emoji)) || '💪';
+    const logType = (data.logType && String(data.logType)) || 'log';
     const message =
       type === 'cheer'
         ? { title: '💪 You got a cheer', body: `${name} cheered you on!` }
-        : { title: '👋 Nudge', body: `${name} nudged you to log today.` };
+        : type === 'reaction'
+          ? { title: `${emoji} ${name} reacted`, body: `${name} reacted ${emoji} to your ${logType === 'calories' ? 'calorie log' : logType === 'weight' ? 'weigh-in' : logType}` }
+          : { title: '👋 Nudge', body: `${name} nudged you to log today.` };
 
     // Record an in-app Activity item regardless of push delivery (so the bell
     // shows it even when the recipient has notifications off / no token).
@@ -132,7 +136,12 @@ exports.sendChatPush = onDocumentCreated('groups/{groupId}/messages/{messageId}'
       db.doc(`publicUsers/${senderUid}`).get(),
     ]);
     const groupName = (groupSnap.exists && groupSnap.data().name) || 'Group chat';
-    const senderName = (senderSnap.exists && senderSnap.data().displayName) || 'A teammate';
+    // System messages (weekly recap, challenge announcements) carry their own
+    // senderName; humans resolve through publicUsers.
+    const senderName =
+      (msg.senderName && String(msg.senderName)) ||
+      (senderSnap.exists && senderSnap.data().displayName) ||
+      'A teammate';
 
     const recipients = memberUids.filter((uid) => uid !== senderUid);
     if (!recipients.length) return;
@@ -343,5 +352,145 @@ exports.updateMmrScheduled = onSchedule(
 
     const result = pushes.length ? await sendExpoPushes(db, pushes) : { sent: 0 };
     console.log(`[updateMmrScheduled] done: ${ok} ok, ${failed} failed of ${users.size}; pushes sent ${result.sent}`);
+  },
+);
+
+// ---------------------------------------------------------------------------
+// Group weekly recap posted into chat (Mondays 10:00 ET)
+// ---------------------------------------------------------------------------
+/**
+ * Gives the GROUP a heartbeat: one system message per group per week with the
+ * top FP gainer, completion count, and streak leader. Delivery to phones rides
+ * the existing sendChatPush trigger for free (system messages carry their own
+ * senderName). Idempotent via groups/{gid}.chatRecapWeekId.
+ */
+exports.groupWeeklyRecap = onSchedule(
+  { schedule: '0 10 * * 1', timeZone: TZ, timeoutSeconds: 540, memory: '256MiB' },
+  async () => {
+    const now = new Date();
+    const currentWeekId = core.isoWeekIdInTz(now, TZ);
+    const weekDates = core.isoWeekDatesInTz(currentWeekId, TZ);
+    const prevWeekEnd = new Date(core.zonedNoonUtcFromYmd(weekDates[0], TZ).getTime() - 24 * 60 * 60 * 1000);
+    const prevWeekId = core.isoWeekIdInTz(prevWeekEnd, TZ);
+
+    const groups = await db.collection('groups').get();
+    let posted = 0;
+
+    for (const g of groups.docs) {
+      try {
+        const gData = g.data() || {};
+        if (gData.chatRecapWeekId === prevWeekId) continue;
+        const memberUids = await getGroupMemberUids(g.id);
+        if (memberUids.length < 2) continue;
+
+        let topGainer = null; // { name, delta }
+        let completed = 0;
+        let scored = 0;
+        let streakLeader = null; // { name, weeks }
+
+        for (const uid of memberUids) {
+          const [wkSnap, userSnap, pubSnap] = await Promise.all([
+            db.doc(`users/${uid}/weekly/${prevWeekId}`).get(),
+            db.doc(`users/${uid}`).get(),
+            db.doc(`publicUsers/${uid}`).get(),
+          ]);
+          const name = (pubSnap.exists && pubSnap.data().displayName) || 'A teammate';
+          if (wkSnap.exists) {
+            const wk = wkSnap.data() || {};
+            scored += 1;
+            if (wk.completedWeek === true) completed += 1;
+            const delta = Math.round(Number(wk.deltaMMR) || 0);
+            if (delta > 0 && (!topGainer || delta > topGainer.delta)) topGainer = { name, delta };
+          }
+          const streakWeeks = userSnap.exists ? Number(userSnap.data().streakWeeks) || 0 : 0;
+          if (streakWeeks > 0 && (!streakLeader || streakWeeks > streakLeader.weeks)) {
+            streakLeader = { name, weeks: streakWeeks };
+          }
+        }
+
+        if (scored === 0) continue; // nothing to recap for this group
+
+        const lines = [`📊 Weekly recap — ${prevWeekId}`];
+        if (topGainer) lines.push(`🏆 Top gainer: ${topGainer.name} (+${topGainer.delta} FP)`);
+        lines.push(`✅ ${completed}/${memberUids.length} completed their week`);
+        if (streakLeader) lines.push(`🔥 Streak leader: ${streakLeader.name} (${streakLeader.weeks} wk${streakLeader.weeks === 1 ? '' : 's'})`);
+        lines.push('New week starts now — first log sets the pace!');
+
+        await db.collection('groups').doc(g.id).collection('messages').add({
+          uid: 'system',
+          system: true,
+          senderName: 'AccountaBuild',
+          text: lines.join('\n'),
+          createdAt: FieldValue.serverTimestamp(),
+        });
+        await db.collection('groups').doc(g.id).set({ chatRecapWeekId: prevWeekId }, { merge: true });
+        posted += 1;
+      } catch (e) {
+        console.error('[groupWeeklyRecap] failed for group', g.id, e);
+      }
+    }
+    console.log(`[groupWeeklyRecap] posted ${posted} of ${groups.size} groups`);
+  },
+);
+
+// ---------------------------------------------------------------------------
+// Challenge lifecycle: start/end announcements (daily 09:00 ET)
+// ---------------------------------------------------------------------------
+exports.challengeLifecycle = onSchedule(
+  { schedule: '0 9 * * *', timeZone: TZ, timeoutSeconds: 540, memory: '256MiB' },
+  async () => {
+    const now = new Date();
+    const currentWeekId = core.isoWeekIdInTz(now, TZ);
+    const groups = await db.collection('groups').get();
+    let announced = 0;
+
+    for (const g of groups.docs) {
+      try {
+        const c = (g.data() || {}).challenge;
+        if (!c || typeof c.startWeekId !== 'string' || typeof c.durationWeeks !== 'number') continue;
+
+        // ISO week ids (YYYY-WNN) compare correctly as strings.
+        let endWeekId = c.startWeekId;
+        for (let i = 1; i < Math.max(1, c.durationWeeks); i++) endWeekId = core.nextIsoWeekId(endWeekId, TZ);
+        const started = currentWeekId >= c.startWeekId;
+        const over = c.status === 'ended' || currentWeekId > endWeekId;
+        const name = (c.name && String(c.name)) || 'Challenge';
+
+        const notify = async (title, body, alsoChat) => {
+          const memberUids = await getGroupMemberUids(g.id);
+          const users = await getUsers(memberUids);
+          const items = [];
+          for (const uid of memberUids) {
+            const u = users.get(uid);
+            if (!u || !isExpoToken(u.expoPushToken)) continue;
+            if (!prefEnabled(u, 'teamActivity')) continue;
+            items.push({ uid, token: u.expoPushToken, title, body, data: { type: 'challenge', screen: 'Today' } });
+          }
+          if (items.length) await sendExpoPushes(db, items);
+          if (alsoChat) {
+            await db.collection('groups').doc(g.id).collection('messages').add({
+              uid: 'system',
+              system: true,
+              senderName: 'AccountaBuild',
+              text: `${title}\n${body}`,
+              createdAt: FieldValue.serverTimestamp(),
+            });
+          }
+        };
+
+        if (over && !c.endNotifiedAt) {
+          await notify(`🏆 ${name} is complete!`, 'Check the final standings — and start the next one.', true);
+          await g.ref.update({ 'challenge.endNotifiedAt': Timestamp.now() });
+          announced += 1;
+        } else if (started && !over && !c.startNotifiedAt) {
+          await notify(`🏁 ${name} is live!`, `${c.durationWeeks} weeks on the clock. Every log counts — go.`, true);
+          await g.ref.update({ 'challenge.startNotifiedAt': Timestamp.now() });
+          announced += 1;
+        }
+      } catch (e) {
+        console.error('[challengeLifecycle] failed for group', g.id, e);
+      }
+    }
+    console.log(`[challengeLifecycle] announced ${announced} of ${groups.size} groups`);
   },
 );

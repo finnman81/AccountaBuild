@@ -279,6 +279,25 @@ export default function ChallengeScreen({ route, navigation }: Props) {
           </View>
         ) : (
           <>
+            {/* Winner ceremony once the challenge is over */}
+            {progress!.phase === 'ended' && standings.length > 0 ? (
+              <View style={styles.winnerCard}>
+                <Icon source="trophy" size={30} color={colors.rankGold} />
+                <Avatar photoURL={standings[0]!.photoURL} name={standings[0]!.name} size={64} />
+                <AppText variant="pageTitle" color="primary" style={{ marginTop: spacing.sm }}>
+                  {standings[0]!.name} wins!
+                </AppText>
+                <AppText variant="rowSubtitle" color="secondary" style={{ marginTop: 2 }}>
+                  {standings[0]!.points} pts · {standings[0]!.weeksCompleted}/{standings[0]!.weeksElapsed} weeks completed
+                </AppText>
+                {standings[1] ? (
+                  <AppText variant="rowSubtitle" color="muted" style={{ marginTop: spacing.sm }}>
+                    🥈 {standings[1]!.name}{standings[2] ? `   🥉 ${standings[2]!.name}` : ''}
+                  </AppText>
+                ) : null}
+              </View>
+            ) : null}
+
             {/* Challenge header card */}
             <View style={styles.heroCard}>
               <AppText variant="pageTitle" color="primary" numberOfLines={1}>{challenge.name}</AppText>
@@ -342,6 +361,16 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl },
   group: { backgroundColor: colors.surface, borderRadius: radius.listGroup, borderWidth: 1, borderColor: colors.borderCard, padding: spacing.base },
   heroCard: { backgroundColor: colors.surface, borderRadius: radius.card, borderWidth: 1, borderColor: colors.borderCard, padding: spacing.base, marginTop: spacing.sm },
+  winnerCard: {
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: 'rgba(233,181,66,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(233,181,66,0.4)',
+    borderRadius: radius.card,
+    padding: spacing.lg,
+    marginTop: spacing.sm,
+  },
   progressTrack: { height: 6, borderRadius: 999, backgroundColor: colors.surface2, marginTop: spacing.md, overflow: 'hidden' },
   progressFill: { height: 6, borderRadius: 999, backgroundColor: colors.primary },
   sectionLabel: { marginTop: spacing.lg, marginBottom: spacing.sm, marginLeft: spacing.xs },
