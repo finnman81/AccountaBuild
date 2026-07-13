@@ -35,7 +35,11 @@ export default function WeeklyTrajectoryCard({ projection, onViewDetails }: Prop
     let statusColor: string = colors.warning;
     let statusText = 'Holding';
 
-    if (projection.missedIfEndedNow) {
+    if (projection.weekJustStarted) {
+      status = 'holding';
+      statusColor = colors.textSecondary;
+      statusText = 'Week just started — first log sets your pace';
+    } else if (projection.missedIfEndedNow) {
       status = 'risk';
       statusColor = colors.danger;
       statusText = 'Demotion risk';
@@ -55,7 +59,9 @@ export default function WeeklyTrajectoryCard({ projection, onViewDetails }: Prop
     const projectedDiv = projection.projectedDivision;
     const roman = projectedDiv === 1 ? 'I' : projectedDiv === 2 ? 'II' : projectedDiv === 3 ? 'III' : projectedDiv === 4 ? 'IV' : '';
     const projectedRankLabel = projectedDiv ? `${projectedTier} ${roman}` : projectedTier;
-    const primaryLine = `${sign}${Math.round(deltaMMR)} MMR • On track for ${projectedRankLabel}`;
+    const primaryLine = projection.weekJustStarted
+      ? `Holding ${projectedRankLabel}`
+      : `${sign}${Math.round(deltaMMR)} FP • On track for ${projectedRankLabel}`;
 
     // Secondary line (color-coded)
     const secondaryLine = statusText;

@@ -44,6 +44,7 @@ export type OnboardingStackParamList = {
 export type HomeStackParamList = {
   Home: undefined;
   Today: undefined;
+  Challenge: { groupId: string };
   Activity: undefined;
   Leaderboard: { groupId: string };
   GroupChat: { groupId: string };
@@ -67,6 +68,7 @@ export type GroupsStackParamList = {
 
 export type ProgressStackParamList = {
   Progress: undefined;
+  History: undefined;
 };
 
 export type ProfileStackParamList = {

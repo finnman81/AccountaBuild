@@ -35,6 +35,7 @@ import MMRHistoryScreen from '../screens/MMRHistoryScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
 import HealthSettingsScreen from '../screens/HealthSettingsScreen';
 import ProgressScreen from '../screens/ProgressScreen';
+import HistoryScreen from '../screens/HistoryScreen';
 import HomeScreen from '../screens/HomeScreen';
 import LeaderboardScreen from '../screens/LeaderboardScreen';
 import { colors } from '../theme/colors';
@@ -53,6 +54,7 @@ function HomeStackNavigator() {
       <HomeStack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
       <HomeStack.Screen name="Today" component={HomeTodayScreen} options={{ headerShown: false }} />
       <HomeStack.Screen name="Activity" component={ActivityScreen} options={{ headerShown: false }} />
+      <HomeStack.Screen name="Challenge" component={ChallengeScreen} options={{ headerShown: false }} />
       <HomeStack.Screen name="Leaderboard" component={LeaderboardScreen} options={{ title: 'Leaderboard' }} />
       <HomeStack.Screen name="GroupChat" component={GroupChatScreen} options={{ title: 'Chat' }} />
       <HomeStack.Screen name="ViewPhotos" component={ViewPhotosScreen} options={{ title: 'Photos' }} />
@@ -83,6 +85,7 @@ function ProgressStackNavigator() {
   return (
     <ProgressStack.Navigator>
       <ProgressStack.Screen name="Progress" component={ProgressScreen} options={{ title: 'Progress' }} />
+      <ProgressStack.Screen name="History" component={HistoryScreen} options={{ headerShown: false }} />
     </ProgressStack.Navigator>
   );
 }

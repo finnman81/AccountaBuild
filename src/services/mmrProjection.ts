@@ -25,6 +25,8 @@ export type MmrProjection = {
   A_total: number;
   completedIfEndedNow: boolean;
   missedIfEndedNow: boolean;
+  /** Early in the week with nothing logged yet — neutral, not "at risk". */
+  weekJustStarted: boolean;
   weekScore: number;
   streakMultiplier: number;
   penalty: number;
@@ -185,15 +187,24 @@ function computeProjection(params: {
   const A_total = active.length ? avg(active.map((g) => g.A)) : 0;
   const anyActivity = workoutsDone > 0 || minutesDone > 0 || calorieDaysHit > 0 || weighInsDone > 0;
   const completedIfEndedNow = A_total >= 0.7;
-  const missedIfEndedNow = !anyActivity || A_total < 0.5;
-  const partialIfEndedNow = !missedIfEndedNow && !completedIfEndedNow;
+  // Pace-aware risk: an empty Monday/Tuesday is "week just started", not a
+  // projected miss — you judge someone on what they've done VS the day of the
+  // week, and on day 1-3 with nothing logged there's nothing to judge yet.
+  const weekJustStarted = !anyActivity && daysElapsed <= 3;
+  const missedIfEndedNow = !weekJustStarted && (!anyActivity || A_total < 0.5);
+  const partialIfEndedNow = !weekJustStarted && !missedIfEndedNow && !completedIfEndedNow;
 
   const breadth = breadthFactor(coreCategoryCount(active.map((g) => g.id)));
   const weekScore = combineWeekScore(active.map((g) => g.score)) * breadth;
   const streakIfEndedNow = completedIfEndedNow ? params.streakWeeks + 1 : 0;
   const S = streakMultiplier(streakIfEndedNow);
 
-  const penalty = missedIfEndedNow ? missedWeekPenalty(params.mmrBefore) : partialIfEndedNow ? partialWeekPenalty(params.mmrBefore) : 0;
+  // Scale the projected penalty by how much of the week has elapsed: the real
+  // scorer only penalizes at week close, so showing the FULL penalty on a
+  // Tuesday overstates the risk. As the week ends (elapsedFrac -> 1) the
+  // projection converges to the real close-out math.
+  const basePenalty = missedIfEndedNow ? missedWeekPenalty(params.mmrBefore) : partialIfEndedNow ? partialWeekPenalty(params.mmrBefore) : 0;
+  const penalty = basePenalty * elapsedFrac;
   
   // Small flat encouragement bonus for a completed week in the lower tiers.
   const oldBand = bandForMMR(params.mmrBefore);
@@ -224,6 +235,7 @@ function computeProjection(params: {
     A_total,
     completedIfEndedNow,
     missedIfEndedNow,
+    weekJustStarted,
     weekScore,
     streakMultiplier: S,
     penalty,

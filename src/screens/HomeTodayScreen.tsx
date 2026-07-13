@@ -30,9 +30,10 @@ export default function HomeTodayScreen() {
           if (activeGroupId) nav.navigate('GroupChat', { groupId: activeGroupId });
         }}
         onOpenChallenge={() => {
-          if (activeGroupId) {
-            (nav as any).navigate('MainTabs', { screen: 'GroupsTab', params: { screen: 'Challenge', params: { groupId: activeGroupId } } });
-          }
+          // Push within the HOME stack so back returns to Today (cross-tab
+          // navigation used to strand users on the Groups tab with a circular
+          // Challenge <-> GroupInfo back path).
+          if (activeGroupId) nav.navigate('Challenge', { groupId: activeGroupId });
         }}
         onBell={() => nav.navigate('Activity')}
         onOpenWeeklyRecap={() => (nav as any).navigate('MainTabs', { screen: 'ProfileTab', params: { screen: 'MMRHistory' } })}

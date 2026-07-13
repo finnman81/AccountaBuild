@@ -53,7 +53,7 @@ export function demotionRisk(params: {
     const below = bandBelowFor(band);
     const isTierBoundary = below ? below.tier !== band.tier : false;
     const shieldNote = isTierBoundary && tierShieldWeeksRemaining > 0 ? ` (Tier shield: ${tierShieldWeeksRemaining}w)` : '';
-    const msg = dist <= 0 ? `Demotion risk now${shieldNote}.` : `Close to demotion (${dist} MMR buffer)${shieldNote}.`;
+    const msg = dist <= 0 ? `Demotion risk now${shieldNote}.` : `Close to demotion (${dist} FP buffer)${shieldNote}.`;
     return { level: dist <= 0 ? 'danger' : 'watch', message: msg };
   }
 

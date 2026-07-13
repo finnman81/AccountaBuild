@@ -508,6 +508,24 @@ export default function ProgressScreen({ navigation }: Props) {
 
       <View style={{ height: spacing.base }} />
 
+      {/* History entry — browse past days & weeks */}
+      <TouchableOpacity activeOpacity={0.85} onPress={() => navigation.navigate('History')}>
+        <Card>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+            <View style={{ width: 38, height: 38, borderRadius: radius.tile, backgroundColor: colors.primaryTint, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon source="calendar-month" size={20} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <AppText variant="rowTitle" color="primary">History</AppText>
+              <AppText variant="rowSubtitle" color="muted">Browse past days & weekly FP results</AppText>
+            </View>
+            <Icon source="chevron-right" size={20} color={colors.textMuted} />
+          </View>
+        </Card>
+      </TouchableOpacity>
+
+      <View style={{ height: spacing.base }} />
+
       {/* Weekly Metrics Summary */}
       <Card>
         <AppText variant="rowTitle" color="primary" style={{ marginBottom: spacing.md }}>This Week</AppText>

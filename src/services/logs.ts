@@ -3,6 +3,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDocs,
   limit,
   onSnapshot,
   orderBy,
@@ -257,3 +258,25 @@ export async function deleteLog(groupId: string, logId: string): Promise<void> {
 }
 
 
+
+/**
+ * One-shot fetch of MY logs in a date range (inclusive) — powers the History
+ * calendar. Queries by uid + date directly (composite index: logs uid+date)
+ * instead of scanning the group's newest-N logs, so months-old days resolve
+ * no matter how chatty the group is.
+ */
+export async function fetchMyLogsInRange(params: {
+  groupId: string;
+  uid: string;
+  startDate: string; // YYYY-MM-DD
+  endDate: string; // YYYY-MM-DD
+}): Promise<GroupLog[]> {
+  const ref = query(
+    collection(db, 'groups', params.groupId, 'logs'),
+    where('uid', '==', params.uid),
+    where('date', '>=', params.startDate),
+    where('date', '<=', params.endDate),
+  );
+  const snap = await getDocs(ref);
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<GroupLog, 'id'>) }));
+}
