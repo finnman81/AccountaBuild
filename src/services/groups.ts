@@ -466,3 +466,12 @@ export async function leaveGroup(params: { uid: string; groupId: string }) {
 }
 
 
+
+/**
+ * Canonical invite message shared to a native Share sheet from the group screens.
+ * Keep the copy here so both entry points (GroupInfo, GroupList) stay in sync.
+ */
+export function buildInviteMessage(groupName: string | null | undefined, joinCode: string): string {
+  const name = (groupName && groupName.trim()) || 'my crew';
+  return `Join my group "${name}" on AccountaBuild — we keep each other on track with workouts, calories, and weekly goals. Open the app, tap Join group, and enter code ${joinCode}`;
+}

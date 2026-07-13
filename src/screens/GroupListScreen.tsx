@@ -16,7 +16,7 @@ import ErrorState from '../components/state/ErrorState';
 import { GroupsStackParamList } from '../navigation/types';
 import type { RootStackParamList } from '../navigation/types';
 import { AuthContext } from '../store/AuthContext';
-import { leaveGroup, subscribeMyGroups, UserGroupListItem } from '../services/groups';
+import { buildInviteMessage, leaveGroup, subscribeMyGroups, UserGroupListItem } from '../services/groups';
 import { useActiveGroup } from '../store/ActiveGroupContext';
 import { useGroupsOverview } from '../hooks/useGroupsOverview';
 import { colors, radius, spacing } from '../theme';
@@ -93,9 +93,7 @@ export default function GroupListScreen({ navigation }: Props) {
   const shareInvite = async () => {
     if (!inviteGroup?.joinCode) return;
     try {
-      await Share.share({
-        message: `Join my group "${inviteGroup.name ?? 'my crew'}" on AccountaBuild — we keep each other on track with workouts, calories, and weekly goals. Open the app, tap Join group, and enter code ${inviteGroup.joinCode}`,
-      });
+      await Share.share({ message: buildInviteMessage(inviteGroup.name, inviteGroup.joinCode) });
     } catch {
       /* user dismissed the sheet */
     }

@@ -388,12 +388,19 @@ exports.groupWeeklyRecap = onSchedule(
         let scored = 0;
         let streakLeader = null; // { name, weeks }
 
-        for (const uid of memberUids) {
-          const [wkSnap, userSnap, pubSnap] = await Promise.all([
-            db.doc(`users/${uid}/weekly/${prevWeekId}`).get(),
-            db.doc(`users/${uid}`).get(),
-            db.doc(`publicUsers/${uid}`).get(),
-          ]);
+        // Fetch every member's docs in parallel (was serial per member).
+        const perMember = await Promise.all(
+          memberUids.map(async (uid) => {
+            const [wkSnap, userSnap, pubSnap] = await Promise.all([
+              db.doc(`users/${uid}/weekly/${prevWeekId}`).get(),
+              db.doc(`users/${uid}`).get(),
+              db.doc(`publicUsers/${uid}`).get(),
+            ]);
+            return { wkSnap, userSnap, pubSnap };
+          }),
+        );
+
+        for (const { wkSnap, userSnap, pubSnap } of perMember) {
           const name = (pubSnap.exists && pubSnap.data().displayName) || 'A teammate';
           if (wkSnap.exists) {
             const wk = wkSnap.data() || {};

@@ -12,6 +12,7 @@ import { syncMyMemberProfileToAllGroups, updateMyProfile } from '../services/pro
 import { db } from '../firebase/firebase';
 import { isFutureYYYYMMDD, isValidYYYYMMDD, todayYYYYMMDD, yesterdayYYYYMMDD } from '../utils/dates';
 import { useMyUnits } from '../hooks/useMyUnits';
+import { kgToLb, lbToKg } from '../utils/formatters';
 import { updateGroupLog, upsertUserWeightHistoryFromGroupLog } from '../services/logEdits';
 import AppText from '../components/ui/AppText';
 import Card from '../components/ui/Card';
@@ -28,7 +29,6 @@ export default function AddWeightScreen({ route, navigation }: Props) {
   const insets = useSafeAreaInsets();
   const units = useMyUnits();
   const metric = units === 'metric';
-  const KG_PER_LB = 0.45359237;
   const [logDate, setLogDate] = useState(todayYYYYMMDD());
   const [weight, setWeight] = useState(''); // in the viewer's display units
   const [note, setNote] = useState('');
@@ -39,7 +39,7 @@ export default function AddWeightScreen({ route, navigation }: Props) {
     if (!edit) return;
     setLogDate(edit.date);
     // Stored weights are always lb; show in the viewer's units.
-    setWeight(String(metric ? Math.round(edit.weight * KG_PER_LB * 10) / 10 : edit.weight));
+    setWeight(String(metric ? lbToKg(edit.weight) : edit.weight));
     setNote(String(edit.note ?? ''));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [edit?.logId, metric]); // intentionally only on edit/units change
@@ -64,7 +64,7 @@ export default function AddWeightScreen({ route, navigation }: Props) {
         return;
       }
       // Convert display units back to lb — the storage unit everywhere.
-      const value = Math.round((metric ? entered / KG_PER_LB : entered) * 10) / 10;
+      const value = metric ? kgToLb(entered) : Math.round(entered * 10) / 10;
       if (edit?.logId) {
         await updateGroupLog({
           groupId,

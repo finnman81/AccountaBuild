@@ -8,6 +8,7 @@ import { useActiveGroup } from '../../store/ActiveGroupContext';
 import { addCaloriesLog, addWeightLog, addWorkoutLog, type LogType, type MealType, type WorkoutType } from '../../services/logs';
 import { notifyLogSaved } from '../../services/fpEvents';
 import { useMyUnits } from '../../hooks/useMyUnits';
+import { kgToLb, lbToKg } from '../../utils/formatters';
 import { todayYYYYMMDD, yesterdayYYYYMMDD } from '../../utils/dates';
 import { colors } from '../../theme/colors';
 import { radius } from '../../theme/radius';
@@ -25,7 +26,6 @@ type Props = {
 };
 
 const LAST_VALUES_KEY_PREFIX = 'logComposerLast';
-const KG_PER_LB = 0.45359237;
 
 type LastValues = { weightLb?: number; calories?: number; duration?: number; workoutType?: WorkoutType; meal?: MealType };
 
@@ -187,13 +187,12 @@ export default function LogComposer({ initialType = 'weight', onClose, onSaved, 
 
   const metric = units === 'metric';
   const weightUnit = metric ? 'kg' : 'lb';
-  const displayWeight = metric ? Math.round(weightLb * KG_PER_LB * 10) / 10 : weightLb;
+  const displayWeight = metric ? lbToKg(weightLb) : weightLb;
   const weightMin = metric ? 23 : 50;
   const weightMax = metric ? 227 : 500;
   const commitDisplayWeight = (v: number) => {
     const clamped = Math.max(weightMin, Math.min(weightMax, v));
-    const lb = metric ? clamped / KG_PER_LB : clamped;
-    setWeightLb(Math.round(lb * 100) / 100);
+    setWeightLb(metric ? kgToLb(clamped) : Math.round(clamped * 10) / 10);
   };
 
   const date = logDay === 'today' ? todayYYYYMMDD() : yesterdayYYYYMMDD();

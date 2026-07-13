@@ -14,6 +14,7 @@ import {
   subscribeGroupMembers,
   removeMemberAsAdmin,
   leaveGroup,
+  buildInviteMessage,
   type GroupMember,
 } from '../services/groups';
 import { useActiveGroup } from '../store/ActiveGroupContext';
@@ -82,9 +83,7 @@ export default function GroupInfoScreen({ route, navigation }: Props) {
   const shareInvite = async () => {
     if (!group?.joinCode) return;
     try {
-      await Share.share({
-        message: `Join my group "${group.name ?? 'my crew'}" on AccountaBuild — we keep each other on track with workouts, calories, and weekly goals. Open the app, tap Join group, and enter code ${group.joinCode}`,
-      });
+      await Share.share({ message: buildInviteMessage(group.name, group.joinCode) });
     } catch {
       /* user dismissed the sheet */
     }

@@ -46,6 +46,16 @@ export type Units = 'imperial' | 'metric';
 
 const LB_PER_KG = 2.20462262;
 
+/** Convert a stored-lb weight to kg (rounded to 0.1). Weights are stored in lb. */
+export function lbToKg(lb: number): number {
+  return Math.round((lb / LB_PER_KG) * 10) / 10;
+}
+
+/** Convert a user-entered kg weight back to lb (rounded to 0.1) for storage. */
+export function kgToLb(kg: number): number {
+  return Math.round(kg * LB_PER_KG * 10) / 10;
+}
+
 /**
  * Weight is always STORED in lb (see onboarding's kg->lb conversion at entry) —
  * these only control DISPLAY. Centralizes the lb->kg conversion so every

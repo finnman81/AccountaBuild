@@ -162,8 +162,8 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
   }
   const rankTier = asTier(publicUsers[myUid]?.rankTierPublic);
   const rankDivision = typeof publicUsers[myUid]?.rankDivisionPublic === 'number' ? publicUsers[myUid]?.rankDivisionPublic : null;
-  const myStreak = team.members.find((m) => m.uid === myUid)?.streakDays ?? 0;
-  const loggedToday = logs.some((l) => l.uid === myUid && l.date === today);
+  const myMember = team.members.find((m) => m.uid === myUid);
+  const myStreak = myMember?.streakDays ?? 0;
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ padding: spacing.lg, paddingTop: 56, paddingBottom: 32 }}>
@@ -176,7 +176,7 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
         rankTier={rankTier}
         rankDivision={rankDivision}
         streakDays={myStreak}
-        streakAtRisk={pastCutoff && !loggedToday}
+        streakAtRisk={myMember?.atRisk ?? false}
         unreadChat={hasUnreadChat ? 1 : 0}
         unreadCount={unreadActivity}
         onSwitchGroup={onSwitchGroup ?? (() => {})}
