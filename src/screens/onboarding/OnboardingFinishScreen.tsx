@@ -86,6 +86,16 @@ export default function OnboardingFinishScreen({ navigation }: Props) {
     try {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
+      // Mark onboarding complete BEFORE any native permission prompts: a
+      // native-layer crash in a prompt (seen on Android with Health Connect)
+      // must never re-trap the user in onboarding on the next launch. The
+      // Group step re-calls this; it's idempotent.
+      try {
+        await completeOnboarding(user.uid);
+      } catch (e) {
+        console.warn('[Onboarding] early completeOnboarding failed', e);
+      }
+
       // Ask for notifications + health sync here (native OS prompts). Both are
       // non-fatal — a denial/failure never blocks continuing; the user can
       // enable them later in Settings.

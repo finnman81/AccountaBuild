@@ -49,6 +49,7 @@
     },
     "plugins": [
       "expo-font",
+      "react-native-health-connect",
       [
         "expo-notifications",
         {
