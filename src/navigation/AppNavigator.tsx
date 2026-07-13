@@ -19,6 +19,7 @@ import MMRGoalsScreen from '../screens/MMRGoalsScreen';
 import LogComposerScreen from '../screens/LogComposerScreen';
 import MemberDetailScreen from '../screens/MemberDetailScreen';
 import MemberProfileScreen from '../screens/MemberProfileScreen';
+import WeekReviewScreen from '../screens/WeekReviewScreen';
 import RankUpScreen from '../screens/RankUpScreen';
 import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
@@ -119,6 +120,11 @@ export default function AppNavigator() {
             <Stack.Screen
               name="RankUp"
               component={RankUpScreen}
+              options={{ headerShown: false, presentation: 'fullScreenModal', animation: 'fade' }}
+            />
+            <Stack.Screen
+              name="WeekReview"
+              component={WeekReviewScreen}
               options={{ headerShown: false, presentation: 'fullScreenModal', animation: 'fade' }}
             />
           </>

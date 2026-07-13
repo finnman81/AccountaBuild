@@ -2,6 +2,8 @@ import {
   collection,
   doc,
   documentId,
+  getDoc,
+  getDocs,
   limit,
   onSnapshot,
   orderBy,
@@ -170,3 +172,33 @@ export function subscribePublicUsers(uids: string[], onChange: (map: Record<stri
   return () => unsubs.forEach((u) => u());
 }
 
+
+/**
+ * One-shot: every group member's FP delta for a given week, from the public
+ * weeklyPublic mirror. Members the viewer can't see (or with no scored week)
+ * are skipped — used by the "Your Week" review's team card.
+ */
+export async function fetchGroupWeekDeltas(
+  groupId: string,
+  weekId: string,
+): Promise<Array<{ uid: string; name: string; delta: number }>> {
+  const members = await getDocs(collection(db, 'groups', groupId, 'members'));
+  const rows = await Promise.all(
+    members.docs.map(async (m) => {
+      const uid = m.id;
+      try {
+        const [wk, pub] = await Promise.all([
+          getDoc(doc(db, 'publicUsers', uid, 'weeklyPublic', weekId)),
+          getDoc(doc(db, 'publicUsers', uid)),
+        ]);
+        if (!wk.exists()) return null;
+        const delta = Math.round(Number((wk.data() as any)?.deltaMMR) || 0);
+        const name = String((pub.data() as any)?.displayName ?? '').trim() || 'A teammate';
+        return { uid, name, delta };
+      } catch {
+        return null; // not visible to this viewer — fine
+      }
+    }),
+  );
+  return (rows.filter(Boolean) as Array<{ uid: string; name: string; delta: number }>).sort((a, b) => b.delta - a.delta);
+}
