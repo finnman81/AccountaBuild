@@ -155,7 +155,15 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
   // F1: score against the snapshot the week started with, when present.
   const weeklyPre = await db.collection('users').doc(uid).collection('weekly').doc(weekId).get();
   const snapGoals = weeklyPre.exists ? weeklyPre.data()?.goalsSnapshot : null;
-  if (snapGoals && typeof snapGoals === 'object' && Object.keys(snapGoals).length > 0) goals = snapGoals;
+  if (snapGoals && typeof snapGoals === 'object' && Object.keys(snapGoals).length > 0) {
+    // Snapshot wins for ids it knows; goals ADDED mid-week join immediately
+    // (mirror of the client rule — see mmrUpdate.ts).
+    const merged = { ...snapGoals };
+    for (const [id, g] of Object.entries(goals)) {
+      if (!(id in merged)) merged[id] = g;
+    }
+    goals = merged;
+  }
 
   const groupIds = await getGroupIds(db, uid);
   const weights = await getWeights(db, uid);
@@ -420,7 +428,7 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
         rulesVersion: core.RULES_VERSION,
         updatedAt: FieldValue.serverTimestamp(),
         dataSource: 'self_reported',
-        ...(weeklyData?.goalsSnapshot || Object.keys(goals).length === 0 ? {} : { goalsSnapshot: goals }),
+        ...(Object.keys(goals).length === 0 || (weeklyData?.goalsSnapshot && Object.keys(weeklyData?.goalsSnapshot).length >= Object.keys(goals).length) ? {} : { goalsSnapshot: goals }),
         workoutsDone,
         minutesDone: Math.round(minutesDone),
         calorieDaysHit,

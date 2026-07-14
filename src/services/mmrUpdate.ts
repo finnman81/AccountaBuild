@@ -299,7 +299,15 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
     const weeklyPre = await getDoc(doc(db, 'users', uid, 'weekly', weekId));
     const snap = weeklyPre.exists() ? (weeklyPre.data() as any)?.goalsSnapshot : null;
     if (snap && typeof snap === 'object' && Object.keys(snap).length > 0) {
-      goals = snap as Record<string, GoalDoc>;
+      // Snapshot wins for goal ids it knows (changes apply next week), but
+      // goals ADDED mid-week join immediately — a stale snapshot otherwise
+      // makes a user's brand-new workouts goal worth 0 FP all week (hit in
+      // prod). Adding a goal can only add opportunity, never lower difficulty.
+      const merged: Record<string, GoalDoc> = { ...(snap as Record<string, GoalDoc>) };
+      for (const [id, g] of Object.entries(goals)) {
+        if (!(id in merged)) merged[id] = g;
+      }
+      goals = merged;
     }
   } catch {
     // Non-fatal: fall back to current goals.
@@ -642,7 +650,7 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
         // Snapshot the goals this week is scored against (first compute only,
         // and only once there ARE goals — a brand-new user whose first compute
         // races onboarding keeps using live goals until some exist).
-        ...((weeklyData as any)?.goalsSnapshot || Object.keys(goals).length === 0 ? {} : { goalsSnapshot: goals }),
+        ...(Object.keys(goals).length === 0 || ((weeklyData as any)?.goalsSnapshot && Object.keys((weeklyData as any)?.goalsSnapshot).length >= Object.keys(goals).length) ? {} : { goalsSnapshot: goals }),
 
         // Raw totals
         workoutsDone,
