@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { Text } from 'react-native-paper';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -167,6 +167,7 @@ export default function LogComposer({ initialType = 'weight', onClose, onSaved, 
   const [error, setError] = useState<string | null>(null);
   const [logDay, setLogDay] = useState<'today' | 'yesterday'>('today');
   const restoredRef = useRef(false);
+  const lastSavedWeightRef = useRef<number | null>(null);
 
   // Prefill from the user's last-entered values so nobody drags the dial from
   // 180 lb every single day.
@@ -177,7 +178,10 @@ export default function LogComposer({ initialType = 'weight', onClose, onSaved, 
       .then((raw) => {
         if (!raw) return;
         const last = JSON.parse(raw) as LastValues;
-        if (Number.isFinite(last.weightLb) && (last.weightLb as number) > 0) setWeightLb(last.weightLb as number);
+        if (Number.isFinite(last.weightLb) && (last.weightLb as number) > 0) {
+          setWeightLb(last.weightLb as number);
+          lastSavedWeightRef.current = last.weightLb as number;
+        }
         if (Number.isFinite(last.calories) && (last.calories as number) > 0) setCalories(last.calories as number);
         if (Number.isFinite(last.duration) && (last.duration as number) > 0) setDuration(last.duration as number);
         if (last.workoutType) setWorkoutType(last.workoutType);
@@ -201,6 +205,28 @@ export default function LogComposer({ initialType = 'weight', onClose, onSaved, 
 
   async function handleSave() {
     if (!user?.uid || !activeGroupId) return;
+    // Sanity-check absurd weigh-ins BEFORE saving: a fat-fingered dial value
+    // cascades (profile weight, weight-goal completion, FP). Prod case: a
+    // 212 lb user saving the dial-default 180.
+    if (mode === 'weight' && lastSavedWeightRef.current != null) {
+      const jump = Math.abs(weightLb - lastSavedWeightRef.current);
+      if (jump > 15) {
+        const prevDisp = metric ? `${lbToKg(lastSavedWeightRef.current)} kg` : `${lastSavedWeightRef.current} lb`;
+        const nowDisp = metric ? `${lbToKg(weightLb)} kg` : `${Math.round(weightLb * 10) / 10} lb`;
+        const confirmed = await new Promise<boolean>((resolve) => {
+          Alert.alert(
+            'Big change — sure?',
+            `Your last weigh-in was ${prevDisp}; this one is ${nowDisp}. Save anyway?`,
+            [
+              { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+              { text: 'Save', onPress: () => resolve(true) },
+            ],
+            { cancelable: true, onDismiss: () => resolve(false) },
+          );
+        });
+        if (!confirmed) return;
+      }
+    }
     setSaving(true);
     setError(null);
     try {
@@ -208,6 +234,7 @@ export default function LogComposer({ initialType = 'weight', onClose, onSaved, 
       if (mode === 'weight') await addWeightEverywhere({ groupId: activeGroupId, uid: user.uid, weight, date });
       else if (mode === 'workout') await addWorkoutLog({ groupId: activeGroupId, uid: user.uid, workoutType, durationMinutes: duration, date });
       else if (mode === 'calories') await addCaloriesLog({ groupId: activeGroupId, uid: user.uid, calories, meal, date });
+      if (mode === 'weight') lastSavedWeightRef.current = weight;
       const last: LastValues = { weightLb: weight, calories, duration, workoutType, meal };
       void AsyncStorage.setItem(`${LAST_VALUES_KEY_PREFIX}:${user.uid}`, JSON.stringify(last)).catch(() => {});
       notifyLogSaved();

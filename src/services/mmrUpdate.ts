@@ -395,9 +395,13 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
 
         active.push({ id: 'weightLoss', type: 'weightLoss', D, A, O, score: goalScore(D, A, O) });
 
-        const reached = Wt <= Wg;
+        // Completion requires a PLAUSIBLE weigh-in: a fat-fingered entry (prod:
+        // a 212 lb bulker logging the dial-default 180) must not detonate the
+        // bonus. Capped at 100 FP — one strong week, not three divisions.
+        const plausibleLoss = Math.abs(Wt - Number(weightPrevWeekEnd)) <= 10;
+        const reached = Wt <= Wg && plausibleLoss;
         if (reached && !weightGoal.completionBonusAwarded) {
-          weightBonusRaw = 300 * D_base;
+          weightBonusRaw = Math.min(100, 300 * D_base);
           weightGoalUpdate = { docId: 'weightLoss', patch: { completionBonusAwarded: true, status: 'completed', completionDate: serverTimestamp() } };
         }
       } else {
@@ -415,9 +419,10 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
 
         active.push({ id: 'weightGain', type: 'weightGain', D, A, O, score: goalScore(D, A, O) });
 
-        const reached = Wt >= Wg;
+        const plausibleGain = Math.abs(Wt - Number(weightPrevWeekEnd)) <= 10;
+        const reached = Wt >= Wg && plausibleGain;
         if (reached && !weightGoal.completionBonusAwarded) {
-          weightBonusRaw = 300 * D_base;
+          weightBonusRaw = Math.min(100, 300 * D_base);
           weightGoalUpdate = { docId: 'weightGain', patch: { completionBonusAwarded: true, status: 'completed', completionDate: serverTimestamp() } };
         }
       }
