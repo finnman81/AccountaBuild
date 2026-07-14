@@ -551,3 +551,76 @@ exports.dailyChampion = onSchedule(
     console.log(`[dailyChampion] ${yDay}: ${results.length} groups, ${sent} pushes`);
   },
 );
+
+// ---------------------------------------------------------------------------
+// Health-log hygiene (server-side enforcement, version-proof)
+// ---------------------------------------------------------------------------
+/**
+ * Client-side dedupe/tombstones only work once a device has current JS — an
+ * old app version happily re-imports deleted or duplicate health samples
+ * (observed: Watto's deleted 46m lift resurrected by a pre-update device).
+ * This trigger enforces the same rules at the DATA layer on every synced-log
+ * create, regardless of app version:
+ *  1. tombstoned id -> delete immediately (user deleted it; stay deleted)
+ *  2. near-duplicate workout (same uid+date+type, event times within 15 min,
+ *     both health-synced) -> keep the longest sample, tombstone the loser
+ */
+exports.enforceHealthLogHygiene = onDocumentCreated('groups/{groupId}/logs/{logId}', async (event) => {
+  const snap = event.data;
+  if (!snap) return;
+  const log = snap.data() || {};
+  const { groupId, logId } = event.params;
+  if (!log.uid || !log.source || log.source === 'self_reported') return; // synced logs only
+
+  const tsMs = (t) => (t && typeof t.toMillis === 'function' ? t.toMillis() : 0);
+  const tombstone = (uid, id, date) =>
+    db.doc(`users/${uid}/healthTombstones/${id}`).set(
+      { groupId, type: 'workout', date: date ?? null, deletedAt: FieldValue.serverTimestamp(), reason: 'server-hygiene' },
+      { merge: true },
+    );
+
+  try {
+    // 1. Resurrection of a user-deleted log.
+    const tomb = await db.doc(`users/${log.uid}/healthTombstones/${logId}`).get();
+    if (tomb.exists) {
+      await snap.ref.delete();
+      console.log('[hygiene] re-deleted tombstoned log', logId);
+      return;
+    }
+
+    // 2. Near-duplicate workout suppression.
+    if (log.type !== 'workout') return;
+    const myMins = Number(log.payload && log.payload.durationMinutes) || 0;
+    const myType = log.payload && log.payload.workoutType;
+    const sameDay = await db
+      .collection(`groups/${groupId}/logs`)
+      .where('uid', '==', log.uid)
+      .where('date', '==', log.date)
+      .get();
+
+    for (const other of sameDay.docs) {
+      if (other.id === logId) continue;
+      const o = other.data() || {};
+      if (o.type !== 'workout' || !o.source || o.source === 'self_reported') continue;
+      if ((o.payload && o.payload.workoutType) !== myType) continue;
+      if (Math.abs(tsMs(o.ts) - tsMs(log.ts)) > 15 * 60 * 1000) continue;
+
+      const otherMins = Number(o.payload && o.payload.durationMinutes) || 0;
+      // Keep the longest; deterministic doc-id tiebreak so two concurrent
+      // trigger runs never delete BOTH copies.
+      const iLose = myMins < otherMins || (myMins === otherMins && logId > other.id);
+      if (iLose) {
+        await tombstone(log.uid, logId, log.date);
+        await snap.ref.delete();
+        console.log('[hygiene] removed near-duplicate', logId, `(${myMins}m, kept ${otherMins}m)`);
+        return;
+      } else {
+        await tombstone(log.uid, other.id, o.date);
+        await other.ref.delete();
+        console.log('[hygiene] removed near-duplicate', other.id, `(${otherMins}m, kept ${myMins}m)`);
+      }
+    }
+  } catch (e) {
+    console.error('[hygiene] failed', logId, e);
+  }
+});
