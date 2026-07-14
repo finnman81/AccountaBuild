@@ -112,7 +112,7 @@ export default function WeeklyTrajectoryCard({ projection, onViewDetails }: Prop
           <View style={{ gap: spacing.xs }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
               <Text variant="labelSmall" style={{ color: colors.textSecondary }}>
-                Week completion
+                On pace
               </Text>
               <Text variant="labelSmall" style={{ color: colors.textSecondary }}>
                 {weekCompletion}%

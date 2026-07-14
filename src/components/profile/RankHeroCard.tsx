@@ -3,6 +3,7 @@ import { View, TouchableOpacity } from 'react-native';
 import { Card, Text, Button } from 'react-native-paper';
 import RankBadge from '../mmr/RankBadge';
 import ProgressBar from '../ui/ProgressBar';
+import AnimatedNumber from '../ui/AnimatedNumber';
 import { colors } from '../../theme/colors';
 import { spacing } from '../../theme/spacing';
 import { radius } from '../../theme/radius';
@@ -75,7 +76,7 @@ export default function RankHeroCard({ mmrState, onPress, onViewLeaderboard }: P
               {rankLabel}
             </Text>
             <Text variant="bodySmall" style={{ color: colors.textSecondary }}>
-              {mmrState.mmr} FP • {mmrState.mp ?? 0} MP
+              <AnimatedNumber value={mmrState.mmr} /> FP • <AnimatedNumber value={mmrState.mp ?? 0} /> MP
             </Text>
             {nextDivisionLabel && (
               <View style={{ marginTop: spacing.xs }}>

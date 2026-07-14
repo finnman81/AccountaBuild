@@ -210,7 +210,12 @@ function computeProjection(params: {
   const oldBand = bandForMMR(params.mmrBefore);
   const lowerTierBonus = lowerTierProgressBonus(oldBand.tier, completedIfEndedNow);
 
-  const deltaMMRProjected = weekScore * S - penalty + lowerTierBonus;
+  // Earn the projection gradually: pace-adjusted adherence means one Monday
+  // workout reads as "100% on pace", which used to project the ENTIRE week's
+  // score (+178 FP next to a 1/7-workouts card). Scaling the gain by
+  // elapsedFrac keeps it honest — it grows day by day and converges to the
+  // real close-out math as the week ends.
+  const deltaMMRProjected = (weekScore * S + lowerTierBonus) * elapsedFrac - penalty;
   const mmrProjected = Math.max(0, Math.round(params.mmrBefore + deltaMMRProjected));
   const ranked = applyRankWithDemotionRules({
     oldBand,

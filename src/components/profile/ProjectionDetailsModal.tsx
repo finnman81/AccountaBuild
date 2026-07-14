@@ -189,7 +189,7 @@ export default function ProjectionDetailsModal({ visible, projection, onDismiss 
                       Your weekly score is calculated from your active goals (workouts, minutes, weight, calories). The score is then multiplied by your streak bonus and reduced by any penalties for missed or partial weeks.
                     </Text>
                     <Text variant="bodySmall" style={{ color: colors.textSecondary }}>
-                      Formula: ΔFP = Week Score × Streak Multiplier - Penalty
+                      Formula: ΔFP = Week Score × Streak × Week elapsed − Penalty
                     </Text>
                   </View>
                 </View>
