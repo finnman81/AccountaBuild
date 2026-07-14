@@ -328,6 +328,26 @@ exports.updateMmrScheduled = onSchedule(
           }
         }
 
+        // Streak-freeze events from the week that just closed: push once per
+        // user per week (marker), same personal-milestone treatment as rank
+        // changes. The scorer already wrote the in-app activity item.
+        if (after.freezePushedWeekId !== prevWeekId) {
+          const fzSnap = await db.doc(`users/${u.id}/weekly/${prevWeekId}`).get();
+          const fz = fzSnap.exists ? fzSnap.data() || {} : {};
+          if (fz.freezeUsed === true || fz.freezeEarned === true) {
+            pushes.push({
+              uid: u.id,
+              token: before.expoPushToken,
+              title: fz.freezeUsed ? '🧊 Streak freeze saved you' : '🧊 Streak freeze earned',
+              body: fz.freezeUsed
+                ? `Last week didn't land, but your ${Number(fz.streakAfter) || 0}-week streak survives. Complete this week to keep it alive.`
+                : `${Number(fz.streakAfter) || 0} straight completed weeks — a freeze is banked for when life happens.`,
+              data: { type: 'freeze', screen: 'Activity' },
+            });
+            await db.doc(`users/${u.id}`).set({ freezePushedWeekId: prevWeekId }, { merge: true }).catch(() => {});
+          }
+        }
+
         // Monday recap: once per user per week, gated on the weeklyRecap pref.
         if (isMondayEt && prefEnabled(after, 'weeklyRecap') && after.recapPushedWeekId !== prevWeekId) {
           const wkSnap = await db.doc(`users/${u.id}/weekly/${prevWeekId}`).get();
