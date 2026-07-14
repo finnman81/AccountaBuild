@@ -13,6 +13,7 @@ import AppText from '../../components/ui/AppText';
 import EditRow from '../../components/ui/EditRow';
 import { updateOnboardingStep } from '../../services/onboarding';
 import { updateMyProfile } from '../../services/profile';
+import { upsertGoal } from '../../services/mmrGoals';
 import { onboardingAnalytics } from '../../services/analytics';
 import { onboardingCopy } from '../../constants/onboardingCopy';
 import { db } from '../../firebase/firebase';
@@ -125,6 +126,12 @@ export default function OnboardingRecommendedScreen({ navigation }: Props) {
         workoutsPerWeek: workouts,
         ...(targetDate ? { weightTargetDate: targetDate } : {}),
       });
+      // CRITICAL: also create the SCORING goal docs (users/{uid}/goals) — the
+      // FP engine reads these, not the profile fields. Without them, a user
+      // who never opens Profile→Goals earns ZERO FP for workouts/calories
+      // (hit in prod: 4 users logging workouts stuck at 1800).
+      await upsertGoal(user.uid, 'workouts', { type: 'workouts', status: 'active', targetWorkoutsPerWeek: workouts });
+      await upsertGoal(user.uid, 'calorieDays', { type: 'calorieDays', status: 'active', targetDaysPerWeek: 5 });
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       await updateOnboardingStep(user.uid, 4);
       onboardingAnalytics.goalsSaved();
