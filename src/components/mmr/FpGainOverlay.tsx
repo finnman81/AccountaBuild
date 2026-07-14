@@ -7,29 +7,41 @@ import { subscribeLogSaved } from '../../services/fpEvents';
 import { colors } from '../../theme/colors';
 
 /**
- * Floats a "+N FP" pill when a manual log bumps the projected week score.
+ * Floats feedback after EVERY manual log: "+N FP" when the projected week
+ * score moved, or a neutral "Logged ✓" when the gain was under 1 FP (e.g. a
+ * weigh-in with no weight goal) — a save should never feel ignored.
  *
  * The projection stream and the "log saved" event can arrive in either order
  * (Firestore latency compensation fires snapshots before the write promise
  * resolves), so we track the most recent projected increase AND stay "armed"
- * for a window after each save.
+ * for a window after each save, with a timer fallback when no gain arrives.
  */
 const PAIR_WINDOW_MS = 5000; // increase that already happened counts for a save this recent
 const ARM_WINDOW_MS = 15000; // after a save, the next increase within this window floats
+const FALLBACK_MS = 3500; // no gain by then -> show the neutral confirmation
+
+type Toast = { kind: 'gain'; delta: number } | { kind: 'logged' };
 
 export default function FpGainOverlay() {
   const { user } = useContext(AuthContext);
-  const [visibleDelta, setVisibleDelta] = useState<number | null>(null);
+  const [toast, setToast] = useState<Toast | null>(null);
 
   const baseline = useRef<number | null>(null);
   const lastIncrease = useRef<{ delta: number; at: number } | null>(null);
   const armedUntil = useRef(0);
+  const fallbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const opacity = useRef(new Animated.Value(0)).current;
   const rise = useRef(new Animated.Value(0)).current;
 
-  const show = (delta: number) => {
-    if (delta < 1) return;
-    setVisibleDelta(Math.round(delta));
+  const clearFallback = () => {
+    if (fallbackTimer.current) {
+      clearTimeout(fallbackTimer.current);
+      fallbackTimer.current = null;
+    }
+  };
+
+  const show = (next: Toast) => {
+    setToast(next);
     opacity.setValue(0);
     rise.setValue(0);
     Animated.parallel([
@@ -39,7 +51,14 @@ export default function FpGainOverlay() {
         Animated.timing(opacity, { toValue: 0, duration: 420, useNativeDriver: true }),
       ]),
       Animated.timing(rise, { toValue: 1, duration: 2040, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-    ]).start(() => setVisibleDelta(null));
+    ]).start(() => setToast(null));
+  };
+
+  const showGain = (delta: number) => {
+    clearFallback();
+    // Sub-1 gains still deserve acknowledgement — round up to +1 rather than
+    // staying silent (the projection genuinely moved).
+    show(delta >= 0.5 ? { kind: 'gain', delta: Math.max(1, Math.round(delta)) } : { kind: 'logged' });
   };
 
   useEffect(() => {
@@ -57,7 +76,7 @@ export default function FpGainOverlay() {
         armedUntil.current = 0;
         // Consume the increase so a rapid second save can't re-show it.
         lastIncrease.current = null;
-        show(delta);
+        showGain(delta);
       }
     });
     const unsubSaved = subscribeLogSaved(() => {
@@ -65,25 +84,42 @@ export default function FpGainOverlay() {
       const inc = lastIncrease.current;
       if (inc && now - inc.at <= PAIR_WINDOW_MS) {
         lastIncrease.current = null;
-        show(inc.delta);
-      } else {
-        armedUntil.current = now + ARM_WINDOW_MS;
+        showGain(inc.delta);
+        return;
       }
+      armedUntil.current = now + ARM_WINDOW_MS;
+      // Guarantee feedback: if no projected gain lands shortly, confirm the
+      // log anyway (weight logs without a weight goal move nothing, etc).
+      clearFallback();
+      fallbackTimer.current = setTimeout(() => {
+        fallbackTimer.current = null;
+        if (armedUntil.current > 0) {
+          armedUntil.current = 0;
+          show({ kind: 'logged' });
+        }
+      }, FALLBACK_MS);
     });
     return () => {
       unsubProj();
       unsubSaved();
+      clearFallback();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.uid]);
 
-  if (visibleDelta == null) return null;
+  if (!toast) return null;
 
   const translateY = rise.interpolate({ inputRange: [0, 1], outputRange: [0, -56] });
+  const isGain = toast.kind === 'gain';
 
   return (
-    <Animated.View pointerEvents="none" style={[styles.wrap, { opacity, transform: [{ translateY }] }]}>
-      <Animated.Text style={styles.text}>+{visibleDelta} FP</Animated.Text>
+    <Animated.View
+      pointerEvents="none"
+      style={[styles.wrap, isGain ? styles.wrapGain : styles.wrapLogged, { opacity, transform: [{ translateY }] }]}
+    >
+      <Animated.Text style={[styles.text, { color: isGain ? colors.rankGold : colors.success }]}>
+        {isGain ? `+${toast.delta} FP` : 'Logged ✓'}
+      </Animated.Text>
     </Animated.View>
   );
 }
@@ -95,7 +131,6 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     backgroundColor: 'rgba(20,32,54,0.95)',
     borderWidth: 1,
-    borderColor: 'rgba(233,181,66,0.5)',
     borderRadius: 999,
     paddingHorizontal: 18,
     paddingVertical: 10,
@@ -104,8 +139,9 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 6,
   },
+  wrapGain: { borderColor: 'rgba(233,181,66,0.5)' },
+  wrapLogged: { borderColor: 'rgba(74,222,128,0.45)' },
   text: {
-    color: colors.rankGold,
     fontSize: 20,
     fontWeight: '800',
     fontVariant: ['tabular-nums'],

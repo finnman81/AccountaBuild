@@ -524,14 +524,18 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
     const tierPromoted = band.tier !== oldBand.tier && isStrictlyHigher(band, oldBand);
 
     // Log a rank change to the user's Activity feed (deterministic id per week +
-    // kind so idempotent recomputes don't duplicate).
+    // kind so idempotent recomputes don't duplicate). Only write when the
+    // change is NEW this run (the prior weekly doc didn't already record the
+    // same destination) — every 6h recompute used to rewrite createdAt, so the
+    // item read "just now" forever.
     const ROMAN_A = ['', 'I', 'II', 'III', 'IV'];
     const rankLabel = `${band.tier}${band.division ? ` ${ROMAN_A[band.division]}` : ''}`;
-    if (bandOrderIndex(band) > bandOrderIndex(oldBand)) {
+    const sameTo = (prev: any) => prev?.to?.tier === band.tier && (prev?.to?.division ?? null) === (band.division ?? null);
+    if (bandOrderIndex(band) > bandOrderIndex(oldBand) && !sameTo(weeklyData?.promotion)) {
       tx.set(doc(db, 'users', uid, 'activity', `${weekId}-promotion`), {
         type: 'promotion', title: '⬆ Promoted!', body: `You climbed to ${rankLabel}.`, read: false, createdAt: serverTimestamp(),
       }, { merge: true });
-    } else if (bandOrderIndex(band) < bandOrderIndex(oldBand)) {
+    } else if (bandOrderIndex(band) < bandOrderIndex(oldBand) && !sameTo(weeklyData?.demotion)) {
       tx.set(doc(db, 'users', uid, 'activity', `${weekId}-demotion`), {
         type: 'demotion', title: '⬇ Rank slipped', body: `You dropped to ${rankLabel}. Log this week to climb back.`, read: false, createdAt: serverTimestamp(),
       }, { merge: true });

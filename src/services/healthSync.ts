@@ -1,5 +1,7 @@
 import { Platform } from 'react-native';
+import { doc, getDoc } from 'firebase/firestore';
 
+import { db } from '../firebase/firebase';
 import { upsertGroupLogById, deleteGroupLogById, type WorkoutType } from './logs';
 import { upsertUserWeightHistoryFromGroupLog } from './logEdits';
 import { resolveHealthLogId, healthLogDocId, isRecentImportDate } from './health/healthLog';
@@ -82,17 +84,38 @@ export async function syncHealthData(uid: string, groupId: string, settings: Hea
       const permissions = await HealthService.checkHealthPermissions();
       console.log('[HealthSync] Starting sync', { uid, groupId, settings, permissions });
 
+      // FIRST-EVER sync imports today only. Backfilling a week of history for
+      // a brand-new member fabricates instant 7-day streaks and floods the
+      // group feed with pre-join activity; ongoing syncs keep the full window
+      // to cover unopened-app days.
+      const isFirstSync = !(await getAnchor(uid, 'workouts'));
+      const importDays = isFirstSync ? 1 : BACKFILL_DAYS;
+
+      // Hard floor: never import health data dated before the user joined
+      // this group — without it, deleted pre-join backfill would just
+      // reappear on the next sync (idempotent upserts re-import the window).
+      let joinFloor: string | null = null;
+      try {
+        const membership = await getDoc(doc(db, 'users', uid, 'groups', groupId));
+        const j = (membership.data() as any)?.joinedAt;
+        const jd = typeof j?.toDate === 'function' ? j.toDate() : null;
+        if (jd) joinFloor = formatYYYYMMDDLocal(jd);
+      } catch {
+        /* non-fatal — sync proceeds without the floor */
+      }
+      const importOk = (date: string) => isRecentImportDate(date, today, importDays) && (!joinFloor || date >= joinFloor);
+
       // ---- Workouts (anchored delta: import new/changed, honor deletions) ----
       if (settings.syncWorkouts && permissions.workouts) {
         try {
           // Import from a DIRECT recent-window read (robust — never permanently
           // skips data the way an advanced anchor can). Idempotent upserts prevent
           // dupes. The anchored read is used only for deletion detection.
-          const items = await HealthService.readRecentWorkouts(BACKFILL_DAYS);
+          const items = await HealthService.readRecentWorkouts(importDays);
           let synced = 0;
           for (const w of items) {
             const date = formatYYYYMMDDLocal(w.startDate);
-            if (!isRecentImportDate(date, today, BACKFILL_DAYS)) continue;
+            if (!importOk(date)) continue;
             try {
               const logId = resolveHealthLogId(w.uuid, { type: 'workout', date, value: w.durationMinutes, source });
               await upsertGroupLogById(groupId, logId, {
@@ -151,7 +174,7 @@ export async function syncHealthData(uid: string, groupId: string, settings: Hea
           const anchor = await getAnchor(uid, 'calories');
           const { items: deltaEntries, deletedUuids, newAnchor } = await HealthService.readCalorieEntriesSinceAnchor(anchor);
           for (const entry of deltaEntries) {
-            if (!isRecentImportDate(entry.date, today, BACKFILL_DAYS)) continue;
+            if (!importOk(entry.date)) continue;
             try {
               const logId = resolveHealthLogId(entry.uuid, { type: 'calories', date: entry.date, value: entry.calories, meal: entry.meal, source });
               await upsertGroupLogById(groupId, logId, {
@@ -184,11 +207,11 @@ export async function syncHealthData(uid: string, groupId: string, settings: Hea
       // ---- Weight (latest per day, last week — backfills unopened-app days) ----
       if (settings.syncWeight && permissions.weight) {
         try {
-          const weights = await HealthService.readRecentWeights(BACKFILL_DAYS);
+          const weights = await HealthService.readRecentWeights(importDays);
           let syncedW = 0;
           for (const weight of weights) {
             if (!weight || weight.weight <= 0) continue;
-            if (!isRecentImportDate(weight.date, today, BACKFILL_DAYS)) continue;
+            if (!importOk(weight.date)) continue;
             try {
               const logId = resolveHealthLogId(weight.uuid, { type: 'weight', date: weight.date, value: weight.weight, source });
               await upsertGroupLogById(groupId, logId, {

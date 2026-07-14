@@ -15,6 +15,7 @@ import {
 } from 'firebase/firestore';
 
 import { db } from '../firebase/firebase';
+import { syncMyVisibilityIndex } from './visibility';
 
 export type UserGroupListItem = {
   groupId: string;
@@ -143,6 +144,10 @@ export async function createGroup(params: {
     }),
   ]);
 
+  // Refresh the visibility index NOW — without it, the roster/leaderboard
+  // can't resolve teammates until the next app start.
+  await syncMyVisibilityIndex(params.uid).catch(() => {});
+
   return { groupId, joinCode };
 }
 
@@ -259,6 +264,10 @@ export async function joinGroupByCode(params: {
       `If this persists, please check that your account was created properly.`
     );
   }
+
+  // Refresh the visibility index NOW — a fresh joiner otherwise sees only
+  // themselves in the group until the next app start.
+  await syncMyVisibilityIndex(params.uid).catch(() => {});
 
   return { groupId };
 }

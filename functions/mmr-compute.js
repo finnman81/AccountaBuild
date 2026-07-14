@@ -373,14 +373,17 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
     }
 
     // Rank-change activity items (same deterministic ids as the client, so
-    // client + server runs can't double-write).
+    // client + server runs can't double-write). Only written when the change
+    // is NEW this run (prior weekly doc didn't record the same destination) —
+    // recomputes used to rewrite createdAt so the item read "just now" forever.
     const ROMAN = ['', 'I', 'II', 'III', 'IV'];
     const rankLabel = `${band.tier}${band.division ? ` ${ROMAN[band.division]}` : ''}`;
-    if (core.bandOrderIndex(band) > core.bandOrderIndex(oldBand)) {
+    const sameTo = (prev) => prev && prev.to && prev.to.tier === band.tier && (prev.to.division ?? null) === (band.division ?? null);
+    if (core.bandOrderIndex(band) > core.bandOrderIndex(oldBand) && !sameTo(weeklyData?.promotion)) {
       tx.set(userRef.collection('activity').doc(`${weekId}-promotion`), {
         type: 'promotion', title: '⬆ Promoted!', body: `You climbed to ${rankLabel}.`, read: false, createdAt: FieldValue.serverTimestamp(),
       }, { merge: true });
-    } else if (core.bandOrderIndex(band) < core.bandOrderIndex(oldBand)) {
+    } else if (core.bandOrderIndex(band) < core.bandOrderIndex(oldBand) && !sameTo(weeklyData?.demotion)) {
       tx.set(userRef.collection('activity').doc(`${weekId}-demotion`), {
         type: 'demotion', title: '⬇ Rank slipped', body: `You dropped to ${rankLabel}. Log this week to climb back.`, read: false, createdAt: FieldValue.serverTimestamp(),
       }, { merge: true });

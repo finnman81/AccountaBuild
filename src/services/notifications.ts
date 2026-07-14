@@ -135,13 +135,14 @@ export async function scheduleNotifications(options?: { force?: boolean; startFr
       const messageIndex = await getNextMessageIndex();
       const body = REMINDER_MESSAGES[messageIndex];
       
-      // Schedule next occurrence only (no catch-up bursts)
+      // Schedule next occurrence only (no catch-up bursts). No `badge` here:
+      // local reminders used to force the home-screen badge to a phantom "1";
+      // the badge now mirrors unread activity (useNotificationBadge).
       await Notifications.scheduleNotificationAsync({
         content: {
           title: 'AccountaBuild',
           body,
           sound: true,
-          badge: 1,
         },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.DATE,
