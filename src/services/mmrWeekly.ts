@@ -26,6 +26,9 @@ export type MmrWeeklySummary = {
   weighInsDone: number;
   streakAfter: number;
 
+  /** Per-goal scoring snapshot (id + adherence + difficulty) for this week. */
+  goals?: Array<{ id: string; A: number; D: number }>;
+
   rankBefore?: { tier: string; division?: 1 | 2 | 3 | 4 | null; mp?: number | null } | null;
   rankAfter?: { tier: string; division?: 1 | 2 | 3 | 4 | null; mp?: number | null } | null;
   promotion?: { from: any; to: any } | null;
@@ -62,6 +65,12 @@ function mapWeeklyDoc(id: string, d: any): MmrWeeklySummary {
     calorieDaysHit: typeof d?.calorieDaysHit === 'number' ? Number(d.calorieDaysHit) : 0,
     weighInsDone: typeof d?.weighInsDone === 'number' ? Number(d.weighInsDone) : 0,
     streakAfter: typeof d?.streakAfter === 'number' ? Number(d.streakAfter) : 0,
+
+    goals: Array.isArray(d?.goals)
+      ? d.goals
+          .map((g: any) => ({ id: String(g?.id ?? ''), A: Number(g?.A) || 0, D: Number(g?.D) || 0 }))
+          .filter((g: any) => g.id)
+      : undefined,
 
     rankBefore: (d?.rankBefore ?? null) as any,
     rankAfter: (d?.rankAfter ?? null) as any,

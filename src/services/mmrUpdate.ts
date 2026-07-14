@@ -482,6 +482,17 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
           ? Number(userData.tierShieldWeeksRemaining)
           : 0;
 
+    // Streak freezes (earn 1 per 4 consecutive completed weeks, bank max 2;
+    // a freeze auto-spends on a non-completed CLOSED week to HOLD the streak
+    // — penalties still apply, only the streak survives). Anchored like the
+    // shield so recomputes are idempotent.
+    const freezeBefore =
+      weeklyData && typeof weeklyData?.freezeBefore === 'number'
+        ? Number(weeklyData.freezeBefore)
+        : typeof userData?.streakFreezes === 'number'
+          ? Number(userData.streakFreezes)
+          : 0;
+
     // Track first participation week: only count missed weeks from when user started
     // This prevents counting weeks before the user joined as "missed"
     const firstWeekId = typeof userData?.firstWeekId === 'string' ? String(userData.firstWeekId) : null;
@@ -501,7 +512,11 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
             ? Math.max(0, (typeof userData?.consecutiveMissedWeeks === 'number' ? Number(userData.consecutiveMissedWeeks) : 0) - 1)
             : 0;
 
-    const streakAfter = completedWeek ? streakBefore + 1 : 0;
+    // Freeze mechanics only at week CLOSE — mid-week state never consumes/earns.
+    const freezeUsed = !isCurrentWeek && !completedWeek && streakBefore > 0 && freezeBefore > 0;
+    const streakAfter = completedWeek ? streakBefore + 1 : freezeUsed ? streakBefore : 0;
+    const freezeEarned = !isCurrentWeek && completedWeek && streakAfter >= 4 && streakAfter % 4 === 0 && freezeBefore < 2;
+    const freezeAfter = Math.max(0, Math.min(2, freezeBefore + (freezeEarned ? 1 : 0) - (freezeUsed ? 1 : 0)));
     const S = streakMultiplier(streakAfter);
 
     // Don't apply penalties for the current week (it's still in progress)
@@ -538,6 +553,17 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
     } else if (bandOrderIndex(band) < bandOrderIndex(oldBand) && !sameTo(weeklyData?.demotion)) {
       tx.set(doc(db, 'users', uid, 'activity', `${weekId}-demotion`), {
         type: 'demotion', title: '⬇ Rank slipped', body: `You dropped to ${rankLabel}. Log this week to climb back.`, read: false, createdAt: serverTimestamp(),
+      }, { merge: true });
+    }
+
+    if (freezeUsed && weeklyData?.freezeUsed !== true) {
+      tx.set(doc(db, 'users', uid, 'activity', `${weekId}-freeze`), {
+        type: 'freeze', title: '🧊 Streak freeze used', body: `Your ${streakAfter}-week streak survives — complete this week to keep it alive.`, read: false, createdAt: serverTimestamp(),
+      }, { merge: true });
+    }
+    if (freezeEarned && weeklyData?.freezeEarned !== true) {
+      tx.set(doc(db, 'users', uid, 'activity', `${weekId}-freezeEarned`), {
+        type: 'freeze', title: '🧊 Streak freeze earned', body: `${streakAfter} straight completed weeks — a freeze is banked (${freezeAfter}/2) for when life happens.`, read: false, createdAt: serverTimestamp(),
       }, { merge: true });
     }
 
@@ -649,6 +675,10 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
         // Baselines for idempotent recompute
         streakBefore,
         streakAfter,
+        freezeBefore,
+        freezeAfter,
+        freezeUsed,
+        freezeEarned,
         shieldBefore,
         shieldAfter,
         missedBefore,
@@ -676,6 +706,7 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
       prevRankTier: oldBand.tier,
       prevRankDivision: oldBand.division ?? null,
       streakWeeks: streakAfter,
+      streakFreezes: freezeAfter,
       tierShieldWeeksRemaining: shieldAfter,
       consecutiveMissedWeeks,
       currentSeasonId: seasonId,

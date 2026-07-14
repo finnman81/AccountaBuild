@@ -21,6 +21,7 @@ import TeamTodayRail from '../components/today/TeamTodayRail';
 import LeaderboardPreviewCard from '../components/today/LeaderboardPreviewCard';
 import WeeklyRecapBanner from '../components/today/WeeklyRecapBanner';
 import SetupChecklistCard from '../components/today/SetupChecklistCard';
+import TargetReviewCard from '../components/today/TargetReviewCard';
 import UpdateBanner from '../components/today/UpdateBanner';
 import { deleteGroupLogById } from '../services/logs';
 import type { ChecklistItem, TodayLogEntry } from '../viewmodels/today';
@@ -200,6 +201,7 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
       <WeeklyRecapBanner onOpen={onOpenWeeklyRecap ?? (() => {})} />
       <UpdateBanner />
       <SetupChecklistCard />
+      <TargetReviewCard />
       {challenge && challengeInfo ? (
         <Pressable
           onPress={onOpenChallenge ?? (() => {})}

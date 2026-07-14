@@ -9,6 +9,7 @@ export type MmrState = {
   rankDivision?: 1 | 2 | 3 | 4;
   mp: number;
   streakWeeks: number;
+  streakFreezes: number;
   tierShieldWeeksRemaining: number;
   consecutiveMissedWeeks: number;
   currentSeasonId: string;
@@ -35,6 +36,7 @@ export function subscribeMyMmrState(uid: string, onChange: (state: MmrState | nu
         rankDivision: d.rankDivision ?? undefined,
         mp: typeof d.mp === 'number' ? d.mp : typeof d.lp === 'number' ? d.lp : 0, // Backward compat: read 'lp' if 'mp' missing
         streakWeeks: typeof d.streakWeeks === 'number' ? d.streakWeeks : 0,
+        streakFreezes: typeof d.streakFreezes === 'number' ? d.streakFreezes : 0,
         tierShieldWeeksRemaining: typeof d.tierShieldWeeksRemaining === 'number' ? d.tierShieldWeeksRemaining : 0,
         consecutiveMissedWeeks: typeof d.consecutiveMissedWeeks === 'number' ? d.consecutiveMissedWeeks : 0,
         currentSeasonId: String(d.currentSeasonId ?? ''),

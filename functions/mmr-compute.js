@@ -295,6 +295,14 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
           ? Number(userData.tierShieldWeeksRemaining)
           : 0;
 
+    // Streak freezes — mirror of the client scorer (see mmrUpdate.ts).
+    const freezeBefore =
+      weeklyData && typeof weeklyData?.freezeBefore === 'number'
+        ? Number(weeklyData.freezeBefore)
+        : typeof userData?.streakFreezes === 'number'
+          ? Number(userData.streakFreezes)
+          : 0;
+
     const firstWeekId = typeof userData?.firstWeekId === 'string' ? String(userData.firstWeekId) : null;
     const isFirstWeek = firstWeekId == null;
     const shouldSetFirstWeek = isFirstWeek && anyActivity;
@@ -309,7 +317,11 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
             ? Math.max(0, (typeof userData?.consecutiveMissedWeeks === 'number' ? Number(userData.consecutiveMissedWeeks) : 0) - 1)
             : 0;
 
-    const streakAfter = completedWeek ? streakBefore + 1 : 0;
+    // Freeze mechanics only at week CLOSE — mid-week state never consumes/earns.
+    const freezeUsed = !isCurrentWeek && !completedWeek && streakBefore > 0 && freezeBefore > 0;
+    const streakAfter = completedWeek ? streakBefore + 1 : freezeUsed ? streakBefore : 0;
+    const freezeEarned = !isCurrentWeek && completedWeek && streakAfter >= 4 && streakAfter % 4 === 0 && freezeBefore < 2;
+    const freezeAfter = Math.max(0, Math.min(2, freezeBefore + (freezeEarned ? 1 : 0) - (freezeUsed ? 1 : 0)));
     const S = core.streakMultiplier(streakAfter);
 
     const penalty = isCurrentWeek ? 0 : missedWeek ? core.missedWeekPenalty(mmrBefore) : partialWeek ? core.partialWeekPenalty(mmrBefore) : 0;
@@ -372,6 +384,17 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
       tx.set(badgeRefs[2], { type: 'achievement', seasonId, achievementId: 'hardMode4', title: 'Hard Mode (4 weeks)', earnedAt: FieldValue.serverTimestamp() }, { merge: true });
     }
 
+    if (freezeUsed && weeklyData?.freezeUsed !== true) {
+      tx.set(userRef.collection('activity').doc(`${weekId}-freeze`), {
+        type: 'freeze', title: '🧊 Streak freeze used', body: `Your ${streakAfter}-week streak survives — complete this week to keep it alive.`, read: false, createdAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+    }
+    if (freezeEarned && weeklyData?.freezeEarned !== true) {
+      tx.set(userRef.collection('activity').doc(`${weekId}-freezeEarned`), {
+        type: 'freeze', title: '🧊 Streak freeze earned', body: `${streakAfter} straight completed weeks — a freeze is banked (${freezeAfter}/2) for when life happens.`, read: false, createdAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+    }
+
     // Rank-change activity items (same deterministic ids as the client, so
     // client + server runs can't double-write). Only written when the change
     // is NEW this run (prior weekly doc didn't record the same destination) —
@@ -422,6 +445,10 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
         missedWeek,
         streakBefore,
         streakAfter,
+        freezeBefore,
+        freezeAfter,
+        freezeUsed,
+        freezeEarned,
         shieldBefore,
         shieldAfter,
         missedBefore,
@@ -445,6 +472,7 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
       prevRankTier: oldBand.tier,
       prevRankDivision: oldBand.division ?? null,
       streakWeeks: streakAfter,
+      streakFreezes: freezeAfter,
       tierShieldWeeksRemaining: shieldAfter,
       consecutiveMissedWeeks,
       currentSeasonId: seasonId,

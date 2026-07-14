@@ -77,6 +77,7 @@ export default function RankHeroCard({ mmrState, onPress, onViewLeaderboard }: P
             </Text>
             <Text variant="bodySmall" style={{ color: colors.textSecondary }}>
               <AnimatedNumber value={mmrState.mmr} /> FP • <AnimatedNumber value={mmrState.mp ?? 0} /> MP
+              {(mmrState.streakFreezes ?? 0) > 0 ? `  •  🧊×${mmrState.streakFreezes}` : ''}
             </Text>
             {nextDivisionLabel && (
               <View style={{ marginTop: spacing.xs }}>

@@ -16,6 +16,7 @@ const META: Record<ActivityType, { icon: string; tint: string; bg: string }> = {
   cheer: { icon: 'arm-flex', tint: colors.primary, bg: colors.primaryTint },
   nudge: { icon: 'hand-wave', tint: colors.rankGold, bg: 'rgba(233,181,66,0.14)' },
   reaction: { icon: 'heart', tint: colors.primary, bg: colors.primaryTint },
+  freeze: { icon: 'snowflake', tint: '#7DD3FC', bg: 'rgba(125,211,252,0.12)' },
   promotion: { icon: 'chevron-double-up', tint: colors.success, bg: colors.successTint },
   demotion: { icon: 'chevron-double-down', tint: colors.danger, bg: 'rgba(255,90,90,0.12)' },
 };
