@@ -13,7 +13,7 @@ import { db } from '../firebase/firebase';
 import { isFutureYYYYMMDD, isValidYYYYMMDD, todayYYYYMMDD, yesterdayYYYYMMDD } from '../utils/dates';
 import { useMyUnits } from '../hooks/useMyUnits';
 import { kgToLb, lbToKg } from '../utils/formatters';
-import { updateGroupLog, upsertUserWeightHistoryFromGroupLog } from '../services/logEdits';
+import { addWeightEverywhere, updateGroupLog, upsertUserWeightHistoryFromGroupLog } from '../services/logEdits';
 import AppText from '../components/ui/AppText';
 import Card from '../components/ui/Card';
 import TextField from '../components/ui/TextField';
@@ -80,21 +80,14 @@ export default function AddWeightScreen({ route, navigation }: Props) {
           weight: value,
         });
       } else {
-        const res = await addWeightLog({ groupId, uid: user.uid, weight: value, note, date });
-        // Persist user-level weight history for profile charts (cross-group).
-        await addDoc(collection(db, 'users', user.uid, 'weights'), {
-          uid: user.uid,
-          groupId,
-          groupLogId: res.id,
-          date,
-          weight: value,
-          ts: serverTimestamp(),
-          source: 'self_reported',
-        });
+        // One call writes the group log, weight history, and profile mirrors.
+        await addWeightEverywhere({ groupId, uid: user.uid, weight: value, date, note });
       }
-      // Keep weight consistent across groups and profile:
-      await updateMyProfile({ uid: user.uid, weightCurrent: value });
-      await syncMyMemberProfileToAllGroups(user.uid);
+      if (edit?.logId) {
+        // Keep weight consistent across groups and profile on edits too.
+        await updateMyProfile({ uid: user.uid, weightCurrent: value });
+        await syncMyMemberProfileToAllGroups(user.uid);
+      }
       navigation.goBack();
     } catch (e) {
       setError(edit?.logId ? 'Failed to update weight.' : 'Failed to save weight.');

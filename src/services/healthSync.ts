@@ -229,6 +229,19 @@ export async function syncHealthData(uid: string, groupId: string, settings: Hea
             }
           }
           if (syncedW > 0) result.weightSynced = true;
+          // A weigh-in synced for TODAY is the user's latest known weight —
+          // keep the profile's "Current weight" in step with it.
+          const todays = weights.filter((w) => w && w.date === today && w.weight > 0);
+          if (todays.length > 0) {
+            const latest = todays[todays.length - 1]!;
+            try {
+              const { updateMyProfile, syncMyMemberProfileToAllGroups } = await import('./profile');
+              await updateMyProfile({ uid, weightCurrent: latest.weight });
+              await syncMyMemberProfileToAllGroups(uid);
+            } catch (e) {
+              result.errors.push(`weight profile sync: ${e}`);
+            }
+          }
           result.diagnostics!.weight = { dataFromHealth: { count: weights.length }, syncedCount: syncedW, reason: syncedW === 0 ? 'no weights in window' : undefined };
           console.log('[HealthSync] Weights synced:', syncedW, 'of', weights.length);
         } catch (e) {

@@ -5,7 +5,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { AuthContext } from '../../store/AuthContext';
 import { useActiveGroup } from '../../store/ActiveGroupContext';
-import { addCaloriesLog, addWeightLog, addWorkoutLog, type LogType, type MealType, type WorkoutType } from '../../services/logs';
+import { addCaloriesLog, addWorkoutLog, type LogType, type MealType, type WorkoutType } from '../../services/logs';
+import { addWeightEverywhere } from '../../services/logEdits';
 import { notifyLogSaved } from '../../services/fpEvents';
 import { useMyUnits } from '../../hooks/useMyUnits';
 import { kgToLb, lbToKg } from '../../utils/formatters';
@@ -204,7 +205,7 @@ export default function LogComposer({ initialType = 'weight', onClose, onSaved, 
     setError(null);
     try {
       const weight = Math.round(weightLb * 10) / 10;
-      if (mode === 'weight') await addWeightLog({ groupId: activeGroupId, uid: user.uid, weight, date });
+      if (mode === 'weight') await addWeightEverywhere({ groupId: activeGroupId, uid: user.uid, weight, date });
       else if (mode === 'workout') await addWorkoutLog({ groupId: activeGroupId, uid: user.uid, workoutType, durationMinutes: duration, date });
       else if (mode === 'calories') await addCaloriesLog({ groupId: activeGroupId, uid: user.uid, calories, meal, date });
       const last: LastValues = { weightLb: weight, calories, duration, workoutType, meal };
