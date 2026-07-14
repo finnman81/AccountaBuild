@@ -18,7 +18,7 @@ const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestore');
 const { computeUserUpToCurrentWeek } = require('./mmr-compute');
-const { evaluateStreakRisk } = require('./notif-logic');
+const { evaluateStreakRisk, evaluateDailyChampion } = require('./notif-logic');
 const core = require('./mmr-core');
 const { sendExpoPushes, isExpoToken, prefEnabled, inQuietHours } = require('./push-helper');
 
@@ -499,5 +499,55 @@ exports.challengeLifecycle = onSchedule(
       }
     }
     console.log(`[challengeLifecycle] announced ${announced} of ${groups.size} groups`);
+  },
+);
+
+// ---------------------------------------------------------------------------
+// Yesterday's Champion (daily 08:00 ET)
+// ---------------------------------------------------------------------------
+/**
+ * Morning push per group crowning whoever logged the most yesterday
+ * (categories logged 0-3, tiebreak minutes). The champion gets crown copy;
+ * teammates get the callout. Days where nobody logged are silently skipped.
+ * Gated on notifPrefs.teamActivity; idempotent via groups.dailyChampionDate.
+ */
+exports.dailyChampion = onSchedule(
+  { schedule: '0 8 * * *', timeZone: TZ, timeoutSeconds: 540, memory: '256MiB' },
+  async () => {
+    const { results, yDay } = await evaluateDailyChampion(db, new Date());
+    let sent = 0;
+
+    for (const r of results) {
+      try {
+        const users = await getUsers(r.memberUids);
+        const champs = [r.championUid, r.coChampUid].filter(Boolean);
+        const champLabel = r.coChampName ? `${r.championName} & ${r.coChampName}` : r.championName;
+
+        const items = [];
+        for (const uid of r.memberUids) {
+          const u = users.get(uid);
+          if (!u || !isExpoToken(u.expoPushToken)) continue;
+          if (!prefEnabled(u, 'teamActivity')) continue;
+          const isChamp = champs.includes(uid);
+          items.push({
+            uid,
+            token: u.expoPushToken,
+            title: isChamp ? '👑 You were yesterday\'s champion!' : '🌅 Yesterday\'s Champion',
+            body: isChamp
+              ? `${r.line}. Defend the crown today.`
+              : `${champLabel} owned yesterday — ${r.line}. Your move.`,
+            data: { type: 'dailyChampion', screen: 'Today' },
+          });
+        }
+        if (items.length) {
+          const res = await sendExpoPushes(db, items);
+          sent += res.sent;
+        }
+        await db.collection('groups').doc(r.groupId).set({ dailyChampionDate: r.yDay }, { merge: true });
+      } catch (e) {
+        console.error('[dailyChampion] failed for group', r.groupId, e);
+      }
+    }
+    console.log(`[dailyChampion] ${yDay}: ${results.length} groups, ${sent} pushes`);
   },
 );

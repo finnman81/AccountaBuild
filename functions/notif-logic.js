@@ -71,3 +71,76 @@ async function evaluateStreakRisk(db, now) {
 }
 
 module.exports = { evaluateStreakRisk };
+
+/**
+ * "Yesterday's Champion" — per group, who logged the most yesterday?
+ * Score: distinct categories logged (calories/workout/weight, 0-3),
+ * tiebreak by workout minutes, then total logs. Groups where nobody logged
+ * are skipped (no spam for dead days). Returns evaluation only — the caller
+ * sends pushes and stamps the idempotency marker.
+ */
+async function evaluateDailyChampion(db, now) {
+  const yesterdayDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const yDay = core.yyyyMmDdInTz(yesterdayDate, TZ);
+
+  const groups = await db.collection('groups').get();
+  const results = [];
+
+  for (const g of groups.docs) {
+    try {
+      const gData = g.data() || {};
+      if (gData.dailyChampionDate === yDay) continue; // already announced
+
+      const membersSnap = await db.collection('groups').doc(g.id).collection('members').get();
+      const memberUids = membersSnap.docs.map((d) => d.id);
+      if (memberUids.length < 2) continue;
+
+      const logsSnap = await db.collection('groups').doc(g.id).collection('logs').where('date', '==', yDay).get();
+      if (logsSnap.empty) continue;
+
+      const byUid = new Map();
+      for (const l of logsSnap.docs) {
+        const d = l.data() || {};
+        const uid = String(d.uid || '');
+        if (!uid) continue;
+        const row = byUid.get(uid) || { cats: new Set(), minutes: 0, total: 0 };
+        if (d.type === 'calories' || d.type === 'workout' || d.type === 'weight') row.cats.add(d.type);
+        if (d.type === 'workout') row.minutes += Number(d.payload && d.payload.durationMinutes) || 0;
+        row.total += 1;
+        byUid.set(uid, row);
+      }
+      if (byUid.size === 0) continue;
+
+      const ranked = [...byUid.entries()]
+        .map(([uid, r]) => ({ uid, cats: r.cats.size, minutes: Math.round(r.minutes), total: r.total }))
+        .sort((a, b) => b.cats - a.cats || b.minutes - a.minutes || b.total - a.total);
+
+      const top = ranked[0];
+      const coChamp = ranked[1] && ranked[1].cats === top.cats && ranked[1].minutes === top.minutes && ranked[1].total === top.total ? ranked[1] : null;
+
+      const nameOf = async (uid) => {
+        const pub = await db.doc(`publicUsers/${uid}`).get();
+        return (pub.exists && pub.data().displayName) || 'A teammate';
+      };
+      const championName = await nameOf(top.uid);
+      const coChampName = coChamp ? await nameOf(coChamp.uid) : null;
+
+      const line = `${top.cats}/3 logged${top.minutes > 0 ? ` · ${top.minutes} min trained` : ''}`;
+      results.push({
+        groupId: g.id,
+        yDay,
+        championUid: top.uid,
+        championName,
+        coChampUid: coChamp ? coChamp.uid : null,
+        coChampName,
+        line,
+        memberUids,
+      });
+    } catch (e) {
+      console.warn('[dailyChampion] group eval failed', g.id, e);
+    }
+  }
+  return { results, yDay };
+}
+
+module.exports.evaluateDailyChampion = evaluateDailyChampion;
