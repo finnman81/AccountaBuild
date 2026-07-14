@@ -27,6 +27,13 @@ export type MmrProjection = {
   missedIfEndedNow: boolean;
   /** Early in the week with nothing logged yet — neutral, not "at risk". */
   weekJustStarted: boolean;
+  /** Raw needs for "still winnable" messaging (0 target = category off). */
+  workoutsDone: number;
+  workoutsTarget: number;
+  calorieDaysDone: number;
+  calorieDaysTarget: number;
+  /** Days remaining in the ISO week, INCLUDING today. */
+  daysLeft: number;
   weekScore: number;
   streakMultiplier: number;
   penalty: number;
@@ -241,6 +248,11 @@ function computeProjection(params: {
     completedIfEndedNow,
     missedIfEndedNow,
     weekJustStarted,
+    workoutsDone,
+    workoutsTarget: (params.goals.workouts?.status ?? 'active') === 'active' && Number.isFinite(params.goals.workouts?.targetWorkoutsPerWeek) ? Number(params.goals.workouts.targetWorkoutsPerWeek) : 0,
+    calorieDaysDone: calorieDaysHit,
+    calorieDaysTarget: (params.goals.calorieDays?.status ?? 'active') === 'active' && Number.isFinite(params.goals.calorieDays?.targetDaysPerWeek) ? Number(params.goals.calorieDays.targetDaysPerWeek) : 0,
+    daysLeft: dates.filter((d) => d >= today).length,
     weekScore,
     streakMultiplier: S,
     penalty,

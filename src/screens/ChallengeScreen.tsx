@@ -328,7 +328,9 @@ export default function ChallengeScreen({ route, navigation }: Props) {
                     <Avatar photoURL={r.photoURL} name={r.name} size={36} />
                     <View style={{ flex: 1 }}>
                       <AppText variant="rowTitle" color="primary" numberOfLines={1}>{r.name}{r.isMe ? ' (You)' : ''}</AppText>
-                      <AppText variant="rowSubtitle" color="muted">{r.weeksCompleted}/{r.weeksElapsed} wks · {r.avgCompliance}% of own goals</AppText>
+                      <AppText variant="rowSubtitle" color="muted">
+                        {r.weeksCompleted}/{r.weeksElapsed} wks · {r.bankedPct != null ? `${r.bankedPct}% banked this wk` : `${r.avgCompliance}% of own goals`}
+                      </AppText>
                     </View>
                     <AppText variant="numberMd" color="primary">{r.points}</AppText>
                   </View>

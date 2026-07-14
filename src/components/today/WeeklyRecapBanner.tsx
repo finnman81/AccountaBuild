@@ -77,9 +77,7 @@ export default function WeeklyRecapBanner({ onOpen }: Props) {
       </View>
       <View style={{ flex: 1 }}>
         <Text style={styles.title}>Last week: {deltaLabel}</Text>
-        <Text style={styles.body}>
-          {rankChangeLabel} · {summary.deltaMP != null ? `${summary.deltaMP >= 0 ? '+' : ''}${summary.deltaMP} MP` : ''}
-        </Text>
+        <Text style={styles.body}>{rankChangeLabel}</Text>
       </View>
       <Text style={[styles.deltaChip, { color: deltaColor }]}>{deltaLabel}</Text>
       <Pressable onPress={dismiss} hitSlop={10} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Dismiss">

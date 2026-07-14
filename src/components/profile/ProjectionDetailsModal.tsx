@@ -40,6 +40,10 @@ export default function ProjectionDetailsModal({ visible, projection, onDismiss 
       A_total: projection.A_total,
       completedIfEndedNow: projection.completedIfEndedNow,
       missedIfEndedNow: projection.missedIfEndedNow,
+      workoutsDone: projection.workoutsDone,
+      workoutsTarget: projection.workoutsTarget,
+      calorieDaysDone: projection.calorieDaysDone,
+      calorieDaysTarget: projection.calorieDaysTarget,
     };
   }, [projection]);
 
@@ -134,14 +138,26 @@ export default function ProjectionDetailsModal({ visible, projection, onDismiss 
                       Calculation Breakdown
                     </Text>
                     <View style={{ gap: spacing.xs }}>
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                        <Text variant="bodySmall" style={{ color: colors.textSecondary }}>
-                          Week Score:
-                        </Text>
-                        <Text variant="bodySmall" style={{ color: colors.textPrimary }}>
-                          {Math.round(details.weekScore)}
-                        </Text>
-                      </View>
+                      {details.workoutsTarget > 0 && (
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                          <Text variant="bodySmall" style={{ color: colors.textSecondary }}>
+                            Workouts:
+                          </Text>
+                          <Text variant="bodySmall" style={{ color: colors.textPrimary }}>
+                            {details.workoutsDone} / {details.workoutsTarget}
+                          </Text>
+                        </View>
+                      )}
+                      {details.calorieDaysTarget > 0 && (
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                          <Text variant="bodySmall" style={{ color: colors.textSecondary }}>
+                            Calorie days:
+                          </Text>
+                          <Text variant="bodySmall" style={{ color: colors.textPrimary }}>
+                            {details.calorieDaysDone} / {details.calorieDaysTarget}
+                          </Text>
+                        </View>
+                      )}
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                         <Text variant="bodySmall" style={{ color: colors.textSecondary }}>
                           Streak Multiplier:

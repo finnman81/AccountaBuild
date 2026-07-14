@@ -11,11 +11,13 @@ import { bandForMMR } from '../../mmr/ranks';
 
 type Props = {
   projection: MmrProjection | null;
+  /** Current daily streak (days) — powers the bad-week salvage line. */
+  dailyStreak?: number;
   onViewDetails?: () => void;
 };
 
-export default function WeeklyTrajectoryCard({ projection, onViewDetails }: Props) {
-  const { status, statusColor, statusText, weekCompletion, primaryParts, secondaryLine } = useMemo(() => {
+export default function WeeklyTrajectoryCard({ projection, dailyStreak = 0, onViewDetails }: Props) {
+  const { status, statusColor, statusText, weekCompletion, primaryParts, secondaryLine, hintLine } = useMemo(() => {
     if (!projection) {
       return {
         status: 'unknown' as const,
@@ -24,6 +26,7 @@ export default function WeeklyTrajectoryCard({ projection, onViewDetails }: Prop
         weekCompletion: 0,
         primaryParts: { sign: null as string | null, delta: null as number | null, suffix: '—' },
         secondaryLine: '—',
+        hintLine: null as string | null,
       };
     }
 
@@ -70,6 +73,28 @@ export default function WeeklyTrajectoryCard({ projection, onViewDetails }: Prop
     // Week completion (estimate based on A_total - simplified)
     const weekCompletion = Math.min(100, Math.max(0, Math.round(projection.A_total * 100)));
 
+    // Bad-Monday salvage: the math already forgives a slow start (adherence is
+    // weekly totals) — say so. Behind but completable -> show the exact path.
+    // Out of reach -> point at the daily streak, the game that's still alive.
+    let hintLine: string | null = null;
+    if (!projection.weekJustStarted && !projection.completedIfEndedNow) {
+      const needW = projection.workoutsTarget > 0 ? Math.max(0, projection.workoutsTarget - projection.workoutsDone) : 0;
+      const needC = projection.calorieDaysTarget > 0 ? Math.max(0, projection.calorieDaysTarget - projection.calorieDaysDone) : 0;
+      const winnable = needW <= projection.daysLeft && needC <= projection.daysLeft;
+      if (winnable && (needW > 0 || needC > 0)) {
+        const parts = [
+          needW > 0 ? `${needW} workout${needW === 1 ? '' : 's'}` : null,
+          needC > 0 ? `${needC} calorie day${needC === 1 ? '' : 's'}` : null,
+        ].filter(Boolean);
+        hintLine = `Complete week still in reach: ${parts.join(' + ')} in ${projection.daysLeft} day${projection.daysLeft === 1 ? '' : 's'}.`;
+      } else if (!winnable) {
+        hintLine =
+          dailyStreak > 0
+            ? `This week's out of reach — your ${dailyStreak}-day streak isn't. Keep logging.`
+            : 'This week got away — keep logging daily and Monday is a fresh start.';
+      }
+    }
+
     return {
       status,
       statusColor,
@@ -77,8 +102,9 @@ export default function WeeklyTrajectoryCard({ projection, onViewDetails }: Prop
       weekCompletion,
       primaryParts,
       secondaryLine,
+      hintLine,
     };
-  }, [projection]);
+  }, [projection, dailyStreak]);
 
   return (
     <Card>
@@ -114,6 +140,11 @@ export default function WeeklyTrajectoryCard({ projection, onViewDetails }: Prop
             <Text variant="bodySmall" style={{ color: statusColor }}>
               {secondaryLine}
             </Text>
+            {hintLine ? (
+              <Text variant="bodySmall" style={{ color: colors.textSecondary }}>
+                {hintLine}
+              </Text>
+            ) : null}
           </View>
 
           <View style={{ gap: spacing.xs }}>

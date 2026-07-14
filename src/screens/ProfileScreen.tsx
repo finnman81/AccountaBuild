@@ -17,7 +17,8 @@ import { formatHeightInches, formatMinutesHM, formatWeightForUnits } from '../ut
 import { useActiveGroup } from '../store/ActiveGroupContext';
 import { subscribeGroupLogs, type GroupLog } from '../services/logs';
 import type { RootStackParamList, ProfileStackParamList } from '../navigation/types';
-import { DEFAULT_TZ, isoWeekIdInTz } from '../mmr/time';
+import { DEFAULT_TZ, isoWeekIdInTz, yyyyMmDdInTz } from '../mmr/time';
+import { computeGoalStreak } from '../viewmodels/today';
 import { formatYYYYMMDDLocal } from '../utils/dates';
 import { subscribeMyMmrState, type MmrState } from '../services/mmrState';
 import { updateGlobalMmrUpToCurrentWeek } from '../services/mmrUpdate';
@@ -238,6 +239,20 @@ export default function ProfileScreen() {
   }, [activeGroupId]);
 
   const streakRule = (group?.streakRule ?? 'workout') as 'workout' | 'any';
+  const dailyStreak = useMemo(() => {
+    if (!user?.uid) return 0;
+    return computeGoalStreak({
+      logs: groupLogs,
+      uid: user.uid,
+      today: yyyyMmDdInTz(new Date(), DEFAULT_TZ),
+      streakRule,
+      targets: {
+        workout: Number(profile?.workoutsPerWeek ?? 0),
+        calories: Number(profile?.logCaloriesDaysPerWeek ?? 0),
+        weight: Number(profile?.logWeightDaysPerWeek ?? 0),
+      },
+    });
+  }, [groupLogs, user?.uid, streakRule, profile?.workoutsPerWeek, profile?.logCaloriesDaysPerWeek, profile?.logWeightDaysPerWeek]);
 
   const weekStreak = useMemo(() => {
     if (!user) return Array(7).fill(0);
@@ -439,6 +454,7 @@ export default function ProfileScreen() {
       {/* Section 2: Weekly Trajectory */}
       <WeeklyTrajectoryCard
         projection={projection}
+        dailyStreak={dailyStreak}
         onViewDetails={() => setProjectionDetailsVisible(true)}
       />
 

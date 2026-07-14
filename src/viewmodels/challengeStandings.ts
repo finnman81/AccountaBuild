@@ -1,6 +1,6 @@
 import type { GroupLog } from '../services/logs';
 import type { PublicUser } from '../services/publicUsers';
-import { isoWeekRangeInTz, DEFAULT_TZ } from '../mmr/time';
+import { isoWeekIdInTz, isoWeekRangeInTz, DEFAULT_TZ } from '../mmr/time';
 import { friendlyNameFromDisplayName } from '../utils/formatters';
 
 export type ChallengeStandingRow = {
@@ -16,6 +16,10 @@ export type ChallengeStandingRow = {
   weeksElapsed: number;
   /** Average weekly compliance across elapsed weeks (0–100). */
   avgCompliance: number;
+  /** Compliance banked so far in the CURRENT (in-progress) week, or null when
+   * the challenge's elapsed weeks are all closed. Lets the UI scope the live
+   * week honestly ("62% banked this week") instead of grading it early. */
+  bankedPct: number | null;
   isMe: boolean;
 };
 
@@ -63,6 +67,8 @@ export function buildChallengeStandings(params: {
 }): ChallengeStandingRow[] {
   const tz = params.tz ?? DEFAULT_TZ;
   const weeks = params.elapsedWeekIds.map((w) => isoWeekRangeInTz(w, tz).dates);
+  const currentWeekId = isoWeekIdInTz(new Date(), tz);
+  const currentIdx = params.elapsedWeekIds.indexOf(currentWeekId);
   const allowed = params.memberUids.filter((u) => u === params.myUid || params.canSee.has(u));
 
   const rows = allowed.map((uid) => {
@@ -73,11 +79,13 @@ export function buildChallengeStandings(params: {
 
     let points = 0;
     let weeksCompleted = 0;
-    for (const weekDates of weeks) {
+    let bankedPct: number | null = null;
+    weeks.forEach((weekDates, i) => {
       const frac = weekFractionForMember({ uid, weekDates, logs: params.logs, workoutsTarget, calorieDaysTarget, weightDaysTarget });
       points += frac * 100;
       if (frac >= 0.7) weeksCompleted += 1;
-    }
+      if (i === currentIdx) bankedPct = Math.round(frac * 100);
+    });
     const weeksElapsed = weeks.length;
     const avgCompliance = weeksElapsed ? Math.round(points / weeksElapsed) : 0;
 
@@ -89,6 +97,7 @@ export function buildChallengeStandings(params: {
       weeksCompleted,
       weeksElapsed,
       avgCompliance,
+      bankedPct,
       isMe: uid === params.myUid,
     };
   });
