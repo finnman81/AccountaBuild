@@ -9,6 +9,9 @@ type ActiveGroupContextValue = {
   setActiveGroupId: (groupId: string | null) => Promise<void>;
   groups: UserGroupListItem[];
   isReady: boolean;
+  /** True once the groups subscription has delivered at least once — until
+   * then an empty `groups` means "still loading", not "no groups". */
+  groupsLoaded: boolean;
 };
 
 const ActiveGroupContext = createContext<ActiveGroupContextValue>({} as ActiveGroupContextValue);
@@ -22,17 +25,22 @@ export function ActiveGroupProvider({ children }: { children: React.ReactNode })
   const [groups, setGroups] = useState<UserGroupListItem[]>([]);
   const [activeGroupId, setActiveGroupIdState] = useState<string | null>(null);
   const [isReady, setIsReady] = useState(false);
+  const [groupsLoaded, setGroupsLoaded] = useState(false);
 
   useEffect(() => {
     setGroups([]);
     setActiveGroupIdState(null);
     setIsReady(false);
+    setGroupsLoaded(false);
   }, [user?.uid]);
 
   // Subscribe to groups and reconcile activeGroupId.
   useEffect(() => {
     if (!user?.uid) return;
-    return subscribeMyGroups(user.uid, (items) => setGroups(items));
+    return subscribeMyGroups(user.uid, (items) => {
+      setGroups(items);
+      setGroupsLoaded(true);
+    });
   }, [user?.uid]);
 
   useEffect(() => {
@@ -72,8 +80,8 @@ export function ActiveGroupProvider({ children }: { children: React.ReactNode })
   );
 
   const value = useMemo<ActiveGroupContextValue>(
-    () => ({ activeGroupId, setActiveGroupId, groups, isReady }),
-    [activeGroupId, groups, isReady, setActiveGroupId],
+    () => ({ activeGroupId, setActiveGroupId, groups, isReady, groupsLoaded }),
+    [activeGroupId, groups, isReady, groupsLoaded, setActiveGroupId],
   );
 
   return <ActiveGroupContext.Provider value={value}>{children}</ActiveGroupContext.Provider>;

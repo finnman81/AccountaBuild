@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { View, TouchableOpacity } from 'react-native';
 import { Card, Text, Button } from 'react-native-paper';
 import ProgressBar from '../ui/ProgressBar';
+import AnimatedNumber from '../ui/AnimatedNumber';
 import { colors } from '../../theme/colors';
 import { spacing } from '../../theme/spacing';
 import { radius } from '../../theme/radius';
@@ -14,19 +15,20 @@ type Props = {
 };
 
 export default function WeeklyTrajectoryCard({ projection, onViewDetails }: Props) {
-  const { status, statusColor, statusText, weekCompletion, primaryLine, secondaryLine } = useMemo(() => {
+  const { status, statusColor, statusText, weekCompletion, primaryParts, secondaryLine } = useMemo(() => {
     if (!projection) {
       return {
         status: 'unknown' as const,
         statusColor: colors.textMuted,
         statusText: 'No projection',
         weekCompletion: 0,
-        primaryLine: '—',
+        primaryParts: { sign: null as string | null, delta: null as number | null, suffix: '—' },
         secondaryLine: '—',
       };
     }
 
     const deltaMMR = projection.deltaMMRProjected;
+    const sign = deltaMMR >= 0 ? '+' : '−';
     const currentBand = bandForMMR(projection.mmrBefore);
     const projectedBand = bandForMMR(projection.mmrProjected);
 
@@ -54,14 +56,13 @@ export default function WeeklyTrajectoryCard({ projection, onViewDetails }: Prop
     }
 
     // Primary line
-    const sign = deltaMMR >= 0 ? '+' : '';
     const projectedTier = projection.projectedTier;
     const projectedDiv = projection.projectedDivision;
     const roman = projectedDiv === 1 ? 'I' : projectedDiv === 2 ? 'II' : projectedDiv === 3 ? 'III' : projectedDiv === 4 ? 'IV' : '';
     const projectedRankLabel = projectedDiv ? `${projectedTier} ${roman}` : projectedTier;
-    const primaryLine = projection.weekJustStarted
-      ? `Holding ${projectedRankLabel}`
-      : `${sign}${Math.round(deltaMMR)} FP • On track for ${projectedRankLabel}`;
+    const primaryParts = projection.weekJustStarted
+      ? { sign: null as string | null, delta: null as number | null, suffix: `Holding ${projectedRankLabel}` }
+      : { sign, delta: Math.abs(Math.round(deltaMMR)), suffix: ` FP • On track for ${projectedRankLabel}` };
 
     // Secondary line (color-coded)
     const secondaryLine = statusText;
@@ -74,7 +75,7 @@ export default function WeeklyTrajectoryCard({ projection, onViewDetails }: Prop
       statusColor,
       statusText,
       weekCompletion,
-      primaryLine,
+      primaryParts,
       secondaryLine,
     };
   }, [projection]);
@@ -102,7 +103,13 @@ export default function WeeklyTrajectoryCard({ projection, onViewDetails }: Prop
 
           <View style={{ gap: spacing.xs }}>
             <Text variant="bodyMedium" style={{ color: colors.textPrimary }}>
-              {primaryLine}
+              {primaryParts.delta != null ? (
+                <>
+                  {primaryParts.sign}
+                  <AnimatedNumber value={primaryParts.delta} />
+                </>
+              ) : null}
+              {primaryParts.suffix}
             </Text>
             <Text variant="bodySmall" style={{ color: statusColor }}>
               {secondaryLine}
@@ -115,7 +122,7 @@ export default function WeeklyTrajectoryCard({ projection, onViewDetails }: Prop
                 On pace
               </Text>
               <Text variant="labelSmall" style={{ color: colors.textSecondary }}>
-                {weekCompletion}%
+                <AnimatedNumber value={weekCompletion} />%
               </Text>
             </View>
             <ProgressBar progress={weekCompletion / 100} height={6} />

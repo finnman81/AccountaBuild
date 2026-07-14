@@ -77,9 +77,13 @@ export default function ProfileScreen() {
     return subscribeMyProfile(user.uid, (p) => setProfile(p));
   }, [user]);
 
+  const [mmrStateLoaded, setMmrStateLoaded] = useState(false);
   useEffect(() => {
     if (!user) return;
-    return subscribeMyMmrState(user.uid, setMmrState);
+    return subscribeMyMmrState(user.uid, (s) => {
+      setMmrState(s);
+      setMmrStateLoaded(true);
+    });
   }, [user]);
 
   useEffect(() => {
@@ -111,33 +115,33 @@ export default function ProfileScreen() {
 
   const didAutoCatchUpRef = useRef(false);
   useEffect(() => {
-    // NOTE: do NOT gate on `mmrState` here. It's null both while loading AND
-    // when the user has no `mmr` field yet — gating on it deadlocks brand-new /
-    // never-computed users (null state → skip init → still no mmr, forever), so
-    // they'd show "no rank" until a manual pull-to-refresh. Run the (idempotent)
-    // catch-up regardless; it seeds mmr from STARTING_MMR when none exists.
-    if (!user) return;
+    // Wait for the FIRST mmrState snapshot before deciding anything — the old
+    // version ran while state was still null-because-loading, so the catch-up
+    // compute fired on EVERY Profile open and churned values under the user's
+    // eyes (the "score flashes" complaint). Once loaded:
+    //  - state current for this ISO week -> nothing to do (the server compute
+    //    refreshes everyone every 6h; Profile doesn't need its own pass)
+    //  - state missing (brand-new user) or behind -> run the idempotent
+    //    catch-up, which also seeds STARTING_MMR for never-computed users.
+    if (!user || !mmrStateLoaded) return;
     if (didAutoCatchUpRef.current) return;
     if (mmrBusy || refreshing) return;
 
     didAutoCatchUpRef.current = true;
+    const currentWeekId = isoWeekIdInTz(new Date(), DEFAULT_TZ);
+    if (mmrState && mmrState.lastWeekIdUpdated === currentWeekId) return;
+
     setMmrError(null);
     setMmrBusy(true);
     void ensureSeasonRollover(user.uid)
-      .then(() => {
-        // Skip only when we already have state that's current for this ISO week;
-        // otherwise (no state yet, or behind) run the catch-up.
-        const currentWeekId = isoWeekIdInTz(new Date(), DEFAULT_TZ);
-        if (mmrState && mmrState.lastWeekIdUpdated === currentWeekId) return;
-        return updateGlobalMmrUpToCurrentWeek(user.uid);
-      })
+      .then(() => updateGlobalMmrUpToCurrentWeek(user.uid))
       .catch((err) => {
         console.error('[MMR Auto-Update Error]', err);
         const errorMessage = err instanceof Error ? err.message : String(err);
         setMmrError(`Failed to update MMR: ${errorMessage}`);
       })
       .finally(() => setMmrBusy(false));
-  }, [mmrBusy, mmrState, refreshing, user]);
+  }, [mmrBusy, mmrState, mmrStateLoaded, refreshing, user]);
 
   useEffect(() => {
     if (!user) return;

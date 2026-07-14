@@ -55,7 +55,7 @@ function dateLabel(d: Date): string {
 
 export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember, onSwitchGroup, onChat, onBell, onOpenChallenge, onOpenWeeklyRecap, onEditEntry, onJoinGroup, onCreateGroup }: Props) {
   const { user, group, memberUids, canSee, publicUsers, logs, myProfile } = useTodayData();
-  const { activeGroupId } = useActiveGroup();
+  const { activeGroupId, isReady: activeGroupReady, groupsLoaded } = useActiveGroup();
   const [entriesItem, setEntriesItem] = useState<ChecklistItem | null>(null);
 
   const [challenge, setChallenge] = useState<GroupChallenge | null>(null);
@@ -121,6 +121,18 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
 
   // No active group: the checklist/log flow can't work (logs live under a
   // group), so show a "find your crew" state instead of dead buttons.
+  // CRITICAL: only once the stored id AND the groups list have loaded —
+  // otherwise every launch flashes this at members for a beat.
+  if (!activeGroupId && (!activeGroupReady || !groupsLoaded)) {
+    return (
+      <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ padding: spacing.lg, paddingTop: 56, paddingBottom: 32 }}>
+        <Text style={{ fontSize: 11, fontWeight: '700', letterSpacing: 0.8, color: colors.textMuted }}>{dateLabel(now).toUpperCase()}</Text>
+        <Text style={{ fontSize: 26, fontWeight: '700', letterSpacing: -0.4, color: colors.textPrimary, marginTop: 4 }}>
+          {greetingFor(now.getHours())}, {userName}
+        </Text>
+      </ScrollView>
+    );
+  }
   if (!activeGroupId) {
     return (
       <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ padding: spacing.lg, paddingTop: 56, paddingBottom: 32 }}>
