@@ -1,5 +1,5 @@
 import { Platform } from 'react-native';
-import { doc, getDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs } from 'firebase/firestore';
 
 import { db } from '../firebase/firebase';
 import { upsertGroupLogById, deleteGroupLogById, type WorkoutType } from './logs';
@@ -105,6 +105,24 @@ export async function syncHealthData(uid: string, groupId: string, settings: Hea
       }
       const importOk = (date: string) => isRecentImportDate(date, today, importDays) && (!joinFloor || date >= joinFloor);
 
+      // Tombstones: log ids the user DELETED. Without this, the idempotent
+      // upsert resurrects a deleted synced workout on every sync ("I delete
+      // the extra and it comes back"). Tombstoned ids are skipped, and if one
+      // somehow exists again (imported by an old app version), re-deleted.
+      let tombstones = new Set<string>();
+      try {
+        const ts = await getDocs(collection(db, 'users', uid, 'healthTombstones'));
+        tombstones = new Set(ts.docs.map((d) => d.id));
+      } catch {
+        /* non-fatal */
+      }
+      const isTombstoned = async (logId: string): Promise<boolean> => {
+        if (!tombstones.has(logId)) return false;
+        // Self-heal: an old app version may have re-imported it after deletion.
+        await deleteGroupLogById(groupId, logId).catch(() => {});
+        return true;
+      };
+
       // ---- Workouts (anchored delta: import new/changed, honor deletions) ----
       if (settings.syncWorkouts && permissions.workouts) {
         try {
@@ -112,12 +130,31 @@ export async function syncHealthData(uid: string, groupId: string, settings: Hea
           // skips data the way an advanced anchor can). Idempotent upserts prevent
           // dupes. The anchored read is used only for deletion detection.
           const items = await HealthService.readRecentWorkouts(importDays);
+
+          // Near-duplicate suppression: phones + watches frequently record the
+          // SAME session as two HealthKit samples with different uuids
+          // (observed in prod: 53m@9:51 + 49m@9:50 lifting pairs). Same
+          // workout type starting within 15 minutes = one session; keep the
+          // longest sample.
+          const kept: typeof items = [];
+          for (const w of [...items].sort((a, b) => b.durationMinutes - a.durationMinutes)) {
+            const wDate = formatYYYYMMDDLocal(w.startDate);
+            const dup = kept.some(
+              (k) =>
+                k.workoutType === w.workoutType &&
+                formatYYYYMMDDLocal(k.startDate) === wDate &&
+                Math.abs(k.startDate.getTime() - w.startDate.getTime()) <= 15 * 60 * 1000,
+            );
+            if (!dup) kept.push(w);
+          }
+
           let synced = 0;
-          for (const w of items) {
+          for (const w of kept) {
             const date = formatYYYYMMDDLocal(w.startDate);
             if (!importOk(date)) continue;
             try {
               const logId = resolveHealthLogId(w.uuid, { type: 'workout', date, value: w.durationMinutes, source });
+              if (await isTombstoned(logId)) continue;
               await upsertGroupLogById(groupId, logId, {
                 uid,
                 type: 'workout',
@@ -138,7 +175,7 @@ export async function syncHealthData(uid: string, groupId: string, settings: Hea
           const { deletedUuids, newAnchor } = await HealthService.readWorkoutsSinceAnchor(anchor);
           const removed = anchor ? await deleteSyncedLogs(groupId, deletedUuids, result, 'workout') : 0;
           if (newAnchor) await setAnchor(uid, 'workouts', newAnchor);
-          result.diagnostics!.workouts = { dataFromHealth: { source, totalCount: items.length, deletedCount: removed }, syncedCount: synced };
+          result.diagnostics!.workouts = { dataFromHealth: { source, totalCount: items.length, dedupedCount: items.length - kept.length, deletedCount: removed }, syncedCount: synced };
           console.log('[HealthSync] Workouts: synced', synced, 'deleted', removed, 'of', items.length);
         } catch (e) {
           result.errors.push(`read workouts: ${e}`);
@@ -156,6 +193,7 @@ export async function syncHealthData(uid: string, groupId: string, settings: Hea
           for (const entry of entries) {
             try {
               const logId = resolveHealthLogId(entry.uuid, { type: 'calories', date: entry.date, value: entry.calories, meal: entry.meal, source });
+              if (await isTombstoned(logId)) continue;
               await upsertGroupLogById(groupId, logId, {
                 uid,
                 type: 'calories',
@@ -177,6 +215,7 @@ export async function syncHealthData(uid: string, groupId: string, settings: Hea
             if (!importOk(entry.date)) continue;
             try {
               const logId = resolveHealthLogId(entry.uuid, { type: 'calories', date: entry.date, value: entry.calories, meal: entry.meal, source });
+              if (await isTombstoned(logId)) continue;
               await upsertGroupLogById(groupId, logId, {
                 uid,
                 type: 'calories',
@@ -214,6 +253,7 @@ export async function syncHealthData(uid: string, groupId: string, settings: Hea
             if (!importOk(weight.date)) continue;
             try {
               const logId = resolveHealthLogId(weight.uuid, { type: 'weight', date: weight.date, value: weight.weight, source });
+              if (await isTombstoned(logId)) continue;
               await upsertGroupLogById(groupId, logId, {
                 uid,
                 type: 'weight',

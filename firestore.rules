@@ -28,6 +28,11 @@ service cloud.firestore {
       match /groups/{groupId} {
         allow read, write: if signedIn() && request.auth.uid == uid;
       }
+      // Deleted health-synced log ids — sync skips (and re-deletes) these so
+      // a user's delete of an imported workout can't be resurrected.
+      match /healthTombstones/{logId} {
+        allow read, write: if signedIn() && request.auth.uid == uid;
+      }
       match /weights/{entryId} {
         allow read, write: if signedIn() && request.auth.uid == uid;
       }

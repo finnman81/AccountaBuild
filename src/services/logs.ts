@@ -3,6 +3,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
   getDocs,
   limit,
   onSnapshot,
@@ -186,6 +187,23 @@ export async function upsertGroupLogById(
 
 /** Delete a log by id (used when a synced health sample was deleted in Health). */
 export async function deleteGroupLogById(groupId: string, logId: string): Promise<void> {
+  // Health-synced logs need a TOMBSTONE, or the next sync's idempotent upsert
+  // resurrects them ("I delete the extra and it comes back"). Manual logs
+  // delete cleanly — sync never re-creates those.
+  try {
+    const snap = await getDoc(doc(db, 'groups', groupId, 'logs', logId));
+    const d = snap.exists() ? (snap.data() as any) : null;
+    if (d?.uid && d?.source && d.source !== 'self_reported') {
+      await setDoc(doc(db, 'users', d.uid, 'healthTombstones', logId), {
+        groupId,
+        type: d.type ?? null,
+        date: d.date ?? null,
+        deletedAt: serverTimestamp(),
+      });
+    }
+  } catch {
+    /* tombstone is best-effort; the delete below must still run */
+  }
   await deleteDoc(doc(db, 'groups', groupId, 'logs', logId));
 }
 
