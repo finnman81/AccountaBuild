@@ -20,6 +20,8 @@ import TodayEntriesSheet from '../components/today/TodayEntriesSheet';
 import TeamTodayRail from '../components/today/TeamTodayRail';
 import LeaderboardPreviewCard from '../components/today/LeaderboardPreviewCard';
 import WeeklyRecapBanner from '../components/today/WeeklyRecapBanner';
+import SetupChecklistCard from '../components/today/SetupChecklistCard';
+import UpdateBanner from '../components/today/UpdateBanner';
 import { deleteGroupLogById } from '../services/logs';
 import type { ChecklistItem, TodayLogEntry } from '../viewmodels/today';
 import type { Tier } from '../mmr/types';
@@ -184,6 +186,8 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
         onBell={onBell ?? (() => {})}
       />
       <WeeklyRecapBanner onOpen={onOpenWeeklyRecap ?? (() => {})} />
+      <UpdateBanner />
+      <SetupChecklistCard />
       {challenge && challengeInfo ? (
         <Pressable
           onPress={onOpenChallenge ?? (() => {})}

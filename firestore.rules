@@ -110,6 +110,12 @@ service cloud.firestore {
       allow read, update, delete: if false;
     }
 
+    // App-level remote config (update banner, kill switches) — admin-written only.
+    match /config/{docId} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
     // Join-code lookup table so non-members can join without reading all groups.
     // get-only: `read` would also allow LISTING the collection, letting anyone
     // harvest every group's code. The app only ever looks up exact codes.
