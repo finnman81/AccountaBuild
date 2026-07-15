@@ -58,7 +58,13 @@ export default function TodayEntriesSheet({ item, onClose, onEdit, onDelete, onA
                 <View key={entry.logId} style={[styles.entryRow, i < (item?.entries.length ?? 0) - 1 && styles.divider]}>
                   <View style={{ flex: 1 }}>
                     <AppText variant="rowTitle" color="primary">{entry.valueLine}</AppText>
-                    {entry.loggedAtMs ? <AppText variant="rowSubtitle" color="muted">{fmtTime(entry.loggedAtMs)}</AppText> : null}
+                    {entry.loggedAtMs || entry.fpDelta ? (
+                      <AppText variant="rowSubtitle" color="muted">
+                        {fmtTime(entry.loggedAtMs)}
+                        {entry.fpDelta ? `${entry.loggedAtMs ? ' · ' : ''}` : ''}
+                        {entry.fpDelta ? <AppText variant="rowSubtitle" style={{ color: colors.rankGold }}>{`+${entry.fpDelta} FP`}</AppText> : null}
+                      </AppText>
+                    ) : null}
                   </View>
                   <TouchableOpacity onPress={() => onEdit(entry)} style={styles.iconBtn} accessibilityLabel="Edit">
                     <Icon source="pencil-outline" size={20} color={colors.textSecondary} />

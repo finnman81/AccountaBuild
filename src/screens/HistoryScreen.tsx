@@ -245,6 +245,9 @@ export default function HistoryScreen({ navigation }: Props) {
                     <AppText variant="rowTitle" color="primary">{meta.label(l, units)}</AppText>
                     <AppText variant="rowSubtitle" color="muted" style={{ textTransform: 'capitalize' }}>{l.type}</AppText>
                   </View>
+                  {typeof l.fpDelta === 'number' && l.fpDelta > 0 ? (
+                    <AppText variant="rowSubtitle" style={{ color: colors.rankGold, fontWeight: '700' }}>{`+${l.fpDelta} FP`}</AppText>
+                  ) : null}
                 </View>
               );
             })

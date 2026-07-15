@@ -7,15 +7,18 @@
  * save promise resolves, so the overlay must handle either ordering.
  */
 
-type Listener = () => void;
+/** Where the just-saved log lives, so the FP toast can stamp its fpDelta back on it. */
+export type SavedLogInfo = { groupId: string; logId: string };
+
+type Listener = (info?: SavedLogInfo) => void;
 
 const listeners = new Set<Listener>();
-const firstLogListeners = new Set<Listener>();
+const firstLogListeners = new Set<() => void>();
 
-export function notifyLogSaved() {
+export function notifyLogSaved(info?: SavedLogInfo) {
   listeners.forEach((l) => {
     try {
-      l();
+      l(info);
     } catch {
       // listener errors must never break a save
     }

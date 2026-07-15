@@ -13,6 +13,7 @@ import { subscribeLatestGroupMessage, type GroupMessage } from '../services/chat
 import { subscribeMyGroupMeta } from '../services/groups';
 import { subscribeUnreadActivityCount } from '../services/activity';
 import { useMyUnits } from '../hooks/useMyUnits';
+import { useYesterdayFp } from '../hooks/useYesterdayFp';
 import { buildLeaderboardPreview, buildTeamToday, buildTodayChecklist, type ChecklistType } from '../viewmodels/today';
 import TodayHeader from '../components/today/TodayHeader';
 import TodaysLogCard from '../components/today/TodaysLogCard';
@@ -99,6 +100,7 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
   const myUid = user?.uid ?? '';
   const dailyCalorieGoal = myProfile?.dailyCalorieGoal ?? publicUsers[myUid]?.dailyCalorieGoal ?? null;
   const units = useMyUnits();
+  const yesterdayFp = useYesterdayFp(myUid);
 
   const checklist = useMemo(
     () => buildTodayChecklist({ logs, myUid, today, dailyCalorieGoal, units }),
@@ -249,6 +251,14 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
       ) : null}
 
       <View style={{ height: 20 }} />
+      {yesterdayFp != null && yesterdayFp !== 0 ? (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10, paddingHorizontal: 2 }}>
+          <Icon source={yesterdayFp > 0 ? 'trending-up' : 'trending-down'} size={16} color={yesterdayFp > 0 ? colors.rankGold : colors.danger} />
+          <Text style={{ fontSize: 13, fontWeight: '600', color: yesterdayFp > 0 ? colors.rankGold : colors.danger }}>
+            {yesterdayFp > 0 ? `Yesterday: +${yesterdayFp} FP` : `Yesterday: ${yesterdayFp} FP`}
+          </Text>
+        </View>
+      ) : null}
       <TodaysLogCard checklist={checklist} onLog={onOpenLog ?? (() => {})} onOpenEntries={setEntriesItem} />
       <TeamTodayRail team={team} onMemberPress={onOpenMember ?? (() => {})} onMemberLongPress={onCheer} />
       <LeaderboardPreviewCard rows={preview} onViewAll={onViewLeaderboard ?? (() => {})} />

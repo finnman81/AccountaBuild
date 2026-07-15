@@ -70,6 +70,13 @@ service cloud.firestore {
       match /activity/{activityId} {
         allow read, write: if signedIn() && request.auth.uid == uid;
       }
+      // Daily FP ledger: users/{uid}/fpDaily/{YYYY-MM-DD} — written ONLY by
+      // updateMmrScheduled (admin). Read-only to the owner; deny client writes
+      // so the FP-based Yesterday's Champion ranking can't be gamed.
+      match /fpDaily/{dateId} {
+        allow read: if signedIn() && request.auth.uid == uid;
+        allow write: if false;
+      }
     }
 
     // Global season metadata (for countdown / UI). Any signed-in user can read.

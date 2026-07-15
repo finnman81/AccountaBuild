@@ -50,6 +50,13 @@ export type GroupLog = {
   payload: Record<string, unknown>;
   /** Cheers/reactions on this log: uid → emoji. */
   reactions?: Record<string, string>;
+  /**
+   * FP this log earned at the moment it was saved (the "+N FP" toast value,
+   * stamped best-effort by FpGainOverlay). Approximate by design: a log's
+   * marginal FP depends on the week's pace when it lands. Absent on
+   * health-synced logs and logs that moved nothing.
+   */
+  fpDelta?: number;
 };
 
 function normalizeLogDate(date?: string) {
@@ -205,6 +212,14 @@ export async function deleteGroupLogById(groupId: string, logId: string): Promis
     /* tombstone is best-effort; the delete below must still run */
   }
   await deleteDoc(doc(db, 'groups', groupId, 'logs', logId));
+}
+
+/**
+ * Stamp the FP a log earned onto the log doc (owner-only per rules). Fire and
+ * forget — display data, never load-bearing for scoring.
+ */
+export async function setLogFpDelta(groupId: string, logId: string, fpDelta: number): Promise<void> {
+  await setDoc(doc(db, 'groups', groupId, 'logs', logId), { fpDelta }, { merge: true });
 }
 
 /**

@@ -13,6 +13,8 @@ export type TodayLogEntry = {
   loggedAtMs: number | null;
   valueLine: string;
   payload: any;
+  /** FP this log earned when saved (stamped by the FP toast); absent = unknown. */
+  fpDelta: number | null;
 };
 export type ChecklistItem = {
   type: ChecklistType;
@@ -114,7 +116,7 @@ export function buildTodayChecklist(params: {
   const build = (type: ChecklistType, title: string): ChecklistItem => {
     const ofType = mine.filter((l) => l.type === type);
     const entries: TodayLogEntry[] = ofType
-      .map((l) => ({ logId: l.id, type, date: l.date, loggedAtMs: logTsMs(l), valueLine: entryValueLine(type, l), payload: l.payload }))
+      .map((l) => ({ logId: l.id, type, date: l.date, loggedAtMs: logTsMs(l), valueLine: entryValueLine(type, l), payload: l.payload, fpDelta: typeof (l as any).fpDelta === 'number' ? (l as any).fpDelta : null }))
       .sort((a, b) => (b.loggedAtMs ?? 0) - (a.loggedAtMs ?? 0));
     if (ofType.length === 0) return { type, title, logged: false, loggedAtMs: null, valueLine: 'Not logged yet', entries: [] };
 

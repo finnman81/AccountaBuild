@@ -3,7 +3,8 @@ import { Animated, Easing, StyleSheet } from 'react-native';
 
 import { AuthContext } from '../../store/AuthContext';
 import { subscribeMyMmrProjection } from '../../services/mmrProjection';
-import { subscribeLogSaved } from '../../services/fpEvents';
+import { subscribeLogSaved, type SavedLogInfo } from '../../services/fpEvents';
+import { setLogFpDelta } from '../../services/logs';
 import { colors } from '../../theme/colors';
 
 /**
@@ -29,6 +30,8 @@ export default function FpGainOverlay() {
   const baseline = useRef<number | null>(null);
   const lastIncrease = useRef<{ delta: number; at: number } | null>(null);
   const armedUntil = useRef(0);
+  // The log doc awaiting an FP stamp (set on save, consumed when a gain pairs).
+  const pendingStamp = useRef<SavedLogInfo | null>(null);
   const fallbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const opacity = useRef(new Animated.Value(0)).current;
   const rise = useRef(new Animated.Value(0)).current;
@@ -58,7 +61,15 @@ export default function FpGainOverlay() {
     clearFallback();
     // Sub-1 gains still deserve acknowledgement — round up to +1 rather than
     // staying silent (the projection genuinely moved).
-    show(delta >= 0.5 ? { kind: 'gain', delta: Math.max(1, Math.round(delta)) } : { kind: 'logged' });
+    const rounded = delta >= 0.5 ? Math.max(1, Math.round(delta)) : null;
+    show(rounded != null ? { kind: 'gain', delta: rounded } : { kind: 'logged' });
+    // Persist the toast value onto the log so entries/history can show what
+    // each log earned. Same number the user just saw — approximate by design.
+    const target = pendingStamp.current;
+    pendingStamp.current = null;
+    if (rounded != null && target) {
+      void setLogFpDelta(target.groupId, target.logId, rounded).catch(() => {});
+    }
   };
 
   useEffect(() => {
@@ -79,8 +90,9 @@ export default function FpGainOverlay() {
         showGain(delta);
       }
     });
-    const unsubSaved = subscribeLogSaved(() => {
+    const unsubSaved = subscribeLogSaved((info) => {
       const now = Date.now();
+      pendingStamp.current = info ?? null;
       const inc = lastIncrease.current;
       if (inc && now - inc.at <= PAIR_WINDOW_MS) {
         lastIncrease.current = null;

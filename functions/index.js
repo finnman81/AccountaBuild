@@ -297,13 +297,32 @@ exports.updateMmrScheduled = onSchedule(
 
     for (const u of users.docs) {
       const before = u.data() || {};
+      let results;
       try {
-        await computeUserUpToCurrentWeek(db, { uid: u.id, apply: true });
+        results = await computeUserUpToCurrentWeek(db, { uid: u.id, apply: true });
         ok += 1;
       } catch (e) {
         failed += 1;
         console.error('[updateMmrScheduled] failed for', u.id, e);
         continue;
+      }
+
+      // Daily FP ledger: users/{uid}/fpDaily/{YYYY-MM-DD} = FP as of the LAST
+      // compute run of that ET day (runs every 6h, so the final write ≈ the
+      // day's closing value). Day-over-day deltas power "Yesterday +N FP" in
+      // the app and the FP-based Yesterday's Champion ranking. Server-written
+      // only (rules deny clients) so the champion ranking can't be gamed.
+      try {
+        const lastR = Array.isArray(results) ? [...results].reverse().find((r) => typeof r?.mmrAfter === 'number') : null;
+        if (lastR) {
+          const dayEt = core.yyyyMmDdInTz(now, TZ);
+          await db.doc(`users/${u.id}/fpDaily/${dayEt}`).set(
+            { date: dayEt, mmr: Math.round(lastR.mmrAfter), weekId: currentWeekId, updatedAt: FieldValue.serverTimestamp() },
+            { merge: true },
+          );
+        }
+      } catch (e) {
+        console.warn('[updateMmrScheduled] fpDaily write failed for', u.id, e);
       }
 
       if (!pushWindow || !isExpoToken(before.expoPushToken)) continue;

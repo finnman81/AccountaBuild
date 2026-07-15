@@ -74,14 +74,19 @@ module.exports = { evaluateStreakRisk };
 
 /**
  * "Yesterday's Champion" — per group, who logged the most yesterday?
- * Score: distinct categories logged (calories/workout/weight, 0-3),
- * tiebreak by workout minutes, then total logs. Groups where nobody logged
- * are skipped (no spam for dead days). Returns evaluation only — the caller
- * sends pushes and stamps the idempotency marker.
+ * Primary ranking: ACTUAL FP earned yesterday (day-over-day delta from the
+ * users/{uid}/fpDaily ledger written by updateMmrScheduled), when every
+ * candidate has both snapshots. Fallback (ledger not warm yet): distinct
+ * categories logged (calories/workout/weight, 0-3), tiebreak by workout
+ * minutes, then total logs. Groups where nobody logged are skipped (no spam
+ * for dead days). Returns evaluation only — the caller sends pushes and
+ * stamps the idempotency marker.
  */
 async function evaluateDailyChampion(db, now) {
   const yesterdayDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
   const yDay = core.yyyyMmDdInTz(yesterdayDate, TZ);
+  const dayBeforeDate = new Date(now.getTime() - 48 * 60 * 60 * 1000);
+  const bDay = core.yyyyMmDdInTz(dayBeforeDate, TZ);
 
   const groups = await db.collection('groups').get();
   const results = [];
@@ -111,12 +116,32 @@ async function evaluateDailyChampion(db, now) {
       }
       if (byUid.size === 0) continue;
 
+      // FP deltas from the daily ledger. Only trusted when EVERY candidate has
+      // both snapshots — mixing FP-ranked and category-ranked members would be
+      // an apples/oranges contest.
+      const fpDeltas = new Map();
+      let allHaveFp = true;
+      for (const uid of byUid.keys()) {
+        const [ySnap, bSnap] = await Promise.all([
+          db.doc(`users/${uid}/fpDaily/${yDay}`).get(),
+          db.doc(`users/${uid}/fpDaily/${bDay}`).get(),
+        ]);
+        const y = ySnap.exists ? Number(ySnap.data().mmr) : NaN;
+        const b = bSnap.exists ? Number(bSnap.data().mmr) : NaN;
+        if (Number.isFinite(y) && Number.isFinite(b)) fpDeltas.set(uid, Math.round(y - b));
+        else allHaveFp = false;
+      }
+      // FP mode also needs a strictly positive winner — a day where everyone's
+      // delta is 0/negative (e.g. Monday penalties) falls back to categories.
+      const useFp = allHaveFp && [...fpDeltas.values()].some((v) => v > 0);
+
       const ranked = [...byUid.entries()]
-        .map(([uid, r]) => ({ uid, cats: r.cats.size, minutes: Math.round(r.minutes), total: r.total }))
-        .sort((a, b) => b.cats - a.cats || b.minutes - a.minutes || b.total - a.total);
+        .map(([uid, r]) => ({ uid, fp: fpDeltas.get(uid) ?? 0, cats: r.cats.size, minutes: Math.round(r.minutes), total: r.total }))
+        .sort((a, b) => (useFp ? b.fp - a.fp || b.cats - a.cats : b.cats - a.cats) || b.minutes - a.minutes || b.total - a.total);
 
       const top = ranked[0];
-      const coChamp = ranked[1] && ranked[1].cats === top.cats && ranked[1].minutes === top.minutes && ranked[1].total === top.total ? ranked[1] : null;
+      const sameScore = (x, y) => (useFp ? x.fp === y.fp : x.cats === y.cats && x.minutes === y.minutes && x.total === y.total);
+      const coChamp = ranked[1] && sameScore(ranked[1], top) ? ranked[1] : null;
 
       const nameOf = async (uid) => {
         const pub = await db.doc(`publicUsers/${uid}`).get();
@@ -125,7 +150,9 @@ async function evaluateDailyChampion(db, now) {
       const championName = await nameOf(top.uid);
       const coChampName = coChamp ? await nameOf(coChamp.uid) : null;
 
-      const line = `${top.cats}/3 logged${top.minutes > 0 ? ` · ${top.minutes} min trained` : ''}`;
+      const line = useFp
+        ? `+${top.fp} FP earned${top.minutes > 0 ? ` · ${top.minutes} min trained` : ''}`
+        : `${top.cats}/3 logged${top.minutes > 0 ? ` · ${top.minutes} min trained` : ''}`;
       results.push({
         groupId: g.id,
         yDay,

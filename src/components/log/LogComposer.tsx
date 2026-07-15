@@ -231,13 +231,14 @@ export default function LogComposer({ initialType = 'weight', onClose, onSaved, 
     setError(null);
     try {
       const weight = Math.round(weightLb * 10) / 10;
-      if (mode === 'weight') await addWeightEverywhere({ groupId: activeGroupId, uid: user.uid, weight, date });
-      else if (mode === 'workout') await addWorkoutLog({ groupId: activeGroupId, uid: user.uid, workoutType, durationMinutes: duration, date });
-      else if (mode === 'calories') await addCaloriesLog({ groupId: activeGroupId, uid: user.uid, calories, meal, date });
+      let savedRef: { id: string } | null = null;
+      if (mode === 'weight') savedRef = await addWeightEverywhere({ groupId: activeGroupId, uid: user.uid, weight, date });
+      else if (mode === 'workout') savedRef = await addWorkoutLog({ groupId: activeGroupId, uid: user.uid, workoutType, durationMinutes: duration, date });
+      else if (mode === 'calories') savedRef = await addCaloriesLog({ groupId: activeGroupId, uid: user.uid, calories, meal, date });
       if (mode === 'weight') lastSavedWeightRef.current = weight;
       const last: LastValues = { weightLb: weight, calories, duration, workoutType, meal };
       void AsyncStorage.setItem(`${LAST_VALUES_KEY_PREFIX}:${user.uid}`, JSON.stringify(last)).catch(() => {});
-      notifyLogSaved();
+      notifyLogSaved(savedRef ? { groupId: activeGroupId, logId: savedRef.id } : undefined);
       // First-ever log: fire a one-time celebration. Guard on a per-user flag so
       // it never replays. Set it BEFORE notifying so a double-tap can't double-fire.
       void (async () => {
