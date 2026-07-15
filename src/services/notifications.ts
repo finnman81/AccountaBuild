@@ -99,7 +99,19 @@ function prefsSignature(prefs: NotificationPreferences) {
   return JSON.stringify({ enabled: prefs.enabled, count: prefs.count, times: prefs.times });
 }
 
-export async function scheduleNotifications(options?: { force?: boolean; startFromTomorrow?: boolean; minLeadSeconds?: number }): Promise<void> {
+// Serialize ALL scheduling: the flow is cancelAll -> schedule, so two
+// interleaved calls (mount + foreground + group-load can all trigger a
+// re-arm) each pass the dedupe check, each cancel, and each schedule —
+// double reminders at the same slot (seen in prod: two 9:00 messages).
+let schedulingChain: Promise<void> = Promise.resolve();
+
+export function scheduleNotifications(options?: { force?: boolean; startFromTomorrow?: boolean; minLeadSeconds?: number }): Promise<void> {
+  const next = schedulingChain.then(() => scheduleNotificationsInner(options), () => scheduleNotificationsInner(options));
+  schedulingChain = next;
+  return next;
+}
+
+async function scheduleNotificationsInner(options?: { force?: boolean; startFromTomorrow?: boolean; minLeadSeconds?: number }): Promise<void> {
   try {
     const prefs = await getNotificationPreferences();
     if (!prefs.enabled) {
