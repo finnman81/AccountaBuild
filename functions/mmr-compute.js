@@ -87,12 +87,20 @@ async function getWeekTotals(db, uid, groupIds, weekStart, weekEnd) {
   const calorieTotalsByDate = {};
   await Promise.all(
     groupIds.map(async (groupId) => {
-      const snap = await db.collection('groups').doc(groupId).collection('logs').orderBy('ts', 'desc').limit(1500).get();
+      // Direct uid+date query (composite index exists) — the old newest-1500
+      // scan dropped early-week logs in chatty groups (silent FP undercount).
+      const snap = await db
+        .collection('groups')
+        .doc(groupId)
+        .collection('logs')
+        .where('uid', '==', uid)
+        .where('date', '>=', weekStart)
+        .where('date', '<=', weekEnd)
+        .get();
       snap.docs.forEach((d) => {
         const data = d.data();
-        if (String(data?.uid ?? '') !== uid) return;
         const date = String(data?.date ?? '').trim();
-        if (!date || date < weekStart || date > weekEnd) return;
+        if (!date) return;
         const type = String(data?.type ?? '');
         if (type === 'workout') {
           workoutsDone += 1;

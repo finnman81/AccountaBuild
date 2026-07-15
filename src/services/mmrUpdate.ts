@@ -83,16 +83,21 @@ async function getWeekWorkoutTotals(uid: string, groupIds: string[], weekStart: 
   let workoutsDone = 0;
   let minutesDone = 0;
   let caloriesLogged = 0;
-  // Beta-friendly approach: read last N logs per group (no composite indexes), then filter client-side.
+  // Direct uid+date query (composite index exists). The old newest-800-per-
+  // group scan silently DROPPED a user's early-week logs once the group
+  // passed ~800 logs/week — an FP undercount with no error. Also ~20x
+  // cheaper in reads.
   await Promise.all(
     groupIds.map(async (groupId) => {
-      const ref = query(collection(db, 'groups', groupId, 'logs'), orderBy('ts', 'desc'), limit(800));
+      const ref = query(
+        collection(db, 'groups', groupId, 'logs'),
+        where('uid', '==', uid),
+        where('date', '>=', weekStart),
+        where('date', '<=', weekEnd),
+      );
       const snap = await getDocs(ref);
       for (const d of snap.docs) {
         const data = d.data() as any;
-        if (String(data?.uid ?? '') !== uid) continue;
-        const date = String(data?.date ?? '').trim();
-        if (!date || date < weekStart || date > weekEnd) continue;
         const type = String(data?.type ?? '');
         if (type === 'workout') {
           workoutsDone += 1;
@@ -119,14 +124,18 @@ async function getWeekCalorieTotalsFromLogs(
   let totalCalories = 0;
   await Promise.all(
     groupIds.map(async (groupId) => {
-      const ref = query(collection(db, 'groups', groupId, 'logs'), orderBy('ts', 'desc'), limit(800));
+      const ref = query(
+        collection(db, 'groups', groupId, 'logs'),
+        where('uid', '==', uid),
+        where('date', '>=', weekStart),
+        where('date', '<=', weekEnd),
+      );
       const snap = await getDocs(ref);
       for (const d of snap.docs) {
         const data = d.data() as any;
-        if (String(data?.uid ?? '') !== uid) continue;
-        const date = String(data?.date ?? '').trim();
-        if (!date || date < weekStart || date > weekEnd) continue;
         if (String(data?.type ?? '') !== 'calories') continue;
+        const date = String(data?.date ?? '').trim();
+        if (!date) continue;
         const cals = Number(data?.payload?.calories);
         if (!Number.isFinite(cals) || cals <= 0) continue;
         totalsByDate[date] = (totalsByDate[date] ?? 0) + cals;

@@ -465,7 +465,9 @@ export function subscribeMyMmrProjection(uid: string, onChange: (p: MmrProjectio
         const addedGroups = newGroupIds.filter((id) => !groupIds.includes(id));
         for (const groupId of addedGroups) {
           const logsUnsub = onSnapshot(
-            query(collection(db, 'groups', groupId, 'logs'), orderBy('ts', 'desc'), limit(800)),
+            // Direct uid+date query (composite index) — the newest-800 window
+            // dropped early-week logs in chatty groups and cost 20x the reads.
+            query(collection(db, 'groups', groupId, 'logs'), where('uid', '==', uid), where('date', '>=', start), where('date', '<=', end)),
             (snap) => {
               const workouts: Array<{ date: string; durationMinutes: number }> = [];
               const calorieDays = new Set<string>();
