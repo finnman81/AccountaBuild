@@ -44,6 +44,11 @@ module.exports = ({ config }) => {
       'react-native-health-connect',
       // OS-scheduled background health sync (runs when the app is closed).
       'expo-background-task',
+      // Crash + error reporting. Native module — only takes effect in a NEW
+      // build (the guarded JS init no-ops on builds without it, so shipping
+      // this via OTA to an older build is safe). DSN comes from
+      // extra.EXPO_PUBLIC_SENTRY_DSN below.
+      '@sentry/react-native',
     ],
     android: {
       ...config.android,
@@ -76,6 +81,8 @@ module.exports = ({ config }) => {
       EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET || 'accountabuild.firebasestorage.app',
       EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || '364977359326',
       EXPO_PUBLIC_FIREBASE_APP_ID: process.env.EXPO_PUBLIC_FIREBASE_APP_ID || '1:364977359326:web:d7ce539ba3099c72b1b54f',
+      // Sentry DSN — empty until Jake sets it (init no-ops when blank).
+      EXPO_PUBLIC_SENTRY_DSN: process.env.EXPO_PUBLIC_SENTRY_DSN || '',
     },
   };
 };

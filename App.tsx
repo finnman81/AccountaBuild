@@ -12,6 +12,11 @@ import { NotificationProvider } from './src/components/notifications/Notificatio
 import HealthAutoSync from './src/components/health/HealthAutoSync';
 import SafeUpdateChecker from './src/components/state/SafeUpdateChecker';
 import { appTheme } from './src/theme/theme';
+import { initSentry } from './src/services/sentry';
+
+// Crash reporting. No-ops until a DSN is set AND a build ships the native
+// module, so this is safe to carry through OTA updates in the meantime.
+initSentry();
 
 // Hold the native splash until the app is ready (fonts + auth + onboarding).
 // AppNavigator hides it once it knows which screen to show — so the user goes
