@@ -81,7 +81,8 @@ service cloud.firestore {
     }
 
     // Public user profiles, readable only if the viewer shares a group with the target user.
-    // The “shared group” check is implemented via a per-viewer visibility index written by the client.
+    // The “shared group” check reads a per-viewer visibility index maintained by
+    // the syncVisibility Cloud Function on group member join/leave.
     match /publicUsers/{uid} {
       allow read: if signedIn() && (request.auth.uid == uid ||
         exists(/databases/$(database)/documents/visibility/$(request.auth.uid)/canSee/$(uid)));
@@ -96,9 +97,13 @@ service cloud.firestore {
       }
     }
 
-    // Per-viewer visibility index: visibility/{viewerUid}/canSee/{targetUid}
+    // Per-viewer visibility index: visibility/{viewerUid}/canSee/{targetUid}.
+    // Server-written ONLY (syncVisibility function; admin bypasses rules).
+    // Client writes used to be allowed here, which let any signed-in user
+    // grant themselves canSee on ANY uid and read any profile.
     match /visibility/{viewerUid}/canSee/{targetUid} {
-      allow read, write: if signedIn() && request.auth.uid == viewerUid;
+      allow read: if signedIn() && request.auth.uid == viewerUid;
+      allow write: if false;
     }
 
     // Social-push queue: the app enqueues a cheer/nudge here; a Cloud Function

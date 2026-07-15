@@ -13,7 +13,7 @@
  * (chatMessages / teamActivity / streakReminder / weeklyRecap); a missing
  * field means enabled. Nudges additionally require allowNudges === true.
  */
-const { onDocumentCreated } = require('firebase-functions/v2/firestore');
+const { onDocumentCreated, onDocumentWritten } = require('firebase-functions/v2/firestore');
 const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestore');
@@ -643,4 +643,53 @@ exports.enforceHealthLogHygiene = onDocumentCreated('groups/{groupId}/logs/{logI
   } catch (e) {
     console.error('[hygiene] failed', logId, e);
   }
+});
+
+// ---------------------------------------------------------------------------
+// Visibility index (server-maintained)
+// ---------------------------------------------------------------------------
+// publicUsers reads are gated on visibility/{viewer}/canSee/{target}. The
+// client used to write this index itself, which meant any signed-in user
+// could grant THEMSELVES canSee on any uid and read any profile. Rules now
+// deny client writes; this trigger is the only writer (admin bypasses rules).
+exports.syncVisibility = onDocumentWritten('groups/{groupId}/members/{memberId}', async (event) => {
+  const { groupId, memberId } = event.params;
+  const created = !event.data?.before?.exists && !!event.data?.after?.exists;
+  const removed = !!event.data?.before?.exists && !event.data?.after?.exists;
+  if (!created && !removed) return; // member-profile mirror updates churn these docs; membership unchanged
+
+  const uid = memberId; // member doc ids are uids (see getGroupMemberUids)
+  const others = (await getGroupMemberUids(groupId)).filter((m) => m !== uid);
+
+  if (created) {
+    const batch = db.batch();
+    const stamp = { groupId, updatedAt: FieldValue.serverTimestamp() };
+    batch.set(db.doc(`visibility/${uid}/canSee/${uid}`), { targetUid: uid, ...stamp }, { merge: true });
+    for (const other of others) {
+      batch.set(db.doc(`visibility/${uid}/canSee/${other}`), { targetUid: other, ...stamp }, { merge: true });
+      batch.set(db.doc(`visibility/${other}/canSee/${uid}`), { targetUid: uid, ...stamp }, { merge: true });
+    }
+    await batch.commit();
+    console.log(`[visibility] ${uid} joined ${groupId}: granted ${others.length} pairs`);
+    return;
+  }
+
+  // Departure: revoke each pair UNLESS the two still share some other group.
+  const groupIdsOf = async (u) => {
+    const snap = await db.collection('users').doc(u).collection('groups').get();
+    return new Set(snap.docs.map((d) => String(d.data()?.groupId || d.id)).filter(Boolean));
+  };
+  const departedGroups = await groupIdsOf(uid);
+  departedGroups.delete(groupId); // may lag the member-doc delete; never counts as shared
+  const batch = db.batch();
+  let revoked = 0;
+  for (const other of others) {
+    const otherGroups = await groupIdsOf(other);
+    if ([...departedGroups].some((g) => otherGroups.has(g))) continue;
+    batch.delete(db.doc(`visibility/${uid}/canSee/${other}`));
+    batch.delete(db.doc(`visibility/${other}/canSee/${uid}`));
+    revoked += 1;
+  }
+  await batch.commit();
+  console.log(`[visibility] ${uid} left ${groupId}: revoked ${revoked} of ${others.length} pairs`);
 });

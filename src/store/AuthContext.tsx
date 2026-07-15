@@ -13,7 +13,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { auth, db, firebaseInitError, isFirebaseConfigured } from '../firebase/firebase';
 import { syncMyMemberProfileToAllGroups } from '../services/profile';
-import { syncMyVisibilityIndex } from '../services/visibility';
 import { STARTING_MMR, STARTING_TIER, STARTING_DIVISION } from '../mmr/constants';
 
 // Debug: Check AsyncStorage for Firebase auth data
@@ -109,7 +108,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (didSyncMemberProfile) return;
     setDidSyncMemberProfile(true);
     void syncMyMemberProfileToAllGroups(user.uid);
-    void syncMyVisibilityIndex(user.uid);
   }, [didSyncMemberProfile, user?.uid]);
 
   const value = useMemo<AuthContextValue>(
