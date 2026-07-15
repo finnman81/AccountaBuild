@@ -28,6 +28,10 @@ export type LeaderboardRow = {
 export type LeaderboardData = {
   rows: LeaderboardRow[];
   gapToTop: number | null; // my MMR gap to #1 (null if I'm #1 or unknown)
+  /** The member directly ahead of me and the FP to overtake them (null if I'm #1). */
+  rival: { name: string; gap: number } | null;
+  /** When I'm #1: the closest chaser and my lead over them (null otherwise). */
+  chaser: { name: string; lead: number } | null;
 };
 
 const TIERS: Tier[] = ['Iron', 'Bronze', 'Silver', 'Gold', 'Platinum', 'Diamond', 'Master', 'Challenger'];
@@ -93,9 +97,35 @@ export function buildLeaderboard(params: {
   }));
 
   const topMmr = ranked[0]?.mmr ?? null;
-  const me = ranked.find((r) => r.isMe);
+  const myIndex = ranked.findIndex((r) => r.isMe);
+  const me = myIndex >= 0 ? ranked[myIndex] : undefined;
   const gapToTop =
     me && me.rank > 1 && topMmr != null && me.mmr != null ? Math.max(0, Math.round(topMmr - me.mmr)) : null;
 
-  return { rows: ranked, gapToTop };
+  // Closest rival: the first person above me with a strictly higher MMR (skip
+  // anyone tied with me — you don't "overtake" a tie, you break it by pulling ahead).
+  let rival: { name: string; gap: number } | null = null;
+  if (me && me.mmr != null) {
+    for (let i = myIndex - 1; i >= 0; i -= 1) {
+      const r = ranked[i]!;
+      if (r.mmr != null && r.mmr > me.mmr) {
+        rival = { name: r.name, gap: Math.max(1, Math.round(r.mmr - me.mmr)) };
+        break;
+      }
+    }
+  }
+
+  // When I'm #1, show my lead over the closest chaser below me instead.
+  let chaser: { name: string; lead: number } | null = null;
+  if (me && me.rank === 1 && me.mmr != null) {
+    for (let i = myIndex + 1; i < ranked.length; i += 1) {
+      const r = ranked[i]!;
+      if (r.mmr != null && r.mmr < me.mmr) {
+        chaser = { name: r.name, lead: Math.max(0, Math.round(me.mmr - r.mmr)) };
+        break;
+      }
+    }
+  }
+
+  return { rows: ranked, gapToTop, rival, chaser };
 }

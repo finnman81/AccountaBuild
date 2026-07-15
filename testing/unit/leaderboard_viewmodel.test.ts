@@ -89,3 +89,53 @@ describe('buildLeaderboard — tied ranks', () => {
     expect(rows.every((r) => !r.isTied)).toBe(true);
   });
 });
+
+describe('buildLeaderboard — rival / chaser coach hints', () => {
+  const TODAY = '2026-07-01';
+  const build = (myUid: string) =>
+    buildLeaderboard({
+      memberUids: ['a', 'b', 'c'],
+      publicUsers: {
+        a: pub('a', { mmrPublic: 2000 }),
+        b: pub('b', { mmrPublic: 1850 }),
+        c: pub('c', { mmrPublic: 1600 }),
+      },
+      canSee: new Set(['a', 'b', 'c']),
+      myUid,
+      logs: [],
+      today: TODAY,
+      streakRule: 'workout',
+      pastCutoff: false,
+    });
+
+  it('mid-pack member gets the person directly ahead as rival', () => {
+    const { rival, chaser } = build('b');
+    expect(rival).toEqual({ name: 'a', gap: 150 });
+    expect(chaser).toBeNull();
+  });
+
+  it('the leader gets the closest chaser and their lead instead', () => {
+    const { rival, chaser } = build('a');
+    expect(rival).toBeNull();
+    expect(chaser).toEqual({ name: 'b', lead: 150 });
+  });
+
+  it('rival skips anyone tied with me and points to the next strictly-higher member', () => {
+    const members = ['a', 'b', 'c'];
+    const { rival } = buildLeaderboard({
+      memberUids: members,
+      publicUsers: {
+        a: pub('a', { mmrPublic: 2000 }),
+        b: pub('b', { mmrPublic: 1800 }),
+        c: pub('c', { mmrPublic: 1800 }),
+      },
+      canSee: new Set(members),
+      myUid: 'c',
+      logs: [],
+      today: TODAY,
+      streakRule: 'workout',
+      pastCutoff: false,
+    });
+    expect(rival).toEqual({ name: 'a', gap: 200 });
+  });
+});

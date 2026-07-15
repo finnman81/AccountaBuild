@@ -77,8 +77,8 @@ export default function LeaderboardScreen({ route }: Props) {
   }, [canSee, memberUids, user?.uid]);
   useEffect(() => subscribeGroupLogs(groupId, setLogs, undefined, 400), [groupId]);
 
-  const { rows, gapToTop } = useMemo(() => {
-    if (!user?.uid) return { rows: [] as LeaderboardRow[], gapToTop: null };
+  const { rows, gapToTop, rival, chaser } = useMemo(() => {
+    if (!user?.uid) return { rows: [] as LeaderboardRow[], gapToTop: null, rival: null, chaser: null };
     return buildLeaderboard({
       memberUids,
       publicUsers,
@@ -93,7 +93,15 @@ export default function LeaderboardScreen({ route }: Props) {
 
   const podium = rows.slice(0, 3);
   const listRows = rows.slice(3);
-  const strongWeeks = gapToTop != null ? Math.max(1, Math.ceil(gapToTop / 80)) : null;
+  // Coach card: chase the person directly ahead (actionable) rather than #1.
+  // Fall back to gap-to-#1, then to "hold your lead" when I'm on top.
+  const coach: { eyebrow: string; title: string } | null = rival
+    ? { eyebrow: `Catch ${rival.name}`, title: `${rival.gap.toLocaleString()} FP to overtake` }
+    : chaser
+      ? { eyebrow: 'You lead the pack', title: chaser.lead > 0 ? `+${chaser.lead.toLocaleString()} FP over ${chaser.name}` : `Neck-and-neck with ${chaser.name}` }
+      : gapToTop != null
+        ? { eyebrow: 'Your gap to #1', title: `${gapToTop.toLocaleString()} FP · ~${Math.max(1, Math.ceil(gapToTop / 80))} strong week${Math.max(1, Math.ceil(gapToTop / 80)) === 1 ? '' : 's'}` }
+        : null;
 
   const openMember = (uid: string) => nav.navigate('MemberDetail' as any, { groupId, uid } as any);
 
@@ -143,12 +151,12 @@ export default function LeaderboardScreen({ route }: Props) {
               </View>
             )}
 
-            {gapToTop != null && (
+            {coach && (
               <View style={styles.coachCard}>
                 <View style={{ flex: 1 }}>
-                  <AppText variant="eyebrow" color="accent">Your gap to #1</AppText>
+                  <AppText variant="eyebrow" color="accent">{coach.eyebrow}</AppText>
                   <AppText variant="rowTitle" color="primary" style={{ marginTop: 2 }}>
-                    {gapToTop.toLocaleString()} FP · ~{strongWeeks} strong week{strongWeeks === 1 ? '' : 's'}
+                    {coach.title}
                   </AppText>
                 </View>
                 <TouchableOpacity style={styles.planPill} activeOpacity={0.85} onPress={() => nav.navigate('MMRGoals' as any)}>

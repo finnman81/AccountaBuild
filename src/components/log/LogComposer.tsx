@@ -7,7 +7,7 @@ import { AuthContext } from '../../store/AuthContext';
 import { useActiveGroup } from '../../store/ActiveGroupContext';
 import { addCaloriesLog, addWorkoutLog, type LogType, type MealType, type WorkoutType } from '../../services/logs';
 import { addWeightEverywhere } from '../../services/logEdits';
-import { notifyLogSaved } from '../../services/fpEvents';
+import { notifyLogSaved, notifyFirstLog } from '../../services/fpEvents';
 import { useMyUnits } from '../../hooks/useMyUnits';
 import { kgToLb, lbToKg } from '../../utils/formatters';
 import { todayYYYYMMDD, yesterdayYYYYMMDD } from '../../utils/dates';
@@ -238,6 +238,15 @@ export default function LogComposer({ initialType = 'weight', onClose, onSaved, 
       const last: LastValues = { weightLb: weight, calories, duration, workoutType, meal };
       void AsyncStorage.setItem(`${LAST_VALUES_KEY_PREFIX}:${user.uid}`, JSON.stringify(last)).catch(() => {});
       notifyLogSaved();
+      // First-ever log: fire a one-time celebration. Guard on a per-user flag so
+      // it never replays. Set it BEFORE notifying so a double-tap can't double-fire.
+      void (async () => {
+        const key = `firstLogCelebrated:${user.uid}`;
+        const seen = await AsyncStorage.getItem(key).catch(() => 'seen');
+        if (seen) return;
+        await AsyncStorage.setItem(key, new Date().toISOString()).catch(() => {});
+        notifyFirstLog();
+      })();
       onSaved?.();
       onClose?.();
     } catch (e: any) {

@@ -16,10 +16,17 @@ function statusFor(m: TeamMemberToday): AvatarStatus {
   return 'notLogged';
 }
 
-function MemberCell({ member, onPress }: { member: TeamMemberToday; onPress: (uid: string) => void }) {
+function MemberCell({ member, onPress, onLongPress }: { member: TeamMemberToday; onPress: (uid: string) => void; onLongPress?: (uid: string) => void }) {
   const valueColor = member.atRisk ? colors.danger : member.streakDays > 0 ? colors.success : colors.textMuted;
   return (
-    <Pressable onPress={() => onPress(member.uid)} style={styles.cell} accessibilityRole="button">
+    <Pressable
+      onPress={() => onPress(member.uid)}
+      onLongPress={onLongPress ? () => onLongPress(member.uid) : undefined}
+      delayLongPress={300}
+      style={styles.cell}
+      accessibilityRole="button"
+      accessibilityHint={onLongPress ? 'Long-press to send a cheer' : undefined}
+    >
       <Avatar name={member.name} photoURL={member.photoURL} size={52} status={statusFor(member)} />
       <Text numberOfLines={1} style={styles.name}>
         {member.name}
@@ -35,7 +42,7 @@ function MemberCell({ member, onPress }: { member: TeamMemberToday; onPress: (ui
   );
 }
 
-export default function TeamTodayRail({ team, onMemberPress }: { team: TeamToday; onMemberPress: (uid: string) => void }) {
+export default function TeamTodayRail({ team, onMemberPress, onMemberLongPress }: { team: TeamToday; onMemberPress: (uid: string) => void; onMemberLongPress?: (uid: string) => void }) {
   return (
     <View style={{ marginTop: 20 }}>
       <View style={styles.header}>
@@ -46,7 +53,7 @@ export default function TeamTodayRail({ team, onMemberPress }: { team: TeamToday
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 16, paddingVertical: 4 }}>
         {team.members.map((m) => (
-          <MemberCell key={m.uid} member={m} onPress={onMemberPress} />
+          <MemberCell key={m.uid} member={m} onPress={onMemberPress} onLongPress={onMemberLongPress} />
         ))}
       </ScrollView>
     </View>

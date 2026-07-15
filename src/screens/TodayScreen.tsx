@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
-import { Icon, Text } from 'react-native-paper';
+import { Icon, Snackbar, Text } from 'react-native-paper';
 
 import { colors } from '../theme/colors';
 import { spacing } from '../theme/spacing';
@@ -24,6 +24,7 @@ import SetupChecklistCard from '../components/today/SetupChecklistCard';
 import TargetReviewCard from '../components/today/TargetReviewCard';
 import UpdateBanner from '../components/today/UpdateBanner';
 import { deleteGroupLogById } from '../services/logs';
+import { enqueueSocialPush } from '../services/socialPush';
 import type { ChecklistItem, TodayLogEntry } from '../viewmodels/today';
 import type { Tier } from '../mmr/types';
 
@@ -58,6 +59,8 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
   const { user, group, memberUids, canSee, publicUsers, logs, myProfile } = useTodayData();
   const { activeGroupId, isReady: activeGroupReady, groupsLoaded } = useActiveGroup();
   const [entriesItem, setEntriesItem] = useState<ChecklistItem | null>(null);
+  const [cheerSnack, setCheerSnack] = useState<string | null>(null);
+  const [cheeredToday, setCheeredToday] = useState<Set<string>>(new Set());
 
   const [challenge, setChallenge] = useState<GroupChallenge | null>(null);
   useEffect(() => {
@@ -180,7 +183,19 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
   const myMember = team.members.find((m) => m.uid === myUid);
   const myStreak = myMember?.streakDays ?? 0;
 
+  // Long-press a teammate on the rail to fire a quick cheer. Deduped per-session
+  // so you can't spam the same person; the recipient sees it in-app + as a push.
+  const onCheer = (uid: string) => {
+    if (!myUid || uid === myUid || cheeredToday.has(uid)) return;
+    const target = team.members.find((m) => m.uid === uid);
+    void enqueueSocialPush({ toUid: uid, fromUid: myUid, fromName: userName, type: 'cheer' }).catch(() => {});
+    setCheeredToday((prev) => new Set(prev).add(uid));
+    setCheerSnack(`Cheered ${target?.name ?? 'your teammate'} 💪`);
+  };
+
   return (
+    <>
+
     <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ padding: spacing.lg, paddingTop: 56, paddingBottom: 32 }}>
       <TodayHeader
         groupName={group?.name ?? 'Your group'}
@@ -235,7 +250,7 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
 
       <View style={{ height: 20 }} />
       <TodaysLogCard checklist={checklist} onLog={onOpenLog ?? (() => {})} onOpenEntries={setEntriesItem} />
-      <TeamTodayRail team={team} onMemberPress={onOpenMember ?? (() => {})} />
+      <TeamTodayRail team={team} onMemberPress={onOpenMember ?? (() => {})} onMemberLongPress={onCheer} />
       <LeaderboardPreviewCard rows={preview} onViewAll={onViewLeaderboard ?? (() => {})} />
 
       <TodayEntriesSheet
@@ -251,5 +266,9 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
         onAdd={(type) => { setEntriesItem(null); onOpenLog?.(type); }}
       />
     </ScrollView>
+    <Snackbar visible={!!cheerSnack} onDismiss={() => setCheerSnack(null)} duration={2200}>
+      {cheerSnack ?? ''}
+    </Snackbar>
+    </>
   );
 }

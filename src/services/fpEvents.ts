@@ -10,6 +10,7 @@
 type Listener = () => void;
 
 const listeners = new Set<Listener>();
+const firstLogListeners = new Set<Listener>();
 
 export function notifyLogSaved() {
   listeners.forEach((l) => {
@@ -24,4 +25,20 @@ export function notifyLogSaved() {
 export function subscribeLogSaved(listener: Listener): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);
+}
+
+/** Fired once, the very first time a user ever logs (see LogComposer). */
+export function notifyFirstLog() {
+  firstLogListeners.forEach((l) => {
+    try {
+      l();
+    } catch {
+      // never break a save
+    }
+  });
+}
+
+export function subscribeFirstLog(listener: Listener): () => void {
+  firstLogListeners.add(listener);
+  return () => firstLogListeners.delete(listener);
 }
