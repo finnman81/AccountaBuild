@@ -609,7 +609,8 @@ exports.enforceHealthLogHygiene = onDocumentCreated('groups/{groupId}/logs/{logI
   if (!snap) return;
   const log = snap.data() || {};
   const { groupId, logId } = event.params;
-  if (!log.uid || !log.source || log.source === 'self_reported') return; // synced logs only
+  if (!log.uid) return;
+  const isSynced = !!log.source && log.source !== 'self_reported';
 
   const tsMs = (t) => (t && typeof t.toMillis === 'function' ? t.toMillis() : 0);
   const tombstone = (uid, id, date) =>
@@ -618,7 +619,45 @@ exports.enforceHealthLogHygiene = onDocumentCreated('groups/{groupId}/logs/{logI
       { merge: true },
     );
 
+  // Manual-vs-synced twin test: a synced workout's ts is its START time and
+  // its duration gives the END; a manual log's ts is its SAVE time. People who
+  // wear a watch AND log by hand save within minutes of finishing, so the
+  // manual save falling inside [start, end + 30min] of a same-type synced
+  // workout means one lift recorded twice. Manual wins (app-wide priority) —
+  // the synced copy is deleted + tombstoned.
+  const MANUAL_DUP_BUFFER_MS = 30 * 60 * 1000;
+  const isManualTwin = (syncedLog, manualLog) => {
+    if ((syncedLog.payload && syncedLog.payload.workoutType) !== (manualLog.payload && manualLog.payload.workoutType)) return false;
+    const start = tsMs(syncedLog.ts);
+    const end = start + (Number(syncedLog.payload && syncedLog.payload.durationMinutes) || 0) * 60 * 1000;
+    const savedAt = tsMs(manualLog.ts);
+    return start > 0 && savedAt >= start && savedAt <= end + MANUAL_DUP_BUFFER_MS;
+  };
+
   try {
+    // MANUAL workout: the only hygiene concern is a synced twin that imported
+    // FIRST (user finishes lift -> background sync grabs it -> user logs by
+    // hand). Remove the synced copy; the manual one is never touched.
+    if (!isSynced) {
+      if (log.type !== 'workout') return;
+      const sameDay = await db
+        .collection(`groups/${groupId}/logs`)
+        .where('uid', '==', log.uid)
+        .where('date', '==', log.date)
+        .get();
+      for (const other of sameDay.docs) {
+        if (other.id === logId) continue;
+        const o = other.data() || {};
+        if (o.type !== 'workout' || !o.source || o.source === 'self_reported') continue;
+        if (isManualTwin(o, log)) {
+          await tombstone(log.uid, other.id, o.date);
+          await other.ref.delete();
+          console.log('[hygiene] removed synced twin of manual log', other.id, `(kept manual ${logId})`);
+        }
+      }
+      return;
+    }
+
     // 1. Resurrection of a user-deleted log.
     const tomb = await db.doc(`users/${log.uid}/healthTombstones/${logId}`).get();
     if (tomb.exists) {
@@ -640,7 +679,21 @@ exports.enforceHealthLogHygiene = onDocumentCreated('groups/{groupId}/logs/{logI
     for (const other of sameDay.docs) {
       if (other.id === logId) continue;
       const o = other.data() || {};
-      if (o.type !== 'workout' || !o.source || o.source === 'self_reported') continue;
+      if (o.type !== 'workout') continue;
+
+      // 2a. Manual twin already exists (sync imported AFTER the hand-log):
+      // this synced log is the duplicate — delete self.
+      if (!o.source || o.source === 'self_reported') {
+        if (isManualTwin(log, o)) {
+          await tombstone(log.uid, logId, log.date);
+          await snap.ref.delete();
+          console.log('[hygiene] removed synced twin', logId, `(manual ${other.id} wins)`);
+          return;
+        }
+        continue;
+      }
+
+      // 2b. Synced-vs-synced double-sample (watch + phone).
       if ((o.payload && o.payload.workoutType) !== myType) continue;
       if (Math.abs(tsMs(o.ts) - tsMs(log.ts)) > 15 * 60 * 1000) continue;
 
