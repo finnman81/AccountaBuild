@@ -8,6 +8,7 @@ import {
   query,
   runTransaction,
   serverTimestamp,
+  setDoc,
   where,
   documentId,
 } from 'firebase/firestore';
@@ -458,6 +459,10 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
   const breadth = breadthFactor(coreCategories);
   const weekScore = combineWeekScore(scores) * breadth;
 
+  // Captured from inside the transaction so the post-commit anchor repair can
+  // see the closed week's outputs (tx callback scope is otherwise sealed).
+  let closedWeekOutputs: { mmrAfter: number; streakAfter: number; freezeAfter: number; shieldAfter: number; missedAfter: number } | null = null;
+
   // Transaction update
   try {
     await runTransaction(db, async (tx) => {
@@ -744,6 +749,14 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
     }
     tx.set(userRef, userUpdate, { merge: true });
 
+    closedWeekOutputs = {
+      mmrAfter: Math.max(0, newMMR),
+      streakAfter,
+      freezeAfter,
+      shieldAfter,
+      missedAfter: consecutiveMissedWeeks,
+    };
+
     tx.set(
       publicRef,
       {
@@ -786,6 +799,38 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
   } catch (error) {
     console.error('[MMR Update] Transaction error:', error);
     throw new Error(`Transaction failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  // Self-healing anchor chain: next week's doc may have been created BEFORE
+  // this week closed (Monday-morning race between client catch-up and the
+  // scheduled server compute), freezing stale baselines — seen in prod as
+  // Regmong's missed-week penalty never carrying forward (+30 phantom FP) and
+  // Watto's streak anchoring at 0. After closing week N, re-base week N+1's
+  // anchors onto N's actual outputs. Mirrored in functions/mmr-compute.js.
+  // (local const — TS can't see assignments made inside the tx callback)
+  const outputs = closedWeekOutputs as { mmrAfter: number; streakAfter: number; freezeAfter: number; shieldAfter: number; missedAfter: number } | null;
+  if (!isCurrentWeek && outputs) {
+    try {
+      const nextId = nextIsoWeekId(weekId, DEFAULT_TZ);
+      const nextRef = doc(db, 'users', uid, 'weekly', nextId);
+      const nextSnap = await getDoc(nextRef);
+      if (nextSnap.exists()) {
+        const d = nextSnap.data() as any;
+        const want: Record<string, number> = {
+          mmrBefore: outputs.mmrAfter,
+          streakBefore: outputs.streakAfter,
+          freezeBefore: outputs.freezeAfter,
+          shieldBefore: outputs.shieldAfter,
+          missedBefore: outputs.missedAfter,
+        };
+        if (Object.entries(want).some(([k, v]) => d?.[k] !== v)) {
+          await setDoc(nextRef, want, { merge: true });
+          console.log(`[MMR Update] repaired stale anchors on weekly/${nextId}`);
+        }
+      }
+    } catch {
+      /* best-effort; the server compute repairs on its next pass */
+    }
   }
 }
 

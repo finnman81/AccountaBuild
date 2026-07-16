@@ -388,6 +388,12 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
       rankAfter: `${rankAfter.tier}${rankAfter.division ?? ''}`,
       activeGoals: active.map((g) => g.id),
       applied: apply,
+      // Post-week state, exposed so the anchor repair below (and admin
+      // tooling) can re-base the NEXT week's baselines without a re-read.
+      streakAfter,
+      freezeAfter,
+      shieldAfter,
+      missedAfter: consecutiveMissedWeeks,
     };
 
     if (!apply) return result;
@@ -542,6 +548,36 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
 
     return result;
   });
+
+  // Self-healing anchor chain: next week's doc may have been created BEFORE
+  // this week closed (Monday-morning race between client catch-up and this
+  // compute), freezing stale baselines — seen in prod as Regmong's missed-week
+  // penalty never carrying forward (+30 phantom FP) and Watto's streak
+  // anchoring at 0. After closing week N, re-base week N+1's anchors onto N's
+  // actual outputs. Mirrored in src/services/mmrUpdate.ts.
+  if (apply && !isCurrentWeek && summary && typeof summary.mmrAfter === 'number') {
+    try {
+      const nextId = core.nextIsoWeekId(weekId, core.DEFAULT_TZ);
+      const nextRef = db.collection('users').doc(uid).collection('weekly').doc(nextId);
+      const nextSnap = await nextRef.get();
+      if (nextSnap.exists) {
+        const d = nextSnap.data() || {};
+        const want = {
+          mmrBefore: summary.mmrAfter,
+          streakBefore: summary.streakAfter,
+          freezeBefore: summary.freezeAfter,
+          shieldBefore: summary.shieldAfter,
+          missedBefore: summary.missedAfter,
+        };
+        if (Object.entries(want).some(([k, v]) => d[k] !== v)) {
+          await nextRef.set(want, { merge: true });
+          console.log(`[mmr-compute] repaired stale anchors on ${uid}/weekly/${nextId}`);
+        }
+      }
+    } catch (e) {
+      console.warn('[mmr-compute] anchor repair failed for', uid, weekId, e);
+    }
+  }
 
   return summary;
 }
