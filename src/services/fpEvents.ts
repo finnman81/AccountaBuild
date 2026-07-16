@@ -14,6 +14,7 @@ type Listener = (info?: SavedLogInfo) => void;
 
 const listeners = new Set<Listener>();
 const firstLogListeners = new Set<() => void>();
+const changedListeners = new Set<() => void>();
 
 export function notifyLogSaved(info?: SavedLogInfo) {
   listeners.forEach((l) => {
@@ -23,6 +24,28 @@ export function notifyLogSaved(info?: SavedLogInfo) {
       // listener errors must never break a save
     }
   });
+  notifyLogsChanged();
+}
+
+/**
+ * "My logs changed somehow" — fired by saves (via notifyLogSaved) AND by
+ * deletes/edits. Coarser than log-saved: drives things that only need to
+ * re-settle state (live FP recompute), not user-facing save feedback
+ * (toasts, reminder-clearing), which stays on subscribeLogSaved.
+ */
+export function notifyLogsChanged() {
+  changedListeners.forEach((l) => {
+    try {
+      l();
+    } catch {
+      // never break the caller
+    }
+  });
+}
+
+export function subscribeLogsChanged(listener: () => void): () => void {
+  changedListeners.add(listener);
+  return () => changedListeners.delete(listener);
 }
 
 export function subscribeLogSaved(listener: Listener): () => void {

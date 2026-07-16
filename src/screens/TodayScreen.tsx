@@ -26,6 +26,7 @@ import TargetReviewCard from '../components/today/TargetReviewCard';
 import UpdateBanner from '../components/today/UpdateBanner';
 import { deleteGroupLogById } from '../services/logs';
 import { enqueueSocialPush } from '../services/socialPush';
+import { notifyLogsChanged } from '../services/fpEvents';
 import type { ChecklistItem, TodayLogEntry } from '../viewmodels/today';
 import type { Tier } from '../mmr/types';
 
@@ -269,7 +270,10 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
         onEdit={(entry) => { setEntriesItem(null); onEditEntry?.(entry); }}
         onDelete={async (entry) => {
           if (activeGroupId) {
-            try { await deleteGroupLogById(activeGroupId, entry.logId); } catch { /* non-fatal */ }
+            try {
+              await deleteGroupLogById(activeGroupId, entry.logId);
+              notifyLogsChanged(); // re-settle banked FP without save-side effects (toast, reminder-clear)
+            } catch { /* non-fatal */ }
           }
           setEntriesItem(null);
         }}

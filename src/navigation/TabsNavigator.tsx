@@ -29,6 +29,7 @@ import SettingsScreen from '../screens/SettingsScreen';
 import RankChangeWatcher from '../components/mmr/RankChangeWatcher';
 import FpGainOverlay from '../components/mmr/FpGainOverlay';
 import FirstLogCelebration from '../components/mmr/FirstLogCelebration';
+import MmrLiveSettler from '../components/mmr/MmrLiveSettler';
 import BadgeCelebrationWatcher from '../components/mmr/BadgeCelebrationWatcher';
 import WeekReviewLauncher from '../components/mmr/WeekReviewLauncher';
 import PushRegistrar from '../components/system/PushRegistrar';
@@ -206,6 +207,7 @@ export default function TabsNavigator() {
       <RankChangeWatcher />
       <FpGainOverlay />
       <FirstLogCelebration />
+      <MmrLiveSettler />
       <BadgeCelebrationWatcher />
       <WeekReviewLauncher />
       <PushRegistrar />
