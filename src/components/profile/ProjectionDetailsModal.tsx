@@ -44,8 +44,19 @@ export default function ProjectionDetailsModal({ visible, projection, onDismiss 
       workoutsTarget: projection.workoutsTarget,
       calorieDaysDone: projection.calorieDaysDone,
       calorieDaysTarget: projection.calorieDaysTarget,
+      breadth: projection.breadth,
+      perGoal: projection.perGoal,
+      whatIf: projection.whatIf,
     };
   }, [projection]);
+
+  const whatIfRows = details
+    ? [
+        { icon: '🏋️', label: 'Log a workout now', fp: details.whatIf.workout },
+        { icon: '🍽️', label: 'Hit calories today', fp: details.whatIf.calorieDay },
+        { icon: '⚖️', label: 'Log a weigh-in', fp: details.whatIf.weighIn },
+      ]
+    : [];
 
   return (
     <Portal>
@@ -66,6 +77,44 @@ export default function ProjectionDetailsModal({ visible, projection, onDismiss 
             <Card.Content>
               {details ? (
                 <View style={{ gap: spacing.md }}>
+                  {/* The self-audit headline: what is each log WORTH right now. */}
+                  <View style={{ gap: spacing.sm }}>
+                    <Text variant="titleSmall" style={{ color: colors.textPrimary, fontWeight: '600' }}>
+                      What's your next log worth?
+                    </Text>
+                    <View style={{ gap: spacing.xs }}>
+                      {whatIfRows.map((r) => (
+                        <View
+                          key={r.label}
+                          style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: spacing.sm,
+                            borderRadius: radius.card,
+                            backgroundColor: colors.surface2,
+                            borderWidth: 1,
+                            borderColor: r.fp > 0 ? colors.rankGold + '40' : 'rgba(255,255,255,0.04)',
+                          }}
+                        >
+                          <Text variant="bodyMedium" style={{ color: colors.textPrimary }}>
+                            {r.icon} {r.label}
+                          </Text>
+                          <Text
+                            variant="bodyMedium"
+                            style={{ color: r.fp > 0 ? colors.rankGold : colors.textMuted, fontWeight: '700', fontVariant: ['tabular-nums'] }}
+                          >
+                            {r.fp > 0 ? `≈ +${r.fp} FP` : '+0 FP'}
+                          </Text>
+                        </View>
+                      ))}
+                      <Text variant="bodySmall" style={{ color: colors.textMuted }}>
+                        Live estimates for today. +0 means that log can't raise this week's score further (target already
+                        met, or no matching goal) — it still protects streaks and reminders.
+                      </Text>
+                    </View>
+                  </View>
+
                   <View style={{ gap: spacing.sm }}>
                     <Text variant="titleSmall" style={{ color: colors.textPrimary, fontWeight: '600' }}>
                       Projected Outcome
@@ -138,26 +187,27 @@ export default function ProjectionDetailsModal({ visible, projection, onDismiss 
                       Calculation Breakdown
                     </Text>
                     <View style={{ gap: spacing.xs }}>
-                      {details.workoutsTarget > 0 && (
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                      {details.perGoal.map((g) => (
+                        <View key={g.id} style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                           <Text variant="bodySmall" style={{ color: colors.textSecondary }}>
-                            Workouts:
+                            {g.label} ({g.detail}):
                           </Text>
-                          <Text variant="bodySmall" style={{ color: colors.textPrimary }}>
-                            {details.workoutsDone} / {details.workoutsTarget}
+                          <Text
+                            variant="bodySmall"
+                            style={{ color: g.paceA >= 0.7 ? colors.success : g.paceA >= 0.4 ? colors.textPrimary : colors.danger }}
+                          >
+                            {Math.round(g.paceA * 100)}% of pace
                           </Text>
                         </View>
-                      )}
-                      {details.calorieDaysTarget > 0 && (
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                          <Text variant="bodySmall" style={{ color: colors.textSecondary }}>
-                            Calorie days:
-                          </Text>
-                          <Text variant="bodySmall" style={{ color: colors.textPrimary }}>
-                            {details.calorieDaysDone} / {details.calorieDaysTarget}
-                          </Text>
-                        </View>
-                      )}
+                      ))}
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                        <Text variant="bodySmall" style={{ color: colors.textSecondary }}>
+                          Variety bonus ({details.perGoal.length} goal type{details.perGoal.length === 1 ? '' : 's'}):
+                        </Text>
+                        <Text variant="bodySmall" style={{ color: colors.textPrimary }}>
+                          {details.breadth.toFixed(2)}x
+                        </Text>
+                      </View>
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                         <Text variant="bodySmall" style={{ color: colors.textSecondary }}>
                           Streak Multiplier:
@@ -205,7 +255,12 @@ export default function ProjectionDetailsModal({ visible, projection, onDismiss 
                       Your weekly score is calculated from your active goals (workouts, minutes, weight, calories). The score is then multiplied by your streak bonus and reduced by any penalties for missed or partial weeks.
                     </Text>
                     <Text variant="bodySmall" style={{ color: colors.textSecondary }}>
-                      Formula: ΔFP = Week Score × Streak × Week elapsed − Penalty
+                      A log is worth the most when it puts you back on pace toward YOUR targets — the same workout earns
+                      more when you're behind than after your target is already met. Hitting a modest target beats
+                      missing an ambitious one.
+                    </Text>
+                    <Text variant="bodySmall" style={{ color: colors.textSecondary }}>
+                      Formula: ΔFP = Week Score × Variety × Streak × Week elapsed − Penalty
                     </Text>
                   </View>
                 </View>

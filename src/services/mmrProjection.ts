@@ -37,6 +37,17 @@ export type MmrProjection = {
   weekScore: number;
   streakMultiplier: number;
   penalty: number;
+  /** Breadth multiplier from how many core categories are tracked. */
+  breadth: number;
+  /** Per-goal progress for the self-audit breakdown ("why is my score what it is"). */
+  perGoal: Array<{ id: string; label: string; detail: string; paceA: number }>;
+  /**
+   * Marginal FP of the NEXT log of each kind, RIGHT NOW — the projection
+   * re-run with one hypothetical extra entry. Answers "what's a workout worth
+   * to me today". 0 = it wouldn't move this week's score (target already hit,
+   * or no matching goal).
+   */
+  whatIf: { workout: number; calorieDay: number; weighIn: number };
 };
 
 function parseDateLocal(yyyyMmDd: string) {
@@ -88,7 +99,7 @@ function pickWeeklyWeights(weights: Array<{ date: string; weight: number; tsMs: 
   };
 }
 
-function computeProjection(params: {
+type ProjectionParams = {
   weekId: string;
   seasonId: string;
   mmrBefore: number;
@@ -99,7 +110,9 @@ function computeProjection(params: {
   workouts: Array<{ date: string; durationMinutes: number }>;
   weights: Array<{ date: string; weight: number; tsMs: number | null }>;
   calorieDaysMet: Set<string>;
-}): MmrProjection {
+};
+
+function computeProjection(params: ProjectionParams, opts?: { skipWhatIf?: boolean }): MmrProjection {
   const { start, end, dates } = isoWeekRangeInTz(params.weekId, DEFAULT_TZ);
 
   // Pace-aware achievement: judge "are you on track SO FAR", not "did you finish
@@ -233,6 +246,49 @@ function computeProjection(params: {
   const mpProjected = ranked.mp;
   const deltaMPProjected = mpProjected - params.mpBefore;
 
+  // Self-audit rows: what each goal is contributing and why.
+  const GOAL_LABELS: Record<string, string> = {
+    workouts: 'Workouts',
+    minutes: 'Active minutes',
+    calorieDays: 'Calorie days',
+    weightLoss: 'Weight loss',
+    weightGain: 'Weight gain',
+  };
+  const perGoal = active.map((g) => {
+    let detail = '';
+    if (g.id === 'workouts') detail = `${workoutsDone} of ${Number(params.goals.workouts?.targetWorkoutsPerWeek) || 0} this week`;
+    else if (g.id === 'minutes') detail = `${minutesDone} of ${Number(params.goals.minutes?.targetMinutesPerWeek) || 0} min this week`;
+    else if (g.id === 'calorieDays') detail = `${calorieDaysHit} of ${Number(params.goals.calorieDays?.targetDaysPerWeek) || 0} days hit`;
+    else detail = weighInsDone > 0 ? 'weighed in this week' : 'no weigh-in yet this week';
+    return { id: g.id, label: GOAL_LABELS[g.id] ?? g.id, detail, paceA: Math.round(g.A * 100) / 100 };
+  });
+
+  // Marginal value of the next log of each kind: re-run this projection with
+  // ONE hypothetical extra entry dated today and diff the outcome. Recursion
+  // is guarded by skipWhatIf so the hypothetical runs don't recurse further.
+  let whatIf = { workout: 0, calorieDay: 0, weighIn: 0 };
+  if (!opts?.skipWhatIf) {
+    const marginal = (mutated: ProjectionParams) =>
+      Math.max(0, Math.round(computeProjection(mutated, { skipWhatIf: true }).mmrProjected - mmrProjected));
+    const weekWorkouts = params.workouts.filter((w) => w.date >= start && w.date <= end);
+    const typicalMins = weekWorkouts.length
+      ? Math.round(weekWorkouts.reduce((a, w) => a + w.durationMinutes, 0) / weekWorkouts.length)
+      : 45;
+    whatIf = {
+      workout: marginal({ ...params, workouts: [...params.workouts, { date: today, durationMinutes: typicalMins }] }),
+      calorieDay: marginal({ ...params, calorieDaysMet: new Set([...params.calorieDaysMet, today]) }),
+      weighIn: Number.isFinite(weightEndOfWeek) || Number.isFinite(weightPrevWeekEnd)
+        ? marginal({
+            ...params,
+            weights: [
+              ...params.weights,
+              { date: today, weight: Number(weightEndOfWeek ?? weightPrevWeekEnd), tsMs: Number.MAX_SAFE_INTEGER },
+            ],
+          })
+        : 0,
+    };
+  }
+
   return {
     weekId: params.weekId,
     seasonId: params.seasonId,
@@ -256,6 +312,9 @@ function computeProjection(params: {
     weekScore,
     streakMultiplier: S,
     penalty,
+    breadth,
+    perGoal,
+    whatIf,
   };
 }
 

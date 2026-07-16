@@ -119,10 +119,10 @@ export default function WeeklyTrajectoryCard({ projection, dailyStreak = 0, onVi
                 mode="text"
                 compact
                 onPress={onViewDetails}
-                textColor={colors.textSecondary}
+                textColor={colors.primary}
                 style={{ marginTop: -spacing.xs, marginRight: -spacing.sm }}
               >
-                View details
+                See the math
               </Button>
             )}
           </View>
@@ -143,6 +143,11 @@ export default function WeeklyTrajectoryCard({ projection, dailyStreak = 0, onVi
             {hintLine ? (
               <Text variant="bodySmall" style={{ color: colors.textSecondary }}>
                 {hintLine}
+              </Text>
+            ) : null}
+            {projection && projection.whatIf.workout > 0 ? (
+              <Text variant="bodySmall" style={{ color: colors.rankGold }}>
+                🏋️ Your next workout is worth ≈ +{projection.whatIf.workout} FP
               </Text>
             ) : null}
           </View>
