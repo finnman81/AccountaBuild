@@ -133,6 +133,14 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Client JS error reports (errorReporter.ts). Create-only: clients can
+    // file a report but never read/alter the collection (viewed via console
+    // or admin scripts).
+    match /clientErrors/{id} {
+      allow create: if signedIn();
+      allow read, update, delete: if false;
+    }
+
     // Join-code lookup table so non-members can join without reading all groups.
     // get-only: `read` would also allow LISTING the collection, letting anyone
     // harvest every group's code. The app only ever looks up exact codes.
