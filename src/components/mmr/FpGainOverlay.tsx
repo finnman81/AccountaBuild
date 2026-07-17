@@ -76,7 +76,11 @@ export default function FpGainOverlay() {
     if (!user?.uid) return;
     const unsubProj = subscribeMyMmrProjection(user.uid, (p) => {
       if (!p) return;
-      const val = p.mmrProjected;
+      // WeekEnd frame, not mmrProjected: the toast (and the fpDelta stamp it
+      // writes) must celebrate what the log adds to the week's FINAL score —
+      // the same number the "See the math" what-ifs promise. The now-frame
+      // projection drip-feeds by design and shows on-pace logs as ~0.
+      const val = p.mmrWeekEndProjected;
       const prev = baseline.current;
       baseline.current = val;
       if (prev == null || val <= prev) return;

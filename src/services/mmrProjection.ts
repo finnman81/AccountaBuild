@@ -48,6 +48,13 @@ export type MmrProjection = {
    * or no matching goal).
    */
   whatIf: { workout: number; calorieDay: number; weighIn: number };
+  /**
+   * This week scored AS IF it ended with the current inputs (weekEnd frame:
+   * raw done/target, full penalty). The FP toast diffs THIS across a save so
+   * a log's celebrated value matches its stated what-if worth — the now-frame
+   * mmrProjected drip-feeds by design and undersells on-pace logs.
+   */
+  mmrWeekEndProjected: number;
 };
 
 function parseDateLocal(yyyyMmDd: string) {
@@ -279,8 +286,12 @@ export function computeProjection(
   // worthless (+2 for someone who then banks +99 by staying on pace all day).
   // Recursion is guarded by skipWhatIf so hypothetical runs don't recurse.
   let whatIf = { workout: 0, calorieDay: 0, weighIn: 0 };
+  // In a weekEnd-frame run, mmrProjected IS the end-of-week value; in a
+  // now-frame run it's replaced by the dedicated weekEnd re-run below.
+  let mmrWeekEndProjected = mmrProjected;
   if (!opts?.skipWhatIf) {
     const baseEnd = computeProjection(params, { skipWhatIf: true, frame: 'weekEnd' }).mmrProjected;
+    mmrWeekEndProjected = baseEnd;
     const marginal = (mutated: ProjectionParams) =>
       Math.max(0, Math.round(computeProjection(mutated, { skipWhatIf: true, frame: 'weekEnd' }).mmrProjected - baseEnd));
     const weekWorkouts = params.workouts.filter((w) => w.date >= start && w.date <= end);
@@ -328,6 +339,7 @@ export function computeProjection(
     breadth,
     perGoal,
     whatIf,
+    mmrWeekEndProjected,
   };
 }
 
