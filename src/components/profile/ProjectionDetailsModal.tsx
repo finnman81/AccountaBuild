@@ -109,8 +109,9 @@ export default function ProjectionDetailsModal({ visible, projection, onDismiss 
                         </View>
                       ))}
                       <Text variant="bodySmall" style={{ color: colors.textMuted }}>
-                        Live estimates for today. +0 means that log can't raise this week's score further (target already
-                        met, or no matching goal) — it still protects streaks and reminders.
+                        What each log adds to this week's FINAL score (banked as the week plays out, not instantly). +0
+                        means that log can't raise it further (target already met, or no matching goal) — it still
+                        protects streaks and reminders.
                       </Text>
                     </View>
                   </View>

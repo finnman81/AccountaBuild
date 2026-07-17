@@ -112,16 +112,25 @@ type ProjectionParams = {
   calorieDaysMet: Set<string>;
 };
 
-function computeProjection(params: ProjectionParams, opts?: { skipWhatIf?: boolean }): MmrProjection {
+export function computeProjection(
+  params: ProjectionParams,
+  opts?: { skipWhatIf?: boolean; frame?: 'now' | 'weekEnd' },
+): MmrProjection {
   const { start, end, dates } = isoWeekRangeInTz(params.weekId, DEFAULT_TZ);
 
   // Pace-aware achievement: judge "are you on track SO FAR", not "did you finish
   // the whole week's target already". Early in the week, hitting your per-day pace
   // counts as on-track (1 of 5 workouts on Monday is perfect pace, not a miss).
   // At week's end elapsedFrac = 1, so this collapses to actual/target.
+  //
+  // frame 'weekEnd' forces elapsedFrac = 1: score the week AS IF it ended with
+  // these inputs (raw done/target, full penalty, unscaled delta). Used by the
+  // what-if engine — the marginal value of a log must be measured against the
+  // week's FINAL score, not today's pace-capped partial (a log that keeps you
+  // on pace moves the final score a lot while moving today's projection ~0).
   const today = yyyyMmDdInTz(new Date(), DEFAULT_TZ);
   const daysElapsed = today > end ? 7 : Math.max(1, Math.min(7, dates.filter((d) => d <= today).length));
-  const elapsedFrac = daysElapsed / 7;
+  const elapsedFrac = opts?.frame === 'weekEnd' ? 1 : daysElapsed / 7;
   const paceA = (actual: number, target: number) => clamp(0, 1, actual / Math.max(0.0001, (target || 1) * elapsedFrac));
 
   let workoutsDone = 0;
@@ -264,12 +273,16 @@ function computeProjection(params: ProjectionParams, opts?: { skipWhatIf?: boole
   });
 
   // Marginal value of the next log of each kind: re-run this projection with
-  // ONE hypothetical extra entry dated today and diff the outcome. Recursion
-  // is guarded by skipWhatIf so the hypothetical runs don't recurse further.
+  // ONE hypothetical extra entry dated today and diff the outcome — in the
+  // weekEnd frame ("what does this log add to the week's FINAL score"), NOT
+  // the now frame, where the pace cap makes an on-pace user's next log look
+  // worthless (+2 for someone who then banks +99 by staying on pace all day).
+  // Recursion is guarded by skipWhatIf so hypothetical runs don't recurse.
   let whatIf = { workout: 0, calorieDay: 0, weighIn: 0 };
   if (!opts?.skipWhatIf) {
+    const baseEnd = computeProjection(params, { skipWhatIf: true, frame: 'weekEnd' }).mmrProjected;
     const marginal = (mutated: ProjectionParams) =>
-      Math.max(0, Math.round(computeProjection(mutated, { skipWhatIf: true }).mmrProjected - mmrProjected));
+      Math.max(0, Math.round(computeProjection(mutated, { skipWhatIf: true, frame: 'weekEnd' }).mmrProjected - baseEnd));
     const weekWorkouts = params.workouts.filter((w) => w.date >= start && w.date <= end);
     const typicalMins = weekWorkouts.length
       ? Math.round(weekWorkouts.reduce((a, w) => a + w.durationMinutes, 0) / weekWorkouts.length)
