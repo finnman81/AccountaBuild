@@ -103,15 +103,22 @@ function breadthFactor(coreCount) {
 }
 
 // ---- adherence.ts ----
+// Two systems in one (2026-07-18): logging HABIT (any logged day = 0.5) +
+// diet ADHERENCE (full 1.0 only in the band: cut/maintenance 75%-120% of
+// budget; bulk >= budget). No budget: any logged day counts fully.
+const CAL_BAND_LOW = 0.75;
+const CAL_BAND_HIGH = 1.2;
+const CAL_HABIT_CREDIT = 0.5;
 function calorieDaysHitFromTotals(totalsByDate, dailyCalorieGoal, goalMode = null) {
   const hasBudget = dailyCalorieGoal != null && Number.isFinite(dailyCalorieGoal) && dailyCalorieGoal > 0;
   return Object.values(totalsByDate).reduce((sum, total) => {
     if (!(total > 0)) return sum;
-    if (hasBudget) {
-      const budget = dailyCalorieGoal;
-      if (goalMode === 'bulk' ? total < budget : total > budget) return sum;
-    }
-    return sum + 1;
+    if (!hasBudget) return sum + 1;
+    const budget = dailyCalorieGoal;
+    const full = goalMode === 'bulk'
+      ? total >= budget
+      : total >= CAL_BAND_LOW * budget && total <= CAL_BAND_HIGH * budget;
+    return sum + (full ? 1 : CAL_HABIT_CREDIT);
   }, 0);
 }
 

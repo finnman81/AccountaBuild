@@ -5,7 +5,7 @@ import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import Constants from 'expo-constants';
 
 import { AuthContext } from '../../store/AuthContext';
-import { db } from '../../firebase/firebase';
+import { authPersistenceMode, db } from '../../firebase/firebase';
 import { setErrorReporterUser, flushPendingErrors } from '../../services/errorReporter';
 
 /**
@@ -52,6 +52,9 @@ export default function Heartbeat() {
               // config and report the same build number for everyone.
               nativeBuild: (Constants as any).nativeBuildVersion ?? null,
               otaUpdateId: updateId,
+              // 'memory' here means this device WILL sign the user out on
+              // restart (the Android logout report, 2026-07-18).
+              authPersistence: authPersistenceMode,
             },
           },
           { merge: true },

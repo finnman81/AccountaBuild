@@ -7,15 +7,57 @@ import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// `getReactNativePersistence` was removed from `firebase/auth` in Firebase JS
-// SDK v11+ (confirmed absent at runtime in 12.8). Access it defensively so this
-// compiles; when it is missing (the current case) native auth falls back to
-// in-memory persistence below.
-// KNOWN ISSUE (Phase 2/3): native session persistence is therefore inactive —
-// users are signed out on app restart. Restoring it requires the Firebase v12
-// React Native persistence approach.
-const getReactNativePersistence: ((storage: unknown) => any) | undefined =
+// Native auth session persistence.
+//
+// `getReactNativePersistence` is exported from @firebase/auth's React Native
+// build, but the `firebase` umbrella package's ./auth export map has no
+// `react-native` condition — so depending on how Metro resolves it, the helper
+// may or may not exist at runtime. When it's missing, auth silently fell back
+// to IN-MEMORY persistence and every user was signed out whenever the OS
+// killed the process (Android does this aggressively — reported in prod
+// 2026-07-18). Restoring it: use the SDK helper when present, otherwise a
+// local AsyncStorage-backed persistence implementing the same internal
+// contract. Both are pure JS, so this ships over-the-air.
+const sdkGetReactNativePersistence: ((storage: unknown) => any) | undefined =
   (FirebaseAuthModule as any).getReactNativePersistence;
+
+/**
+ * AsyncStorage-backed Firebase auth persistence (fallback).
+ * Mirrors the SDK's internal `PersistenceInternal` contract: a `LOCAL`-type
+ * store with async get/set/remove and no-op cross-tab listeners (irrelevant on
+ * native). Values are JSON round-tripped exactly as the SDK's own RN
+ * persistence does.
+ */
+function makeAsyncStoragePersistence() {
+  return {
+    type: 'LOCAL' as const,
+    async _isAvailable() {
+      try {
+        await AsyncStorage.setItem('__ab_auth_probe', '1');
+        await AsyncStorage.removeItem('__ab_auth_probe');
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    async _set(key: string, value: unknown) {
+      await AsyncStorage.setItem(key, JSON.stringify(value));
+    },
+    async _get(key: string) {
+      const raw = await AsyncStorage.getItem(key);
+      return raw ? JSON.parse(raw) : null;
+    },
+    async _remove(key: string) {
+      await AsyncStorage.removeItem(key);
+    },
+    // Native has no multi-tab story; the SDK only requires these to exist.
+    _addListener(_key: string, _listener: unknown) {},
+    _removeListener(_key: string, _listener: unknown) {},
+  };
+}
+
+/** Which persistence path actually ran — surfaced in the app-health heartbeat. */
+export let authPersistenceMode: 'sdk' | 'asyncstorage' | 'memory' | 'web' = 'memory';
 
 type FirebaseConfig = {
   apiKey?: string;
@@ -81,30 +123,35 @@ let dbInstance: ReturnType<typeof getFirestore> | null = null;
 let storageInstance: ReturnType<typeof getStorage> | null = null;
 
 function getNativePersistence() {
-  console.log('[Firebase Auth Debug] Attempting to load React Native persistence...');
-  console.log('[Firebase Auth Debug] Platform:', Platform.OS);
-  console.log('[Firebase Auth Debug] App ownership:', Constants.appOwnership);
-  
+  // Prefer the SDK's own RN persistence when Metro resolved a build that has
+  // it; otherwise use our AsyncStorage implementation. Either keeps the user
+  // signed in across app restarts — the point is to never land on in-memory.
   try {
-    // In Firebase v9+, getReactNativePersistence is available directly from 'firebase/auth'
-    if (!getReactNativePersistence) {
-      console.warn('[Firebase Auth Debug] getReactNativePersistence not available');
-      return null;
+    if (sdkGetReactNativePersistence) {
+      const persistence = sdkGetReactNativePersistence(AsyncStorage);
+      if (persistence) {
+        authPersistenceMode = 'sdk';
+        return persistence;
+      }
     }
-    
-    const persistence = getReactNativePersistence(AsyncStorage);
-    console.log('[Firebase Auth Debug] ✅ Persistence loaded successfully:', !!persistence);
+  } catch (error) {
+    console.warn('[Firebase Auth] SDK RN persistence failed, using AsyncStorage fallback', error);
+  }
+
+  try {
+    const persistence = makeAsyncStoragePersistence();
+    authPersistenceMode = 'asyncstorage';
     return persistence;
   } catch (error) {
-    console.error('[Firebase Auth Debug] ❌ Persistence load failed:', error);
-    console.warn('[Firebase Auth Debug] Falling back to in-memory auth');
+    console.error('[Firebase Auth] AsyncStorage persistence unavailable; sessions will not survive restart', error);
+    authPersistenceMode = 'memory';
     return null;
   }
 }
 
 if (firebaseApp && isFirebaseConfigured() && !firebaseInitError) {
   if (Platform.OS === 'web') {
-    console.log('[Firebase Auth Debug] Web platform - using default browser persistence');
+    authPersistenceMode = 'web';
     authInstance = getAuth(firebaseApp);
   } else {
     console.log('[Firebase Auth Debug] Native platform - initializing auth with persistence');

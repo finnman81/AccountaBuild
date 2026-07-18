@@ -6,6 +6,7 @@ import { D_calDays, D_minutes, D_workouts, D_weightGain, D_weightLoss } from '..
 import { applyRankWithDemotionRules, bandForMMR } from '../mmr/ranks';
 import { lowerTierProgressBonus } from '../mmr/progression';
 import { breadthFactor, combineWeekScore, coreCategoryCount, goalScore } from '../mmr/scoring';
+import { calorieDaysHitFromTotals } from '../mmr/adherence';
 import { DEFAULT_TZ, isoWeekIdInTz, isoWeekRangeInTz, yyyyMmDdInTz } from '../mmr/time';
 import type { Tier } from '../mmr/types';
 
@@ -118,7 +119,12 @@ type ProjectionParams = {
   goals: Record<string, GoalDoc>;
   workouts: Array<{ date: string; durationMinutes: number }>;
   weights: Array<{ date: string; weight: number; tsMs: number | null }>;
+  /** Manual "hit my calories" toggle days (always full credit). */
   calorieDaysMet: Set<string>;
+  /** Per-day logged calorie totals — feeds the band rule like the scorers. */
+  calorieTotalsByDate?: Record<string, number>;
+  dailyCalorieGoal?: number | null;
+  goalMode?: 'cut' | 'bulk' | 'maintenance' | null;
   /** Current week declared a vacation week — no penalty projected. */
   vacation?: boolean;
 };
@@ -152,7 +158,15 @@ export function computeProjection(
     minutesDone += w.durationMinutes;
   }
 
-  const calorieDaysHit = Array.from(params.calorieDaysMet.values()).filter((d) => d >= start && d <= end).length;
+  // Mirror the scorers exactly: manual-toggle days are full credit; log-derived
+  // days use the band rule (habit 0.5 / in-band 1.0); take the larger count.
+  const toggleDays = Array.from(params.calorieDaysMet.values()).filter((d) => d >= start && d <= end).length;
+  const totalsInWeek: Record<string, number> = {};
+  for (const [d, v] of Object.entries(params.calorieTotalsByDate ?? {})) {
+    if (d >= start && d <= end && Number(v) > 0) totalsInWeek[d] = Number(v);
+  }
+  const fromLogs = calorieDaysHitFromTotals(totalsInWeek, params.dailyCalorieGoal ?? null, params.goalMode ?? null);
+  const calorieDaysHit = Math.max(toggleDays, fromLogs);
   const { weighInsDone, weightEndOfWeek, weightPrevWeekEnd } = pickWeeklyWeights(params.weights, start, end);
 
   const active: Array<{ id: string; type: string; D: number; A: number; O: number; score: number }> = [];
@@ -312,7 +326,14 @@ export function computeProjection(
       : 45;
     whatIf = {
       workout: marginal({ ...params, workouts: [...params.workouts, { date: today, durationMinutes: typicalMins }] }),
-      calorieDay: marginal({ ...params, calorieDaysMet: new Set([...params.calorieDaysMet, today]) }),
+      // "Hit calories today" = a fully-logged day AT budget (full band credit).
+      // Overwriting today's total also prices the half→full upgrade of an
+      // under-logged day, not just empty→logged.
+      calorieDay: marginal({
+        ...params,
+        calorieDaysMet: new Set([...params.calorieDaysMet, today]),
+        calorieTotalsByDate: { ...(params.calorieTotalsByDate ?? {}), [today]: Number(params.dailyCalorieGoal) > 0 ? Number(params.dailyCalorieGoal) : 1 },
+      }),
       weighIn: Number.isFinite(weightEndOfWeek) || Number.isFinite(weightPrevWeekEnd)
         ? marginal({
             ...params,
@@ -372,7 +393,9 @@ export function subscribeMyMmrProjection(uid: string, onChange: (p: MmrProjectio
   let calorieDaysMet: Set<string> = new Set();
   let groupIds: string[] = [];
   let groupWorkouts: Array<{ date: string; durationMinutes: number }> = [];
-  let groupCalorieDays: Set<string> = new Set();
+  let groupCalorieTotals: Record<string, number> = {};
+  let dailyCalorieGoal: number | null = null;
+  let goalMode: 'cut' | 'bulk' | 'maintenance' | null = null;
   let onVacation = false;
 
   const emit = () => {
@@ -398,12 +421,10 @@ export function subscribeMyMmrProjection(uid: string, onChange: (p: MmrProjectio
       durationMinutes,
     }));
     
-    // Merge calorie days: user calorieDays + group logs
+    // Manual-toggle days pass as the full-credit set; log totals go through
+    // separately so the band rule can judge them (mirrors the scorers).
     const mergedCalorieDays = new Set<string>();
     for (const d of calorieDaysMet) {
-      if (d >= start && d <= end) mergedCalorieDays.add(d);
-    }
-    for (const d of groupCalorieDays) {
       if (d >= start && d <= end) mergedCalorieDays.add(d);
     }
     
@@ -419,6 +440,9 @@ export function subscribeMyMmrProjection(uid: string, onChange: (p: MmrProjectio
         workouts: mergedWorkouts,
         weights,
         calorieDaysMet: mergedCalorieDays,
+        calorieTotalsByDate: groupCalorieTotals,
+        dailyCalorieGoal,
+        goalMode,
         vacation: onVacation,
       }),
     );
@@ -451,6 +475,8 @@ export function subscribeMyMmrProjection(uid: string, onChange: (p: MmrProjectio
         streakWeeks = typeof d?.streakWeeks === 'number' ? Number(d.streakWeeks) : 0;
         tierShieldWeeksRemaining = typeof d?.tierShieldWeeksRemaining === 'number' ? Number(d.tierShieldWeeksRemaining) : 0;
         seasonId = String(d?.currentSeasonId ?? '').trim();
+        dailyCalorieGoal = typeof d?.dailyCalorieGoal === 'number' ? Number(d.dailyCalorieGoal) : null;
+        goalMode = ['cut', 'bulk', 'maintenance'].includes(d?.goalMode) ? d.goalMode : null;
         emit();
       },
       () => onChange(null),
@@ -539,17 +565,17 @@ export function subscribeMyMmrProjection(uid: string, onChange: (p: MmrProjectio
   );
 
   // Track group log data per group
-  const groupLogData = new Map<string, { workouts: Array<{ date: string; durationMinutes: number }>; calorieDays: Set<string> }>();
+  const groupLogData = new Map<string, { workouts: Array<{ date: string; durationMinutes: number }>; calorieTotals: Record<string, number> }>();
   // Track group log subscriptions
   const groupLogUnsubs = new Map<string, () => void>();
 
   const rebuildGroupData = () => {
     groupWorkouts = [];
-    groupCalorieDays = new Set();
+    groupCalorieTotals = {};
     for (const data of groupLogData.values()) {
       groupWorkouts.push(...data.workouts);
-      for (const d of data.calorieDays) {
-        groupCalorieDays.add(d);
+      for (const [d, v] of Object.entries(data.calorieTotals)) {
+        groupCalorieTotals[d] = (groupCalorieTotals[d] ?? 0) + v;
       }
     }
     emit();
@@ -584,7 +610,7 @@ export function subscribeMyMmrProjection(uid: string, onChange: (p: MmrProjectio
             query(collection(db, 'groups', groupId, 'logs'), where('uid', '==', uid), where('date', '>=', start), where('date', '<=', end)),
             (snap) => {
               const workouts: Array<{ date: string; durationMinutes: number }> = [];
-              const calorieDays = new Set<string>();
+              const calorieTotals: Record<string, number> = {};
               
               for (const d of snap.docs) {
                 const data = d.data() as any;
@@ -601,12 +627,12 @@ export function subscribeMyMmrProjection(uid: string, onChange: (p: MmrProjectio
                 } else if (type === 'calories') {
                   const cals = Number(data?.payload?.calories);
                   if (Number.isFinite(cals) && cals > 0) {
-                    calorieDays.add(date);
+                    calorieTotals[date] = (calorieTotals[date] ?? 0) + cals;
                   }
                 }
               }
               
-              groupLogData.set(groupId, { workouts, calorieDays });
+              groupLogData.set(groupId, { workouts, calorieTotals });
               rebuildGroupData();
             },
             () => {
