@@ -56,8 +56,12 @@ export function ActiveGroupProvider({ children }: { children: React.ReactNode })
   }, [user?.uid]);
 
   // Ensure activeGroupId is valid (fallback to first group if needed).
+  // CRITICAL: wait for groupsLoaded — validating the stored id against a
+  // still-empty groups list clobbered the user's saved selection on EVERY
+  // cold launch (cleared it, then "recovered" to whichever group sorted
+  // first — the wrong-group flash at startup).
   useEffect(() => {
-    if (!user?.uid || !isReady) return;
+    if (!user?.uid || !isReady || !groupsLoaded) return;
     const exists = activeGroupId && groups.some((g) => g.groupId === activeGroupId);
     if (exists) return;
     const next = groups[0]?.groupId ?? null;
@@ -67,7 +71,7 @@ export function ActiveGroupProvider({ children }: { children: React.ReactNode })
       if (next) await AsyncStorage.setItem(storageKeyFor(user.uid), next);
       else await AsyncStorage.removeItem(storageKeyFor(user.uid));
     })();
-  }, [activeGroupId, groups, isReady, user?.uid]);
+  }, [activeGroupId, groups, isReady, groupsLoaded, user?.uid]);
 
   const setActiveGroupId = useCallback(
     async (groupId: string | null) => {

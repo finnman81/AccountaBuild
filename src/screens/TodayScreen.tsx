@@ -182,6 +182,20 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
       </ScrollView>
     );
   }
+  // Group selected but its doc/members haven't arrived yet: hold a calm
+  // greeting-only frame instead of painting the header with an empty body
+  // that pops in piecewise ("BPM (blank)" launch flash).
+  if (!group || memberUids.length === 0) {
+    return (
+      <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ padding: spacing.lg, paddingTop: 56, paddingBottom: 32 }}>
+        <Text style={{ fontSize: 11, fontWeight: '700', letterSpacing: 0.8, color: colors.textMuted }}>{dateLabel(now).toUpperCase()}</Text>
+        <Text style={{ fontSize: 26, fontWeight: '700', letterSpacing: -0.4, color: colors.textPrimary, marginTop: 4 }}>
+          {greetingFor(now.getHours())}, {userName}
+        </Text>
+      </ScrollView>
+    );
+  }
+
   const rankTier = asTier(publicUsers[myUid]?.rankTierPublic);
   const rankDivision = typeof publicUsers[myUid]?.rankDivisionPublic === 'number' ? publicUsers[myUid]?.rankDivisionPublic : null;
   const myMember = team.members.find((m) => m.uid === myUid);
