@@ -17,7 +17,7 @@ import { db } from '../firebase/firebase';
 import { RULES_VERSION, STARTING_MMR, missedWeekPenalty, partialWeekPenalty, streakMultiplier } from '../mmr/constants';
 import { D_calDays, D_minutes, D_workouts, D_weightGain, D_weightLoss } from '../mmr/difficulty';
 import { bandForMMR, bandOrderIndex, applyRankWithDemotionRules, isStrictlyHigher, mpForMMR } from '../mmr/ranks';
-import { calorieDaysHitFromTotals } from '../mmr/adherence';
+import { LOW_CAL_FLAG_DAYS, calorieBandActiveForWeek, calorieDaysHitFromTotals, countLowCalorieDays } from '../mmr/adherence';
 import { lowerTierProgressBonus, nextShieldWeeks } from '../mmr/progression';
 import { breadthFactor, combineWeekScore, coreCategoryCount, goalScore } from '../mmr/scoring';
 import { DEFAULT_TZ, isoWeekIdInTz, isoWeekRangeInTz, nextIsoWeekId, seasonIdFromDate, zonedNoonUtcFromYmd } from '../mmr/time';
@@ -335,7 +335,7 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
     calorieDaysHit = calorieDayHits;
     calorieTotalsByDate = calorieTotals.totalsByDate;
     totalCaloriesLogged = calorieTotals.totalCalories;
-    const calorieDaysFromLogs = calorieDaysHitFromTotals(calorieTotalsByDate, dailyCalorieGoal, goalMode);
+    const calorieDaysFromLogs = calorieDaysHitFromTotals(calorieTotalsByDate, dailyCalorieGoal, goalMode, calorieBandActiveForWeek(weekId));
     if (calorieDaysFromLogs > calorieDaysHit) {
       calorieDaysHit = calorieDaysFromLogs;
     }
@@ -704,6 +704,10 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
         mmrAfter: newMMR,
         completedWeek,
         missedWeek,
+
+        // Data-quality: days logged under 500 kcal (usually an abandoned log).
+        lowCalorieDays: countLowCalorieDays(calorieTotalsByDate),
+        lowCalorieFlag: countLowCalorieDays(calorieTotalsByDate) > LOW_CAL_FLAG_DAYS,
 
         // Baselines for idempotent recompute
         streakBefore,

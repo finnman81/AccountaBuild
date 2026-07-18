@@ -177,7 +177,7 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
   const weights = await getWeights(db, uid);
   const { workoutsDone, minutesDone, calorieTotalsByDate } = await getWeekTotals(db, uid, groupIds, start, end);
   let calorieDaysHit = await countCalorieDaysHit(db, uid, dates);
-  const calorieDaysFromLogs = core.calorieDaysHitFromTotals(calorieTotalsByDate, dailyCalorieGoal, goalMode);
+  const calorieDaysFromLogs = core.calorieDaysHitFromTotals(calorieTotalsByDate, dailyCalorieGoal, goalMode, core.calorieBandActiveForWeek(weekId));
   if (calorieDaysFromLogs > calorieDaysHit) calorieDaysHit = calorieDaysFromLogs;
   const totalCaloriesLogged = Object.values(calorieTotalsByDate).reduce((a, b) => a + b, 0);
 
@@ -474,6 +474,8 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
         mmrAfter: newMMR,
         completedWeek,
         missedWeek,
+        lowCalorieDays: core.countLowCalorieDays(calorieTotalsByDate),
+        lowCalorieFlag: core.countLowCalorieDays(calorieTotalsByDate) > core.LOW_CAL_FLAG_DAYS,
         streakBefore,
         streakAfter,
         freezeBefore,

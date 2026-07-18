@@ -6,7 +6,7 @@ import { D_calDays, D_minutes, D_workouts, D_weightGain, D_weightLoss } from '..
 import { applyRankWithDemotionRules, bandForMMR } from '../mmr/ranks';
 import { lowerTierProgressBonus } from '../mmr/progression';
 import { breadthFactor, combineWeekScore, coreCategoryCount, goalScore } from '../mmr/scoring';
-import { calorieDaysHitFromTotals } from '../mmr/adherence';
+import { calorieBandActiveForWeek, calorieDaysHitFromTotals } from '../mmr/adherence';
 import { DEFAULT_TZ, isoWeekIdInTz, isoWeekRangeInTz, yyyyMmDdInTz } from '../mmr/time';
 import type { Tier } from '../mmr/types';
 
@@ -165,7 +165,7 @@ export function computeProjection(
   for (const [d, v] of Object.entries(params.calorieTotalsByDate ?? {})) {
     if (d >= start && d <= end && Number(v) > 0) totalsInWeek[d] = Number(v);
   }
-  const fromLogs = calorieDaysHitFromTotals(totalsInWeek, params.dailyCalorieGoal ?? null, params.goalMode ?? null);
+  const fromLogs = calorieDaysHitFromTotals(totalsInWeek, params.dailyCalorieGoal ?? null, params.goalMode ?? null, calorieBandActiveForWeek(params.weekId));
   const calorieDaysHit = Math.max(toggleDays, fromLogs);
   const { weighInsDone, weightEndOfWeek, weightPrevWeekEnd } = pickWeeklyWeights(params.weights, start, end);
 

@@ -1,4 +1,39 @@
-import { calorieDaysHitFromTotals } from '../../src/mmr/adherence';
+import {
+  CAL_BAND_FROM_WEEK,
+  calorieBandActiveForWeek,
+  calorieDaysHitFromTotals,
+  countLowCalorieDays,
+} from '../../src/mmr/adherence';
+
+describe('band activation gating', () => {
+  it('activates from the configured week onward, never before', () => {
+    expect(calorieBandActiveForWeek('2026-W29')).toBe(false);
+    expect(calorieBandActiveForWeek(CAL_BAND_FROM_WEEK)).toBe(true);
+    expect(calorieBandActiveForWeek('2026-W31')).toBe(true);
+    expect(calorieBandActiveForWeek(null)).toBe(false);
+  });
+
+  it('zero-padded week ids compare in true chronological order', () => {
+    expect(calorieBandActiveForWeek('2027-W09')).toBe(true);
+    expect('2026-W09' < '2026-W10').toBe(true);
+  });
+
+  it('pre-activation weeks score by the LEGACY rule (closed weeks stay stable)', () => {
+    // 1000 of 2000 on a cut: legacy = full credit, band = half.
+    expect(calorieDaysHitFromTotals({ a: 1000 }, 2000, 'cut', false)).toBe(1);
+    expect(calorieDaysHitFromTotals({ a: 1000 }, 2000, 'cut', true)).toBe(0.5);
+    // Over budget: legacy = no credit, band = habit credit.
+    expect(calorieDaysHitFromTotals({ a: 2500 }, 2000, 'cut', false)).toBe(0);
+    expect(calorieDaysHitFromTotals({ a: 2500 }, 2000, 'cut', true)).toBe(0.5);
+  });
+});
+
+describe('low-calorie data-quality flag', () => {
+  it('counts only positive days under the threshold', () => {
+    expect(countLowCalorieDays({ a: 300, b: 1900, c: 0, d: 499, e: 500 })).toBe(2);
+    expect(countLowCalorieDays({})).toBe(0);
+  });
+});
 
 /**
  * Band rule (2026-07-18): two systems in one — logging habit + diet adherence.

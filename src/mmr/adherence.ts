@@ -7,6 +7,19 @@ export const CAL_BAND_HIGH = 1.2;
 export const CAL_HABIT_CREDIT = 0.5;
 
 /**
+ * The band rule activates at the START of this ISO week and applies to that
+ * week onward. Weeks before it keep the old "any logged day counts" scoring,
+ * so recomputing history never retroactively restates closed weeks — and the
+ * new rule switches itself on at Monday 00:00 with no deploy required.
+ * (Week ids are zero-padded, so string comparison is ordering-safe.)
+ */
+export const CAL_BAND_FROM_WEEK = '2026-W30';
+
+export function calorieBandActiveForWeek(weekId: string | null | undefined): boolean {
+  return typeof weekId === 'string' && weekId >= CAL_BAND_FROM_WEEK;
+}
+
+/**
  * Credit days toward the calorie goal from per-day calorie totals.
  * Two systems in one (2026-07-18 design): the LOGGING HABIT and the actual
  * diet adherence each carry half the credit.
@@ -26,15 +39,35 @@ export function calorieDaysHitFromTotals(
   totalsByDate: Record<string, number>,
   dailyCalorieGoal: number | null,
   goalMode: CalorieGoalMode = null,
+  /** false = pre-activation scoring (any day at/under budget counts fully). */
+  useBand: boolean = true,
 ): number {
   const hasBudget = dailyCalorieGoal != null && Number.isFinite(dailyCalorieGoal) && dailyCalorieGoal > 0;
   return Object.values(totalsByDate).reduce((sum, total) => {
     if (!(total > 0)) return sum;
     if (!hasBudget) return sum + 1;
     const budget = dailyCalorieGoal as number;
+    if (!useBand) {
+      // Legacy rule, kept so closed weeks re-score identically forever.
+      if (goalMode === 'bulk' ? total < budget : total > budget) return sum;
+      return sum + 1;
+    }
     const full = goalMode === 'bulk'
       ? total >= budget
       : total >= CAL_BAND_LOW * budget && total <= CAL_BAND_HIGH * budget;
     return sum + (full ? 1 : CAL_HABIT_CREDIT);
   }, 0);
+}
+
+/**
+ * Implausibly-low logged days: a total this small almost always means the user
+ * stopped logging partway through the day rather than actually eating that
+ * little. Surfaced as a data-quality flag (weekly doc) rather than a scoring
+ * penalty — the band rule already withholds full credit for these.
+ */
+export const LOW_CAL_THRESHOLD = 500;
+export const LOW_CAL_FLAG_DAYS = 5;
+
+export function countLowCalorieDays(totalsByDate: Record<string, number>): number {
+  return Object.values(totalsByDate).filter((t) => t > 0 && t < LOW_CAL_THRESHOLD).length;
 }

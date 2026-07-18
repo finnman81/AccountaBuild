@@ -18,7 +18,14 @@ import { colors, radius, spacing } from '../../theme';
  */
 const SEEN_PREFIX = 'announcementSeen';
 
-type Announcement = { id: string; emoji?: string; title: string; lines: string[] };
+type Announcement = {
+  id: string;
+  emoji?: string;
+  title: string;
+  lines: string[];
+  /** ISO timestamp — the modal stays hidden until this moment (scheduled reveal). */
+  activeFrom?: string;
+};
 
 export default function WhatsNewModal() {
   const { user } = useContext(AuthContext);
@@ -32,6 +39,8 @@ export default function WhatsNewModal() {
         const snap = await getDoc(doc(db, 'config', 'app'));
         const a = (snap.exists() ? (snap.data() as any)?.announcement : null) as Announcement | null;
         if (!a?.id || !a?.title || !Array.isArray(a.lines)) return;
+        // Scheduled announcements: publish the config now, reveal later.
+        if (a.activeFrom && Date.now() < Date.parse(a.activeFrom)) return;
         const seen = await AsyncStorage.getItem(`${SEEN_PREFIX}:${uid}`).catch(() => null);
         if (seen === a.id) return;
         setAnn(a);

@@ -109,12 +109,27 @@ function breadthFactor(coreCount) {
 const CAL_BAND_LOW = 0.75;
 const CAL_BAND_HIGH = 1.2;
 const CAL_HABIT_CREDIT = 0.5;
-function calorieDaysHitFromTotals(totalsByDate, dailyCalorieGoal, goalMode = null) {
+// Activates at the start of this ISO week; earlier weeks keep legacy scoring
+// so recomputes never restate closed weeks. Zero-padded ids compare safely.
+const CAL_BAND_FROM_WEEK = '2026-W30';
+function calorieBandActiveForWeek(weekId) {
+  return typeof weekId === 'string' && weekId >= CAL_BAND_FROM_WEEK;
+}
+const LOW_CAL_THRESHOLD = 500;
+const LOW_CAL_FLAG_DAYS = 5;
+function countLowCalorieDays(totalsByDate) {
+  return Object.values(totalsByDate).filter((t) => t > 0 && t < LOW_CAL_THRESHOLD).length;
+}
+function calorieDaysHitFromTotals(totalsByDate, dailyCalorieGoal, goalMode = null, useBand = true) {
   const hasBudget = dailyCalorieGoal != null && Number.isFinite(dailyCalorieGoal) && dailyCalorieGoal > 0;
   return Object.values(totalsByDate).reduce((sum, total) => {
     if (!(total > 0)) return sum;
     if (!hasBudget) return sum + 1;
     const budget = dailyCalorieGoal;
+    if (!useBand) {
+      if (goalMode === 'bulk' ? total < budget : total > budget) return sum;
+      return sum + 1;
+    }
     const full = goalMode === 'bulk'
       ? total >= budget
       : total >= CAL_BAND_LOW * budget && total <= CAL_BAND_HIGH * budget;
@@ -320,6 +335,11 @@ module.exports = {
   coreCategoryCount,
   breadthFactor,
   calorieDaysHitFromTotals,
+  calorieBandActiveForWeek,
+  countLowCalorieDays,
+  LOW_CAL_THRESHOLD,
+  LOW_CAL_FLAG_DAYS,
+  CAL_BAND_FROM_WEEK,
   BANDS,
   bandForMMR,
   mpForMMR,

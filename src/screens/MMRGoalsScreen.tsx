@@ -128,7 +128,24 @@ export default function MMRGoalsScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [raw.workouts, raw.calorieDays, raw.weightLoss, raw.weightGain]);
 
-  const canSave = useMemo(() => Boolean(user?.uid) && !saving, [saving, user?.uid]);
+  // Goal changes are MONDAY-ONLY once you're set up. Mid-week target edits let
+  // someone lower the bar after a bad week (and make week-over-week comparisons
+  // meaningless). First-time setup is always allowed so onboarding isn't
+  // blocked, and the scorer's goalsSnapshot already protects the in-flight
+  // week's math either way.
+  const hasExistingGoals = useMemo(
+    () => Object.values(raw ?? {}).some((g: any) => g && g.status === 'active'),
+    [raw],
+  );
+  const isMondayEt = useMemo(() => {
+    try {
+      return new Intl.DateTimeFormat('en-US', { timeZone: DEFAULT_TZ, weekday: 'short' }).format(new Date()) === 'Mon';
+    } catch {
+      return new Date().getDay() === 1;
+    }
+  }, []);
+  const goalsLocked = hasExistingGoals && !isMondayEt;
+  const canSave = useMemo(() => Boolean(user?.uid) && !saving && !goalsLocked, [saving, user?.uid, goalsLocked]);
   const trackedCount = (workoutsEnabled ? 1 : 0) + (caloriesEnabled ? 1 : 0) + (weightEnabled ? 1 : 0);
 
   // Quick target-date chips: relative offsets plus end of the current season (quarter).
@@ -314,6 +331,15 @@ export default function MMRGoalsScreen() {
             showsVerticalScrollIndicator={false}
             contentContainerStyle={[styles.content, { paddingBottom: spacing.xxl + insets.bottom }]}
           >
+            {goalsLocked ? (
+              <View style={styles.lockCard}>
+                <AppText variant="rowTitle" color="primary">🔒 Goals change on Mondays</AppText>
+                <AppText variant="rowSubtitle" color="secondary" style={{ marginTop: 4 }}>
+                  Targets are locked for the rest of the week so a rough week can't be edited away — and so everyone's
+                  weeks stay comparable. Come back Monday to adjust them.
+                </AppText>
+              </View>
+            ) : null}
             <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>What you track</AppText>
             <AppText variant="rowSubtitle" color="muted" style={styles.intro}>
               Toggle a category off if you're not tracking it — you won't be penalized for it, but you'll level up
@@ -528,5 +554,13 @@ const styles = StyleSheet.create({
   resetCopy: { lineHeight: 18 },
   fairnessCaption: { textAlign: 'center', lineHeight: 18 },
   message: { marginTop: spacing.base, textAlign: 'center' },
+  lockCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: 'rgba(233,181,66,0.4)',
+    padding: spacing.base,
+    marginBottom: spacing.base,
+  },
   saveButton: { marginTop: spacing.base },
 });
