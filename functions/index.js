@@ -18,7 +18,7 @@ const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestore');
 const { computeUserUpToCurrentWeek } = require('./mmr-compute');
-const { evaluateStreakRisk, evaluateDailyChampion } = require('./notif-logic');
+const { evaluateStreakRisk, evaluateDailyChampion, evaluateVacationPrompt } = require('./notif-logic');
 const core = require('./mmr-core');
 const { sendExpoPushes, isExpoToken, prefEnabled, inQuietHours } = require('./push-helper');
 
@@ -252,9 +252,22 @@ exports.sendTeamActivityPush = onDocumentCreated('groups/{groupId}/logs/{logId}'
 exports.streakRiskReminder = onSchedule(
   { schedule: '0 18 * * *', timeZone: TZ, timeoutSeconds: 540, memory: '256MiB' },
   async () => {
-    const { items, evaluated } = await evaluateStreakRisk(db, new Date());
-    const result = items.length ? await sendExpoPushes(db, items) : { sent: 0 };
-    console.log(`[streakRiskReminder] evaluated ${evaluated} users, sent ${result.sent}`);
+    const now = new Date();
+    // Vacation prompt first: a user whose week has gone quiet gets "pause it"
+    // INSTEAD of "log now" — never both in one evening.
+    const vac = await evaluateVacationPrompt(db, now);
+    const vacUids = new Set(vac.items.map((i) => i.uid));
+    const { items, evaluated } = await evaluateStreakRisk(db, now);
+    const riskItems = items.filter((i) => !vacUids.has(i.uid));
+
+    const toSend = [...vac.items, ...riskItems];
+    const result = toSend.length ? await sendExpoPushes(db, toSend) : { sent: 0 };
+    await Promise.all(
+      vac.items.map((i) =>
+        db.doc(`users/${i.uid}`).set({ vacationPromptWeekId: vac.weekId }, { merge: true }).catch(() => {}),
+      ),
+    );
+    console.log(`[streakRiskReminder] evaluated ${evaluated} users, sent ${result.sent} (${vac.items.length} vacation prompts)`);
   },
 );
 

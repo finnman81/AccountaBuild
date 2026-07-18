@@ -36,6 +36,8 @@ export type PublicUser = {
   prevMmrPublic?: number | null;
   /** Whether teammates are allowed to nudge this user (mirrors the setting). */
   allowNudges?: boolean;
+  /** ISO week the user has declared as a vacation week (null when none). */
+  vacationWeekId?: string | null;
   /** Compact earned-badge mirror (newest first) for teammate profiles. */
   badgesPublic?: Array<{ id: string; type: string; label: string; seasonId?: string }>;
 };

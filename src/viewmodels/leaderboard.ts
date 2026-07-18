@@ -23,6 +23,8 @@ export type LeaderboardRow = {
   isMe: boolean;
   /** Week-over-week MMR movement; null when no prior-week snapshot exists yet. */
   movement: Movement | null;
+  /** Declared vacation for the current week (🏖️ badge — explains a frozen row). */
+  onVacation: boolean;
 };
 
 export type LeaderboardData = {
@@ -50,6 +52,8 @@ export function buildLeaderboard(params: {
   today: string;
   streakRule: 'workout' | 'any';
   pastCutoff: boolean;
+  /** Current ISO week id — rows whose vacationWeekId matches get the 🏖️ badge. */
+  currentWeekId?: string;
 }): LeaderboardData {
   const { memberUids, publicUsers, canSee, myUid, logs, today, streakRule, pastCutoff } = params;
   const allowed = memberUids.filter((u) => u === myUid || canSee.has(u));
@@ -80,6 +84,7 @@ export function buildLeaderboard(params: {
         atRisk: !loggedToday.has(uid) && pastCutoff,
         isMe: uid === myUid,
         movement,
+        onVacation: !!params.currentWeekId && p?.vacationWeekId === params.currentWeekId,
       };
     });
 

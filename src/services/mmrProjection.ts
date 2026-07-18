@@ -55,6 +55,8 @@ export type MmrProjection = {
    * mmrProjected drip-feeds by design and undersells on-pace logs.
    */
   mmrWeekEndProjected: number;
+  /** This week is a declared vacation week (penalty shield active). */
+  onVacation: boolean;
 };
 
 function parseDateLocal(yyyyMmDd: string) {
@@ -117,6 +119,8 @@ type ProjectionParams = {
   workouts: Array<{ date: string; durationMinutes: number }>;
   weights: Array<{ date: string; weight: number; tsMs: number | null }>;
   calorieDaysMet: Set<string>;
+  /** Current week declared a vacation week — no penalty projected. */
+  vacation?: boolean;
 };
 
 export function computeProjection(
@@ -226,7 +230,9 @@ export function computeProjection(
   // Pace-aware risk: an empty Monday/Tuesday is "week just started", not a
   // projected miss — you judge someone on what they've done VS the day of the
   // week, and on day 1-3 with nothing logged there's nothing to judge yet.
-  const weekJustStarted = !anyActivity && daysElapsed <= 3;
+  // weekEnd frame: the week is over by definition — "just started" grace
+  // doesn't apply (what-ifs on a Monday must still price in penalty rescue).
+  const weekJustStarted = opts?.frame === 'weekEnd' ? false : !anyActivity && daysElapsed <= 3;
   const missedIfEndedNow = !weekJustStarted && (!anyActivity || A_total < 0.5);
   const partialIfEndedNow = !weekJustStarted && !missedIfEndedNow && !completedIfEndedNow;
 
@@ -239,7 +245,13 @@ export function computeProjection(
   // scorer only penalizes at week close, so showing the FULL penalty on a
   // Tuesday overstates the risk. As the week ends (elapsedFrac -> 1) the
   // projection converges to the real close-out math.
-  const basePenalty = missedIfEndedNow ? missedWeekPenalty(params.mmrBefore) : partialIfEndedNow ? partialWeekPenalty(params.mmrBefore) : 0;
+  const basePenalty = params.vacation
+    ? 0
+    : missedIfEndedNow
+      ? missedWeekPenalty(params.mmrBefore)
+      : partialIfEndedNow
+        ? partialWeekPenalty(params.mmrBefore)
+        : 0;
   const penalty = basePenalty * elapsedFrac;
   
   // Small flat encouragement bonus for a completed week in the lower tiers.
@@ -340,6 +352,7 @@ export function computeProjection(
     perGoal,
     whatIf,
     mmrWeekEndProjected,
+    onVacation: params.vacation === true,
   };
 }
 
@@ -360,6 +373,7 @@ export function subscribeMyMmrProjection(uid: string, onChange: (p: MmrProjectio
   let groupIds: string[] = [];
   let groupWorkouts: Array<{ date: string; durationMinutes: number }> = [];
   let groupCalorieDays: Set<string> = new Set();
+  let onVacation = false;
 
   const emit = () => {
     if (userMmr == null || userMp == null) {
@@ -405,11 +419,27 @@ export function subscribeMyMmrProjection(uid: string, onChange: (p: MmrProjectio
         workouts: mergedWorkouts,
         weights,
         calorieDaysMet: mergedCalorieDays,
+        vacation: onVacation,
       }),
     );
   };
 
   const unsubs: Array<() => void> = [];
+
+  // Vacation flag lives on this week's weekly doc (set by services/vacation.ts).
+  unsubs.push(
+    onSnapshot(
+      doc(db, 'users', uid, 'weekly', weekId),
+      (snap) => {
+        onVacation = snap.exists() && (snap.data() as any)?.vacation === true;
+        emit();
+      },
+      () => {
+        onVacation = false;
+        emit();
+      },
+    ),
+  );
 
   unsubs.push(
     onSnapshot(

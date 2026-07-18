@@ -24,6 +24,7 @@ import WeeklyRecapBanner from '../components/today/WeeklyRecapBanner';
 import SetupChecklistCard from '../components/today/SetupChecklistCard';
 import TargetReviewCard from '../components/today/TargetReviewCard';
 import UpdateBanner from '../components/today/UpdateBanner';
+import VacationCard from '../components/today/VacationCard';
 import { deleteGroupLogById } from '../services/logs';
 import { enqueueSocialPush } from '../services/socialPush';
 import { notifyLogsChanged } from '../services/fpEvents';
@@ -252,6 +253,7 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
       ) : null}
 
       <View style={{ height: 20 }} />
+      <VacationCard uid={myUid} myLogDates={logs.filter((l) => l.uid === myUid).map((l) => l.date)} />
       {yesterdayFp != null && yesterdayFp !== 0 ? (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10, paddingHorizontal: 2 }}>
           <Icon source={yesterdayFp > 0 ? 'trending-up' : 'trending-down'} size={16} color={yesterdayFp > 0 ? colors.rankGold : colors.danger} />

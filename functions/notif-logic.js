@@ -171,3 +171,63 @@ async function evaluateDailyChampion(db, now) {
 }
 
 module.exports.evaluateDailyChampion = evaluateDailyChampion;
+
+/**
+ * Vacation-mode prompt: users who've been silent 3+ consecutive days (ending
+ * today), aren't on vacation, have allowance left, and haven't been prompted
+ * this week. Returns push items; the caller sends and STAMPS the
+ * vacationPromptWeekId marker. Runs alongside streak risk at 18:00 ET — a
+ * user should get one or the other, never both (vacation wins: if the week's
+ * gone quiet, "pause it" beats "log now").
+ */
+const VACATION_WEEKS_PER_SEASON = 2;
+const VACATION_QUIET_DAYS = 3;
+
+async function evaluateVacationPrompt(db, now) {
+  const today = core.yyyyMmDdInTz(now, TZ);
+  const weekId = core.isoWeekIdInTz(now, TZ);
+  const seasonId = core.seasonIdFromDate(now, TZ);
+  const quietStart = core.yyyyMmDdInTz(new Date(now.getTime() - (VACATION_QUIET_DAYS - 1) * 24 * 60 * 60 * 1000), TZ);
+
+  const usersSnap = await db.collection('users').get();
+  const items = [];
+  for (const u of usersSnap.docs) {
+    const data = u.data() || {};
+    try {
+      if (!data.expoPushToken || !String(data.expoPushToken).startsWith('Expo')) continue;
+      if (data.vacationPromptWeekId === weekId) continue; // already asked this week
+      const used = Number(data.vacationUsed && data.vacationUsed[seasonId]) || 0;
+      if (used >= VACATION_WEEKS_PER_SEASON) continue;
+
+      const wk = await db.doc(`users/${u.id}/weekly/${weekId}`).get();
+      if (wk.exists && wk.data().vacation === true) continue; // already on vacation
+
+      // Silent = zero logs in ANY group over the last N days (incl. today).
+      const groupsSnap = await db.collection('users').doc(u.id).collection('groups').get();
+      const groupIds = groupsSnap.docs.map((d) => String(d.data()?.groupId ?? d.id)).filter(Boolean);
+      if (!groupIds.length) continue;
+      let logged = false;
+      for (const gid of groupIds) {
+        const snap = await db
+          .collection('groups').doc(gid).collection('logs')
+          .where('uid', '==', u.id).where('date', '>=', quietStart).where('date', '<=', today)
+          .limit(1).get();
+        if (!snap.empty) { logged = true; break; }
+      }
+      if (logged) continue;
+
+      items.push({
+        uid: u.id,
+        token: data.expoPushToken,
+        title: '🏖️ On vacation?',
+        body: "Quiet few days — pause this week's scoring so it can't cost you FP or your streak. Anything you log still counts.",
+        data: { type: 'vacationPrompt', screen: 'Today' },
+      });
+    } catch (e) {
+      console.warn('[vacationPrompt] eval failed for', u.id, e);
+    }
+  }
+  return { items, weekId };
+}
+
+module.exports.evaluateVacationPrompt = evaluateVacationPrompt;

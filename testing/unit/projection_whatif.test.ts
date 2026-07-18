@@ -78,3 +78,21 @@ describe('projection what-if marginals (weekEnd frame)', () => {
     expect(p.whatIf.weighIn).toBeGreaterThanOrEqual(0);
   });
 });
+
+describe('vacation mode (penalty shield)', () => {
+  it('an empty vacation week projects zero penalty; the same week without vacation projects one', () => {
+    const empty = { workouts: [], calorieDaysMet: new Set<string>() };
+    const normal = computeProjection(baseParams(empty), { skipWhatIf: true, frame: 'weekEnd' });
+    const vacay = computeProjection(baseParams({ ...empty, vacation: true }), { skipWhatIf: true, frame: 'weekEnd' });
+    expect(normal.penalty).toBeGreaterThan(0);
+    expect(vacay.penalty).toBe(0);
+    expect(vacay.onVacation).toBe(true);
+    expect(vacay.mmrProjected).toBeGreaterThanOrEqual(normal.mmrProjected);
+  });
+
+  it('logging during a vacation week still earns', () => {
+    const vacayEmpty = computeProjection(baseParams({ workouts: [], calorieDaysMet: new Set<string>(), vacation: true }), { skipWhatIf: true, frame: 'weekEnd' });
+    const vacayLogged = computeProjection(baseParams({ vacation: true }), { skipWhatIf: true, frame: 'weekEnd' });
+    expect(vacayLogged.mmrProjected).toBeGreaterThan(vacayEmpty.mmrProjected);
+  });
+});

@@ -336,14 +336,20 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
             ? Math.max(0, (typeof userData?.consecutiveMissedWeeks === 'number' ? Number(userData.consecutiveMissedWeeks) : 0) - 1)
             : 0;
 
+    // Vacation week (user-declared, capped per season): the week can't hurt —
+    // no penalty, streak HELD (not incremented, not reset), no freeze spent.
+    // Anything logged still scores normally, so vacation is a penalty shield,
+    // never a week eraser. Mirrored in src/services/mmrUpdate.ts.
+    const onVacation = weeklyData?.vacation === true;
+
     // Freeze mechanics only at week CLOSE — mid-week state never consumes/earns.
-    const freezeUsed = !isCurrentWeek && !completedWeek && streakBefore > 0 && freezeBefore > 0;
-    const streakAfter = completedWeek ? streakBefore + 1 : freezeUsed ? streakBefore : 0;
+    const freezeUsed = !isCurrentWeek && !completedWeek && !onVacation && streakBefore > 0 && freezeBefore > 0;
+    const streakAfter = completedWeek ? streakBefore + 1 : freezeUsed || onVacation ? streakBefore : 0;
     const freezeEarned = !isCurrentWeek && completedWeek && streakAfter >= 4 && streakAfter % 4 === 0 && freezeBefore < 2;
     const freezeAfter = Math.max(0, Math.min(2, freezeBefore + (freezeEarned ? 1 : 0) - (freezeUsed ? 1 : 0)));
     const S = core.streakMultiplier(streakAfter);
 
-    const penalty = isCurrentWeek ? 0 : missedWeek ? core.missedWeekPenalty(mmrBefore) : partialWeek ? core.partialWeekPenalty(mmrBefore) : 0;
+    const penalty = isCurrentWeek || onVacation ? 0 : missedWeek ? core.missedWeekPenalty(mmrBefore) : partialWeek ? core.partialWeekPenalty(mmrBefore) : 0;
     const lowerTierBonus = core.lowerTierProgressBonus(oldBand.tier, completedWeek);
     const bonus = weightBonus + lowerTierBonus;
     const deltaMMR = weekScore * S - penalty + bonus;
@@ -355,7 +361,7 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
     const rankAfter = { tier: band.tier, division: band.division ?? null, mp };
     const tierPromoted = band.tier !== oldBand.tier && core.isStrictlyHigher(band, oldBand);
 
-    const consecutiveMissedWeeks = isWeekBeforeFirst ? 0 : missedWeek ? missedBefore + 1 : 0;
+    const consecutiveMissedWeeks = isWeekBeforeFirst || onVacation ? 0 : missedWeek ? missedBefore + 1 : 0;
     const shieldAfter = core.nextShieldWeeks({ shieldBefore, tierPromoted, completedWeek, consecutiveMissedWeeks });
 
     const peak = userData?.seasonPeak?.seasonId === seasonId ? userData.seasonPeak : null;

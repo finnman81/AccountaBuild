@@ -14,6 +14,7 @@ import { subscribeMyCanSeeUids } from '../services/visibility';
 import { subscribePublicUsers, type PublicUser } from '../services/publicUsers';
 import { subscribeGroupLogs, type GroupLog } from '../services/logs';
 import { buildLeaderboard, type LeaderboardRow } from '../viewmodels/leaderboard';
+import { DEFAULT_TZ, isoWeekIdInTz } from '../mmr/time';
 import { todayYYYYMMDD } from '../utils/dates';
 import AppText from '../components/ui/AppText';
 import Avatar from '../components/ui/Avatar';
@@ -88,6 +89,7 @@ export default function LeaderboardScreen({ route }: Props) {
       today: todayYYYYMMDD(),
       streakRule: (group?.streakRule ?? 'workout') as 'workout' | 'any',
       pastCutoff: new Date().getHours() >= 18,
+      currentWeekId: isoWeekIdInTz(new Date(), DEFAULT_TZ),
     });
   }, [memberUids, publicUsers, canSee, user?.uid, logs, group?.streakRule]);
 
@@ -133,7 +135,7 @@ export default function LeaderboardScreen({ route }: Props) {
                     <AppText variant="rowSubtitle" color="muted" style={styles.rank}>{r.isTied ? `T-${r.rank}` : r.rank}</AppText>
                     <Avatar photoURL={r.photoURL} name={r.name} size={34} />
                     <View style={styles.rowInfo}>
-                      <AppText variant="rowTitle" color={r.isMe ? 'accent' : 'primary'} numberOfLines={1}>{r.name}</AppText>
+                      <AppText variant="rowTitle" color={r.isMe ? 'accent' : 'primary'} numberOfLines={1}>{r.onVacation ? `${r.name} 🏖️` : r.name}</AppText>
                       <AppText variant="rowSubtitle" color="muted">
                         {r.tier ? `${r.tier}${r.division ? ` ${ROMAN[r.division]}` : ''}` : 'Unranked'}
                         {r.streakDays > 0 ? ` · ${r.streakDays}d` : ''}

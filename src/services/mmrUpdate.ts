@@ -539,16 +539,22 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
             ? Math.max(0, (typeof userData?.consecutiveMissedWeeks === 'number' ? Number(userData.consecutiveMissedWeeks) : 0) - 1)
             : 0;
 
+    // Vacation week (user-declared, capped per season): the week can't hurt —
+    // no penalty, streak HELD (not incremented, not reset), no freeze spent.
+    // Anything logged still scores normally, so vacation is a penalty shield,
+    // never a week eraser. Mirrored in functions/mmr-compute.js.
+    const onVacation = weeklyData?.vacation === true;
+
     // Freeze mechanics only at week CLOSE — mid-week state never consumes/earns.
-    const freezeUsed = !isCurrentWeek && !completedWeek && streakBefore > 0 && freezeBefore > 0;
-    const streakAfter = completedWeek ? streakBefore + 1 : freezeUsed ? streakBefore : 0;
+    const freezeUsed = !isCurrentWeek && !completedWeek && !onVacation && streakBefore > 0 && freezeBefore > 0;
+    const streakAfter = completedWeek ? streakBefore + 1 : freezeUsed || onVacation ? streakBefore : 0;
     const freezeEarned = !isCurrentWeek && completedWeek && streakAfter >= 4 && streakAfter % 4 === 0 && freezeBefore < 2;
     const freezeAfter = Math.max(0, Math.min(2, freezeBefore + (freezeEarned ? 1 : 0) - (freezeUsed ? 1 : 0)));
     const S = streakMultiplier(streakAfter);
 
     // Don't apply penalties for the current week (it's still in progress)
     // Only apply penalties for past weeks that were actually missed
-    const penalty = isCurrentWeek ? 0 : (missedWeek ? missedWeekPenalty(mmrBefore) : partialWeek ? partialWeekPenalty(mmrBefore) : 0);
+    const penalty = isCurrentWeek || onVacation ? 0 : (missedWeek ? missedWeekPenalty(mmrBefore) : partialWeek ? partialWeekPenalty(mmrBefore) : 0);
     
     // Small flat encouragement bonus for a completed week in the lower tiers.
     const lowerTierBonus = lowerTierProgressBonus(oldBand.tier, completedWeek);
@@ -594,8 +600,8 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
       }, { merge: true });
     }
 
-    // Don't count missed weeks for weeks before user joined
-    const consecutiveMissedWeeks = isWeekBeforeFirst ? 0 : (missedWeek ? missedBefore + 1 : 0);
+    // Don't count missed weeks for weeks before user joined (or on vacation)
+    const consecutiveMissedWeeks = isWeekBeforeFirst || onVacation ? 0 : (missedWeek ? missedBefore + 1 : 0);
     // Shield: granted (2) on tier promotion, ticks down on completed weeks,
     // breaks after 2 consecutive missed weeks (see mmr/progression.ts).
     const shieldAfter = nextShieldWeeks({ shieldBefore, tierPromoted, completedWeek, consecutiveMissedWeeks });
