@@ -705,6 +705,27 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
         completedWeek,
         missedWeek,
 
+        // Per-goal breakdown for the week-in-review "where it came from" card.
+        // Each goal's own adherence + score; NOT a percentage split of the week
+        // score (combineWeekScore is 0.6*max + 0.4*avg, so a clean split would
+        // be a lie). done/target are the human-readable counts.
+        goalBreakdown: active.map((g) => ({
+          id: g.id,
+          A: Math.round(g.A * 100) / 100,
+          D: Math.round(g.D * 100) / 100,
+          score: Math.round(g.score * 10) / 10,
+          done:
+            g.id === 'workouts' ? workoutsDone
+            : g.id === 'minutes' ? minutesDone
+            : g.id === 'calorieDays' ? Math.round(calorieDaysHit * 10) / 10
+            : weighInsDone,
+          target:
+            g.id === 'workouts' ? Number(goals.workouts?.targetWorkoutsPerWeek) || 0
+            : g.id === 'minutes' ? Number(goals.minutes?.targetMinutesPerWeek) || 0
+            : g.id === 'calorieDays' ? Number(goals.calorieDays?.targetDaysPerWeek) || 0
+            : 1,
+        })),
+
         // Data-quality: days logged under 500 kcal (usually an abandoned log).
         lowCalorieDays: countLowCalorieDays(calorieTotalsByDate),
         lowCalorieFlag: countLowCalorieDays(calorieTotalsByDate) > LOW_CAL_FLAG_DAYS,

@@ -26,8 +26,11 @@ export type MmrWeeklySummary = {
   weighInsDone: number;
   streakAfter: number;
 
-  /** Per-goal scoring snapshot (id + adherence + difficulty) for this week. */
-  goals?: Array<{ id: string; A: number; D: number }>;
+  /**
+   * Per-goal scoring snapshot for this week (written as `goalBreakdown` by
+   * both scorers since 2026-07-19). Absent on weeks scored before that.
+   */
+  goals?: Array<{ id: string; A: number; D: number; score?: number; done?: number; target?: number }>;
 
   rankBefore?: { tier: string; division?: 1 | 2 | 3 | 4 | null; mp?: number | null } | null;
   rankAfter?: { tier: string; division?: 1 | 2 | 3 | 4 | null; mp?: number | null } | null;
@@ -66,11 +69,23 @@ function mapWeeklyDoc(id: string, d: any): MmrWeeklySummary {
     weighInsDone: typeof d?.weighInsDone === 'number' ? Number(d.weighInsDone) : 0,
     streakAfter: typeof d?.streakAfter === 'number' ? Number(d.streakAfter) : 0,
 
-    goals: Array.isArray(d?.goals)
-      ? d.goals
-          .map((g: any) => ({ id: String(g?.id ?? ''), A: Number(g?.A) || 0, D: Number(g?.D) || 0 }))
-          .filter((g: any) => g.id)
-      : undefined,
+    // `goalBreakdown` is the live field; `goals` is a legacy name that was
+    // never actually written — kept as a fallback so nothing regresses.
+    goals: (() => {
+      const raw = Array.isArray(d?.goalBreakdown) ? d.goalBreakdown : Array.isArray(d?.goals) ? d.goals : null;
+      if (!raw) return undefined;
+      const mapped = raw
+        .map((g: any) => ({
+          id: String(g?.id ?? ''),
+          A: Number(g?.A) || 0,
+          D: Number(g?.D) || 0,
+          score: typeof g?.score === 'number' ? Number(g.score) : undefined,
+          done: typeof g?.done === 'number' ? Number(g.done) : undefined,
+          target: typeof g?.target === 'number' ? Number(g.target) : undefined,
+        }))
+        .filter((g: any) => g.id);
+      return mapped.length ? mapped : undefined;
+    })(),
 
     rankBefore: (d?.rankBefore ?? null) as any,
     rankAfter: (d?.rankAfter ?? null) as any,

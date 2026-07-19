@@ -474,6 +474,22 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
         mmrAfter: newMMR,
         completedWeek,
         missedWeek,
+        goalBreakdown: active.map((g) => ({
+          id: g.id,
+          A: Math.round(g.A * 100) / 100,
+          D: Math.round(g.D * 100) / 100,
+          score: Math.round(g.score * 10) / 10,
+          done:
+            g.id === 'workouts' ? workoutsDone
+            : g.id === 'minutes' ? minutesDone
+            : g.id === 'calorieDays' ? Math.round(calorieDaysHit * 10) / 10
+            : weighInsDone,
+          target:
+            g.id === 'workouts' ? Number(goals.workouts && goals.workouts.targetWorkoutsPerWeek) || 0
+            : g.id === 'minutes' ? Number(goals.minutes && goals.minutes.targetMinutesPerWeek) || 0
+            : g.id === 'calorieDays' ? Number(goals.calorieDays && goals.calorieDays.targetDaysPerWeek) || 0
+            : 1,
+        })),
         lowCalorieDays: core.countLowCalorieDays(calorieTotalsByDate),
         lowCalorieFlag: core.countLowCalorieDays(calorieTotalsByDate) > core.LOW_CAL_FLAG_DAYS,
         streakBefore,

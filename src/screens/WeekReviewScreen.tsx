@@ -197,6 +197,57 @@ export default function WeekReviewScreen({ route, navigation }: Props) {
       },
     ];
 
+    // WHERE IT CAME FROM — per-goal contribution. Only for weeks scored after
+    // the breakdown started being persisted; older weeks simply skip the card.
+    const breakdown = summary.goals ?? [];
+    if (breakdown.length > 0) {
+      const GOAL_LABEL: Record<string, string> = {
+        workouts: 'Workouts',
+        minutes: 'Active minutes',
+        calorieDays: 'Calorie days',
+        weightLoss: 'Weight loss',
+        weightGain: 'Weight gain',
+      };
+      const fmtDone = (g: { id: string; done?: number; target?: number }) => {
+        if (g.done == null || !g.target) return '';
+        if (g.id === 'minutes') return `${Math.round(g.done)} / ${g.target} min`;
+        if (g.id === 'weightLoss' || g.id === 'weightGain') return `${Math.round(g.done)} weigh-in${Math.round(g.done) === 1 ? '' : 's'}`;
+        return `${Math.round(g.done * 10) / 10} / ${g.target}`;
+      };
+      const ranked = [...breakdown].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+      const best = ranked[0];
+      const worst = ranked.length > 1 ? ranked[ranked.length - 1] : null;
+      out.push({
+        key: 'breakdown',
+        eyebrow: 'WHERE IT CAME FROM',
+        render: () => (
+          <>
+            <Text style={styles.emoji}>🧮</Text>
+            <View style={{ alignSelf: 'stretch', marginTop: spacing.sm }}>
+              {ranked.map((g) => {
+                const pct = Math.round(g.A * 100);
+                const tint = pct >= 70 ? colors.success : pct >= 40 ? colors.textPrimary : colors.danger;
+                return (
+                  <View key={g.id} style={styles.breakdownRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.breakdownLabel}>{GOAL_LABEL[g.id] ?? g.id}</Text>
+                      {fmtDone(g) ? <Text style={styles.breakdownSub}>{fmtDone(g)}</Text> : null}
+                    </View>
+                    <Text style={[styles.breakdownPct, { color: tint }]}>{pct}%</Text>
+                  </View>
+                );
+              })}
+            </View>
+            <Text style={[styles.cardSub, { marginTop: spacing.md }]}>
+              {worst && (worst.A ?? 0) < 0.7
+                ? `${GOAL_LABEL[best.id] ?? best.id} carried the week. ${GOAL_LABEL[worst.id] ?? worst.id} is where the FP is hiding.`
+                : 'Every goal pulled its weight.'}
+            </Text>
+          </>
+        ),
+      });
+    }
+
     if (winner) {
       out.push({
         key: 'team',
@@ -313,6 +364,16 @@ const styles = StyleSheet.create({
   cardBody: { color: colors.textPrimary, fontSize: 17, fontWeight: '600', marginTop: spacing.md, textAlign: 'center' },
   cardSub: { color: colors.textSecondary, fontSize: 14, marginTop: spacing.sm, textAlign: 'center', lineHeight: 20 },
 
+  breakdownRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
+  },
+  breakdownLabel: { color: colors.textPrimary, fontSize: 15, fontWeight: '600' },
+  breakdownSub: { color: colors.textMuted, fontSize: 12, marginTop: 1 },
+  breakdownPct: { fontSize: 17, fontWeight: '800', fontVariant: ['tabular-nums'] },
   ctaBtn: {
     marginTop: spacing.xl,
     backgroundColor: colors.primary,
