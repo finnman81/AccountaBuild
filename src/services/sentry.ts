@@ -61,6 +61,16 @@ export function initSentry(): void {
   }
 }
 
+/**
+ * True only when the native module was present AND init succeeded — i.e. this
+ * device is running a build that actually ships Sentry. Doubles as our build
+ * detector: `Constants.nativeBuildVersion` returns null on SDK 54, so the
+ * heartbeat had no way to tell who upgraded.
+ */
+export function isSentryActive(): boolean {
+  return sentry != null;
+}
+
 /** Manually report a caught error; safe no-op when Sentry isn't running. */
 export function captureError(err: unknown, context?: Record<string, unknown>): void {
   try {

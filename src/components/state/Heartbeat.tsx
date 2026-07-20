@@ -7,6 +7,7 @@ import Constants from 'expo-constants';
 import { AuthContext } from '../../store/AuthContext';
 import { authPersistenceMode, db } from '../../firebase/firebase';
 import { setErrorReporterUser, flushPendingErrors } from '../../services/errorReporter';
+import { isSentryActive } from '../../services/sentry';
 
 /**
  * App-health heartbeat: on open/foreground (throttled to hourly), stamp the
@@ -63,6 +64,9 @@ export default function Heartbeat() {
               // 'memory' here means this device WILL sign the user out on
               // restart (the Android logout report, 2026-07-18).
               authPersistence: authPersistenceMode,
+              // Proxy for "is this device on the Sentry-enabled build (36/vc17+)"
+              // AND confirmation that Sentry actually initialized there.
+              sentryActive: isSentryActive(),
             },
           },
           { merge: true },
