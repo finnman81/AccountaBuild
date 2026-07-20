@@ -112,6 +112,20 @@ export function installErrorReporter() {
   });
 }
 
+/**
+ * Non-fatal diagnostic breadcrumb → clientErrors (create-only for clients).
+ * For remotely debugging flows we can't reproduce locally (no dev device on
+ * hand). Cheap, but don't leave high-frequency call sites behind.
+ */
+export function reportDebug(tag: string, data: Record<string, unknown>) {
+  try {
+    const rec = buildRecord({ message: `[debug] ${tag}`, stack: JSON.stringify(data).slice(0, 3500) }, false);
+    void upload(rec).catch(() => {});
+  } catch {
+    /* never throw into app code */
+  }
+}
+
 /** Upload errors queued by a previous (possibly crashed) session. */
 export async function flushPendingErrors() {
   try {

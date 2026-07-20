@@ -6,6 +6,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { SHOWN_KEY_PREFIX } from '../components/mmr/WeekReviewLauncher';
+import { reportDebug } from '../services/errorReporter';
 
 import { AuthContext } from '../store/AuthContext';
 import { useActiveGroup } from '../store/ActiveGroupContext';
@@ -133,6 +134,7 @@ export default function WeekReviewScreen({ route, navigation }: Props) {
   useEffect(() => {
     if (!summary || !user?.uid) return;
     void AsyncStorage.setItem(`${SHOWN_KEY_PREFIX}:${user.uid}`, summary.weekId).catch(() => {});
+    reportDebug('weekReviewScreen rendered', { weekId: summary.weekId }); // TEMP TRACE 2026-07-20
   }, [summary?.weekId, user?.uid]);
 
   const breakdown = useMemo(
