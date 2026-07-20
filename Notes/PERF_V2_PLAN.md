@@ -25,7 +25,20 @@ This plan is grounded in a codebase audit + a light look at how comparable apps 
 ## The plan — 4 phases, ordered by lag-relief per effort
 
 ### Phase 0 — Measure first (cheap, do before anything)
-- Jake's screenshots → name the 3 worst screens/transitions.
+
+**Jake's targets (confirmed 2026-07-21):**
+1. **Cold start / launch frame** — worst offender.
+2. **Every home-tab switch from there**: Progress, Groups, Profile.
+
+**Concrete defect found in his launch screenshot** (fix regardless of the rest):
+the greeting frame renders `Good afternoon, dJXX3v` — `friendlyNameFromDisplayName`
+falls back to `uid.slice(0,6)` when `publicUsers`/`myProfile` haven't loaded yet.
+So the loading state greets users with a database key AND hangs 1–2s waiting on
+network. Both symptoms die with Phase 1.1's hydration cache (cache displayName +
+group name + roster; paint instantly, refresh behind). Quick standalone version:
+persist `{displayName, groupName}` on load, read synchronously on mount.
+
+- Video is NOT reviewable by Claude (images only) — rely on Sentry traces + stills.
 - Sentry ships in the 7/22 build anyway: enable **performance tracing** (`tracesSampleRate` small, e.g. 0.2) so we get real cold-start and navigation timings from the group's actual devices, not just Jake's.
 - Success metric: define target (e.g. cold start → Today interactive < 2s on cached data; tab switch < 200ms).
 
