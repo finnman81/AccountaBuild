@@ -27,6 +27,7 @@ import { RootStackParamList } from './types';
 import TabsNavigator from './TabsNavigator';
 import OnboardingNavigator from './OnboardingNavigator';
 import { navigationRef, flushPendingNavigation } from './navigationRef';
+import { registerSentryNavigation } from '../services/sentry';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -59,7 +60,10 @@ export default function AppNavigator() {
   return (
     <NavigationContainer
       ref={navigationRef}
-      onReady={flushPendingNavigation}
+      onReady={() => {
+        flushPendingNavigation();
+        registerSentryNavigation(navigationRef); // no-op until Sentry's native module ships
+      }}
       theme={{
         ...NavDarkTheme,
         colors: {

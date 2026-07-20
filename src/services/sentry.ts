@@ -14,9 +14,12 @@
  * '@sentry/react-native' directly — go through here.
  */
 import Constants from 'expo-constants';
+import { NativeModules } from 'react-native';
 
 let sentry: any = null;
 let started = false;
+/** React Navigation instrumentation handle (null until init succeeds). */
+let navigationIntegration: any = null;
 
 function dsn(): string {
   const fromExtra = (Constants.expoConfig?.extra as any)?.EXPO_PUBLIC_SENTRY_DSN;
@@ -29,16 +32,29 @@ export function initSentry(): void {
   started = true;
   const d = dsn();
   if (!d) return; // not configured yet — stay inert
+
+  // Hard precondition: the native module must actually be in THIS binary.
+  // Builds cut before Sentry was added (iOS 34 / Android vc15 and earlier)
+  // receive this JS via OTA but have no RNSentry — attempting init there is
+  // pointless and risks async failures the try/catch below can't see. Checking
+  // NativeModules makes "inert on old builds" provable rather than hopeful.
+  if (!(NativeModules as any)?.RNSentry) return;
+
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     sentry = require('@sentry/react-native');
+    // Screen-transition + time-to-initial-display timing. Optional chaining
+    // throughout: an SDK without this export must not break error reporting.
+    navigationIntegration = sentry.reactNavigationIntegration?.({ enableTimeToInitialDisplay: true }) ?? null;
     sentry.init({
       dsn: d,
-      // Errors only for now; turn on tracing/replay deliberately later so we
-      // don't blow the free-tier event quota on a handful of beta users.
-      tracesSampleRate: 0,
+      // 100% sampling: 7 beta users generate trivial volume, and we're actively
+      // hunting the cold-start / tab-switch lag. Lower this before any real
+      // growth — it is the main driver of quota burn.
+      tracesSampleRate: 1.0,
       enableAutoSessionTracking: true,
       environment: __DEV__ ? 'development' : 'production',
+      integrations: navigationIntegration ? [navigationIntegration] : [],
     });
   } catch {
     sentry = null; // native module absent (older build) — silently stay off
@@ -51,5 +67,18 @@ export function captureError(err: unknown, context?: Record<string, unknown>): v
     if (sentry) sentry.captureException(err, context ? { extra: context } : undefined);
   } catch {
     /* reporting must never throw into app code */
+  }
+}
+
+/**
+ * Hand React Navigation's container to Sentry so screen transitions are traced
+ * (Progress/Groups/Profile switches — the reported lag). No-ops when Sentry
+ * isn't running, which is every build before the native module ships.
+ */
+export function registerSentryNavigation(ref: unknown): void {
+  try {
+    navigationIntegration?.registerNavigationContainer?.(ref);
+  } catch {
+    /* instrumentation must never break navigation */
   }
 }

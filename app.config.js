@@ -81,8 +81,13 @@ module.exports = ({ config }) => {
       EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET || 'accountabuild.firebasestorage.app',
       EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || '364977359326',
       EXPO_PUBLIC_FIREBASE_APP_ID: process.env.EXPO_PUBLIC_FIREBASE_APP_ID || '1:364977359326:web:d7ce539ba3099c72b1b54f',
-      // Sentry DSN — empty until Jake sets it (init no-ops when blank).
-      EXPO_PUBLIC_SENTRY_DSN: process.env.EXPO_PUBLIC_SENTRY_DSN || '',
+      // Sentry DSN (munitor-ai/accountabuild). A DSN is a PUBLIC client key —
+      // it only permits event ingestion, never data reads — so inlining it is
+      // standard, same as the Firebase config above. Secrets (auth tokens for
+      // source-map upload) go in EAS secrets, never here.
+      EXPO_PUBLIC_SENTRY_DSN:
+        process.env.EXPO_PUBLIC_SENTRY_DSN ||
+        'https://3090ec91e64ab3383ce5ef5da92f4a61@o4511667605471232.ingest.us.sentry.io/4511769149833216',
     },
   };
 };
