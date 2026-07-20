@@ -1,6 +1,7 @@
 import { collection, documentId, limit, onSnapshot, orderBy, query } from 'firebase/firestore';
 
 import { db } from '../firebase/firebase';
+import { reportDebug } from './errorReporter';
 
 export type MmrWeeklySummary = {
   weekId: string;
@@ -111,11 +112,30 @@ export function subscribeLatestMmrWeeklySummary(uid: string, onChange: (s: MmrWe
 
 export function subscribeMmrWeeklyHistory(uid: string, maxWeeks: number, onChange: (items: MmrWeeklySummary[]) => void) {
   const ref = query(collection(db, 'users', uid, 'weekly'), orderBy(documentId(), 'desc'), limit(Math.max(1, Math.min(104, maxWeeks))));
+  let emits = 0;
   return onSnapshot(
     ref,
     (snap) => {
+      // TEMP TRACE (2026-07-20): the weekly-report launcher saw an EMPTY
+      // result on a device whose weekly docs exist server-side. Trace the
+      // first few emissions (cache state included) to tell "empty from-cache
+      // first snapshot" apart from a dying listener. Remove once diagnosed.
+      if (emits < 3) {
+        emits += 1;
+        reportDebug('mmrWeeklyHistory snapshot', {
+          emit: emits,
+          size: snap.size,
+          fromCache: snap.metadata.fromCache,
+          hasPendingWrites: snap.metadata.hasPendingWrites,
+        });
+      }
       onChange(snap.docs.map((docSnap) => mapWeeklyDoc(docSnap.id, docSnap.data())));
     },
-    () => onChange([]),
+    (err) => {
+      // TEMP TRACE: this error was silently swallowed into [] — the launcher
+      // couldn't distinguish "no data" from "listener died".
+      reportDebug('mmrWeeklyHistory ERROR', { code: (err as any)?.code ?? null, message: String((err as any)?.message ?? err).slice(0, 300) });
+      onChange([]);
+    },
   );
 }
