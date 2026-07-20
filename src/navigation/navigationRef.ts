@@ -35,3 +35,12 @@ export function navigateToGroupChat(groupId: string) {
     navigationRef.navigate('MainTabs', { screen: 'HomeTab', params: { screen: 'GroupChat', params: { groupId } } } as any);
   });
 }
+
+/** Open the weekly report (auto-open launcher + recap banner). Queues until
+ * the container is ready — a component-hook navigate that fires on the first
+ * Firestore snapshot can silently no-op during startup. */
+export function navigateToWeekReview(weekId?: string) {
+  runOrQueue(() => {
+    navigationRef.navigate('WeekReview', { weekId } as any);
+  });
+}

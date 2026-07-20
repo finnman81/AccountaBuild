@@ -28,10 +28,6 @@ export default function Heartbeat() {
 
     const beat = async () => {
       try {
-        const last = Number(await AsyncStorage.getItem(`${LAST_BEAT_KEY}:${uid}`).catch(() => null)) || 0;
-        if (Date.now() - last < THROTTLE_MS) return;
-        await AsyncStorage.setItem(`${LAST_BEAT_KEY}:${uid}`, String(Date.now())).catch(() => {});
-
         let updateId: string | null = null;
         try {
           // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -39,6 +35,18 @@ export default function Heartbeat() {
         } catch {
           /* dev client */
         }
+
+        // Hourly throttle — EXCEPT when the running bundle changed since the
+        // last beat. OTA adoption must be visible immediately: while debugging
+        // the 2026-07-20 weekly-report no-show, the stale hourly heartbeat
+        // made it impossible to tell whether a device had the fix at all.
+        const bundleKey = `${LAST_BEAT_KEY}:bundle:${uid}`;
+        const lastBundle = await AsyncStorage.getItem(bundleKey).catch(() => null);
+        const bundleChanged = (updateId ?? '') !== (lastBundle ?? '');
+        const last = Number(await AsyncStorage.getItem(`${LAST_BEAT_KEY}:${uid}`).catch(() => null)) || 0;
+        if (!bundleChanged && Date.now() - last < THROTTLE_MS) return;
+        await AsyncStorage.setItem(`${LAST_BEAT_KEY}:${uid}`, String(Date.now())).catch(() => {});
+        await AsyncStorage.setItem(bundleKey, updateId ?? '').catch(() => {});
         await setDoc(
           doc(db, 'users', uid),
           {

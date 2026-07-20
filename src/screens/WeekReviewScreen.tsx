@@ -1,8 +1,11 @@
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Icon, Text } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { SHOWN_KEY_PREFIX } from '../components/mmr/WeekReviewLauncher';
 
 import { AuthContext } from '../store/AuthContext';
 import { useActiveGroup } from '../store/ActiveGroupContext';
@@ -123,6 +126,14 @@ export default function WeekReviewScreen({ route, navigation }: Props) {
   useEffect(() => {
     if (weeks !== null && !summary) navigation.goBack();
   }, [weeks, summary, navigation]);
+
+  // Mark the week's report as SHOWN only now that it actually rendered — this
+  // is what stops the Mon-Wed auto-open from repeating. (The launcher no
+  // longer pre-marks; a failed navigation therefore retries next open.)
+  useEffect(() => {
+    if (!summary || !user?.uid) return;
+    void AsyncStorage.setItem(`${SHOWN_KEY_PREFIX}:${user.uid}`, summary.weekId).catch(() => {});
+  }, [summary?.weekId, user?.uid]);
 
   const breakdown = useMemo(
     () => [...(summary?.goals ?? [])].sort((a, b) => (b.score ?? 0) - (a.score ?? 0)),
