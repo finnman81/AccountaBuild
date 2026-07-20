@@ -27,6 +27,8 @@ import UpdateBanner from '../components/today/UpdateBanner';
 import VacationCard from '../components/today/VacationCard';
 import { deleteGroupLogById } from '../services/logs';
 import { enqueueSocialPush } from '../services/socialPush';
+import { fetchGroupWeekDeltas } from '../services/publicUsers';
+import { DEFAULT_TZ, isoWeekIdInTz } from '../mmr/time';
 import { notifyLogsChanged } from '../services/fpEvents';
 import type { ChecklistItem, TodayLogEntry } from '../viewmodels/today';
 import type { Tier } from '../mmr/types';
@@ -104,6 +106,23 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
   const units = useMyUnits();
   const yesterdayFp = useYesterdayFp(myUid);
 
+  // This week's FP race (weeklyPublic deltas) — powers the weekly-first
+  // leaderboard preview. Refreshed when logs change (the live settler updates
+  // your own delta within seconds of logging).
+  const [weekDeltas, setWeekDeltas] = useState<Record<string, number>>({});
+  useEffect(() => {
+    if (!activeGroupId) { setWeekDeltas({}); return; }
+    let cancelled = false;
+    const t = setTimeout(() => {
+      fetchGroupWeekDeltas(activeGroupId, isoWeekIdInTz(new Date(), DEFAULT_TZ))
+        .then((rows) => {
+          if (!cancelled) setWeekDeltas(Object.fromEntries(rows.map((r) => [r.uid, r.delta])));
+        })
+        .catch(() => {});
+    }, 1500); // small debounce: log bursts and the settler write settle first
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [activeGroupId, logs.length]);
+
   const checklist = useMemo(
     () => buildTodayChecklist({ logs, myUid, today, dailyCalorieGoal, units }),
     [logs, myUid, today, dailyCalorieGoal, units],
@@ -113,8 +132,8 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
     [memberUids, publicUsers, canSee, myUid, logs, today, streakRule, pastCutoff],
   );
   const preview = useMemo(
-    () => buildLeaderboardPreview({ memberUids, publicUsers, canSee, myUid, limit: 3 }),
-    [memberUids, publicUsers, canSee, myUid],
+    () => buildLeaderboardPreview({ memberUids, publicUsers, canSee, myUid, limit: 3, weekDeltas }),
+    [memberUids, publicUsers, canSee, myUid, weekDeltas],
   );
 
   if (!user) {

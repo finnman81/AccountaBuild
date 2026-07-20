@@ -11,7 +11,7 @@ export default function LeaderboardPreviewCard({ rows, onViewAll }: { rows: Lead
   return (
     <Card style={{ marginTop: 16 }}>
       <View style={styles.header}>
-        <Text style={styles.cardLabel}>Leaderboard</Text>
+        <Text style={styles.cardLabel}>This week's race</Text>
         <Pressable onPress={onViewAll} accessibilityRole="button">
           <Text style={styles.viewAll}>View all</Text>
         </Pressable>
@@ -25,7 +25,9 @@ export default function LeaderboardPreviewCard({ rows, onViewAll }: { rows: Lead
               {r.name}
               {r.isMe ? ' (You)' : ''}
             </Text>
-            <Text style={styles.mmr}>{r.mmr == null ? '—' : Math.round(r.mmr).toLocaleString()}</Text>
+            <Text style={[styles.mmr, r.weekDelta != null && r.weekDelta > 0 ? { color: colors.success } : null]}>
+              {r.weekDelta != null ? `+${r.weekDelta} FP` : r.mmr == null ? '—' : Math.round(r.mmr).toLocaleString()}
+            </Text>
           </View>
         ))}
         {rows.length === 0 && <Text style={styles.empty}>No ranked members yet.</Text>}

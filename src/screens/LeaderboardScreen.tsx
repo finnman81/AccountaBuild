@@ -15,6 +15,8 @@ import { subscribePublicUsers, type PublicUser } from '../services/publicUsers';
 import { subscribeGroupLogs, type GroupLog } from '../services/logs';
 import { buildLeaderboard, type LeaderboardRow } from '../viewmodels/leaderboard';
 import { DEFAULT_TZ, isoWeekIdInTz } from '../mmr/time';
+import { fetchGroupWeekDeltas } from '../services/publicUsers';
+import SegmentedControl from '../components/ui/SegmentedControl';
 import { todayYYYYMMDD } from '../utils/dates';
 import AppText from '../components/ui/AppText';
 import Avatar from '../components/ui/Avatar';
@@ -30,7 +32,7 @@ function mmrText(mmr: number | null): string {
   return mmr == null ? '—' : Math.round(mmr).toLocaleString();
 }
 
-function PodiumColumn({ row, place, onPress }: { row?: LeaderboardRow; place: 1 | 2 | 3; onPress: () => void }) {
+function PodiumColumn({ row, place, onPress, valueLabel }: { row?: LeaderboardRow; place: 1 | 2 | 3; onPress: () => void; valueLabel?: string }) {
   const height = place === 1 ? 78 : place === 2 ? 54 : 40;
   const avatarSize = place === 1 ? 64 : 56;
   if (!row) return <View style={styles.podiumCol} />;
@@ -40,7 +42,7 @@ function PodiumColumn({ row, place, onPress }: { row?: LeaderboardRow; place: 1 
       <AppText variant="rowSubtitle" color="primary" numberOfLines={1} style={styles.podiumName}>{row.name}</AppText>
       <View style={styles.podiumMmr}>
         {row.tier ? <RankEmblem tier={row.tier} inline size={12} /> : null}
-        <AppText variant="rowSubtitle" color="secondary">{mmrText(row.mmr)}</AppText>
+        <AppText variant="rowSubtitle" color="secondary">{valueLabel ?? mmrText(row.mmr)}</AppText>
       </View>
       <View style={[styles.pedestal, { height }, place === 1 && styles.pedestalGold]}>
         <AppText
@@ -93,8 +95,44 @@ export default function LeaderboardScreen({ route }: Props) {
     });
   }, [memberUids, publicUsers, canSee, user?.uid, logs, group?.streakRule]);
 
-  const podium = rows.slice(0, 3);
-  const listRows = rows.slice(3);
+  // WEEKLY-FIRST (2026-07-21): the default board is this week's FP race —
+  // everyone re-enters at 0 each Monday, so late joiners compete immediately
+  // instead of staring up at months of tenure. All-time stays one tap away.
+  const [board, setBoard] = useState<'week' | 'alltime'>('week');
+  const [weekDeltas, setWeekDeltas] = useState<Record<string, number>>({});
+  useEffect(() => {
+    let cancelled = false;
+    const t = setTimeout(() => {
+      fetchGroupWeekDeltas(groupId, isoWeekIdInTz(new Date(), DEFAULT_TZ))
+        .then((rws) => {
+          if (!cancelled) setWeekDeltas(Object.fromEntries(rws.map((r) => [r.uid, r.delta])));
+        })
+        .catch(() => {});
+    }, 1200);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [groupId, logs.length]);
+
+  const displayRows = useMemo(() => {
+    if (board !== 'week') return rows;
+    // Re-rank the all-time rows (they carry avatar/streak/vacation state) by
+    // this week's earned FP, standard competition ranking, ties broken by name.
+    const keyed = rows.map((r) => ({ ...r, weekDelta: Math.round(weekDeltas[r.uid] ?? 0) }));
+    keyed.sort((a, b) => b.weekDelta - a.weekDelta || a.name.localeCompare(b.name));
+    const ranks: number[] = keyed.map((r, i) => (i > 0 && r.weekDelta === keyed[i - 1]!.weekDelta ? -1 : i + 1));
+    for (let i = 0; i < ranks.length; i += 1) if (ranks[i] === -1) ranks[i] = ranks[i - 1]!;
+    return keyed.map((r, i) => ({
+      ...r,
+      rank: ranks[i]!,
+      isTied: (i > 0 && ranks[i] === ranks[i - 1]) || (i < ranks.length - 1 && ranks[i] === ranks[i + 1]),
+      movement: null, // week-over-week arrows are an all-time concept
+    }));
+  }, [rows, board, weekDeltas]);
+
+  const valueText = (r: LeaderboardRow & { weekDelta?: number }) =>
+    board === 'week' ? `+${r.weekDelta ?? 0} FP` : mmrText(r.mmr);
+
+  const podium = displayRows.slice(0, 3);
+  const listRows = displayRows.slice(3);
   // Coach card: chase the person directly ahead (actionable) rather than #1.
   // Fall back to gap-to-#1, then to "hold your lead" when I'm on top.
   const coach: { eyebrow: string; title: string } | null = rival
@@ -122,10 +160,19 @@ export default function LeaderboardScreen({ route }: Props) {
           <AppText variant="body" color="secondary" style={{ textAlign: 'center', marginTop: spacing.xxl }}>No ranked members yet.</AppText>
         ) : (
           <>
+            <SegmentedControl
+              value={board}
+              onChange={(v) => setBoard(v as 'week' | 'alltime')}
+              options={[
+                { value: 'week', label: 'This Week' },
+                { value: 'alltime', label: 'All-Time' },
+              ]}
+              style={{ marginBottom: 16 }}
+            />
             <View style={styles.podium}>
-              <PodiumColumn row={podium[1]} place={2} onPress={() => podium[1] && openMember(podium[1].uid)} />
-              <PodiumColumn row={podium[0]} place={1} onPress={() => podium[0] && openMember(podium[0].uid)} />
-              <PodiumColumn row={podium[2]} place={3} onPress={() => podium[2] && openMember(podium[2].uid)} />
+              <PodiumColumn row={podium[1]} place={2} onPress={() => podium[1] && openMember(podium[1].uid)} valueLabel={podium[1] ? valueText(podium[1]) : undefined} />
+              <PodiumColumn row={podium[0]} place={1} onPress={() => podium[0] && openMember(podium[0].uid)} valueLabel={podium[0] ? valueText(podium[0]) : undefined} />
+              <PodiumColumn row={podium[2]} place={3} onPress={() => podium[2] && openMember(podium[2].uid)} valueLabel={podium[2] ? valueText(podium[2]) : undefined} />
             </View>
 
             {listRows.length > 0 && (
@@ -147,13 +194,13 @@ export default function LeaderboardScreen({ route }: Props) {
                     {r.movement && r.movement !== 'same' ? (
                       <Icon source={r.movement === 'up' ? 'arrow-up' : 'arrow-down'} size={16} color={r.movement === 'up' ? colors.success : colors.danger} />
                     ) : null}
-                    <AppText variant="rowTitle" color="primary" style={styles.rowMmr}>{mmrText(r.mmr)}</AppText>
+                    <AppText variant="rowTitle" color="primary" style={styles.rowMmr}>{valueText(r)}</AppText>
                   </TouchableOpacity>
                 ))}
               </View>
             )}
 
-            {coach && (
+            {coach && board === 'alltime' && (
               <View style={styles.coachCard}>
                 <View style={{ flex: 1 }}>
                   <AppText variant="eyebrow" color="accent">{coach.eyebrow}</AppText>

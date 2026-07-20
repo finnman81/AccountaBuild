@@ -40,6 +40,8 @@ export type TeamMemberToday = {
 export type TeamToday = { members: TeamMemberToday[]; loggedCount: number; total: number };
 
 export type LeaderboardPreviewRow = {
+  /** FP earned this week (weekly mode only; null in all-time mode). */
+  weekDelta?: number | null;
   rank: number;
   isTied: boolean;
   uid: string;
@@ -350,7 +352,15 @@ export function buildLeaderboardPreview(params: {
   canSee: Set<string>;
   myUid: string;
   limit?: number;
+  /**
+   * Current-week FP earned per uid (weeklyPublic deltas). When provided the
+   * preview ranks by THIS WEEK's race — a flow everyone re-enters at 0 each
+   * Monday — instead of the all-time ladder, which buries late joiners under
+   * tenure. Members without a scored doc yet count as 0, not hidden.
+   */
+  weekDeltas?: Record<string, number>;
 }): LeaderboardPreviewRow[] {
+  const weekly = params.weekDeltas != null;
   const allowed = params.memberUids.filter((u) => u === params.myUid || params.canSee.has(u));
   const rows = allowed
     .filter((uid) => params.publicUsers[uid])
@@ -362,14 +372,16 @@ export function buildLeaderboardPreview(params: {
         tier: asTier(p?.rankTierPublic),
         division: (typeof p?.rankDivisionPublic === 'number' ? p.rankDivisionPublic : null) as Division | null,
         mmr: typeof p?.mmrPublic === 'number' ? p.mmrPublic : null,
+        weekDelta: weekly ? Math.round(params.weekDeltas![uid] ?? 0) : null,
         isMe: uid === params.myUid,
       };
     });
-  // Standard competition ranking (1224): equal MMR shares a rank, computed
+  // Standard competition ranking (1224): equal score shares a rank, computed
   // against the full field so a tie at the visible edge (e.g. #3) is still
   // correct even though its tied partner may fall just outside the slice.
-  rows.sort((a, b) => (b.mmr ?? -1) - (a.mmr ?? -1) || a.name.localeCompare(b.name));
-  const ranks: number[] = rows.map((r, i) => (i > 0 && r.mmr === rows[i - 1].mmr ? -1 : i + 1));
+  const keyOf = (r: { mmr: number | null; weekDelta: number | null }) => (weekly ? (r.weekDelta ?? 0) : (r.mmr ?? -1));
+  rows.sort((a, b) => keyOf(b) - keyOf(a) || a.name.localeCompare(b.name));
+  const ranks: number[] = rows.map((r, i) => (i > 0 && keyOf(r) === keyOf(rows[i - 1]) ? -1 : i + 1));
   for (let i = 0; i < ranks.length; i += 1) if (ranks[i] === -1) ranks[i] = ranks[i - 1]!;
   return rows.slice(0, params.limit ?? 3).map((r, i) => ({
     rank: ranks[i]!,
