@@ -67,7 +67,9 @@ export function subscribeWeeklyPublic(
   onChange: (weeks: WeeklyPublic[]) => void,
   onError?: (err: unknown) => void,
 ) {
-  const ref = query(collection(db, 'publicUsers', uid, 'weeklyPublic'), orderBy(documentId(), 'desc'), limit(max));
+  // Same failed-precondition trap as mmrWeekly (see note there): desc
+  // document-id ordering has no automatic index. weekId field sorts the same.
+  const ref = query(collection(db, 'publicUsers', uid, 'weeklyPublic'), orderBy('weekId', 'desc'), limit(max));
   return onSnapshot(
     ref,
     (snap) => {

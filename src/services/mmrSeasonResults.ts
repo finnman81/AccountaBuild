@@ -19,7 +19,9 @@ function toMillisMaybe(ts: any): number | null {
 }
 
 export function subscribeMySeasonResults(uid: string, onChange: (items: SeasonResult[]) => void) {
-  const ref = query(collection(db, 'users', uid, 'seasonResults'), orderBy(documentId(), 'desc'), limit(20));
+  // Ascending document-id IS auto-indexed (descending isn't — see
+  // mmrWeekly.ts); tiny collection, so sort asc and reverse client-side.
+  const ref = query(collection(db, 'users', uid, 'seasonResults'), orderBy(documentId()), limit(20));
   return onSnapshot(
     ref,
     (snap) => {
@@ -51,7 +53,7 @@ export function subscribeMySeasonResults(uid: string, onChange: (items: SeasonRe
           };
         })
         .filter(Boolean) as SeasonResult[];
-      onChange(items);
+      onChange(items.reverse()); // query is ascending (auto-indexed); callers expect newest first
     },
     () => {
       onChange([]);

@@ -96,7 +96,13 @@ function mapWeeklyDoc(id: string, d: any): MmrWeeklySummary {
 }
 
 export function subscribeLatestMmrWeeklySummary(uid: string, onChange: (s: MmrWeeklySummary | null) => void) {
-  const ref = query(collection(db, 'users', uid, 'weekly'), orderBy(documentId(), 'desc'), limit(1));
+// NOTE: orderBy('weekId') NOT orderBy(documentId(),'desc') — Firestore's
+// automatic indexes cover document-id ASCENDING only; descending __name__
+// needs an explicit index nobody created, so this listener died with
+// failed-precondition since birth (found 2026-07-20 via on-device trace:
+// every weekly-history surface silently empty in prod). weekId is a normal
+// zero-padded field with identical ordering and full auto-indexing.
+  const ref = query(collection(db, 'users', uid, 'weekly'), orderBy('weekId', 'desc'), limit(1));
   return onSnapshot(
     ref,
     (snap) => {
@@ -111,7 +117,7 @@ export function subscribeLatestMmrWeeklySummary(uid: string, onChange: (s: MmrWe
 }
 
 export function subscribeMmrWeeklyHistory(uid: string, maxWeeks: number, onChange: (items: MmrWeeklySummary[]) => void) {
-  const ref = query(collection(db, 'users', uid, 'weekly'), orderBy(documentId(), 'desc'), limit(Math.max(1, Math.min(104, maxWeeks))));
+  const ref = query(collection(db, 'users', uid, 'weekly'), orderBy('weekId', 'desc'), limit(Math.max(1, Math.min(104, maxWeeks))));
   let emits = 0;
   return onSnapshot(
     ref,
