@@ -1,4 +1,26 @@
-# Performance v2 Plan (drafted 2026-07-21 — investigation only, nothing implemented)
+# Performance v2 Plan
+
+## PHASE 0 RESULTS — first Sentry traces (2026-07-21, build 36, ~9 sessions)
+
+Sentry confirmed live (sessions arriving, 0 crashes). Screen transaction p50:
+
+| Screen | p50 | verdict |
+|---|---|---|
+| **Today (home)** | **~5,980 ms** | 🔴 THE problem — 6s on every cold start; pulls group+members+publicUsers+logs+weekDeltas+challenge+chat+activity+projection, all uncached |
+| **Leaderboard** | **~3,576 ms** | 🔴 heavy |
+| Goals | 14,356 ms (n=1) | onboarding outlier — watch, don't chase yet |
+| Login p95 | 8,140 ms | auth network tail, expected |
+| Profile | 573 ms | ✅ fine (felt lag there is likely animation, not data) |
+| Progress | 163 ms | ✅ fast |
+| GroupList / others | 465–695 ms | ✅ fine |
+
+**Provisional targets** (revisit as more devices report): Today p50 < 1,500 ms, Leaderboard p50 < 1,200 ms. Data-heavy screens should paint cached instantly and never block 3-6s on the network. Phase 1 (hydration cache) is aimed squarely at Today + Leaderboard.
+
+Source maps: SENTRY_AUTH_TOKEN stored as EAS secret; SENTRY_ORG/PROJECT in eas.json; upload re-enabled — validates on the next build.
+
+---
+
+# Original plan (drafted 2026-07-21 — investigation)
 
 Jake's report: "still a bit laggy / buggy when loading between screens." Screenshots pending.
 This plan is grounded in a codebase audit + a light look at how comparable apps handle the same problems.
