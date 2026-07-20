@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 
 import { AuthContext } from '../../store/AuthContext';
-import { subscribeLatestMmrWeeklySummary } from '../../services/mmrWeekly';
+import { subscribeMmrWeeklyHistory } from '../../services/mmrWeekly';
 import { DEFAULT_TZ, isoWeekIdInTz, prevIsoWeekId } from '../../mmr/time';
 
 const SEEN_KEY_PREFIX = 'weekReviewSeen';
@@ -23,17 +23,23 @@ export default function WeekReviewLauncher() {
     if (!user?.uid) return;
     const uid = user.uid;
 
-    return subscribeLatestMmrWeeklySummary(uid, (summary) => {
-      if (!summary || firedRef.current) return;
+    // Look up the week that JUST ENDED by id — NOT "the latest weekly doc".
+    // The current week's doc is created as soon as the new week is scored
+    // (every-6h compute, or the live settler on the first log), so "latest"
+    // is almost always the in-progress week. The old code compared that to
+    // last week's id and bailed every time: the story never once auto-opened
+    // in production. Verified across all members 2026-07-20.
+    return subscribeMmrWeeklyHistory(uid, 4, (weeks) => {
+      if (!weeks || firedRef.current) return;
 
       const now = new Date();
       const dow = now.getDay(); // 0=Sun … 6=Sat (device-local; a soft nicety, not a scoring boundary)
       const inWindow = dow >= 1 && dow <= 3; // Mon-Wed
       if (!inWindow) return;
 
-      // Only the week that JUST ended qualifies — no stale recaps.
       const lastWeekId = prevIsoWeekId(isoWeekIdInTz(now, DEFAULT_TZ), DEFAULT_TZ);
-      if (summary.weekId !== lastWeekId) return;
+      const summary = weeks.find((w) => w.weekId === lastWeekId);
+      if (!summary) return; // last week not scored yet — try again on the next snapshot
 
       const seenKey = `${SEEN_KEY_PREFIX}:${uid}`;
       AsyncStorage.getItem(seenKey)
