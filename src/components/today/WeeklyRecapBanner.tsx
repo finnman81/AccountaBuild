@@ -4,7 +4,7 @@ import { Icon, Text } from 'react-native-paper';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { AuthContext } from '../../store/AuthContext';
-import { subscribeLatestMmrWeeklySummary, type MmrWeeklySummary } from '../../services/mmrWeekly';
+import { subscribeMmrWeeklyHistory, type MmrWeeklySummary } from '../../services/mmrWeekly';
 import { DEFAULT_TZ, isoWeekIdInTz, prevIsoWeekId } from '../../mmr/time';
 import { colors } from '../../theme/colors';
 
@@ -25,7 +25,14 @@ export default function WeeklyRecapBanner({ onOpen }: Props) {
 
   useEffect(() => {
     if (!user?.uid) return;
-    return subscribeLatestMmrWeeklySummary(user.uid, setSummary);
+    // Fetch last week BY ID, not "the latest doc" — the current week's doc
+    // exists as soon as the new week is scored, so `latest` is the in-progress
+    // week and the eligibility check below rejected it every time. Same bug
+    // that kept WeekReviewLauncher from ever firing (fixed 2026-07-20).
+    return subscribeMmrWeeklyHistory(user.uid, 4, (weeks) => {
+      const lastWeekId = prevIsoWeekId(isoWeekIdInTz(new Date(), DEFAULT_TZ), DEFAULT_TZ);
+      setSummary(weeks?.find((w) => w.weekId === lastWeekId) ?? null);
+    });
   }, [user?.uid]);
 
   const dismissKey = user?.uid ? `${DISMISS_KEY_PREFIX}:${user.uid}` : null;
