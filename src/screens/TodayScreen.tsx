@@ -30,6 +30,7 @@ import { enqueueSocialPush } from '../services/socialPush';
 import { fetchGroupWeekDeltas } from '../services/publicUsers';
 import { DEFAULT_TZ, isoWeekIdInTz } from '../mmr/time';
 import { notifyLogsChanged } from '../services/fpEvents';
+import { getCachedDisplayName, getCachedGroupName, rememberDisplayName, rememberGroupName } from '../services/profileCache';
 import type { ChecklistItem, TodayLogEntry } from '../viewmodels/today';
 import type { Tier } from '../mmr/types';
 
@@ -144,7 +145,15 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
     );
   }
 
-  const userName = friendlyNameFromDisplayName(publicUsers[myUid]?.displayName ?? myProfile?.displayName ?? null, myUid);
+  // Name resolution order: live -> last-known (disk cache) -> NOTHING.
+  // Never fall back to `uid.slice(0,6)` here: greeting a user with their own
+  // database key on every cold start is worse than an unnamed greeting.
+  const liveName = publicUsers[myUid]?.displayName ?? myProfile?.displayName ?? null;
+  rememberDisplayName(myUid, liveName);
+  const resolvedName = liveName ?? getCachedDisplayName(myUid);
+  const userName = resolvedName ? friendlyNameFromDisplayName(resolvedName, undefined) : '';
+  const greeting = greetingFor(now.getHours());
+  const greetingLine = userName ? `${greeting}, ${userName}` : greeting;
 
   // No active group: the checklist/log flow can't work (logs live under a
   // group), so show a "find your crew" state instead of dead buttons.
@@ -155,7 +164,7 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
       <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ padding: spacing.lg, paddingTop: 56, paddingBottom: 32 }}>
         <Text style={{ fontSize: 11, fontWeight: '700', letterSpacing: 0.8, color: colors.textMuted }}>{dateLabel(now).toUpperCase()}</Text>
         <Text style={{ fontSize: 26, fontWeight: '700', letterSpacing: -0.4, color: colors.textPrimary, marginTop: 4 }}>
-          {greetingFor(now.getHours())}, {userName}
+          {greetingLine}
         </Text>
       </ScrollView>
     );
@@ -165,7 +174,7 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
       <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ padding: spacing.lg, paddingTop: 56, paddingBottom: 32 }}>
         <Text style={{ fontSize: 11, fontWeight: '700', letterSpacing: 0.8, color: colors.textMuted }}>{dateLabel(now).toUpperCase()}</Text>
         <Text style={{ fontSize: 26, fontWeight: '700', letterSpacing: -0.4, color: colors.textPrimary, marginTop: 4 }}>
-          {greetingFor(now.getHours())}, {userName}
+          {greetingLine}
         </Text>
         <View
           style={{
@@ -209,11 +218,15 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
       <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ padding: spacing.lg, paddingTop: 56, paddingBottom: 32 }}>
         <Text style={{ fontSize: 11, fontWeight: '700', letterSpacing: 0.8, color: colors.textMuted }}>{dateLabel(now).toUpperCase()}</Text>
         <Text style={{ fontSize: 26, fontWeight: '700', letterSpacing: -0.4, color: colors.textPrimary, marginTop: 4 }}>
-          {greetingFor(now.getHours())}, {userName}
+          {greetingLine}
         </Text>
       </ScrollView>
     );
   }
+
+  // Same treatment for the group name — cached value beats "Your group".
+  rememberGroupName(activeGroupId, group?.name ?? null);
+  const groupName = group?.name ?? getCachedGroupName(activeGroupId) ?? 'Your group';
 
   const rankTier = asTier(publicUsers[myUid]?.rankTierPublic);
   const rankDivision = typeof publicUsers[myUid]?.rankDivisionPublic === 'number' ? publicUsers[myUid]?.rankDivisionPublic : null;
@@ -235,7 +248,7 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
 
     <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ padding: spacing.lg, paddingTop: 56, paddingBottom: 32 }}>
       <TodayHeader
-        groupName={group?.name ?? 'Your group'}
+        groupName={groupName}
         groupLogoURL={group?.logoURL ?? null}
         userName={userName}
         dateLabel={dateLabel(now)}

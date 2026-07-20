@@ -14,6 +14,7 @@ import SafeUpdateChecker from './src/components/state/SafeUpdateChecker';
 import { appTheme } from './src/theme/theme';
 import { initSentry } from './src/services/sentry';
 import { installErrorReporter } from './src/services/errorReporter';
+import { primeProfileCache } from './src/services/profileCache';
 import Heartbeat from './src/components/state/Heartbeat';
 
 // Crash reporting. No-ops until a DSN is set AND a build ships the native
@@ -22,6 +23,9 @@ initSentry();
 // JS-level error reporting works TODAY on all builds (no native module):
 // fatal JS errors queue locally and upload to `clientErrors` on next launch.
 installErrorReporter();
+// Warm the last-known name/group cache so the launch frame can paint real
+// text instead of a uid (Firestore has no disk cache on RN).
+void primeProfileCache();
 
 // Hold the native splash until the app is ready (fonts + auth + onboarding).
 // AppNavigator hides it once it knows which screen to show — so the user goes
