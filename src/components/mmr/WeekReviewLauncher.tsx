@@ -3,8 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { AuthContext } from '../../store/AuthContext';
 import { subscribeMmrWeeklyHistory } from '../../services/mmrWeekly';
-import { navigateToWeekReview, navigationRef } from '../../navigation/navigationRef';
-import { reportDebug } from '../../services/errorReporter';
+import { navigateToWeekReview } from '../../navigation/navigationRef';
 import { DEFAULT_TZ, isoWeekIdInTz, prevIsoWeekId } from '../../mmr/time';
 
 /**
@@ -28,7 +27,6 @@ export const SHOWN_KEY_PREFIX = 'weekReviewShown';
 export default function WeekReviewLauncher() {
   const { user } = useContext(AuthContext);
   const firedRef = useRef(false);
-  const tracedRef = useRef(false);
 
   useEffect(() => {
     if (!user?.uid) return;
@@ -43,32 +41,10 @@ export default function WeekReviewLauncher() {
       const now = new Date();
       const dow = now.getDay(); // 0=Sun … 6=Sat (device-local; a soft nicety, not a scoring boundary)
       const inWindow = dow >= 1 && dow <= 3; // Mon-Wed
+      if (!inWindow) return;
+
       const lastWeekId = prevIsoWeekId(isoWeekIdInTz(now, DEFAULT_TZ), DEFAULT_TZ);
       const summary = weeks.find((w) => w.weekId === lastWeekId);
-
-      // TEMP TRACE (2026-07-20): the auto-open has failed silently through
-      // three blind fixes — record every decision input once per session so
-      // the next failure is diagnosable from clientErrors. Remove once the
-      // report is confirmed opening in prod.
-      if (!tracedRef.current) {
-        tracedRef.current = true;
-        AsyncStorage.getItem(`${SHOWN_KEY_PREFIX}:${uid}`)
-          .then((shown) =>
-            reportDebug('weekReviewLauncher', {
-              weeksCount: weeks.length,
-              weekIds: weeks.map((w) => w.weekId),
-              dow,
-              inWindow,
-              lastWeekId,
-              foundSummary: !!summary,
-              shown,
-              navReady: navigationRef.isReady(),
-            }),
-          )
-          .catch(() => {});
-      }
-
-      if (!inWindow) return;
       if (!summary) return; // last week not scored yet — retry on the next snapshot
 
       AsyncStorage.getItem(`${SHOWN_KEY_PREFIX}:${uid}`)
