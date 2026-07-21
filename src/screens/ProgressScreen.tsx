@@ -12,6 +12,7 @@ import TrendLineChart from '../components/charts/TrendLineChart';
 import ComplianceBars from '../components/progress/ComplianceBars';
 import { subscribeMyCanSeeUids } from '../services/visibility';
 import { subscribePublicUsers } from '../services/publicUsers';
+import { getHydrated, setHydrated } from '../services/hydrationCache';
 import Card from '../components/ui/Card';
 import AppText from '../components/ui/AppText';
 import PrimaryButton from '../components/ui/PrimaryButton';
@@ -72,6 +73,9 @@ export default function ProgressScreen({ navigation }: Props) {
   const [photoLogs, setPhotoLogs] = useState<GroupLog[]>([]);
   const [groupLogs, setGroupLogs] = useState<GroupLog[]>([]);
   const [viewerUri, setViewerUri] = useState<string | null>(null);
+  // Seed the roster from the shared hydration cache (same keys Today/Leaderboard/
+  // GroupChat maintain) so this tab paints known members instantly instead of
+  // waiting on the chained members -> canSee -> publicUsers round-trips.
   const [memberUids, setMemberUids] = useState<string[]>([]);
   const [groupMeta, setGroupMeta] = useState<{ name?: string | null; memberCount?: number | null } | null>(null);
   const [canSee, setCanSee] = useState<Set<string>>(new Set());
@@ -139,15 +143,23 @@ export default function ProgressScreen({ navigation }: Props) {
 
   useEffect(() => {
     if (!user) return;
-    return subscribeMyCanSeeUids(user.uid, (uids) => setCanSee(new Set(uids)));
+    setCanSee(new Set(getHydrated<string[]>(`canSee:${user.uid}`) ?? []));
+    return subscribeMyCanSeeUids(user.uid, (uids) => {
+      const set = new Set(uids);
+      setCanSee(set);
+      setHydrated(`canSee:${user.uid}`, Array.from(set));
+    });
   }, [user]);
 
   useEffect(() => {
     if (!user) return;
     const visible = memberUids.filter((uid) => uid === user.uid || canSee.has(uid));
     if (visible.length === 0) { setPublicUsers({}); return; }
-    return subscribePublicUsers(visible, setPublicUsers);
-  }, [canSee, memberUids, user]);
+    return subscribePublicUsers(visible, (map) => {
+      setPublicUsers(map);
+      if (activeGroupId) setHydrated(`publicUsers:${activeGroupId}`, map);
+    });
+  }, [canSee, memberUids, user, activeGroupId]);
 
   const photoStrip = useMemo(() => photoLogs.slice(0, 12), [photoLogs]);
 
