@@ -36,7 +36,10 @@ export type WorkoutType =
   | 'meditation'
   | 'pilates'
   | 'taiChi'
-  | 'walking';
+  | 'walking'
+  /** Anything the app can't classify — incl. Apple Health 'Other'/custom-named
+   * workouts (e.g. manual labor). Better an honest 'Other' than a wrong guess. */
+  | 'other';
 export type LogType = 'calories' | 'workout' | 'weight' | 'photo';
 export type MealType = 'all' | 'breakfast' | 'lunch' | 'dinner' | 'snack';
 

@@ -36,7 +36,7 @@ const WORKOUT_MAP: Array<[number | undefined, string]> = [
 ];
 function mapExerciseType(t: number | undefined): string {
   const hit = WORKOUT_MAP.find(([code]) => code != null && code === t);
-  return hit ? hit[1] : 'weightLifting';
+  return hit ? hit[1] : 'other'; // never guess a real type for unknowns
 }
 
 function inferMealFromTime(d: Date): HealthCalorieEntry['meal'] {

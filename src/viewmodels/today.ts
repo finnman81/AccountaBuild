@@ -76,6 +76,7 @@ const WORKOUT_LABELS: Record<string, string> = {
   pilates: 'Pilates',
   taiChi: 'Tai chi',
   walking: 'Walk',
+  other: 'Activity',
 };
 function prettyWorkout(type: unknown): string {
   const s = String(type ?? '').trim();

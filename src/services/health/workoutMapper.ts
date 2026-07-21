@@ -293,9 +293,11 @@ export function mapHealthKitWorkoutType(healthKitType: string | number | unknown
     return 'weightLifting';
   }
   
-  // Default fallback - but log for debugging
+  // Unknown -> 'other', NEVER 'weightLifting'. Defaulting to a real activity
+  // silently mislabels data: Apple Health "Other"/custom workouts (manual
+  // labor, yard work) were all being recorded as weightlifting (prod, 7/20).
   console.warn('[WorkoutMapper] Unknown HealthKit workout type:', healthKitType, 'normalized:', normalized);
-  return 'weightLifting';
+  return 'other';
 }
 
 /**
@@ -347,6 +349,6 @@ export function mapGoogleFitWorkoutType(googleFitType: number | string): Workout
       // Regular walking - map to 'walking' type for active rest
       return 'walking';
     default:
-      return 'weightLifting';
+      return 'other'; // see the HealthKit note above — never guess a real type
   }
 }

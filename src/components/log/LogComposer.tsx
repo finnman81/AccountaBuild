@@ -41,6 +41,7 @@ const WORKOUTS: Array<{ value: WorkoutType; label: string }> = [
   { value: 'weightLifting', label: 'Lift' },
   { value: 'running', label: 'Run' },
   { value: 'walking', label: 'Walk' },
+  { value: 'other', label: 'Other' },
   { value: 'bike', label: 'Bike' },
   { value: 'swim', label: 'Swim' },
   { value: 'hiit', label: 'HIIT' },

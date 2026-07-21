@@ -264,8 +264,12 @@ export function mapWorkoutSample(w: any): HealthKitWorkout | null {
     // Otherwise keep as jogging (default for 52)
   }
 
-  // If we got weightLifting as default, try to infer from metadata/distance
-  if (workoutType === 'weightLifting') {
+  // Distance-based inference for UNCLASSIFIED workouts. This used to key on
+  // 'weightLifting' because that was the mapper's default for unknowns — a bad
+  // default that silently mislabeled Apple Health "Other"/custom workouts (e.g.
+  // manual labor) as lifting. Unknowns now map to 'other', so this must key on
+  // that instead or the distance inference would never run.
+  if (workoutType === 'other') {
     // Check for distance data - running/jogging typically have distance
     const distance = w.totalDistance || w.distance || w.totalDistanceValue;
     const hasDistance = distance && typeof distance === 'number' && distance > 0;
