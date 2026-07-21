@@ -16,6 +16,7 @@ import { subscribeGroupLogs, type GroupLog } from '../services/logs';
 import { buildLeaderboard, type LeaderboardRow } from '../viewmodels/leaderboard';
 import { DEFAULT_TZ, isoWeekIdInTz } from '../mmr/time';
 import { fetchGroupWeekDeltas } from '../services/publicUsers';
+import { getHydrated, setHydrated } from '../services/hydrationCache';
 import SegmentedControl from '../components/ui/SegmentedControl';
 import { todayYYYYMMDD } from '../utils/dates';
 import AppText from '../components/ui/AppText';
@@ -61,23 +62,30 @@ export default function LeaderboardScreen({ route }: Props) {
   const { user } = useContext(AuthContext);
   const nav = useNavigation<NativeStackNavigationProp<HomeStackParamList & RootStackParamList>>();
 
-  const [group, setGroup] = useState<{ name?: string; streakRule?: 'workout' | 'any' } | null>(null);
-  const [memberUids, setMemberUids] = useState<string[]>([]);
-  const [publicUsers, setPublicUsers] = useState<Record<string, PublicUser>>({});
-  const [canSee, setCanSee] = useState<Set<string>>(new Set());
+  // Seed from the same hydration cache Today writes — the podium/rows paint
+  // last-known ranks instantly instead of blocking ~3.5s on the network.
+  const [group, setGroup] = useState<{ name?: string; streakRule?: 'workout' | 'any' } | null>(() => getHydrated(`group:${groupId}`) ?? null);
+  const [memberUids, setMemberUids] = useState<string[]>(() => getHydrated<string[]>(`members:${groupId}`) ?? []);
+  const [publicUsers, setPublicUsers] = useState<Record<string, PublicUser>>(() => getHydrated<Record<string, PublicUser>>(`publicUsers:${groupId}`) ?? {});
+  const [canSee, setCanSee] = useState<Set<string>>(() => new Set(user?.uid ? getHydrated<string[]>(`canSee:${user.uid}`) ?? [] : []));
   const [logs, setLogs] = useState<GroupLog[]>([]);
 
-  useEffect(() => onSnapshot(doc(db, 'groups', groupId), (s) => setGroup(s.exists() ? ((s.data() as any) ?? null) : null)), [groupId]);
-  useEffect(() => subscribeGroupMemberUids(groupId, setMemberUids), [groupId]);
+  useEffect(() => onSnapshot(doc(db, 'groups', groupId), (s) => {
+    if (!s.exists()) { setGroup(null); return; }
+    const g = (s.data() as any) ?? null;
+    setGroup(g);
+    if (g) setHydrated(`group:${groupId}`, { ...g, logoURL: g.logoURL ?? g.logoUrl ?? null });
+  }), [groupId]);
+  useEffect(() => subscribeGroupMemberUids(groupId, (uids) => { setMemberUids(uids); setHydrated(`members:${groupId}`, uids); }), [groupId]);
   useEffect(() => {
     if (!user?.uid) return;
-    return subscribeMyCanSeeUids(user.uid, setCanSee);
+    return subscribeMyCanSeeUids(user.uid, (s) => { setCanSee(s); setHydrated(`canSee:${user.uid}`, Array.from(s)); });
   }, [user?.uid]);
   useEffect(() => {
     if (!user?.uid) return;
     const allowed = memberUids.filter((uid) => uid === user.uid || canSee.has(uid));
-    return subscribePublicUsers(allowed, setPublicUsers);
-  }, [canSee, memberUids, user?.uid]);
+    return subscribePublicUsers(allowed, (map) => { setPublicUsers(map); setHydrated(`publicUsers:${groupId}`, map); });
+  }, [canSee, memberUids, user?.uid, groupId]);
   useEffect(() => subscribeGroupLogs(groupId, setLogs, undefined, 400), [groupId]);
 
   const { rows, gapToTop, rival, chaser } = useMemo(() => {

@@ -1,5 +1,5 @@
 import { StatusBar } from 'expo-status-bar';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { PaperProvider } from 'react-native-paper';
 import { useFonts } from 'expo-font';
 import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold } from '@expo-google-fonts/inter';
@@ -15,6 +15,7 @@ import { appTheme } from './src/theme/theme';
 import { initSentry } from './src/services/sentry';
 import { installErrorReporter } from './src/services/errorReporter';
 import { primeProfileCache } from './src/services/profileCache';
+import { primeHydrationCache } from './src/services/hydrationCache';
 import Heartbeat from './src/components/state/Heartbeat';
 
 // Crash reporting. No-ops until a DSN is set AND a build ships the native
@@ -23,9 +24,6 @@ initSentry();
 // JS-level error reporting works TODAY on all builds (no native module):
 // fatal JS errors queue locally and upload to `clientErrors` on next launch.
 installErrorReporter();
-// Warm the last-known name/group cache so the launch frame can paint real
-// text instead of a uid (Firestore has no disk cache on RN).
-void primeProfileCache();
 
 // Hold the native splash until the app is ready (fonts + auth + onboarding).
 // AppNavigator hides it once it knows which screen to show — so the user goes
@@ -39,8 +37,17 @@ export default function App() {
     Inter_600SemiBold,
   });
 
-  // Keep the native splash up while fonts load (return null, not a spinner).
-  if (!loaded) return null;
+  // Load the disk caches into memory BEFORE first render so screens paint
+  // last-known data synchronously (the whole point of cache-then-network —
+  // an async read after mount can't help the first paint). Runs in parallel
+  // with fonts, under the same held splash, so it adds no visible wait.
+  const [cacheReady, setCacheReady] = useState(false);
+  useEffect(() => {
+    Promise.all([primeProfileCache(), primeHydrationCache()]).finally(() => setCacheReady(true));
+  }, []);
+
+  // Keep the native splash up while fonts + caches load (return null, not a spinner).
+  if (!loaded || !cacheReady) return null;
 
   return (
     <AuthProvider>
