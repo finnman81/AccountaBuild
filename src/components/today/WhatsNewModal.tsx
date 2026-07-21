@@ -57,12 +57,16 @@ export default function WhatsNewModal() {
         const data = snap.exists() ? (snap.data() as any) : null;
         if (!data) return;
 
-        // Queue first, legacy single field as fallback.
-        const queue: Announcement[] = Array.isArray(data.announcements)
-          ? data.announcements.filter(isValid)
-          : isValid(data.announcement)
-            ? [data.announcement]
-            : [];
+        // Queue first, legacy single field as fallback. IMPORTANT: keep BOTH
+        // fields populated in config — clients on the pre-queue bundle read
+        // ONLY `announcement`, so publishing to the array alone makes them go
+        // silent (regression, caught 2026-07-21). Dedupe by id since the
+        // legacy field normally duplicates the newest queue entry.
+        const fromQueue: Announcement[] = Array.isArray(data.announcements) ? data.announcements.filter(isValid) : [];
+        const legacyOne: Announcement[] = isValid(data.announcement) ? [data.announcement] : [];
+        const byId = new Map<string, Announcement>();
+        for (const a of [...fromQueue, ...legacyOne]) if (!byId.has(a.id)) byId.set(a.id, a);
+        const queue: Announcement[] = [...byId.values()];
         if (!queue.length) return;
 
         // Union of device + server seen ids: either source having it means the
