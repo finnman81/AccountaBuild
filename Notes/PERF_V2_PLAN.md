@@ -1,5 +1,56 @@
 # Performance v2 Plan
 
+## STATUS BOARD (updated 2026-07-21, 12h after the cache shipped)
+
+| Phase | State |
+|---|---|
+| 0 — Measure | ✅ **DONE** — baselines + targets set, verified against real traces |
+| 1 — Data layer | ✅ **DONE (effectively)** — hydration cache hit targets by ~10x. Shared subscription store **DEFERRED**, see below |
+| 2 — Render | 🔻 **DE-PRIORITIZED** — the lists were never the bottleneck (GroupChat already used FlatList). Only `expo-image` remains, rides the next build |
+| 3 — Startup | ⏸️ **OPTIONAL** — cold start is now ~90ms to paint; deferring mounts would be polish, not fix |
+
+### PHASE 1 RESULT — the cache worked (measured, not estimated)
+
+Per-load samples, Today: `58, 72, 77, 98, 99, 106, 116, 539` (cached) vs
+`3236, 5980, 6049` (pre-cache, same 24h window). Last-6h-only: `77, 98`.
+
+| Screen | Baseline | After | Target | Verdict |
+|---|---|---|---|---|
+| Today | 5,980 ms | **~90 ms** | <1,500 | ✅ ~65x |
+| Leaderboard | 3,576 ms | **~57–582 ms** | <1,200 | ✅ ~6–60x |
+| GroupChat | (unsampled then) | 672 / **27,730 ms** | — | 🔴 became #1, now fixed |
+
+Health: **0 error issues**, 20 sessions. No regressions from the week's changes.
+
+### Why the shared subscription store is deferred (not skipped)
+It was Phase 1's other half, justified as a *latency* fix. The cache took latency
+to ~90ms, so the store's remaining value is read-cost and background re-render
+churn — real but invisible to users, and it's the riskier change (ref-counted
+listener lifecycles). Revisit if Firestore costs climb or background churn shows
+up in traces. Deliberate call on measured evidence, not an oversight.
+
+### GroupChat fix (2026-07-21)
+Root cause was NOT rendering — it already used FlatList. It was five uncached
+subscriptions with a **chained** dependency (members → canSee → publicUsers)
+that all had to resolve before the feed could render names or filter visibility.
+Fix: seed the roster from the same hydration-cache keys Today/Leaderboard
+already write (nearly free), and halve the log fetch (200 → 100; the feed only
+renders 3 days). Messages/logs stay uncached — Firestore Timestamps don't
+survive JSON round-trip.
+
+### Known measurement caveat
+All traces are from Jake's device — only he is on build 36. Others have the JS
+(so they HAVE the cache) but no Sentry native module until they install
+36/vc17. Nudge the group for multi-device coverage.
+
+### Remaining candidates (data-driven, not speculative)
+- `Goals` 14.4s and `LogComposer`/`RankUp` ~5.5s — single samples each, onboarding
+  /modal paths. Watch before acting.
+- `Login` p95 8.1s — auth round-trip, largely network-bound.
+- `expo-image` for avatars — next build.
+
+---
+
 ## PHASE 0 RESULTS — first Sentry traces (2026-07-21, build 36, ~9 sessions)
 
 Sentry confirmed live (sessions arriving, 0 crashes). Screen transaction p50:

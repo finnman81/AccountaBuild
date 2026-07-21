@@ -14,6 +14,7 @@ import { AuthContext } from '../store/AuthContext';
 import { GroupMessage, sendGroupMessage, subscribeGroupMessages } from '../services/chat';
 import { markGroupChatSeen } from '../services/groups';
 import { subscribeGroupLogs, setLogReaction, type GroupLog } from '../services/logs';
+import { getHydrated, setHydrated } from '../services/hydrationCache';
 import { enqueueSocialPush } from '../services/socialPush';
 import { friendlyNameFromDisplayName } from '../utils/formatters';
 import { subscribePublicUsers, type PublicUser } from '../services/publicUsers';
@@ -64,9 +65,17 @@ export default function GroupChatScreen({ route }: Props) {
   const insets = useSafeAreaInsets();
 
   const [messages, setMessages] = useState<GroupMessage[]>([]);
-  const [memberUids, setMemberUids] = useState<string[]>([]);
-  const [publicUsers, setPublicUsers] = useState<Record<string, PublicUser>>({});
-  const [canSee, setCanSee] = useState<Set<string>>(new Set());
+  // Roster seeds from the shared hydration cache (same keys Today/Leaderboard
+  // write). Before this, GroupChat had to resolve members -> canSee ->
+  // publicUsers as a CHAINED set of round-trips before the feed could render
+  // names or filter visibility — measured at 27s worst case in Sentry.
+  // Messages/logs stay uncached (Firestore Timestamps don't round-trip), but
+  // they now land into a screen that already knows who everyone is.
+  const [memberUids, setMemberUids] = useState<string[]>(() => getHydrated<string[]>(`members:${groupId}`) ?? []);
+  const [publicUsers, setPublicUsers] = useState<Record<string, PublicUser>>(
+    () => getHydrated<Record<string, PublicUser>>(`publicUsers:${groupId}`) ?? {},
+  );
+  const [canSee, setCanSee] = useState<Set<string>>(() => new Set(user?.uid ? getHydrated<string[]>(`canSee:${user.uid}`) ?? [] : []));
   const [logs, setLogs] = useState<GroupLog[]>([]);
   const [text, setText] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -76,19 +85,29 @@ export default function GroupChatScreen({ route }: Props) {
   useEffect(() => subscribeGroupMessages(groupId, setMessages), [groupId]);
   useEffect(() => {
     return onSnapshot(collection(db, 'groups', groupId, 'members'), (snap) => {
-      setMemberUids(snap.docs.map((d) => String((d.data() as any)?.uid ?? d.id)).filter(Boolean));
+      const uids = snap.docs.map((d) => String((d.data() as any)?.uid ?? d.id)).filter(Boolean);
+      setMemberUids(uids);
+      setHydrated(`members:${groupId}`, uids);
     });
   }, [groupId]);
   useEffect(() => {
     if (!user?.uid) return;
-    return subscribeMyCanSeeUids(user.uid, setCanSee);
+    return subscribeMyCanSeeUids(user.uid, (set) => {
+      setCanSee(set);
+      setHydrated(`canSee:${user.uid}`, Array.from(set));
+    });
   }, [user?.uid]);
   useEffect(() => {
     if (!user?.uid) return;
     const allowed = memberUids.filter((uid) => uid === user.uid || canSee.has(uid));
-    return subscribePublicUsers(allowed, setPublicUsers);
-  }, [canSee, memberUids, user?.uid]);
-  useEffect(() => subscribeGroupLogs(groupId, setLogs, undefined, 200), [groupId]);
+    return subscribePublicUsers(allowed, (map) => {
+      setPublicUsers(map);
+      setHydrated(`publicUsers:${groupId}`, map);
+    });
+  }, [canSee, memberUids, user?.uid, groupId]);
+  // 100, not 200: the feed only renders the last 3 days of logs, so the extra
+  // 100 docs were fetched and immediately filtered out on every open.
+  useEffect(() => subscribeGroupLogs(groupId, setLogs, undefined, 100), [groupId]);
 
   const nameFor = (uid: string) => friendlyNameFromDisplayName(publicUsers[uid]?.displayName ?? null, uid);
 
