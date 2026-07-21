@@ -107,18 +107,24 @@ export default function LeaderboardScreen({ route }: Props) {
   // everyone re-enters at 0 each Monday, so late joiners compete immediately
   // instead of staring up at months of tenure. All-time stays one tap away.
   const [board, setBoard] = useState<'week' | 'alltime'>('week');
-  const [weekDeltas, setWeekDeltas] = useState<Record<string, number>>({});
+  const weekId = isoWeekIdInTz(new Date(), DEFAULT_TZ);
+  const [weekDeltas, setWeekDeltas] = useState<Record<string, number>>(
+    () => getHydrated<Record<string, number>>(`weekDeltas:${groupId}:${weekId}`) ?? {},
+  );
   useEffect(() => {
     let cancelled = false;
     const t = setTimeout(() => {
-      fetchGroupWeekDeltas(groupId, isoWeekIdInTz(new Date(), DEFAULT_TZ))
+      fetchGroupWeekDeltas(groupId, weekId)
         .then((rws) => {
-          if (!cancelled) setWeekDeltas(Object.fromEntries(rws.map((r) => [r.uid, r.delta])));
+          if (cancelled) return;
+          const map = Object.fromEntries(rws.map((r) => [r.uid, r.delta]));
+          setWeekDeltas(map);
+          setHydrated(`weekDeltas:${groupId}:${weekId}`, map);
         })
         .catch(() => {});
     }, 1200);
     return () => { cancelled = true; clearTimeout(t); };
-  }, [groupId, logs.length]);
+  }, [groupId, weekId, logs.length]);
 
   const displayRows = useMemo(() => {
     if (board !== 'week') return rows;

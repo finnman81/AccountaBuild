@@ -31,6 +31,7 @@ import { fetchGroupWeekDeltas } from '../services/publicUsers';
 import { DEFAULT_TZ, isoWeekIdInTz } from '../mmr/time';
 import { notifyLogsChanged } from '../services/fpEvents';
 import { getCachedDisplayName, getCachedGroupName, rememberDisplayName, rememberGroupName } from '../services/profileCache';
+import { getHydrated, setHydrated } from '../services/hydrationCache';
 import type { ChecklistItem, TodayLogEntry } from '../viewmodels/today';
 import type { Tier } from '../mmr/types';
 
@@ -110,19 +111,26 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
   // This week's FP race (weeklyPublic deltas) — powers the weekly-first
   // leaderboard preview. Refreshed when logs change (the live settler updates
   // your own delta within seconds of logging).
-  const [weekDeltas, setWeekDeltas] = useState<Record<string, number>>({});
+  const weekId = isoWeekIdInTz(new Date(), DEFAULT_TZ);
+  const [weekDeltas, setWeekDeltas] = useState<Record<string, number>>(
+    () => (activeGroupId ? getHydrated<Record<string, number>>(`weekDeltas:${activeGroupId}:${weekId}`) ?? {} : {}),
+  );
   useEffect(() => {
     if (!activeGroupId) { setWeekDeltas({}); return; }
+    setWeekDeltas(getHydrated<Record<string, number>>(`weekDeltas:${activeGroupId}:${weekId}`) ?? {});
     let cancelled = false;
     const t = setTimeout(() => {
-      fetchGroupWeekDeltas(activeGroupId, isoWeekIdInTz(new Date(), DEFAULT_TZ))
+      fetchGroupWeekDeltas(activeGroupId, weekId)
         .then((rows) => {
-          if (!cancelled) setWeekDeltas(Object.fromEntries(rows.map((r) => [r.uid, r.delta])));
+          if (cancelled) return;
+          const map = Object.fromEntries(rows.map((r) => [r.uid, r.delta]));
+          setWeekDeltas(map);
+          setHydrated(`weekDeltas:${activeGroupId}:${weekId}`, map);
         })
         .catch(() => {});
     }, 1500); // small debounce: log bursts and the settler write settle first
     return () => { cancelled = true; clearTimeout(t); };
-  }, [activeGroupId, logs.length]);
+  }, [activeGroupId, weekId, logs.length]);
 
   const checklist = useMemo(
     () => buildTodayChecklist({ logs, myUid, today, dailyCalorieGoal, units }),
