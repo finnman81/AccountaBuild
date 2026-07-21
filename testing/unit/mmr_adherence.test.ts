@@ -19,10 +19,10 @@ describe('band activation gating', () => {
   });
 
   it('pre-activation weeks score by the LEGACY rule (closed weeks stay stable)', () => {
-    // 1000 of 2000 on a cut: legacy = full credit, band = half.
+    // Under budget: full credit in BOTH eras (the short-lived 75% floor is gone).
     expect(calorieDaysHitFromTotals({ a: 1000 }, 2000, 'cut', false)).toBe(1);
-    expect(calorieDaysHitFromTotals({ a: 1000 }, 2000, 'cut', true)).toBe(0.5);
-    // Over budget: legacy = no credit, band = habit credit.
+    expect(calorieDaysHitFromTotals({ a: 1000 }, 2000, 'cut', true)).toBe(1);
+    // Over budget: legacy = no credit, current = habit half-credit.
     expect(calorieDaysHitFromTotals({ a: 2500 }, 2000, 'cut', false)).toBe(0);
     expect(calorieDaysHitFromTotals({ a: 2500 }, 2000, 'cut', true)).toBe(0.5);
   });
@@ -50,10 +50,9 @@ describe('mmr/adherence · calorieDaysHitFromTotals', () => {
     expect(calorieDaysHitFromTotals({ '2026-01-01': 1500, '2026-01-02': 2500, '2026-01-03': 2000 }, 2000)).toBe(2.5);
   });
 
-  it('under-logging no longer earns full credit (the 1000-of-2000 half-day)', () => {
-    expect(calorieDaysHitFromTotals({ a: 1000 }, 2000, 'cut')).toBe(0.5);
-    // 74.9% just misses the band; 75% exactly makes it.
-    expect(calorieDaysHitFromTotals({ a: 1499 }, 2000, 'cut')).toBe(0.5);
+  it('light/sick days earn FULL credit (75% floor removed 2026-07-20 after user feedback)', () => {
+    expect(calorieDaysHitFromTotals({ a: 1000 }, 2000, 'cut')).toBe(1);
+    expect(calorieDaysHitFromTotals({ a: 300 }, 2000, 'cut')).toBe(1); // sick day
     expect(calorieDaysHitFromTotals({ a: 1500 }, 2000, 'cut')).toBe(1);
   });
 

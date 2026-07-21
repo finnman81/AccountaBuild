@@ -1,7 +1,14 @@
 export type CalorieGoalMode = 'cut' | 'bulk' | 'maintenance' | null;
 
-/** Full-credit band for cut/maintenance: within [75%, 120%] of budget. */
-export const CAL_BAND_LOW = 0.75;
+/**
+ * Full-credit ceiling for cut/maintenance: at or under 120% of budget.
+ * The original band also had a 75% FLOOR — removed 2026-07-20 after user
+ * feedback: it punished sick/light days, conflating "stopped logging" with
+ * "genuinely ate light" (indistinguishable from a total; under-eating on a
+ * cut is not a failure). The under-logging loophole this re-opens is accepted
+ * consciously — trust-based group, and lowCalorieDays still flags chronic
+ * under-loggers on the weekly doc (visibility without punishment).
+ */
 export const CAL_BAND_HIGH = 1.2;
 /** Any honestly-logged day earns at least this (the habit half of the system). */
 export const CAL_HABIT_CREDIT = 0.5;
@@ -54,7 +61,7 @@ export function calorieDaysHitFromTotals(
     }
     const full = goalMode === 'bulk'
       ? total >= budget
-      : total >= CAL_BAND_LOW * budget && total <= CAL_BAND_HIGH * budget;
+      : total <= CAL_BAND_HIGH * budget;
     return sum + (full ? 1 : CAL_HABIT_CREDIT);
   }, 0);
 }

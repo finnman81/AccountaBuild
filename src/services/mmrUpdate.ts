@@ -15,12 +15,12 @@ import {
 
 import { db } from '../firebase/firebase';
 import { RULES_VERSION, STARTING_MMR, missedWeekPenalty, partialWeekPenalty, streakMultiplier } from '../mmr/constants';
-import { D_calDays, D_minutes, D_workouts, D_weightGain, D_weightLoss } from '../mmr/difficulty';
+import { D_calDays, D_minutes, D_workouts, D_weightGain, D_weightLoss, weightV2ActiveForWeek } from '../mmr/difficulty';
 import { bandForMMR, bandOrderIndex, applyRankWithDemotionRules, isStrictlyHigher, mpForMMR } from '../mmr/ranks';
 import { LOW_CAL_FLAG_DAYS, calorieBandActiveForWeek, calorieDaysHitFromTotals, countLowCalorieDays } from '../mmr/adherence';
 import { lowerTierProgressBonus, nextShieldWeeks } from '../mmr/progression';
 import { breadthFactor, combineWeekScore, coreCategoryCount, goalScore } from '../mmr/scoring';
-import { DEFAULT_TZ, isoWeekIdInTz, isoWeekRangeInTz, nextIsoWeekId, seasonIdFromDate, zonedNoonUtcFromYmd } from '../mmr/time';
+import { DEFAULT_TZ, isoWeekIdInTz, isoWeekRangeInTz, nextIsoWeekId, seasonIdFromDate, yyyyMmDdInTz, zonedNoonUtcFromYmd } from '../mmr/time';
 
 type GoalDoc = any;
 
@@ -172,6 +172,16 @@ function pickWeeklyWeights(weights: Array<{ date: string; weight: number; tsMs: 
   const prevWeekEndCandidates = all.filter((w) => w.date <= prevEnd);
   const prevWeekEnd = prevWeekEndCandidates.length ? prevWeekEndCandidates[prevWeekEndCandidates.length - 1]! : null;
 
+
+  // v2 (weekly-average outcome): mean weigh-in per week — daily fluctuation
+  // mostly cancels, so two single mornings no longer decide the week.
+  const prevStartDate = parseDateLocal(start);
+  prevStartDate.setDate(prevStartDate.getDate() - 7);
+  const prevStart = `${prevStartDate.getFullYear()}-${String(prevStartDate.getMonth() + 1).padStart(2, '0')}-${String(prevStartDate.getDate()).padStart(2, '0')}`;
+  const prevWeekEntries = all.filter((w) => w.date >= prevStart && w.date <= prevEnd);
+  const avgThisWeek = inWeek.length ? inWeek.reduce((a, b) => a + b.weight, 0) / inWeek.length : null;
+  const avgPrevWeek = prevWeekEntries.length ? prevWeekEntries.reduce((a, b) => a + b.weight, 0) / prevWeekEntries.length : null;
+
   const weighInsDone = inWeek.length;
 
   return {
@@ -179,6 +189,8 @@ function pickWeeklyWeights(weights: Array<{ date: string; weight: number; tsMs: 
     weightStartOfWeek: startOfWeek?.weight ?? null,
     weightEndOfWeek: endOfWeek?.weight ?? null,
     weightPrevWeekEnd: prevWeekEnd?.weight ?? null,
+    avgThisWeek,
+    avgPrevWeek,
   };
 }
 
@@ -276,6 +288,7 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
   const isCurrentWeek = weekId === isoWeekIdInTz(new Date(), DEFAULT_TZ);
 
   let goals, groupIds, weights, workoutsDone, minutesDone, calorieDaysHit, caloriesLogged;
+  let userHeightIn: number | null = null;
   let calorieTotalsByDate: Record<string, number> = {};
   let totalCaloriesLogged = 0;
   let dailyCalorieGoal: number | null = null;
@@ -294,6 +307,7 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
     const userData = userSnap.exists() ? (userSnap.data() as any) : {};
     dailyCalorieGoal = typeof userData?.dailyCalorieGoal === 'number' ? Number(userData.dailyCalorieGoal) : null;
     goalMode = userData?.goalMode === 'cut' || userData?.goalMode === 'bulk' || userData?.goalMode === 'maintenance' ? userData.goalMode : null;
+    userHeightIn = Number.isFinite(Number(userData?.height)) && Number(userData?.height) > 0 ? Number(userData.height) : null;
   } catch (error) {
     console.error('[MMR Update] Error fetching user data:', error);
     throw new Error(`Failed to fetch user data: ${error instanceof Error ? error.message : String(error)}`);
@@ -344,7 +358,7 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
     throw new Error(`Failed to fetch week data: ${error instanceof Error ? error.message : String(error)}`);
   }
 
-  const { weighInsDone, weightStartOfWeek, weightEndOfWeek, weightPrevWeekEnd } = pickWeeklyWeights(weights, start, end);
+  const { weighInsDone, weightStartOfWeek, weightEndOfWeek, weightPrevWeekEnd, avgThisWeek, avgPrevWeek } = pickWeeklyWeights(weights, start, end);
 
   // Active goals
   const active: Array<{ id: string; type: string; D: number; A: number; O: number; score: number }> = [];
@@ -380,6 +394,14 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
   let weightBonusRaw = 0;
   let weightGoalUpdate: { docId: string; patch: Record<string, unknown> } | null = null;
 
+  // Weight v2 (gated to 2026-W31): BMI-spare difficulty, weekly-AVERAGE
+  // outcome, and current-week drip so one Monday weigh-in can no longer bank
+  // the whole week. See Notes/FP_WEIGHT_V2_PROPOSAL.md. Mirrored in
+  // functions/mmr-compute.js.
+  const weightV2 = weightV2ActiveForWeek(weekId);
+  const wTodayEt = yyyyMmDdInTz(new Date(), DEFAULT_TZ);
+  const wElapsedFrac = isCurrentWeek ? Math.max(1, dates.filter((d) => d <= wTodayEt).length) / 7 : 1;
+
   const weightGoal = (goals.weightLoss?.status === 'active' ? goals.weightLoss : goals.weightGain?.status === 'active' ? goals.weightGain : null) as any | null;
   if (weightGoal && Number.isFinite(weightEndOfWeek) && Number.isFinite(weightPrevWeekEnd)) {
     const isLoss = weightGoal.type === 'weightLoss';
@@ -390,9 +412,9 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
 
     if (Number.isFinite(W0) && Number.isFinite(Wg) && Number.isFinite(Wt)) {
       if (isLoss) {
-        const { D, D_base, lossTarget } = D_weightLoss({ W0, Wg, Wt, Tweeks });
-        const dW = Number(weightPrevWeekEnd) - Wt;
-        const O = clamp(0, 1, dW / (lossTarget || 1));
+        const { D, D_base, lossTarget } = D_weightLoss({ W0, Wg, Wt, Tweeks, hIn: userHeightIn, bmiBase: weightV2 });
+        const dW = weightV2 && avgPrevWeek != null && avgThisWeek != null ? avgPrevWeek - avgThisWeek : Number(weightPrevWeekEnd) - Wt;
+        const O = clamp(0, 1, dW / (lossTarget || 1)) * (weightV2 ? wElapsedFrac : 1);
 
         // Adherence: weigh-in + workouts + calorie days (renormalized)
         const parts: Array<{ w: number; v: number }> = [{ w: 0.2, v: clamp(0, 1, weighInsDone / 1) }];
@@ -416,8 +438,8 @@ export async function updateGlobalMmrForWeek(params: { uid: string; weekId: stri
         }
       } else {
         const { D, D_base, gainTarget } = D_weightGain({ W0, Wg, Wt, Tweeks });
-        const dW = Wt - Number(weightPrevWeekEnd);
-        const O = clamp(0, 1, dW / (gainTarget || 1));
+        const dW = weightV2 && avgPrevWeek != null && avgThisWeek != null ? avgThisWeek - avgPrevWeek : Wt - Number(weightPrevWeekEnd);
+        const O = clamp(0, 1, dW / (gainTarget || 1)) * (weightV2 ? wElapsedFrac : 1);
 
         const parts: Array<{ w: number; v: number }> = [{ w: 0.3, v: clamp(0, 1, weighInsDone / 1) }];
         const wGoal = active.find((x) => x.id === 'workouts');

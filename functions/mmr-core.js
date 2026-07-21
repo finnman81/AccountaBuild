@@ -50,11 +50,20 @@ function D_calDays(targetDays) {
   return table[Math.round(targetDays)] ?? 1.0;
 }
 
-function D_weightLoss({ W0, Wg, Wt, Tweeks: TweeksIn }) {
+// Weight-v2 gate — see src/mmr/difficulty.ts for rationale.
+const WEIGHT_V2_FROM_WEEK = '2026-W31';
+function weightV2ActiveForWeek(weekId) {
+  return typeof weekId === 'string' && weekId >= WEIGHT_V2_FROM_WEEK;
+}
+function D_weightLoss({ W0, Wg, Wt, Tweeks: TweeksIn, hIn, bmiBase }) {
   const L = W0 - Wg;
   const Tweeks = Math.max(4, TweeksIn);
   const p = clamp(0, 1, (W0 - Wt) / (L || 1));
-  const D_base = 1 + 0.9 * Math.pow(L / W0, 0.6);
+  const h = Number(hIn);
+  const useBmi = bmiBase === true && Number.isFinite(h) && h > 0;
+  const D_base = useBmi
+    ? 1 + 0.9 * clamp(0, 1, L / Math.max(W0 - (22 * h * h) / 703, L, 1))
+    : 1 + 0.9 * Math.pow(L / W0, 0.6);
   const D_phase = 1 + 1.0 * Math.pow(p, 3.0);
   const lossTargetRaw = L / Tweeks;
   const lossTarget = clamp(0.25, 2.5, lossTargetRaw);
@@ -106,7 +115,7 @@ function breadthFactor(coreCount) {
 // Two systems in one (2026-07-18): logging HABIT (any logged day = 0.5) +
 // diet ADHERENCE (full 1.0 only in the band: cut/maintenance 75%-120% of
 // budget; bulk >= budget). No budget: any logged day counts fully.
-const CAL_BAND_LOW = 0.75;
+// Floor removed 2026-07-20 (punished sick/light days) — ceiling only.
 const CAL_BAND_HIGH = 1.2;
 const CAL_HABIT_CREDIT = 0.5;
 // Activates at the start of this ISO week; earlier weeks keep legacy scoring
@@ -132,7 +141,7 @@ function calorieDaysHitFromTotals(totalsByDate, dailyCalorieGoal, goalMode = nul
     }
     const full = goalMode === 'bulk'
       ? total >= budget
-      : total >= CAL_BAND_LOW * budget && total <= CAL_BAND_HIGH * budget;
+      : total <= CAL_BAND_HIGH * budget;
     return sum + (full ? 1 : CAL_HABIT_CREDIT);
   }, 0);
 }
@@ -336,6 +345,8 @@ module.exports = {
   breadthFactor,
   calorieDaysHitFromTotals,
   calorieBandActiveForWeek,
+  weightV2ActiveForWeek,
+  WEIGHT_V2_FROM_WEEK,
   countLowCalorieDays,
   LOW_CAL_THRESHOLD,
   LOW_CAL_FLAG_DAYS,

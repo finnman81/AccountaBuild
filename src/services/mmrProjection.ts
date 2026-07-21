@@ -2,7 +2,7 @@ import { collection, doc, documentId, getDocs, limit, onSnapshot, orderBy, query
 
 import { db } from '../firebase/firebase';
 import { missedWeekPenalty, partialWeekPenalty, streakMultiplier } from '../mmr/constants';
-import { D_calDays, D_minutes, D_workouts, D_weightGain, D_weightLoss } from '../mmr/difficulty';
+import { D_calDays, D_minutes, D_workouts, D_weightGain, D_weightLoss, weightV2ActiveForWeek } from '../mmr/difficulty';
 import { applyRankWithDemotionRules, bandForMMR } from '../mmr/ranks';
 import { lowerTierProgressBonus } from '../mmr/progression';
 import { breadthFactor, combineWeekScore, coreCategoryCount, goalScore } from '../mmr/scoring';
@@ -101,11 +101,23 @@ function pickWeeklyWeights(weights: Array<{ date: string; weight: number; tsMs: 
   const prevWeekEndCandidates = all.filter((w) => w.date <= prevEnd);
   const prevWeekEnd = prevWeekEndCandidates.length ? prevWeekEndCandidates[prevWeekEndCandidates.length - 1]! : null;
 
+
+  // v2 (weekly-average outcome): mean weigh-in per week — daily fluctuation
+  // mostly cancels, so two single mornings no longer decide the week.
+  const prevStartDate = parseDateLocal(start);
+  prevStartDate.setDate(prevStartDate.getDate() - 7);
+  const prevStart = `${prevStartDate.getFullYear()}-${String(prevStartDate.getMonth() + 1).padStart(2, '0')}-${String(prevStartDate.getDate()).padStart(2, '0')}`;
+  const prevWeekEntries = all.filter((w) => w.date >= prevStart && w.date <= prevEnd);
+  const avgThisWeek = inWeek.length ? inWeek.reduce((a, b) => a + b.weight, 0) / inWeek.length : null;
+  const avgPrevWeek = prevWeekEntries.length ? prevWeekEntries.reduce((a, b) => a + b.weight, 0) / prevWeekEntries.length : null;
+
   return {
     weighInsDone: inWeek.length,
     weightStartOfWeek: startOfWeek?.weight ?? null,
     weightEndOfWeek: endOfWeek?.weight ?? null,
     weightPrevWeekEnd: prevWeekEnd?.weight ?? null,
+    avgThisWeek,
+    avgPrevWeek,
   };
 }
 
@@ -125,6 +137,8 @@ type ProjectionParams = {
   calorieTotalsByDate?: Record<string, number>;
   dailyCalorieGoal?: number | null;
   goalMode?: 'cut' | 'bulk' | 'maintenance' | null;
+  /** Profile height (inches) — powers weight-v2 BMI-spare difficulty. */
+  heightIn?: number | null;
   /** Current week declared a vacation week — no penalty projected. */
   vacation?: boolean;
 };
@@ -167,7 +181,10 @@ export function computeProjection(
   }
   const fromLogs = calorieDaysHitFromTotals(totalsInWeek, params.dailyCalorieGoal ?? null, params.goalMode ?? null, calorieBandActiveForWeek(params.weekId));
   const calorieDaysHit = Math.max(toggleDays, fromLogs);
-  const { weighInsDone, weightEndOfWeek, weightPrevWeekEnd } = pickWeeklyWeights(params.weights, start, end);
+  const { weighInsDone, weightEndOfWeek, weightPrevWeekEnd, avgThisWeek, avgPrevWeek } = pickWeeklyWeights(params.weights, start, end);
+  // Weight v2 (mirrors the scorers). The projection's frame system already
+  // drips current-week value via elapsedFrac, so change C needs nothing here.
+  const weightV2 = weightV2ActiveForWeek(params.weekId);
 
   const active: Array<{ id: string; type: string; D: number; A: number; O: number; score: number }> = [];
 
@@ -207,8 +224,8 @@ export function computeProjection(
 
     if (Number.isFinite(W0) && Number.isFinite(Wg) && Number.isFinite(Wt)) {
       if (isLoss) {
-        const { D, lossTarget } = D_weightLoss({ W0, Wg, Wt, Tweeks });
-        const dW = Number(weightPrevWeekEnd) - Wt;
+        const { D, lossTarget } = D_weightLoss({ W0, Wg, Wt, Tweeks, hIn: params.heightIn, bmiBase: weightV2 });
+        const dW = weightV2 && avgPrevWeek != null && avgThisWeek != null ? avgPrevWeek - avgThisWeek : Number(weightPrevWeekEnd) - Wt;
         const O = clamp(0, 1, dW / (lossTarget || 1));
 
         const parts: Array<{ w: number; v: number }> = [{ w: 0.2, v: clamp(0, 1, weighInsDone / 1) }];
@@ -222,7 +239,7 @@ export function computeProjection(
         active.push({ id: 'weightLoss', type: 'weightLoss', D, A, O, score: goalScore(D, A, O) });
       } else {
         const { D, gainTarget } = D_weightGain({ W0, Wg, Wt, Tweeks });
-        const dW = Wt - Number(weightPrevWeekEnd);
+        const dW = weightV2 && avgPrevWeek != null && avgThisWeek != null ? avgThisWeek - avgPrevWeek : Wt - Number(weightPrevWeekEnd);
         const O = clamp(0, 1, dW / (gainTarget || 1));
 
         const parts: Array<{ w: number; v: number }> = [{ w: 0.3, v: clamp(0, 1, weighInsDone / 1) }];
@@ -395,6 +412,7 @@ export function subscribeMyMmrProjection(uid: string, onChange: (p: MmrProjectio
   let groupWorkouts: Array<{ date: string; durationMinutes: number }> = [];
   let groupCalorieTotals: Record<string, number> = {};
   let dailyCalorieGoal: number | null = null;
+  let heightIn: number | null = null;
   let goalMode: 'cut' | 'bulk' | 'maintenance' | null = null;
   let onVacation = false;
 
@@ -443,6 +461,7 @@ export function subscribeMyMmrProjection(uid: string, onChange: (p: MmrProjectio
         calorieTotalsByDate: groupCalorieTotals,
         dailyCalorieGoal,
         goalMode,
+        heightIn,
         vacation: onVacation,
       }),
     );
@@ -476,6 +495,7 @@ export function subscribeMyMmrProjection(uid: string, onChange: (p: MmrProjectio
         tierShieldWeeksRemaining = typeof d?.tierShieldWeeksRemaining === 'number' ? Number(d.tierShieldWeeksRemaining) : 0;
         seasonId = String(d?.currentSeasonId ?? '').trim();
         dailyCalorieGoal = typeof d?.dailyCalorieGoal === 'number' ? Number(d.dailyCalorieGoal) : null;
+        heightIn = Number.isFinite(Number(d?.height)) && Number(d?.height) > 0 ? Number(d.height) : null;
         goalMode = ['cut', 'bulk', 'maintenance'].includes(d?.goalMode) ? d.goalMode : null;
         emit();
       },

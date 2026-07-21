@@ -135,11 +135,23 @@ function pickWeeklyWeights(weights, start, end) {
   const prevEnd = `${prevEndDate.getFullYear()}-${String(prevEndDate.getMonth() + 1).padStart(2, '0')}-${String(prevEndDate.getDate()).padStart(2, '0')}`;
   const prevWeekEndCandidates = all.filter((w) => w.date <= prevEnd);
   const prevWeekEnd = prevWeekEndCandidates.length ? prevWeekEndCandidates[prevWeekEndCandidates.length - 1] : null;
+
+  // v2 (weekly-average outcome): mean weigh-in per week — daily fluctuation
+  // mostly cancels, so two single mornings no longer decide the week.
+  const prevStartDate = parseDateLocal(start);
+  prevStartDate.setDate(prevStartDate.getDate() - 7);
+  const prevStart = `${prevStartDate.getFullYear()}-${String(prevStartDate.getMonth() + 1).padStart(2, '0')}-${String(prevStartDate.getDate()).padStart(2, '0')}`;
+  const prevWeekEntries = all.filter((w) => w.date >= prevStart && w.date <= prevEnd);
+  const avgThisWeek = inWeek.length ? inWeek.reduce((a, b) => a + b.weight, 0) / inWeek.length : null;
+  const avgPrevWeek = prevWeekEntries.length ? prevWeekEntries.reduce((a, b) => a + b.weight, 0) / prevWeekEntries.length : null;
+
   return {
     weighInsDone: inWeek.length,
     weightStartOfWeek: startOfWeek?.weight ?? null,
     weightEndOfWeek: endOfWeek?.weight ?? null,
     weightPrevWeekEnd: prevWeekEnd?.weight ?? null,
+    avgThisWeek,
+    avgPrevWeek,
   };
 }
 
@@ -181,7 +193,13 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
   if (calorieDaysFromLogs > calorieDaysHit) calorieDaysHit = calorieDaysFromLogs;
   const totalCaloriesLogged = Object.values(calorieTotalsByDate).reduce((a, b) => a + b, 0);
 
-  const { weighInsDone, weightStartOfWeek, weightEndOfWeek, weightPrevWeekEnd } = pickWeeklyWeights(weights, start, end);
+  const { weighInsDone, weightStartOfWeek, weightEndOfWeek, weightPrevWeekEnd, avgThisWeek, avgPrevWeek } = pickWeeklyWeights(weights, start, end);
+
+  // Weight v2 (gated to 2026-W31) — see src/services/mmrUpdate.ts mirror.
+  const weightV2 = core.weightV2ActiveForWeek(weekId);
+  const wTodayEt = core.yyyyMmDdInTz(now, core.DEFAULT_TZ);
+  const wElapsedFrac = isCurrentWeek ? Math.max(1, dates.filter((d) => d <= wTodayEt).length) / 7 : 1;
+  const userHeightIn = Number.isFinite(Number(userPre?.height)) && Number(userPre?.height) > 0 ? Number(userPre.height) : null;
 
   // ---- Score goals (identical to the client) ----
   const active = [];
@@ -215,9 +233,9 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
     const Tweeks = computeTweeks(String(weightGoal.startDate), String(weightGoal.targetEndDate));
     if (Number.isFinite(W0) && Number.isFinite(Wg) && Number.isFinite(Wt)) {
       if (isLoss) {
-        const { D, D_base, lossTarget } = core.D_weightLoss({ W0, Wg, Wt, Tweeks });
-        const dW = Number(weightPrevWeekEnd) - Wt;
-        const O = core.clamp(0, 1, dW / (lossTarget || 1));
+        const { D, D_base, lossTarget } = core.D_weightLoss({ W0, Wg, Wt, Tweeks, hIn: userHeightIn, bmiBase: weightV2 });
+        const dW = weightV2 && avgPrevWeek != null && avgThisWeek != null ? avgPrevWeek - avgThisWeek : Number(weightPrevWeekEnd) - Wt;
+        const O = core.clamp(0, 1, dW / (lossTarget || 1)) * (weightV2 ? wElapsedFrac : 1);
         const parts = [{ w: 0.2, v: core.clamp(0, 1, weighInsDone / 1) }];
         const wGoal = active.find((x) => x.id === 'workouts');
         const cGoal = active.find((x) => x.id === 'calorieDays');
@@ -235,8 +253,8 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
         }
       } else {
         const { D, D_base, gainTarget } = core.D_weightGain({ W0, Wg, Wt, Tweeks });
-        const dW = Wt - Number(weightPrevWeekEnd);
-        const O = core.clamp(0, 1, dW / (gainTarget || 1));
+        const dW = weightV2 && avgPrevWeek != null && avgThisWeek != null ? avgThisWeek - avgPrevWeek : Wt - Number(weightPrevWeekEnd);
+        const O = core.clamp(0, 1, dW / (gainTarget || 1)) * (weightV2 ? wElapsedFrac : 1);
         const parts = [{ w: 0.3, v: core.clamp(0, 1, weighInsDone / 1) }];
         const wGoal = active.find((x) => x.id === 'workouts');
         const mGoal = active.find((x) => x.id === 'minutes');
