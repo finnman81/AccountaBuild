@@ -133,6 +133,13 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Push delivery failures by error code (written by push-helper via admin).
+    // Server-only: a doc here means a CLASS of delivery is broken, e.g. the
+    // InvalidCredentials outage that killed all Android push for weeks.
+    match /pushFailures/{code} {
+      allow read, write: if false;
+    }
+
     // Client JS error reports (errorReporter.ts). Create-only: clients can
     // file a report but never read/alter the collection (viewed via console
     // or admin scripts).

@@ -183,6 +183,36 @@ under-logging is *flagged* (`lowCalorieDays` on the weekly doc), never punished.
   swallowed `failed-precondition` hid a missing-index bug that killed every
   weekly-history surface from birth.
 
+### Push delivery monitoring
+
+`functions/push-helper.js` parses Expo tickets. `DeviceNotRegistered` clears the
+dead token; **every other ticket error is aggregated into `pushFailures/{code}`**
+(server-only, one rolling doc per error code with a count + recent uids).
+
+**A doc in `pushFailures` means a CLASS of delivery is broken, not one device.**
+Check it first when someone says they aren't getting notifications. This exists
+because `InvalidCredentials` silently killed *all* Android push for weeks —
+every cheer, nudge, chat ping, streak reminder and champion announcement to our
+only Android user went nowhere, and the only trace was a Cloud Functions log
+line nobody reads.
+
+### EAS Android push credentials (the trap that caused it)
+
+`google-services.json` lets the **app receive** pushes. A separate **FCM V1
+service account key**, stored in EAS, lets **Expo's servers send** them — and it
+is bound to a specific **applicationIdentifier**. Ours was attached to a stale
+package (`com.accountabuild.app`) while the app ships as
+`com.munitor.accountabuild`, so Expo found no credentials for the package
+devices actually registered under.
+
+**If the Android package name ever changes, re-attach the FCM key to the new
+identifier**, or Android push dies silently. EAS credential state is queryable
+(and fixable) via the Expo GraphQL API at `https://api.expo.dev/graphql` using
+the `expo-session` header from `~/.expo/state.json` — `eas credentials` itself
+is interactive-only. Useful fields on `AndroidAppCredentials`:
+`applicationIdentifier`, `googleServiceAccountKeyForFcmV1`; useful mutations:
+`createAndroidAppCredentials`, `setGoogleServiceAccountKeyForFcmV1`.
+
 ## Performance architecture
 
 The Firebase **JS SDK has no disk cache on React Native**, so data-heavy screens
@@ -206,9 +236,20 @@ each live update back — cache-then-network.
 
 ## In-app announcements ("What's New")
 
-Set `config/app.announcement` = `{ id, emoji, title, lines[], activeFrom? }` via an
-admin write — a new `id` shows the modal once per user, no release needed.
-`activeFrom` (ISO timestamp) schedules the reveal for a future moment.
+`config/app.announcements` is an **array**; every entry a user hasn't seen is
+shown oldest-first, one per app open. Each entry is
+`{ id, emoji, title, lines[], activeFrom? }` — `activeFrom` (ISO timestamp)
+schedules a reveal. No release needed; it's a pure admin write.
+
+Seen ids are recorded to `users/{uid}.announcementsSeen` (server, via
+`arrayUnion` — never assign an array, that wipes history) **and** AsyncStorage;
+the check is the union of both.
+
+**ALWAYS dual-write the legacy `config/app.announcement` single field too.**
+Clients on an older bundle read only that field, so publishing to the array
+alone makes them go silent. Put whichever message matters most to
+not-yet-updated users in the legacy slot. (Learned the hard way: migrating to
+the array and deleting the field broke announcements for most of the group.)
 
 ## Admin scripts
 
