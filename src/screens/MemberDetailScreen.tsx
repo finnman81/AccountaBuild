@@ -12,6 +12,8 @@ import { subscribePublicUsers, type PublicUser } from '../services/publicUsers';
 import { subscribeMyCanSeeUids } from '../services/visibility';
 import { subscribeGroupLogs, setLogReaction, type GroupLog, type LogType } from '../services/logs';
 import { enqueueSocialPush } from '../services/socialPush';
+import HypePickerSheet from '../components/social/HypePickerSheet';
+import type { Hype } from '../services/hypeCatalog';
 import { computeGoalStreak } from '../viewmodels/today';
 import { friendlyNameFromDisplayName } from '../utils/formatters';
 import { DEFAULT_TZ, isoWeekDatesInTz, isoWeekIdInTz, yyyyMmDdInTz } from '../mmr/time';
@@ -81,6 +83,32 @@ export default function MemberDetailScreen({ route, navigation }: Props) {
     const checklist = (['calories', 'workout', 'weight'] as const).map((t) => ({ type: t, logged: todayTypes.has(t) }));
     return { streak, weekWorkouts, week, checklist };
   }, [logs, uid, group?.streakRule, pub?.workoutsPerWeek, pub?.logCaloriesDaysPerWeek, pub?.logWeightDaysPerWeek]);
+
+  // Tapping Cheer opens the hype picker; the chosen variant is what gets sent.
+  const [hypeOpen, setHypeOpen] = useState(false);
+
+  const sendHype = async (h: Hype) => {
+    setHypeOpen(false);
+    if (!user || isMe) return;
+    try {
+      if (h.kind === 'cheer') {
+        // Still react to their latest log so the cheer shows up in-feed too.
+        const mine = logs.filter((l) => l.uid === uid);
+        const latest = mine.reduce<GroupLog | null>((a, b) => {
+          const at = (a?.ts as any)?.seconds ?? 0;
+          const bt = (b?.ts as any)?.seconds ?? 0;
+          return bt >= at ? b : a;
+        }, null);
+        if (latest) await setLogReaction(groupId, latest.id, user.uid, h.emoji);
+      }
+      await enqueueSocialPush({ toUid: uid, fromUid: user.uid, fromName: myName, type: h.kind, hypeId: h.id });
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      if (h.kind === 'cheer') setCheered(true);
+      else setNudged(true);
+    } catch {
+      /* non-fatal */
+    }
+  };
 
   const cheer = async () => {
     if (!user || isMe) return;
@@ -186,7 +214,7 @@ export default function MemberDetailScreen({ route, navigation }: Props) {
         {!isMe && (
           <>
             <View style={styles.actions}>
-              <TouchableOpacity style={[styles.cheerBtn, cheered && styles.cheerBtnDone]} onPress={cheer} activeOpacity={0.85}>
+              <TouchableOpacity style={[styles.cheerBtn, cheered && styles.cheerBtnDone]} onPress={() => setHypeOpen(true)} activeOpacity={0.85}>
                 <AppText variant="rowTitle" style={{ color: '#FFFFFF' }}>{cheered ? '💪 Cheered' : '💪 Cheer'}</AppText>
               </TouchableOpacity>
               <TouchableOpacity style={styles.msgBtn} onPress={message} activeOpacity={0.85}>
@@ -204,6 +232,13 @@ export default function MemberDetailScreen({ route, navigation }: Props) {
           <AppText variant="rowSubtitle" color="muted">Close</AppText>
         </TouchableOpacity>
       </View>
+    <HypePickerSheet
+      visible={hypeOpen}
+      targetName={name}
+      allowNudges={pub?.allowNudges !== false}
+      onPick={(h) => void sendHype(h)}
+      onClose={() => setHypeOpen(false)}
+    />
     </View>
   );
 }

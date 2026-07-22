@@ -19,6 +19,13 @@ export async function enqueueSocialPush(params: {
   /** Reaction extras: what emoji, on what kind of log ("workout", "weight"…). */
   emoji?: string;
   logType?: string;
+  /**
+   * Which hype variant to send (see services/hypeCatalog.ts). Only the ID
+   * travels — the Cloud Function renders the copy from its own catalog, so a
+   * modified client can't push arbitrary text at someone. Omitted = the
+   * original generic cheer/nudge wording.
+   */
+  hypeId?: string;
 }): Promise<void> {
   if (!params.toUid || !params.fromUid || params.toUid === params.fromUid) return;
   await addDoc(collection(db, 'pushQueue'), {
@@ -28,6 +35,7 @@ export async function enqueueSocialPush(params: {
     type: params.type,
     ...(params.emoji ? { emoji: params.emoji.slice(0, 8) } : {}),
     ...(params.logType ? { logType: params.logType.slice(0, 20) } : {}),
+    ...(params.hypeId ? { hypeId: params.hypeId.slice(0, 24) } : {}),
     createdAt: serverTimestamp(),
   });
 }

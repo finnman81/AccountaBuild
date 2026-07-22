@@ -27,6 +27,8 @@ import UpdateBanner from '../components/today/UpdateBanner';
 import VacationCard from '../components/today/VacationCard';
 import { deleteGroupLogById } from '../services/logs';
 import { enqueueSocialPush } from '../services/socialPush';
+import HypePickerSheet from '../components/social/HypePickerSheet';
+import type { Hype } from '../services/hypeCatalog';
 import { fetchGroupWeekDeltas } from '../services/publicUsers';
 import { DEFAULT_TZ, isoWeekIdInTz } from '../mmr/time';
 import { notifyLogsChanged } from '../services/fpEvents';
@@ -67,6 +69,7 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
   const { activeGroupId, isReady: activeGroupReady, groupsLoaded } = useActiveGroup();
   const [entriesItem, setEntriesItem] = useState<ChecklistItem | null>(null);
   const [cheerSnack, setCheerSnack] = useState<string | null>(null);
+  const [hypeTarget, setHypeTarget] = useState<{ uid: string; name: string } | null>(null);
   const [cheeredToday, setCheeredToday] = useState<Set<string>>(new Set());
 
   const [challenge, setChallenge] = useState<GroupChallenge | null>(null);
@@ -243,12 +246,20 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
 
   // Long-press a teammate on the rail to fire a quick cheer. Deduped per-session
   // so you can't spam the same person; the recipient sees it in-app + as a push.
+  // Long-press a teammate on the rail -> pick which hype to send.
   const onCheer = (uid: string) => {
-    if (!myUid || uid === myUid || cheeredToday.has(uid)) return;
+    if (!myUid || uid === myUid) return;
     const target = team.members.find((m) => m.uid === uid);
-    void enqueueSocialPush({ toUid: uid, fromUid: myUid, fromName: userName, type: 'cheer' }).catch(() => {});
-    setCheeredToday((prev) => new Set(prev).add(uid));
-    setCheerSnack(`Cheered ${target?.name ?? 'your teammate'} 💪`);
+    setHypeTarget({ uid, name: target?.name ?? 'your teammate' });
+  };
+
+  const sendHype = (h: Hype) => {
+    const target = hypeTarget;
+    setHypeTarget(null);
+    if (!target || !myUid) return;
+    void enqueueSocialPush({ toUid: target.uid, fromUid: myUid, fromName: userName, type: h.kind, hypeId: h.id }).catch(() => {});
+    setCheeredToday((prev) => new Set(prev).add(target.uid));
+    setCheerSnack(`${h.emoji} sent to ${target.name}`);
   };
 
   return (
@@ -336,6 +347,13 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
         onAdd={(type) => { setEntriesItem(null); onOpenLog?.(type); }}
       />
     </ScrollView>
+    <HypePickerSheet
+      visible={!!hypeTarget}
+      targetName={hypeTarget?.name}
+      allowNudges={hypeTarget ? publicUsers[hypeTarget.uid]?.allowNudges !== false : true}
+      onPick={sendHype}
+      onClose={() => setHypeTarget(null)}
+    />
     <Snackbar visible={!!cheerSnack} onDismiss={() => setCheerSnack(null)} duration={2200}>
       {cheerSnack ?? ''}
     </Snackbar>

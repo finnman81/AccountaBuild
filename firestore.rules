@@ -123,7 +123,12 @@ service cloud.firestore {
         && request.resource.data.toUid is string
         && (request.resource.data.type == 'cheer'
             || request.resource.data.type == 'nudge'
-            || request.resource.data.type == 'reaction');
+            || request.resource.data.type == 'reaction')
+        // Optional hype variant id. Only an ID is accepted — never copy — and
+        // the function validates it against the server catalog before use.
+        && (!('hypeId' in request.resource.data)
+            || (request.resource.data.hypeId is string
+                && request.resource.data.hypeId.size() <= 24));
       allow read, update, delete: if false;
     }
 

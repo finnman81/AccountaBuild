@@ -21,6 +21,7 @@ const { computeUserUpToCurrentWeek } = require('./mmr-compute');
 const { evaluateStreakRisk, evaluateDailyChampion, evaluateVacationPrompt } = require('./notif-logic');
 const core = require('./mmr-core');
 const { sendExpoPushes, isExpoToken, prefEnabled, inQuietHours } = require('./push-helper');
+const { renderHype } = require('./hype-catalog');
 
 initializeApp();
 const db = getFirestore();
@@ -79,12 +80,17 @@ exports.sendSocialPush = onDocumentCreated('pushQueue/{id}', async (event) => {
     const name = (fromName && String(fromName)) || 'A teammate';
     const emoji = (data.emoji && String(data.emoji)) || '💪';
     const logType = (data.logType && String(data.logType)) || 'log';
+    // A picked hype variant renders from the SERVER catalog (renderHype also
+    // enforces kind === type, so a nudge can't masquerade as a cheer to dodge
+    // the allowNudges gate). Unknown/absent id falls back to the original copy.
+    const hyped = renderHype(data.hypeId, type, name);
     const message =
-      type === 'cheer'
+      hyped ||
+      (type === 'cheer'
         ? { title: '💪 You got a cheer', body: `${name} cheered you on!` }
         : type === 'reaction'
           ? { title: `${emoji} ${name} reacted`, body: `${name} reacted ${emoji} to your ${logType === 'calories' ? 'calorie log' : logType === 'weight' ? 'weigh-in' : logType}` }
-          : { title: '👋 Nudge', body: `${name} nudged you to log today.` };
+          : { title: '👋 Nudge', body: `${name} nudged you to log today.` });
 
     // Record an in-app Activity item regardless of push delivery (so the bell
     // shows it even when the recipient has notifications off / no token).
