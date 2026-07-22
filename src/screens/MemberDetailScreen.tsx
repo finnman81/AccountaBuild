@@ -11,6 +11,7 @@ import { RootStackParamList } from '../navigation/types';
 import { subscribePublicUsers, type PublicUser } from '../services/publicUsers';
 import { subscribeMyCanSeeUids } from '../services/visibility';
 import { subscribeGroupLogs, setLogReaction, type GroupLog, type LogType } from '../services/logs';
+import { getHydrated, setHydrated } from '../services/hydrationCache';
 import { enqueueSocialPush } from '../services/socialPush';
 import HypePickerSheet from '../components/social/HypePickerSheet';
 import type { Hype } from '../services/hypeCatalog';
@@ -31,15 +32,59 @@ const DAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 const TIERS: Tier[] = ['Iron', 'Bronze', 'Silver', 'Gold', 'Platinum', 'Diamond', 'Master', 'Challenger'];
 const asTier = (x: unknown): Tier | null => (TIERS as string[]).includes(String(x ?? '').trim()) ? (String(x).trim() as Tier) : null;
 
+/**
+ * Compact "who logged what, on which day" marks — the ONLY thing this sheet
+ * needs from the 400-log group query (streak, week strip, today checklist all
+ * read uid/date/type and nothing else).
+ *
+ * Raw logs can't be hydration-cached (Firestore Timestamps don't survive a JSON
+ * round-trip, and log volume is unbounded) but this projection can: it's plain
+ * strings and bounded by MARK_DAYS. That turns opening a teammate from "wait
+ * for 400 docs" into an instant paint that refreshes behind.
+ */
+type DayMark = { uid: string; date: string; type: LogType };
+/**
+ * Belt-and-braces bound only — the 400-log query is the real ceiling, so this
+ * must stay generous enough not to truncate a long streak that the uncached
+ * path would have counted.
+ */
+const MARK_DAYS = 180;
+
+function toDayMarks(logs: GroupLog[]): DayMark[] {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - MARK_DAYS);
+  const min = yyyyMmDdInTz(cutoff, DEFAULT_TZ);
+  const seen = new Set<string>();
+  const out: DayMark[] = [];
+  for (const l of logs) {
+    if (!l?.uid || !l?.date || l.date < min) continue;
+    const k = `${l.uid}|${l.date}|${l.type}`;
+    if (seen.has(k)) continue; // one mark per uid/day/type — twins don't matter here
+    seen.add(k);
+    out.push({ uid: l.uid, date: l.date, type: l.type });
+  }
+  return out;
+}
+
 export default function MemberDetailScreen({ route, navigation }: Props) {
   const { groupId, uid } = route.params;
   const { user } = useContext(AuthContext);
   const insets = useSafeAreaInsets();
 
-  const [pub, setPub] = useState<PublicUser | null>(null);
+  // Every subscription below is seeded from the hydration cache so the sheet
+  // paints last-known data on the first synchronous render instead of blocking
+  // on four round-trips (measured p95 2.8s before this — Sentry, 2026-07-22).
+  const [pub, setPub] = useState<PublicUser | null>(
+    () => getHydrated<Record<string, PublicUser>>(`publicUsers:${groupId}`)?.[uid] ?? null,
+  );
   const [logs, setLogs] = useState<GroupLog[]>([]);
-  const [canSee, setCanSee] = useState<Set<string>>(new Set());
-  const [group, setGroup] = useState<{ streakRule?: 'workout' | 'any' } | null>(null);
+  const [marks, setMarks] = useState<DayMark[]>(() => getHydrated<DayMark[]>(`memberDays:${groupId}`) ?? []);
+  const [canSee, setCanSee] = useState<Set<string>>(
+    () => new Set(user?.uid ? getHydrated<string[]>(`canSee:${user.uid}`) ?? [] : []),
+  );
+  const [group, setGroup] = useState<{ streakRule?: 'workout' | 'any' } | null>(
+    () => getHydrated(`group:${groupId}`) ?? null,
+  );
   const [cheered, setCheered] = useState(false);
   const [nudged, setNudged] = useState(false);
 
@@ -47,12 +92,36 @@ export default function MemberDetailScreen({ route, navigation }: Props) {
   const myName = friendlyNameFromDisplayName(user?.displayName ?? null, user?.uid ?? '');
 
   useEffect(() => subscribePublicUsers([uid], (m) => setPub(m[uid] ?? null)), [uid]);
-  useEffect(() => subscribeGroupLogs(groupId, setLogs, undefined, 400), [groupId]);
+  useEffect(
+    () =>
+      subscribeGroupLogs(
+        groupId,
+        (rows) => {
+          setLogs(rows);
+          const next = toDayMarks(rows);
+          setMarks(next);
+          setHydrated(`memberDays:${groupId}`, next);
+        },
+        undefined,
+        400,
+      ),
+    [groupId],
+  );
   useEffect(() => {
     if (!user?.uid) return;
-    return subscribeMyCanSeeUids(user.uid, setCanSee);
+    return subscribeMyCanSeeUids(user.uid, (s) => {
+      setCanSee(s);
+      setHydrated(`canSee:${user.uid}`, Array.from(s));
+    });
   }, [user?.uid]);
-  useEffect(() => onSnapshot(doc(db, 'groups', groupId), (s) => setGroup(s.exists() ? ((s.data() as any) ?? null) : null)), [groupId]);
+  useEffect(
+    () =>
+      // Read-only against the group cache: Today/Leaderboard own that key and
+      // normalize logoURL into it, so writing the raw doc back here would drop
+      // their normalization for a frame.
+      onSnapshot(doc(db, 'groups', groupId), (s) => setGroup(s.exists() ? ((s.data() as any) ?? null) : null)),
+    [groupId],
+  );
 
   const visible = isMe || canSee.has(uid);
   const name = friendlyNameFromDisplayName(pub?.displayName ?? null, uid);
@@ -64,9 +133,9 @@ export default function MemberDetailScreen({ route, navigation }: Props) {
     const weekDates = isoWeekDatesInTz(isoWeekIdInTz(new Date(), DEFAULT_TZ), DEFAULT_TZ);
     const rule = (group?.streakRule ?? 'any') as 'workout' | 'any';
     const allowedTypes: Set<LogType> = rule === 'any' ? new Set(['calories', 'workout', 'weight', 'photo']) : new Set(['workout']);
-    const mine = logs.filter((l) => l.uid === uid);
+    const mine = marks.filter((l) => l.uid === uid);
     const streak = computeGoalStreak({
-      logs: mine,
+      logs: mine as unknown as GroupLog[], // marks carry uid/date/type — all it reads
       uid,
       today,
       streakRule: rule,
@@ -82,7 +151,7 @@ export default function MemberDetailScreen({ route, navigation }: Props) {
     const todayTypes = new Set(mine.filter((l) => l.date === today).map((l) => l.type));
     const checklist = (['calories', 'workout', 'weight'] as const).map((t) => ({ type: t, logged: todayTypes.has(t) }));
     return { streak, weekWorkouts, week, checklist };
-  }, [logs, uid, group?.streakRule, pub?.workoutsPerWeek, pub?.logCaloriesDaysPerWeek, pub?.logWeightDaysPerWeek]);
+  }, [marks, uid, group?.streakRule, pub?.workoutsPerWeek, pub?.logCaloriesDaysPerWeek, pub?.logWeightDaysPerWeek]);
 
   // Tapping Cheer opens the hype picker; the chosen variant is what gets sent.
   const [hypeOpen, setHypeOpen] = useState<null | 'cheer' | 'nudge'>(null);
