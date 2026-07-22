@@ -191,7 +191,11 @@ export default function MemberDetailScreen({ route, navigation }: Props) {
                 <AppText variant="rowTitle" color="primary">Message</AppText>
               </TouchableOpacity>
             </View>
-            {(pub as any)?.allowNudges ? (
+            {/* Mirrors the server gate exactly (allowNudges === true). The
+                public mirror is what teammates can read; users/{uid} is
+                owner-only. Backfilled 2026-07-21 — the mirror had never been
+                written for anyone, so this button was invisible to everybody. */}
+            {(pub as any)?.allowNudges === true ? (
               <TouchableOpacity style={[styles.nudgeBtn, nudged && styles.nudgeBtnDone]} onPress={() => setHypeOpen('nudge')} activeOpacity={0.85} disabled={nudged}>
                 <AppText variant="rowTitle" color={nudged ? 'success' : 'primary'}>{nudged ? '👋 Nudged' : '👋 Nudge to log'}</AppText>
               </TouchableOpacity>
