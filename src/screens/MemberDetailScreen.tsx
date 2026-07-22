@@ -85,10 +85,10 @@ export default function MemberDetailScreen({ route, navigation }: Props) {
   }, [logs, uid, group?.streakRule, pub?.workoutsPerWeek, pub?.logCaloriesDaysPerWeek, pub?.logWeightDaysPerWeek]);
 
   // Tapping Cheer opens the hype picker; the chosen variant is what gets sent.
-  const [hypeOpen, setHypeOpen] = useState(false);
+  const [hypeOpen, setHypeOpen] = useState<null | 'cheer' | 'nudge'>(null);
 
   const sendHype = async (h: Hype) => {
-    setHypeOpen(false);
+    setHypeOpen(null);
     if (!user || isMe) return;
     try {
       if (h.kind === 'cheer') {
@@ -105,36 +105,6 @@ export default function MemberDetailScreen({ route, navigation }: Props) {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       if (h.kind === 'cheer') setCheered(true);
       else setNudged(true);
-    } catch {
-      /* non-fatal */
-    }
-  };
-
-  const cheer = async () => {
-    if (!user || isMe) return;
-    const mine = logs.filter((l) => l.uid === uid);
-    const latest = mine.reduce<GroupLog | null>((a, b) => {
-      const at = (a?.ts as any)?.seconds ?? 0;
-      const bt = (b?.ts as any)?.seconds ?? 0;
-      return bt >= at ? b : a;
-    }, null);
-    try {
-      // React to their latest log if there is one, and always send the cheer push.
-      if (latest) await setLogReaction(groupId, latest.id, user.uid, '💪');
-      await enqueueSocialPush({ toUid: uid, fromUid: user.uid, fromName: myName, type: 'cheer' });
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      setCheered(true);
-    } catch {
-      /* non-fatal */
-    }
-  };
-
-  const nudge = async () => {
-    if (!user || isMe) return;
-    try {
-      await enqueueSocialPush({ toUid: uid, fromUid: user.uid, fromName: myName, type: 'nudge' });
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      setNudged(true);
     } catch {
       /* non-fatal */
     }
@@ -214,7 +184,7 @@ export default function MemberDetailScreen({ route, navigation }: Props) {
         {!isMe && (
           <>
             <View style={styles.actions}>
-              <TouchableOpacity style={[styles.cheerBtn, cheered && styles.cheerBtnDone]} onPress={() => setHypeOpen(true)} activeOpacity={0.85}>
+              <TouchableOpacity style={[styles.cheerBtn, cheered && styles.cheerBtnDone]} onPress={() => setHypeOpen('cheer')} activeOpacity={0.85}>
                 <AppText variant="rowTitle" style={{ color: '#FFFFFF' }}>{cheered ? '💪 Cheered' : '💪 Cheer'}</AppText>
               </TouchableOpacity>
               <TouchableOpacity style={styles.msgBtn} onPress={message} activeOpacity={0.85}>
@@ -222,7 +192,7 @@ export default function MemberDetailScreen({ route, navigation }: Props) {
               </TouchableOpacity>
             </View>
             {(pub as any)?.allowNudges ? (
-              <TouchableOpacity style={[styles.nudgeBtn, nudged && styles.nudgeBtnDone]} onPress={nudge} activeOpacity={0.85} disabled={nudged}>
+              <TouchableOpacity style={[styles.nudgeBtn, nudged && styles.nudgeBtnDone]} onPress={() => setHypeOpen('nudge')} activeOpacity={0.85} disabled={nudged}>
                 <AppText variant="rowTitle" color={nudged ? 'success' : 'primary'}>{nudged ? '👋 Nudged' : '👋 Nudge to log'}</AppText>
               </TouchableOpacity>
             ) : null}
@@ -233,11 +203,12 @@ export default function MemberDetailScreen({ route, navigation }: Props) {
         </TouchableOpacity>
       </View>
     <HypePickerSheet
-      visible={hypeOpen}
+      visible={hypeOpen !== null}
       targetName={name}
-      allowNudges={pub?.allowNudges !== false}
+      only={hypeOpen ?? undefined}
+      allowNudges={(pub as any)?.allowNudges === true}
       onPick={(h) => void sendHype(h)}
-      onClose={() => setHypeOpen(false)}
+      onClose={() => setHypeOpen(null)}
     />
     </View>
   );

@@ -10,8 +10,14 @@ type Props = {
   visible: boolean;
   /** Who you're hyping — shown in the header so you can't mis-send. */
   targetName?: string | null;
-  /** True when the recipient allows nudges; hides the nudge row otherwise. */
+  /**
+   * Recipient's allowNudges. Must be EXPLICITLY true to show nudges — the
+   * Cloud Function drops nudges unless `allowNudges === true`, so defaulting
+   * to "shown" would let users pick a nudge that silently never arrives.
+   */
   allowNudges?: boolean;
+  /** Restrict to one kind (Cheer button -> cheers, Nudge button -> nudges). */
+  only?: 'cheer' | 'nudge';
   onPick: (hype: Hype) => void;
   onClose: () => void;
 };
@@ -21,7 +27,7 @@ type Props = {
  * Function renders the push copy from its own catalog, so this list is purely
  * presentational (see services/hypeCatalog.ts).
  */
-export default function HypePickerSheet({ visible, targetName, allowNudges, onPick, onClose }: Props) {
+export default function HypePickerSheet({ visible, targetName, allowNudges, only, onPick, onClose }: Props) {
   const insets = useSafeAreaInsets();
   const cheers = HYPES.filter((h) => h.kind === 'cheer');
   const nudges = HYPES.filter((h) => h.kind === 'nudge');
@@ -57,12 +63,16 @@ export default function HypePickerSheet({ visible, targetName, allowNudges, onPi
           </AppText>
 
           <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 420 }}>
-            <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>CHEERS</AppText>
-            <Grid items={cheers} />
-
-            {allowNudges === false ? null : (
+            {only === 'nudge' ? null : (
               <>
-                <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>NUDGES</AppText>
+                {!only ? <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>CHEERS</AppText> : null}
+                <Grid items={cheers} />
+              </>
+            )}
+
+            {only === 'cheer' || allowNudges !== true ? null : (
+              <>
+                {!only ? <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>NUDGES</AppText> : null}
                 <Grid items={nudges} />
               </>
             )}

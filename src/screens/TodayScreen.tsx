@@ -350,7 +350,7 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
     <HypePickerSheet
       visible={!!hypeTarget}
       targetName={hypeTarget?.name}
-      allowNudges={hypeTarget ? publicUsers[hypeTarget.uid]?.allowNudges !== false : true}
+      allowNudges={hypeTarget ? publicUsers[hypeTarget.uid]?.allowNudges === true : false}
       onPick={sendHype}
       onClose={() => setHypeTarget(null)}
     />
