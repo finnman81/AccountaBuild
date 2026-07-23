@@ -71,8 +71,9 @@ This app includes a **global matchmaking rating (MMR)** system inspired by Leagu
 - Core math / helpers: `src/mmr/`
   - `types.ts`, `constants.ts`, `difficulty.ts`, `scoring.ts`, `ranks.ts`, `time.ts`, `risk.ts`, `badges.ts`
 - Firestore services:
-  - Weekly computation + transactional update: `src/services/mmrUpdate.ts`
-  - Season rollover + reset: `src/services/mmrSeason.ts`
+  - Weekly computation + transactional update: `functions/mmr-compute.js` (SERVER-ONLY — see below)
+  - Season rollover + reset: `functions/mmr-season.js` (server-only)
+  - On-demand recompute from the app: `src/services/mmrRecompute.ts` → `recomputeMyMmr` callable
   - Weekly read helpers: `src/services/mmrWeekly.ts`
   - Goals: `src/services/mmrGoals.ts`
   - Badges: `src/services/mmrBadges.ts`
@@ -107,6 +108,7 @@ This app includes a **global matchmaking rating (MMR)** system inspired by Leagu
 
 - **Set goals**: Profile → “Calorie goal days” section → **MMR goals**
 - **Recompute / catch up**: Profile → **pull to refresh** or tap **Update**
+  (calls the `recomputeMyMmr` cloud function — nothing is computed on-device)
   - Updates are **idempotent per week** (re-running the same week won’t keep subtracting MMR)
 - **Leaderboard**: Group page → **Leaderboard**
 - **MMR history**: Profile → Settings & Controls → **MMR history**
@@ -119,11 +121,25 @@ Tier badge images live in:
 
 ## FP scoring rules (current)
 
-The FP engine is **duplicated by design** in two places that must stay in lockstep:
-`src/services/mmrUpdate.ts` (client scorer) and `functions/mmr-compute.js` (server
-scorer), with shared math in `src/mmr/*` mirrored into `functions/mmr-core.js`.
-**Every scoring change goes in BOTH, plus `src/services/mmrProjection.ts`** (the
-live projection powering "See the math"). Parity tests guard the math modules.
+**Consolidated server-side 2026-07-22 — the dual scorer is dead.** The only
+scorer that writes state is `functions/mmr-compute.js` (+ `functions/mmr-season.js`
+for the quarter soft-reset), reached two ways:
+
+- `updateMmrScheduled` (every 6h, all users — also runs season rollover)
+- `recomputeMyMmr` callable — the app requests it after a log
+  (`MmrLiveSettler`, 4s debounce) and on Profile open/refresh
+
+Firestore **rules enforce it**: clients cannot write `mmr`/rank/streak/anchor
+keys on `users/{uid}`, anything but the vacation flag on `users/{uid}/weekly`,
+the FP mirror keys on `publicUsers`, or `weeklyPublic` at all. Signup may seed
+exactly Silver IV / 1800.
+
+Two client-side FP code paths remain, both **display-only** (they write
+nothing): shared math in `src/mmr/*` (mirrored into `functions/mmr-core.js`,
+parity-tested) and `src/services/mmrProjection.ts` (the live "See the math"
+projection). **A scoring change = edit `src/mmr/*` + `functions/mmr-core.js` +
+`mmrProjection.ts` if it affects the what-if, then deploy functions.** The days
+of mirroring data-plumbing into a client scorer are over.
 
 ### Week-gated rollouts (the pattern for ANY scoring change)
 
