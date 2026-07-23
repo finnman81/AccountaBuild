@@ -22,9 +22,8 @@ import { computeGoalStreak } from '../viewmodels/today';
 import { formatYYYYMMDDLocal } from '../utils/dates';
 import { subscribeMyMmrState, type MmrState } from '../services/mmrState';
 import { getHydrated, setHydrated } from '../services/hydrationCache';
-import { updateGlobalMmrUpToCurrentWeek } from '../services/mmrUpdate';
+import { recomputeMyMmr } from '../services/mmrRecompute';
 import { subscribeLatestMmrWeeklySummary, type MmrWeeklySummary } from '../services/mmrWeekly';
-import { ensureSeasonRollover } from '../services/mmrSeason';
 import { subscribeMyBadges, type EarnedBadge } from '../services/mmrBadges';
 import { ensureGlobalSeasonDoc } from '../services/mmrGlobalSeasons';
 import { subscribeMyMmrProjection, type MmrProjection } from '../services/mmrProjection';
@@ -141,8 +140,9 @@ export default function ProfileScreen() {
 
     setMmrError(null);
     setMmrBusy(true);
-    void ensureSeasonRollover(user.uid)
-      .then(() => updateGlobalMmrUpToCurrentWeek(user.uid))
+    // Server-side since 2026-07-22: one callable does season rollover + the
+    // idempotent catch-up walk (the on-device scorer is gone).
+    void recomputeMyMmr('catchup')
       .catch((err) => {
         console.error('[MMR Auto-Update Error]', err);
         const errorMessage = err instanceof Error ? err.message : String(err);
@@ -367,8 +367,7 @@ export default function ProfileScreen() {
         if (!user) return;
         setMmrError(null);
         setRefreshing(true);
-        void ensureSeasonRollover(user.uid)
-          .then(() => updateGlobalMmrUpToCurrentWeek(user.uid))
+        void recomputeMyMmr('catchup')
           .catch((err) => {
             console.error('[MMR Refresh Error]', err);
             const errorMessage = err instanceof Error ? err.message : String(err);

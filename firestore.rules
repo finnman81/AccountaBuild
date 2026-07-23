@@ -17,6 +17,20 @@ service cloud.firestore {
         get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.role == 'admin';
     }
 
+    // FP/MMR state is SERVER-OWNED (consolidated 2026-07-22): the only scorer
+    // is functions/mmr-compute.js (+ mmr-season.js), reached via the 6h
+    // schedule or the recomputeMyMmr callable. These keys on users/{uid} are
+    // what the scorer maintains — clients may never change them, or they could
+    // hand themselves FP.
+    function lockedMmrKeys() {
+      return ['mmr', 'mp', 'rankTier', 'rankDivision',
+              'prevMmr', 'prevRankTier', 'prevRankDivision',
+              'streakWeeks', 'streakFreezes', 'tierShieldWeeksRemaining',
+              'consecutiveMissedWeeks', 'lastWeekIdUpdated', 'seasonPeak',
+              'hardModeWeeks', 'firstWeekId', 'currentSeasonId',
+              'lastSeasonRolledFrom', 'lastSeasonRolledTo', 'seasonRolledAt'];
+    }
+
     // User profile documents: users/{uid}
     // Contains profile data, onboarding status, goals, and preferences.
     // Onboarding fields: onboarding.completed, onboarding.version, onboarding.startedAt, onboarding.completedAt, onboarding.lastStep
@@ -24,7 +38,24 @@ service cloud.firestore {
     // Goal fields: dailyCalorieGoal, workoutsPerWeek (can be null if workouts disabled)
     // Tracking preferences: logCaloriesDaysPerWeek, logWeightDaysPerWeek (can be null if tracking disabled)
     match /users/{uid} {
-      allow read, write: if signedIn() && request.auth.uid == uid;
+      allow read: if signedIn() && request.auth.uid == uid;
+      // Create: the signup seed may include starting rank fields, but ONLY at
+      // the starting values (Silver IV / 1800) and never the scorer's anchor
+      // or streak state — otherwise delete-and-recreate would be an FP exploit.
+      allow create: if signedIn() && request.auth.uid == uid
+        && !request.resource.data.keys().hasAny(
+             ['streakWeeks', 'streakFreezes', 'tierShieldWeeksRemaining',
+              'consecutiveMissedWeeks', 'lastWeekIdUpdated', 'seasonPeak',
+              'hardModeWeeks', 'firstWeekId', 'currentSeasonId',
+              'lastSeasonRolledFrom', 'lastSeasonRolledTo', 'seasonRolledAt'])
+        && request.resource.data.get('mmr', 1800) == 1800
+        && request.resource.data.get('prevMmr', 1800) == 1800
+        && request.resource.data.get('mp', 0) == 0;
+      allow update: if signedIn() && request.auth.uid == uid
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(lockedMmrKeys());
+      // No client deletes (nothing in the app deletes the user doc; allowing
+      // it would reopen the recreate loophole).
+      allow delete: if false;
       match /groups/{groupId} {
         allow read, write: if signedIn() && request.auth.uid == uid;
       }
@@ -43,8 +74,16 @@ service cloud.firestore {
       match /goals/{goalId} {
         allow read, write: if signedIn() && request.auth.uid == uid;
       }
+      // Weekly scoring docs are the scorer's ANCHOR CHAIN (mmrBefore /
+      // streakBefore / ... baselines) — server-written only. The single client
+      // write that remains is the vacation flag (services/vacation.ts).
       match /weekly/{weekId} {
-        allow read, write: if signedIn() && request.auth.uid == uid;
+        allow read: if signedIn() && request.auth.uid == uid;
+        allow create: if signedIn() && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly(['vacation', 'vacationSetAt']);
+        allow update: if signedIn() && request.auth.uid == uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['vacation', 'vacationSetAt']);
+        allow delete: if false;
       }
       // Daily calorie adherence toggle: users/{uid}/calorieDays/{YYYY-MM-DD}
       match /calorieDays/{dateId} {
@@ -93,14 +132,24 @@ service cloud.firestore {
     match /publicUsers/{uid} {
       allow read: if signedIn() && (request.auth.uid == uid ||
         exists(/databases/$(database)/documents/visibility/$(request.auth.uid)/canSee/$(uid)));
-      allow write: if signedIn() && request.auth.uid == uid;
+      // The public FP mirror is server-owned like users/{uid}'s mmr state.
+      // Signup may seed it, but only at the starting values.
+      allow create: if signedIn() && request.auth.uid == uid
+        && !request.resource.data.keys().hasAny(['prevMmrPublic', 'seasonIdPublic'])
+        && request.resource.data.get('mmrPublic', 1800) == 1800
+        && request.resource.data.get('mpPublic', 0) == 0;
+      allow update: if signedIn() && request.auth.uid == uid
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(
+             ['mmrPublic', 'rankTierPublic', 'rankDivisionPublic', 'mpPublic',
+              'prevMmrPublic', 'seasonIdPublic']);
+      allow delete: if false;
 
-      // Shareable FP history subset (mirrored by the server compute and the
-      // owner's client) so teammates can render each other's history graphs.
+      // Shareable FP history subset — mirrored ONLY by the server compute
+      // since 2026-07-22 (the owner's client used to write it too).
       match /weeklyPublic/{weekId} {
         allow read: if signedIn() && (request.auth.uid == uid ||
           exists(/databases/$(database)/documents/visibility/$(request.auth.uid)/canSee/$(uid)));
-        allow write: if signedIn() && request.auth.uid == uid;
+        allow write: if false;
       }
     }
 

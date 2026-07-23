@@ -2,15 +2,17 @@ import { useContext, useEffect, useRef } from 'react';
 
 import { AuthContext } from '../../store/AuthContext';
 import { subscribeLogsChanged } from '../../services/fpEvents';
-import { updateGlobalMmrForWeek } from '../../services/mmrUpdate';
-import { DEFAULT_TZ, isoWeekIdInTz } from '../../mmr/time';
+import { recomputeMyMmr } from '../../services/mmrRecompute';
 
 /**
- * Live leaderboard settle: re-run the current week's (idempotent, anchored)
- * scorer a few seconds after any log change, so YOUR banked FP / leaderboard
- * row moves within seconds of logging instead of waiting for the 6-hour
- * scheduled compute. The server run stays as the safety net (health-sync
- * imports with the app closed, offline saves, week close).
+ * Live leaderboard settle: ask the SERVER to re-run the current week's
+ * (idempotent, anchored) scorer a few seconds after any log change, so YOUR
+ * banked FP / leaderboard row moves within seconds of logging instead of
+ * waiting for the 6-hour scheduled compute — which stays as the safety net
+ * (health-sync imports with the app closed, offline saves, week close).
+ *
+ * Server-side since 2026-07-22: the on-device scorer is gone and rules deny
+ * client mmr writes, so this is a callable round-trip now.
  *
  * Debounced so a burst of logs settles once; serialized so runs never overlap
  * (a save landing mid-run queues exactly one trailing re-run).
@@ -25,7 +27,6 @@ export default function MmrLiveSettler() {
 
   useEffect(() => {
     if (!user?.uid) return;
-    const uid = user.uid;
 
     const settle = async () => {
       if (running.current) {
@@ -34,7 +35,7 @@ export default function MmrLiveSettler() {
       }
       running.current = true;
       try {
-        await updateGlobalMmrForWeek({ uid, weekId: isoWeekIdInTz(new Date(), DEFAULT_TZ) });
+        await recomputeMyMmr('week');
       } catch {
         // Offline or racing the scheduled compute — the 6h run settles it.
       }

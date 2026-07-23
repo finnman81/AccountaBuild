@@ -1,7 +1,18 @@
 import React from 'react';
 import { Image, View, StyleSheet } from 'react-native';
 import { Text } from 'react-native-paper';
+import { requireOptionalNativeModule } from 'expo-modules-core';
 import { colors } from '../../theme/colors';
+
+/**
+ * expo-image when the native module exists (build ≥37: disk-cached avatars, no
+ * re-download flicker), RN Image otherwise. The gate matters because this file
+ * ships OTA to builds that predate the module — an unguarded import would
+ * crash them on launch (the exact trap Sentry's wizard almost sprang on us).
+ */
+const hasExpoImage = !!requireOptionalNativeModule('ExpoImage');
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const ExpoImage: React.ComponentType<any> | null = hasExpoImage ? require('expo-image').Image : null;
 
 export type AvatarStatus = 'logged' | 'notLogged' | 'streakLeader' | 'streak' | 'danger';
 
@@ -31,7 +42,18 @@ const RING_COLOR: Record<AvatarStatus, string> = {
 
 export default function Avatar({ photoURL, name, size = 40, status, atRisk }: AvatarProps) {
   const inner = photoURL ? (
-    <Image source={{ uri: photoURL }} style={[styles.avatar, { width: size, height: size, borderRadius: size / 2 }]} resizeMode="cover" />
+    ExpoImage ? (
+      <ExpoImage
+        source={{ uri: photoURL }}
+        style={[styles.avatar, { width: size, height: size, borderRadius: size / 2 }]}
+        contentFit="cover"
+        cachePolicy="disk"
+        transition={80}
+        recyclingKey={photoURL}
+      />
+    ) : (
+      <Image source={{ uri: photoURL }} style={[styles.avatar, { width: size, height: size, borderRadius: size / 2 }]} resizeMode="cover" />
+    )
   ) : (
     <View style={[styles.avatar, { width: size, height: size, borderRadius: size / 2, backgroundColor: colors.surface2 }]}>
       <Text style={{ fontSize: size * 0.4, color: colors.textSecondary, fontWeight: '600' }}>{initialsFromName(name).slice(0, 2)}</Text>

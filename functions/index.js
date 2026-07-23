@@ -15,9 +15,11 @@
  */
 const { onDocumentCreated, onDocumentWritten } = require('firebase-functions/v2/firestore');
 const { onSchedule } = require('firebase-functions/v2/scheduler');
+const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestore');
-const { computeUserUpToCurrentWeek } = require('./mmr-compute');
+const { computeUserWeek, computeUserUpToCurrentWeek } = require('./mmr-compute');
+const { ensureSeasonRollover } = require('./mmr-season');
 const { evaluateStreakRisk, evaluateDailyChampion, evaluateVacationPrompt } = require('./notif-logic');
 const core = require('./mmr-core');
 const { sendExpoPushes, isExpoToken, prefEnabled, inQuietHours } = require('./push-helper');
@@ -314,8 +316,19 @@ exports.updateMmrScheduled = onSchedule(
     let failed = 0;
     const pushes = [];
 
+    const currentSeasonId = core.seasonIdFromDate(now, TZ);
     for (const u of users.docs) {
       const before = u.data() || {};
+      // Season rollover (server-owned since 2026-07-22; was client-only, so
+      // inactive users never soft-reset at the quarter boundary). Cheap skip
+      // when already in-season; the rollover itself is idempotent.
+      if (String(before.currentSeasonId ?? '') !== currentSeasonId) {
+        try {
+          await ensureSeasonRollover(db, u.id, now);
+        } catch (e) {
+          console.error('[updateMmrScheduled] season rollover failed for', u.id, e);
+        }
+      }
       let results;
       try {
         results = await computeUserUpToCurrentWeek(db, { uid: u.id, apply: true });
@@ -412,6 +425,45 @@ exports.updateMmrScheduled = onSchedule(
     console.log(`[updateMmrScheduled] done: ${ok} ok, ${failed} failed of ${users.size}; pushes sent ${result.sent}`);
   },
 );
+
+// ---------------------------------------------------------------------------
+// On-demand FP recompute (callable) — the ONLY scorer entry point clients have
+// ---------------------------------------------------------------------------
+/**
+ * Since 2026-07-22 the client no longer computes/writes FP at all (the dual
+ * client scorer in src/services/mmrUpdate.ts is gone and Firestore rules deny
+ * client writes to mmr state). Instead the app calls this:
+ *  - MmrLiveSettler: mode 'week' a few seconds after any log change, so the
+ *    leaderboard settles without waiting for the 6h schedule
+ *  - Profile catch-up / pull-to-refresh: mode 'catchup'
+ *
+ * Auth-scoped to the caller's own uid; runs season rollover first (same order
+ * the client used). Concurrency safe: the compute transaction is idempotent
+ * and anchored, same as the scheduled run it interleaves with.
+ */
+exports.recomputeMyMmr = onCall({ timeoutSeconds: 120, memory: '256MiB' }, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError('unauthenticated', 'Sign in to recompute your score.');
+  const mode = request.data?.mode === 'week' ? 'week' : 'catchup';
+  const now = new Date();
+
+  try {
+    await ensureSeasonRollover(db, uid, now);
+    if (mode === 'week') {
+      const weekId = core.isoWeekIdInTz(now, TZ);
+      const r = await computeUserWeek(db, { uid, weekId, apply: true, now });
+      return { ok: true, weeks: [{ weekId: r.weekId, mmrAfter: r.mmrAfter, deltaMMR: r.deltaMMR }] };
+    }
+    const results = await computeUserUpToCurrentWeek(db, { uid, apply: true, now });
+    return {
+      ok: true,
+      weeks: results.map((r) => ({ weekId: r.weekId, mmrAfter: r.mmrAfter ?? null, deltaMMR: r.deltaMMR ?? null, error: r.error ?? null })),
+    };
+  } catch (e) {
+    console.error('[recomputeMyMmr] failed for', uid, e);
+    throw new HttpsError('internal', 'Recompute failed. The scheduled run will settle your score.');
+  }
+});
 
 // ---------------------------------------------------------------------------
 // Group weekly recap posted into chat (Mondays 10:00 ET)
