@@ -33,6 +33,7 @@ const WORKOUT_MAP: Array<[number | undefined, string]> = [
   [EX.YOGA, 'yoga'], [EX.PILATES, 'pilates'], [EX.STRETCHING, 'stretching'],
   [EX.STAIR_CLIMBING, 'stairMaster'], [EX.STAIR_CLIMBING_MACHINE, 'stairMaster'],
   [EX.HIGH_INTENSITY_INTERVAL_TRAINING, 'hiit'],
+  [EX.TENNIS, 'tennis'], // undefined if the lib lacks it — mapExerciseType skips null codes
 ];
 function mapExerciseType(t: number | undefined): string {
   const hit = WORKOUT_MAP.find(([code]) => code != null && code === t);

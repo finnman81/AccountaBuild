@@ -75,6 +75,7 @@ const WORKOUT_LABELS: Record<string, string> = {
   meditation: 'Meditation',
   pilates: 'Pilates',
   taiChi: 'Tai chi',
+  tennis: 'Tennis',
   walking: 'Walk',
   other: 'Activity',
 };

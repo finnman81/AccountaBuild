@@ -264,11 +264,17 @@ export function mapHealthKitWorkoutType(healthKitType: string | number | unknown
   
   // Stairs
   if (
-    normalized.includes('stair') || 
+    normalized.includes('stair') ||
     normalized.includes('stairclimbing') ||
     normalized === '53' // Stairs enum value
   ) {
     return 'stairMaster';
+  }
+
+  // Tennis (matched by name only — the numeric HK raw value collides with other
+  // types in this hand-maintained enum, and the native libs pass a name string).
+  if (normalized.includes('tennis')) {
+    return 'tennis';
   }
   
   // Incline walk

@@ -39,6 +39,7 @@ const WORKOUT_LABELS: Record<string, string> = {
   yoga: 'Yoga',
   elliptical: 'Elliptical',
   stairMaster: 'Stairs',
+  tennis: 'Tennis',
 };
 
 function daysAgoYYYYMMDD(n: number): string {

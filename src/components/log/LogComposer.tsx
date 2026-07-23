@@ -49,6 +49,7 @@ const WORKOUTS: Array<{ value: WorkoutType; label: string }> = [
   { value: 'yoga', label: 'Yoga' },
   { value: 'elliptical', label: 'Elliptical' },
   { value: 'stairMaster', label: 'Stairs' },
+  { value: 'tennis', label: 'Tennis' },
 ];
 
 const MEALS: Array<{ value: MealType; label: string }> = [

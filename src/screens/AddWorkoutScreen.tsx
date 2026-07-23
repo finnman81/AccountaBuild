@@ -38,6 +38,7 @@ const workoutTypes: { label: string; value: WorkoutType }[] = [
   { label: 'Meditation', value: 'meditation' },
   { label: 'Pilates', value: 'pilates' },
   { label: 'Tai Chi', value: 'taiChi' },
+  { label: 'Tennis', value: 'tennis' },
   { label: 'Walking', value: 'walking' },
 ];
 
