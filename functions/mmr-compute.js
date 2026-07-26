@@ -21,6 +21,7 @@
  */
 const { FieldValue } = require('firebase-admin/firestore');
 const core = require('./mmr-core');
+const { celebrateGoalCompletion } = require('./celebrations');
 
 function parseDateLocal(yyyyMmDd) {
   return new Date(`${yyyyMmDd}T12:00:00`);
@@ -435,6 +436,11 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
       rankAfter: `${rankAfter.tier}${rankAfter.division ?? ''}`,
       activeGoals: active.map((g) => g.id),
       applied: apply,
+      // True only on the run that FIRST awards the completion bonus (anchored
+      // re-runs re-apply priorWeightBonus and stay false) — the exactly-once
+      // signal the auto-celebration keys on.
+      bonusAwardedNow: apply && weightGoalUpdate != null && weightBonus > 0 && priorWeightBonus === 0,
+      bonusGoalId: weightGoalUpdate ? weightGoalUpdate.docId : null,
       // Post-week state, exposed so the anchor repair below (and admin
       // tooling) can re-base the NEXT week's baselines without a re-read.
       streakAfter,
@@ -613,6 +619,13 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
 
     return result;
   });
+
+  // Auto-celebration: exactly-once on the run that first awarded a goal's
+  // completion bonus. Queues the group pop-up + pushes teammates; never
+  // allowed to fail scoring (module catches internally).
+  if (summary && summary.bonusAwardedNow && summary.bonusGoalId) {
+    await celebrateGoalCompletion(db, { uid, goalId: summary.bonusGoalId, goal: goals[summary.bonusGoalId] ?? null, now });
+  }
 
   // Self-healing anchor chain: next week's doc may have been created BEFORE
   // this week closed (Monday-morning race between client catch-up and this
