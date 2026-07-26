@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { Icon, Snackbar, Text } from 'react-native-paper';
 import { useIsFocused } from '@react-navigation/native';
 
@@ -32,6 +32,7 @@ import { enqueueSocialPush } from '../services/socialPush';
 import HypePickerSheet from '../components/social/HypePickerSheet';
 import type { Hype } from '../services/hypeCatalog';
 import { fetchGroupWeekDeltas } from '../services/publicUsers';
+import { recomputeMyMmr } from '../services/mmrRecompute';
 import { DEFAULT_TZ, isoWeekIdInTz } from '../mmr/time';
 import { notifyLogsChanged } from '../services/fpEvents';
 import { getCachedDisplayName, getCachedGroupName, rememberDisplayName, rememberGroupName } from '../services/profileCache';
@@ -146,6 +147,27 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
   useEffect(() => {
     if (!activeGroupId) setWeekDeltas({});
   }, [activeGroupId]);
+
+  // Pull-to-refresh. Everything else on this screen is a live listener, so the
+  // only things a manual refresh can genuinely do are (a) ask the server to
+  // resettle my FP now instead of after the settler's debounce, and (b) refetch
+  // the one-shot week-race deltas. Both are cheap and idempotent.
+  const [refreshing, setRefreshing] = useState(false);
+  const onPullRefresh = async () => {
+    if (!activeGroupId || refreshing) return;
+    setRefreshing(true);
+    try {
+      await recomputeMyMmr('week').catch(() => {}); // offline-safe; 6h run covers
+      const rows = await fetchGroupWeekDeltas(activeGroupId, weekId);
+      const map = Object.fromEntries(rows.map((r) => [r.uid, r.delta]));
+      setWeekDeltas(map);
+      setHydrated(`weekDeltas:${activeGroupId}:${weekId}`, map);
+    } catch {
+      /* listeners keep the rest of the screen honest */
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const checklist = useMemo(
     () => buildTodayChecklist({ logs, myUid, today, dailyCalorieGoal, units }),
@@ -277,7 +299,11 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
   return (
     <>
 
-    <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ padding: spacing.lg, paddingTop: 56, paddingBottom: 32 }}>
+    <ScrollView
+      style={{ flex: 1, backgroundColor: colors.background }}
+      contentContainerStyle={{ padding: spacing.lg, paddingTop: 56, paddingBottom: 32 }}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void onPullRefresh()} tintColor={colors.textSecondary} />}
+    >
       <TodayHeader
         groupName={groupName}
         groupLogoURL={group?.logoURL ?? null}

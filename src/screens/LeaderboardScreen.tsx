@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useMemo, useState } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, RefreshControl, ScrollView, TouchableOpacity } from 'react-native';
 import { Icon } from 'react-native-paper';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -15,6 +15,7 @@ import { subscribePublicUsers, type PublicUser } from '../services/publicUsers';
 import { subscribeGroupLogs, type GroupLog } from '../services/logs';
 import { buildLeaderboard, type LeaderboardRow } from '../viewmodels/leaderboard';
 import { DEFAULT_TZ, isoWeekIdInTz } from '../mmr/time';
+import { recomputeMyMmr } from '../services/mmrRecompute';
 import { fetchGroupWeekDeltas } from '../services/publicUsers';
 import { getHydrated, setHydrated } from '../services/hydrationCache';
 import SegmentedControl from '../components/ui/SegmentedControl';
@@ -159,6 +160,25 @@ export default function LeaderboardScreen({ route }: Props) {
 
   const openMember = (uid: string) => nav.navigate('MemberDetail' as any, { groupId, uid } as any);
 
+  // Pull-to-refresh: resettle my FP + refetch the one-shot week deltas (the
+  // roster/rank listeners are already live). Same recipe as Today.
+  const [refreshing, setRefreshing] = useState(false);
+  const onPullRefresh = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      await recomputeMyMmr('week').catch(() => {});
+      const rws = await fetchGroupWeekDeltas(groupId, weekId);
+      const map = Object.fromEntries(rws.map((r) => [r.uid, r.delta]));
+      setWeekDeltas(map);
+      setHydrated(`weekDeltas:${groupId}:${weekId}`, map);
+    } catch {
+      /* live listeners keep the board honest */
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
@@ -169,7 +189,11 @@ export default function LeaderboardScreen({ route }: Props) {
         <AppText variant="eyebrow" color="muted" numberOfLines={1} style={styles.headerRight}>{group?.name ?? ''}</AppText>
       </View>
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void onPullRefresh()} tintColor={colors.textSecondary} />}
+      >
         {rows.length === 0 ? (
           <AppText variant="body" color="secondary" style={{ textAlign: 'center', marginTop: spacing.xxl }}>No ranked members yet.</AppText>
         ) : (
