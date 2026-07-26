@@ -60,6 +60,26 @@ export function weightV3ActiveForWeek(weekId: string | null | undefined): boolea
   return typeof weekId === 'string' && weekId >= WEIGHT_V3_FROM_WEEK;
 }
 
+export const WEIGHT_BONUS_CAP = 100;
+export const WEIGHT_BONUS_PER_LB = 10;
+
+/**
+ * One-time bonus for FINISHING a weight goal.
+ *
+ * Pre-v3 this was min(100, 300 * D_base) — but D_base barely moves with goal
+ * size (a 1 lb goal scores 1.05, a 20 lb goal 1.20), so 300x always blew
+ * through the cap and EVERY completed goal paid the full 100 FP. Harmless
+ * while goals were set once; farmable the moment the app started prompting
+ * "set a new goal" after each win. v3 scales the payout with the pounds
+ * actually committed, so a token 1 lb goal is worth ~11 FP and anything
+ * genuinely ambitious still caps out.
+ */
+export function weightCompletionBonus(params: { lbs: number; D_base: number; v3: boolean }): number {
+  const { lbs, D_base, v3 } = params;
+  if (!v3) return Math.min(WEIGHT_BONUS_CAP, 300 * D_base);
+  return clamp(0, WEIGHT_BONUS_CAP, WEIGHT_BONUS_PER_LB * Math.max(0, lbs) * D_base);
+}
+
 export function D_weightLoss(params: {
   W0: number;
   Wg: number;

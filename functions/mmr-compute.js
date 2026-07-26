@@ -260,7 +260,7 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
         const plausibleLoss = Math.abs(Wt - Number(weightPrevWeekEnd)) <= 10;
         const reached = Wt <= Wg && plausibleLoss;
         if (reached && !weightGoal.completionBonusAwarded) {
-          weightBonusRaw = Math.min(100, 300 * D_base);
+          weightBonusRaw = core.weightCompletionBonus({ lbs: W0 - Wg, D_base, v3: weightV3 });
           weightGoalUpdate = { docId: 'weightLoss', patch: { completionBonusAwarded: true, status: 'completed', completionDate: FieldValue.serverTimestamp() } };
         }
       } else {
@@ -278,7 +278,7 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
         const plausibleGain = Math.abs(Wt - Number(weightPrevWeekEnd)) <= 10;
         const reached = Wt >= Wg && plausibleGain;
         if (reached && !weightGoal.completionBonusAwarded) {
-          weightBonusRaw = Math.min(100, 300 * D_base);
+          weightBonusRaw = core.weightCompletionBonus({ lbs: Wg - W0, D_base, v3: weightV3 });
           weightGoalUpdate = { docId: 'weightGain', patch: { completionBonusAwarded: true, status: 'completed', completionDate: FieldValue.serverTimestamp() } };
         }
       }

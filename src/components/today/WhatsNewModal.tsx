@@ -4,10 +4,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Modal, Portal } from 'react-native-paper';
 import { arrayUnion, doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 
+import * as Haptics from 'expo-haptics';
+
 import AppText from '../ui/AppText';
 import { AuthContext } from '../../store/AuthContext';
 import { db } from '../../firebase/firebase';
 import { colors, radius, spacing } from '../../theme';
+import { enqueueSocialPush } from '../../services/socialPush';
+import { hypeById, type Hype } from '../../services/hypeCatalog';
+import { friendlyNameFromDisplayName } from '../../utils/formatters';
 
 /**
  * "What's New" — feature announcements, driven entirely by remote config so
@@ -35,6 +40,12 @@ type Announcement = {
   id: string;
   emoji?: string;
   title: string;
+  /**
+   * Celebration payload. When present the modal shows hype buttons that send a
+   * REAL cheer push to `uid` — reusing the hype catalog rather than inventing a
+   * second reaction store, so the honoree actually hears about it.
+   */
+  celebrate?: { uid: string; name: string; hypeIds: string[] };
   lines: string[];
   /** ISO timestamp — stays hidden until this moment (scheduled reveal). */
   activeFrom?: string;
@@ -47,6 +58,7 @@ function isValid(a: any): a is Announcement {
 export default function WhatsNewModal() {
   const { user } = useContext(AuthContext);
   const [ann, setAnn] = useState<Announcement | null>(null);
+  const [sentEmoji, setSentEmoji] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user?.uid) return;
@@ -99,6 +111,27 @@ export default function WhatsNewModal() {
 
   if (!ann || !user?.uid) return null;
 
+  const celebrate = ann.celebrate;
+  const isHonoree = celebrate?.uid === user.uid;
+  const hypes = (celebrate?.hypeIds ?? []).map((id) => hypeById(id)).filter(Boolean) as Hype[];
+
+  const sendCheer = async (h: Hype) => {
+    if (!celebrate || !user?.uid || isHonoree) return;
+    setSentEmoji(h.emoji);
+    try {
+      await enqueueSocialPush({
+        toUid: celebrate.uid,
+        fromUid: user.uid,
+        fromName: friendlyNameFromDisplayName(user.displayName ?? null, user.uid),
+        type: 'cheer',
+        hypeId: h.id,
+      });
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    } catch {
+      /* non-fatal — the celebration still dismisses cleanly */
+    }
+  };
+
   const dismiss = () => {
     const uid = user.uid;
     const id = ann.id;
@@ -138,8 +171,29 @@ export default function WhatsNewModal() {
             </AppText>
           ))}
         </View>
+        {celebrate && !isHonoree ? (
+          <>
+            <AppText variant="eyebrow" color="muted" style={{ textAlign: 'center', marginTop: spacing.lg }}>
+              {sentEmoji ? `SENT TO ${celebrate.name.toUpperCase()}` : `SEND ${celebrate.name.toUpperCase()} SOME HYPE`}
+            </AppText>
+            <View style={styles.hypeRow}>
+              {hypes.map((h) => (
+                <TouchableOpacity
+                  key={h.id}
+                  style={[styles.hypeBtn, sentEmoji === h.emoji && styles.hypeBtnSent]}
+                  onPress={() => void sendCheer(h)}
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel={h.label}
+                >
+                  <AppText variant="pageTitle" style={styles.hypeEmoji}>{h.emoji}</AppText>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </>
+        ) : null}
         <TouchableOpacity style={styles.cta} onPress={dismiss} activeOpacity={0.85}>
-          <AppText variant="rowTitle" style={{ color: '#FFFFFF' }}>Got it</AppText>
+          <AppText variant="rowTitle" style={{ color: '#FFFFFF' }}>{sentEmoji ? 'Done' : 'Got it'}</AppText>
         </TouchableOpacity>
       </Modal>
     </Portal>
@@ -155,6 +209,19 @@ const styles = StyleSheet.create({
     marginHorizontal: spacing.lg,
     padding: spacing.lg,
   },
+  hypeRow: { flexDirection: 'row', justifyContent: 'center', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.sm },
+  hypeBtn: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.surface2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.divider,
+  },
+  hypeBtnSent: { borderColor: colors.primary, backgroundColor: colors.primaryTint },
+  hypeEmoji: { fontSize: 26, lineHeight: 32 },
   cta: {
     marginTop: spacing.lg,
     backgroundColor: colors.primary,

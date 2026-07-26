@@ -61,6 +61,17 @@ const WEIGHT_V3_FROM_WEEK = '2026-W32';
 function weightV3ActiveForWeek(weekId) {
   return typeof weekId === 'string' && weekId >= WEIGHT_V3_FROM_WEEK;
 }
+const WEIGHT_BONUS_CAP = 100;
+const WEIGHT_BONUS_PER_LB = 10;
+// One-time goal-completion bonus. Pre-v3: min(100, 300*D_base), which always
+// hit the cap because D_base barely moves with goal size — every completed
+// goal paid 100 FP, farmable once the app prompts "set a new goal". v3 scales
+// with the pounds actually committed. See src/mmr/difficulty.ts.
+function weightCompletionBonus({ lbs, D_base, v3 }) {
+  if (!v3) return Math.min(WEIGHT_BONUS_CAP, 300 * D_base);
+  return clamp(0, WEIGHT_BONUS_CAP, WEIGHT_BONUS_PER_LB * Math.max(0, lbs) * D_base);
+}
+
 function D_weightLoss({ W0, Wg, Wt, Tweeks: TweeksIn, hIn, bmiBase, WtPhase }) {
   const L = W0 - Wg;
   const Tweeks = Math.max(4, TweeksIn);
@@ -358,6 +369,9 @@ module.exports = {
   WEIGHT_V2_FROM_WEEK,
   weightV3ActiveForWeek,
   WEIGHT_V3_FROM_WEEK,
+  weightCompletionBonus,
+  WEIGHT_BONUS_CAP,
+  WEIGHT_BONUS_PER_LB,
   countLowCalorieDays,
   LOW_CAL_THRESHOLD,
   LOW_CAL_FLAG_DAYS,
