@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { Icon, Snackbar, Text } from 'react-native-paper';
+import { useIsFocused } from '@react-navigation/native';
 
 import { colors } from '../theme/colors';
 import { spacing } from '../theme/spacing';
@@ -118,8 +119,14 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
   const [weekDeltas, setWeekDeltas] = useState<Record<string, number>>(
     () => (activeGroupId ? getHydrated<Record<string, number>>(`weekDeltas:${activeGroupId}:${weekId}`) ?? {} : {}),
   );
+  // Refetch on FOCUS too, not just mount/log-change: Today is a tab that stays
+  // mounted for the whole session, so without this its race card kept whatever
+  // it fetched hours ago while Leaderboard (a stack screen, remounted on every
+  // visit) showed the live number — the two boards then disagreed on screen at
+  // the same moment (prod 2026-07-26).
+  const isFocused = useIsFocused();
   useEffect(() => {
-    if (!activeGroupId) { setWeekDeltas({}); return; }
+    if (!activeGroupId || !isFocused) return;
     setWeekDeltas(getHydrated<Record<string, number>>(`weekDeltas:${activeGroupId}:${weekId}`) ?? {});
     let cancelled = false;
     const t = setTimeout(() => {
@@ -133,7 +140,11 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
         .catch(() => {});
     }, 1500); // small debounce: log bursts and the settler write settle first
     return () => { cancelled = true; clearTimeout(t); };
-  }, [activeGroupId, weekId, logs.length]);
+  }, [activeGroupId, weekId, logs.length, isFocused]);
+
+  useEffect(() => {
+    if (!activeGroupId) setWeekDeltas({});
+  }, [activeGroupId]);
 
   const checklist = useMemo(
     () => buildTodayChecklist({ logs, myUid, today, dailyCalorieGoal, units }),
