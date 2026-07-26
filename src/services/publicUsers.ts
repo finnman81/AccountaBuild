@@ -36,6 +36,10 @@ export type PublicUser = {
   prevMmrPublic?: number | null;
   /** Whether teammates are allowed to nudge this user (mirrors the setting). */
   allowNudges?: boolean;
+  /** Self-computed accurate goal streak (see services/streakMirror.ts). */
+  streakDaysPublic?: number | null;
+  /** Plain ms number, NOT a Timestamp — must survive the hydration cache's JSON. */
+  streakDaysUpdatedAtMs?: number | null;
   /** ISO week the user has declared as a vacation week (null when none). */
   vacationWeekId?: string | null;
   /** Compact earned-badge mirror (newest first) for teammate profiles. */
@@ -158,6 +162,8 @@ export function subscribePublicUsers(uids: string[], onChange: (map: Record<stri
           mpPublic: typeof data?.mpPublic === 'number' ? data.mpPublic : typeof data?.lpPublic === 'number' ? data.lpPublic : null, // Backward compat
           prevMmrPublic: typeof data?.prevMmrPublic === 'number' ? data.prevMmrPublic : null,
           allowNudges: data?.allowNudges === true,
+          streakDaysPublic: typeof data?.streakDaysPublic === 'number' ? data.streakDaysPublic : null,
+          streakDaysUpdatedAtMs: typeof data?.streakDaysUpdatedAtMs === 'number' ? data.streakDaysUpdatedAtMs : null,
           badgesPublic: Array.isArray(data?.badgesPublic) ? data.badgesPublic : undefined,
         };
       }

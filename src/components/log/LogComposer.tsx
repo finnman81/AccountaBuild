@@ -98,7 +98,15 @@ function Hero({
           autoFocus
           keyboardType="decimal-pad"
           value={draft}
-          onChangeText={setDraft}
+          onChangeText={(t) => {
+            setDraft(t);
+            // Commit every keystroke, not just blur/submit: tapping Save
+            // fires BEFORE the input blurs, so a blur-only commit made Save
+            // write the STALE pre-typing value (prod: Regmong typed 1389,
+            // the log saved as his previous 1550).
+            const n = Number(t);
+            if (Number.isFinite(n) && t.trim() !== '') onCommit(n);
+          }}
           onBlur={() => {
             const n = Number(draft);
             if (Number.isFinite(n)) onCommit(n);

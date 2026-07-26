@@ -187,6 +187,26 @@ export function computeStreakDays(logs: GroupLog[], allowedTypes: Set<LogType>, 
  * streakRule 'any'     → any tracked category's log counts a day, and the day
  *                        survives if ANY tracked goal is still on pace.
  */
+/** A self-reported streak mirror older than this is ignored (owner hasn't opened the app). */
+export const STREAK_MIRROR_FRESH_MS = 48 * 60 * 60 * 1000;
+
+/**
+ * max(window, fresh mirror): the windowed group feed can only UNDERCOUNT a
+ * streak (missing old logs), never overcount, so preferring a larger fresh
+ * mirror is always safe. Written by services/streakMirror.ts.
+ */
+export function bestStreak(windowStreak: number, mirror?: number | null, mirrorUpdatedAtMs?: number | null): number {
+  if (
+    typeof mirror === 'number' &&
+    mirror > windowStreak &&
+    typeof mirrorUpdatedAtMs === 'number' &&
+    Date.now() - mirrorUpdatedAtMs < STREAK_MIRROR_FRESH_MS
+  ) {
+    return Math.round(mirror);
+  }
+  return windowStreak;
+}
+
 export function computeGoalStreak(params: {
   logs: GroupLog[];
   uid: string;
@@ -293,10 +313,13 @@ export function buildTeamToday(params: {
   }
 
   // Pace-aware streak per member, scored against each member's own weekly goals.
+  // The windowed feed TRUNCATES streaks longer than its lookback (~2 weeks at
+  // current group volume), so blend in each member's self-reported mirror —
+  // max() is safe because the window can only ever undercount (streakMirror.ts).
   const streaks: Record<string, number> = {};
   for (const uid of allowed) {
     const p = params.publicUsers[uid];
-    streaks[uid] = computeGoalStreak({
+    const windowStreak = computeGoalStreak({
       logs: params.logs,
       uid,
       today: params.today,
@@ -307,6 +330,7 @@ export function buildTeamToday(params: {
         weight: Number(p?.logWeightDaysPerWeek ?? 0),
       },
     });
+    streaks[uid] = bestStreak(windowStreak, p?.streakDaysPublic, p?.streakDaysUpdatedAtMs);
   }
   let leaderUid: string | null = null;
   let leaderStreak = 0;

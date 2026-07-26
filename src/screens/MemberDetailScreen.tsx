@@ -15,7 +15,7 @@ import { getHydrated, setHydrated } from '../services/hydrationCache';
 import { enqueueSocialPush } from '../services/socialPush';
 import HypePickerSheet from '../components/social/HypePickerSheet';
 import type { Hype } from '../services/hypeCatalog';
-import { computeGoalStreak } from '../viewmodels/today';
+import { bestStreak, computeGoalStreak } from '../viewmodels/today';
 import { friendlyNameFromDisplayName } from '../utils/formatters';
 import { DEFAULT_TZ, isoWeekDatesInTz, isoWeekIdInTz, yyyyMmDdInTz } from '../mmr/time';
 import AppText from '../components/ui/AppText';
@@ -134,7 +134,7 @@ export default function MemberDetailScreen({ route, navigation }: Props) {
     const rule = (group?.streakRule ?? 'any') as 'workout' | 'any';
     const allowedTypes: Set<LogType> = rule === 'any' ? new Set(['calories', 'workout', 'weight', 'photo']) : new Set(['workout']);
     const mine = marks.filter((l) => l.uid === uid);
-    const streak = computeGoalStreak({
+    const windowStreak = computeGoalStreak({
       logs: mine as unknown as GroupLog[], // marks carry uid/date/type — all it reads
       uid,
       today,
@@ -150,8 +150,11 @@ export default function MemberDetailScreen({ route, navigation }: Props) {
     const week = weekDates.map((d) => ({ date: d, logged: loggedByDate.has(d), today: d === today }));
     const todayTypes = new Set(mine.filter((l) => l.date === today).map((l) => l.type));
     const checklist = (['calories', 'workout', 'weight'] as const).map((t) => ({ type: t, logged: todayTypes.has(t) }));
+    // Same truncation blend as the Today rail — the 400-log window undercounts
+    // long streaks, the self-reported mirror corrects it (streakMirror.ts).
+    const streak = bestStreak(windowStreak, pub?.streakDaysPublic, pub?.streakDaysUpdatedAtMs);
     return { streak, weekWorkouts, week, checklist };
-  }, [marks, uid, group?.streakRule, pub?.workoutsPerWeek, pub?.logCaloriesDaysPerWeek, pub?.logWeightDaysPerWeek]);
+  }, [marks, uid, group?.streakRule, pub?.workoutsPerWeek, pub?.logCaloriesDaysPerWeek, pub?.logWeightDaysPerWeek, pub?.streakDaysPublic, pub?.streakDaysUpdatedAtMs]);
 
   // Tapping Cheer opens the hype picker; the chosen variant is what gets sent.
   const [hypeOpen, setHypeOpen] = useState<null | 'cheer' | 'nudge'>(null);
