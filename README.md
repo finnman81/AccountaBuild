@@ -36,7 +36,16 @@ a nested `AccountaBuild/` wrapper folder). Run all commands from the repo root.
   **Displayed to users as "Fitness Points (FP)"** — all internals/schema keep the `mmr` naming.
 - **Push notifications** (Cloud Functions → Expo push): cheers/nudges (`pushQueue`),
   chat messages, teammate first-log-of-day, smart streak-at-risk reminder (18:00 ET),
-  weekly recap + rank changes. Per-user toggles mirror to `users/{uid}.notifPrefs`.
+  weekly recap + rank changes, milestone celebrations. Per-user toggles mirror to
+  `users/{uid}.notifPrefs`.
+- **Hype pings**: 11 pickable cheer/nudge variants (`src/services/hypeCatalog.ts`
+  + `functions/hype-catalog.js`, kept in lockstep — client sends only a `hypeId`,
+  the server renders the copy). Nudges require the recipient's `allowNudges === true`.
+- **Milestone celebrations**: when a weight goal completes, the server auto-queues
+  a celebration pop-up for the whole group (hype buttons send the honoree a real
+  cheer) and pushes teammates — `functions/celebrations.js`, exactly-once off the
+  completion-bonus award. Chat also renders reactable milestone cards
+  (`src/components/chat/MilestoneCard.tsx`).
 - **Teammate profiles**: full KPI screen (training, consistency, rank + FP history via
   the `publicUsers/{uid}/weeklyPublic` mirror; body weight deliberately excluded)
 - **FP transparency**: per-log FP stamps, a daily FP ledger (`users/{uid}/fpDaily`)
@@ -47,6 +56,15 @@ a nested `AccountaBuild/` wrapper folder). Run all commands from the repo root.
 - **Vacation mode**, **streak freezes**, **Monday-only goal changes**
 - **Health sync**: Apple Health / Health Connect with tombstones + duplicate
   suppression (including manual-vs-synced twins)
+- **Accurate streaks**: each client computes its own goal streak from a complete
+  120-day uid-scoped query and mirrors it to `publicUsers.streakDaysPublic`
+  (`src/services/streakMirror.ts`); readers take max(windowed, fresh mirror).
+  WHY: windowed group feeds (newest-300 logs) reach back ~2 weeks at current
+  volume, silently truncating longer streaks — a windowed count can only ever
+  UNDERCOUNT, so max() is safe.
+- **Avatars** use `expo-image` (disk cache, no re-download flicker) behind a
+  `requireOptionalNativeModule('ExpoImage')` gate so OTA bundles can't crash
+  builds that predate the native module (build < 37).
 
 ## Global MMR system (LoL-style)
 
@@ -148,6 +166,7 @@ Never flip scoring by deploy timing. Gate on the ISO week id:
 ```ts
 export const CAL_BAND_FROM_WEEK = '2026-W30';   // src/mmr/adherence.ts
 export const WEIGHT_V2_FROM_WEEK = '2026-W31';  // src/mmr/difficulty.ts
+export const WEIGHT_V3_FROM_WEEK = '2026-W32';  // src/mmr/difficulty.ts
 ```
 
 Ship the code whenever; it activates itself at that Monday 00:00 ET. Weeks before
@@ -169,6 +188,28 @@ under-logging is *flagged* (`lowCalorieDays` on the weekly doc), never punished.
 - Current-week outcome **drips by elapsed days**, so one Monday weigh-in can't
   bank a whole week. Week-close totals are unaffected.
 - Rationale + real-user impact tables: `Notes/FP_WEIGHT_V2_PROPOSAL.md`.
+
+### Weight (v3, from 2026-W32)
+- **No clawback**: phase difficulty (cubic in progress) follows the week's BEST
+  weigh-in (`WtPhase`: min for loss, max for gain), so a late 1-2 lb water swing
+  can't re-grade FP already banked. Outcome still uses real end-of-week /
+  v2-average weight — v3 never pays for progress not made.
+- **Completion bonus scales with commitment**: `weightCompletionBonus()` pays
+  ~10 FP/lb × D_base, capped at 100 (1 lb → 10, 5 lb → 55, 8 lb → 90, 16 lb+ →
+  cap). Pre-v3 every completed goal paid the full 100 because 300×D_base always
+  blew through the cap — farmable once the app started prompting "set a new goal".
+- **Bonus is anchored on the weekly doc** (`weightBonus`), like
+  `mmrBefore`/`streakBefore`. The old "skip if already awarded" guard REVOKED the
+  bonus on recompute (each run rebuilds the delta from scratch, so the guard
+  erased rather than deduped). **Rule: anything additive to a week's delta must
+  be anchored on the weekly doc, never gated on an external "already done" flag.**
+- Setting genuinely different weight targets re-arms `completionBonusAwarded`
+  (MMRGoalsScreen); re-saving identical targets keeps it, so it can't be farmed.
+- **TRAP: `Number(null) === 0`, not NaN.** Guard optional numeric params with
+  `x != null && Number.isFinite(Number(x))`. An isFinite-only check read "no
+  phase weight" as 0 lb (instant 100% progress for everyone) — caught only by
+  the all-users A/B dry-run. **Always dry-run a scoring change against all
+  users before deploying** (`scripts/mmr-recompute.js --all --dry-run`).
 
 ### Other mechanics
 - **Vacation mode**: 2/season, current week only. No penalty, streak held, no
@@ -246,6 +287,12 @@ each live update back — cache-then-network.
 - **Do NOT cache raw logs/messages** — Firestore Timestamps don't survive a JSON
   round-trip and volume is unbounded.
 - Results: Today **~6,000ms → ~90ms**, Leaderboard **~3,576ms → ~57-582ms**.
+- MemberDetail seeds from the cache too; raw logs can't be cached, so it caches
+  a compact `{uid, date, type}` day-marks projection instead (bounded, JSON-safe).
+- **Windowed-feed trap**: any "newest N logs" query covers fewer DAYS as group
+  volume grows. It truncated streaks (18d read as 13d) and once dropped
+  early-week logs from FP. Derive per-user facts from uid-scoped date-bounded
+  queries or a mirror, never from the shared window.
 - Watch for **chained** subscriptions (members → canSee → publicUsers): that
   serialized wait, not rendering, was GroupChat's 27s.
 - Full plan + measurements: `Notes/PERF_V2_PLAN.md`.
@@ -254,8 +301,19 @@ each live update back — cache-then-network.
 
 `config/app.announcements` is an **array**; every entry a user hasn't seen is
 shown oldest-first, one per app open. Each entry is
-`{ id, emoji, title, lines[], activeFrom? }` — `activeFrom` (ISO timestamp)
-schedules a reveal. No release needed; it's a pure admin write.
+`{ id, emoji, title, lines[], activeFrom?, celebrate? }` — `activeFrom` (ISO
+timestamp) schedules a reveal. No release needed; it's a pure admin write.
+
+`celebrate: { uid, name, hypeIds[] }` turns the pop-up into a celebration: hype
+buttons that send the honoree a REAL cheer push via the hype catalog (the
+honoree sees the celebration without buttons). Weight-goal completions queue
+these automatically (`functions/celebrations.js`).
+
+**Capability-ordering rule**: if an announcement depends on NEW client
+rendering, the OTA must reach devices first — gate the content with `activeFrom`
+(~2h out), or the first wave sees the degraded version and dismisses it forever
+(hit 2026-07-26: celebration shipped alongside its rendering code, everyone saw
+a button-less card).
 
 Seen ids are recorded to `users/{uid}.announcementsSeen` (server, via
 `arrayUnion` — never assign an array, that wipes history) **and** AsyncStorage;
@@ -275,6 +333,7 @@ Run with the Firebase **admin SDK key** (never the Play service account):
 - `scripts/_repair-week-anchors.js <key> [--apply]` — weekly baseline chains
 - `scripts/_scrub-manual-synced-twins.js <key> [--apply]` — manual/health dupes
 - `scripts/_dryrun-streak-risk.js`, `scripts/_e2e-push-test.js`
+- `scripts/_nudge-update.js <key> [--send]` — broadcast "update available" push
 
 **After any manual FP correction, also patch that day's `users/{uid}/fpDaily/{date}`
 snapshot** — otherwise the next day's "Yesterday: −N FP" reports your fix as a loss.
@@ -354,7 +413,19 @@ Deployment docs:
 - iOS: `Notes/docs/Deploy_IOS.md`
 - Android: `Notes/docs/Deploy_Android.md`
 
-This project uses **EAS Build** with `eas.json` profiles (`development`, `preview`, `production`) and OTA updates via `runtimeVersion` policy `sdkVersion`.
+This project uses **EAS Build** with `eas.json` profiles (`development`, `preview`, `production`, `production-android`) and OTA updates via `runtimeVersion` policy `sdkVersion`.
+
+**Android MUST build with `--profile production-android`** — it signs with the
+local upload keystore (`credentials/play-upload.keystore`, SHA1 ending `54:DD`)
+that Play expects. The plain `production` profile uses an EAS-managed key Play
+has never seen; a vc built with it is unsubmittable ("signed with the wrong
+key", hit with vc18 — rebuilt as vc19). iOS uses `production` as-is.
+
+```powershell
+npx eas-cli build --platform ios --profile production
+npx eas-cli build --platform android --profile production-android
+npx eas-cli submit --platform android --latest --profile production-android
+```
 
 ## Common pitfalls / troubleshooting
 
