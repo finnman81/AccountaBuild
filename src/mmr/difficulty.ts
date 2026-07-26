@@ -42,11 +42,45 @@ export function weightV2ActiveForWeek(weekId: string | null | undefined): boolea
   return typeof weekId === 'string' && weekId >= WEIGHT_V2_FROM_WEEK;
 }
 
-export function D_weightLoss(params: { W0: number; Wg: number; Wt: number; Tweeks: number; hIn?: number | null; bmiBase?: boolean }) {
+/**
+ * Weight-v3 (2026-08-03): phase difficulty tracks the BEST progress reached
+ * during the week instead of the final weigh-in.
+ *
+ * WHY: D_phase is cubic in progress, so a normal 1-2 lb water swing after a
+ * good weigh-in re-graded the WHOLE week downward — banked FP visibly went
+ * backwards (prod 2026-07-26: Watto hit his goal Saturday at 100% progress,
+ * bounced 1.6 lb Sunday, and lost 37 FP he had already earned). Callers pass
+ * the week's best weigh-in as WtPhase; the OUTCOME still uses real end-of-week
+ * (or v2 average) weight, so this only stops retroactive clawback — it never
+ * pays for progress you didn't make.
+ */
+export const WEIGHT_V3_FROM_WEEK = '2026-W32';
+
+export function weightV3ActiveForWeek(weekId: string | null | undefined): boolean {
+  return typeof weekId === 'string' && weekId >= WEIGHT_V3_FROM_WEEK;
+}
+
+export function D_weightLoss(params: {
+  W0: number;
+  Wg: number;
+  Wt: number;
+  Tweeks: number;
+  hIn?: number | null;
+  bmiBase?: boolean;
+  /** v3: lowest weigh-in of the week. Omit (or null) for pre-v3 behaviour. */
+  WtPhase?: number | null;
+}) {
   const { W0, Wg, Wt } = params;
   const L = W0 - Wg;
   const Tweeks = Math.max(4, params.Tweeks);
-  const p = clamp(0, 1, (W0 - Wt) / (L || 1));
+  // min() so a supplied WtPhase can only ever REPRESENT better progress than
+  // the final weigh-in, never worse.
+  // The `!= null` guard is load-bearing: Number(null) is 0, NOT NaN, so an
+  // isFinite-only check treats "no phase weight" as 0 lb — i.e. instant 100%
+  // progress for everyone. Caught by an A/B dry-run before deploy.
+  const hasPhase = params.WtPhase != null && Number.isFinite(Number(params.WtPhase));
+  const WtForPhase = hasPhase ? Math.min(Number(params.WtPhase), Wt) : Wt;
+  const p = clamp(0, 1, (W0 - WtForPhase) / (L || 1));
 
   // v2 base (gated by caller via bmiBase): difficulty = fraction of your SPARE
   // weight (above BMI 22 for your height) this goal commits. Same 10 lb rates
@@ -69,11 +103,22 @@ export function D_weightLoss(params: { W0: number; Wg: number; Wt: number; Tweek
   return { D, D_base, lossTarget, progress: p };
 }
 
-export function D_weightGain(params: { W0: number; Wg: number; Wt: number; Tweeks: number }) {
+export function D_weightGain(params: {
+  W0: number;
+  Wg: number;
+  Wt: number;
+  Tweeks: number;
+  /** v3: highest weigh-in of the week (see D_weightLoss). */
+  WtPhase?: number | null;
+}) {
   const { W0, Wg, Wt } = params;
   const G = Wg - W0;
   const Tweeks = Math.max(4, params.Tweeks);
-  const p = clamp(0, 1, (Wt - W0) / (G || 1));
+  // max() — for a gain goal, better progress means a HIGHER weigh-in.
+  // `!= null` guard: see the note in D_weightLoss (Number(null) === 0).
+  const hasPhase = params.WtPhase != null && Number.isFinite(Number(params.WtPhase));
+  const WtForPhase = hasPhase ? Math.max(Number(params.WtPhase), Wt) : Wt;
+  const p = clamp(0, 1, (WtForPhase - W0) / (G || 1));
 
   const D_base = 1 + 0.7 * Math.pow(G / W0, 0.6);
   const D_phase = 1 + 0.7 * Math.pow(p, 2.5);

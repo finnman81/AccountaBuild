@@ -55,10 +55,18 @@ const WEIGHT_V2_FROM_WEEK = '2026-W31';
 function weightV2ActiveForWeek(weekId) {
   return typeof weekId === 'string' && weekId >= WEIGHT_V2_FROM_WEEK;
 }
-function D_weightLoss({ W0, Wg, Wt, Tweeks: TweeksIn, hIn, bmiBase }) {
+// Weight-v3 gate — phase difficulty follows the week's BEST weigh-in so a late
+// swing can't claw back banked FP. See src/mmr/difficulty.ts for rationale.
+const WEIGHT_V3_FROM_WEEK = '2026-W32';
+function weightV3ActiveForWeek(weekId) {
+  return typeof weekId === 'string' && weekId >= WEIGHT_V3_FROM_WEEK;
+}
+function D_weightLoss({ W0, Wg, Wt, Tweeks: TweeksIn, hIn, bmiBase, WtPhase }) {
   const L = W0 - Wg;
   const Tweeks = Math.max(4, TweeksIn);
-  const p = clamp(0, 1, (W0 - Wt) / (L || 1));
+  // `!= null` guard is load-bearing: Number(null) is 0, not NaN (see difficulty.ts).
+  const WtForPhase = WtPhase != null && Number.isFinite(Number(WtPhase)) ? Math.min(Number(WtPhase), Wt) : Wt;
+  const p = clamp(0, 1, (W0 - WtForPhase) / (L || 1));
   const h = Number(hIn);
   const useBmi = bmiBase === true && Number.isFinite(h) && h > 0;
   const D_base = useBmi
@@ -72,10 +80,11 @@ function D_weightLoss({ W0, Wg, Wt, Tweeks: TweeksIn, hIn, bmiBase }) {
   return { D, D_base, lossTarget, progress: p };
 }
 
-function D_weightGain({ W0, Wg, Wt, Tweeks: TweeksIn }) {
+function D_weightGain({ W0, Wg, Wt, Tweeks: TweeksIn, WtPhase }) {
   const G = Wg - W0;
   const Tweeks = Math.max(4, TweeksIn);
-  const p = clamp(0, 1, (Wt - W0) / (G || 1));
+  const WtForPhase = WtPhase != null && Number.isFinite(Number(WtPhase)) ? Math.max(Number(WtPhase), Wt) : Wt;
+  const p = clamp(0, 1, (WtForPhase - W0) / (G || 1));
   const D_base = 1 + 0.7 * Math.pow(G / W0, 0.6);
   const D_phase = 1 + 0.7 * Math.pow(p, 2.5);
   const gainTargetRaw = G / Tweeks;
@@ -347,6 +356,8 @@ module.exports = {
   calorieBandActiveForWeek,
   weightV2ActiveForWeek,
   WEIGHT_V2_FROM_WEEK,
+  weightV3ActiveForWeek,
+  WEIGHT_V3_FROM_WEEK,
   countLowCalorieDays,
   LOW_CAL_THRESHOLD,
   LOW_CAL_FLAG_DAYS,

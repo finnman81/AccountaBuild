@@ -145,6 +145,11 @@ function pickWeeklyWeights(weights, start, end) {
   const avgThisWeek = inWeek.length ? inWeek.reduce((a, b) => a + b.weight, 0) / inWeek.length : null;
   const avgPrevWeek = prevWeekEntries.length ? prevWeekEntries.reduce((a, b) => a + b.weight, 0) / prevWeekEntries.length : null;
 
+  // v3: best weigh-in of the week in each direction — phase difficulty uses
+  // these so a late swing can't re-grade FP already banked (see mmr-core).
+  const minThisWeek = inWeek.length ? Math.min(...inWeek.map((w) => w.weight)) : null;
+  const maxThisWeek = inWeek.length ? Math.max(...inWeek.map((w) => w.weight)) : null;
+
   return {
     weighInsDone: inWeek.length,
     weightStartOfWeek: startOfWeek?.weight ?? null,
@@ -152,6 +157,8 @@ function pickWeeklyWeights(weights, start, end) {
     weightPrevWeekEnd: prevWeekEnd?.weight ?? null,
     avgThisWeek,
     avgPrevWeek,
+    minThisWeek,
+    maxThisWeek,
   };
 }
 
@@ -193,10 +200,12 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
   if (calorieDaysFromLogs > calorieDaysHit) calorieDaysHit = calorieDaysFromLogs;
   const totalCaloriesLogged = Object.values(calorieTotalsByDate).reduce((a, b) => a + b, 0);
 
-  const { weighInsDone, weightStartOfWeek, weightEndOfWeek, weightPrevWeekEnd, avgThisWeek, avgPrevWeek } = pickWeeklyWeights(weights, start, end);
+  const { weighInsDone, weightStartOfWeek, weightEndOfWeek, weightPrevWeekEnd, avgThisWeek, avgPrevWeek, minThisWeek, maxThisWeek } =
+    pickWeeklyWeights(weights, start, end);
 
-  // Weight v2 (gated to 2026-W31) — see src/services/mmrUpdate.ts mirror.
+  // Weight v2 (2026-W31) / v3 (2026-W32) gates — see src/mmr/difficulty.ts.
   const weightV2 = core.weightV2ActiveForWeek(weekId);
+  const weightV3 = core.weightV3ActiveForWeek(weekId);
   const wTodayEt = core.yyyyMmDdInTz(now, core.DEFAULT_TZ);
   const wElapsedFrac = isCurrentWeek ? Math.max(1, dates.filter((d) => d <= wTodayEt).length) / 7 : 1;
   const userHeightIn = Number.isFinite(Number(userPre?.height)) && Number(userPre?.height) > 0 ? Number(userPre.height) : null;
@@ -233,7 +242,10 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
     const Tweeks = computeTweeks(String(weightGoal.startDate), String(weightGoal.targetEndDate));
     if (Number.isFinite(W0) && Number.isFinite(Wg) && Number.isFinite(Wt)) {
       if (isLoss) {
-        const { D, D_base, lossTarget } = core.D_weightLoss({ W0, Wg, Wt, Tweeks, hIn: userHeightIn, bmiBase: weightV2 });
+        const { D, D_base, lossTarget } = core.D_weightLoss({
+          W0, Wg, Wt, Tweeks, hIn: userHeightIn, bmiBase: weightV2,
+          WtPhase: weightV3 ? minThisWeek : null,
+        });
         const dW = weightV2 && avgPrevWeek != null && avgThisWeek != null ? avgPrevWeek - avgThisWeek : Number(weightPrevWeekEnd) - Wt;
         const O = core.clamp(0, 1, dW / (lossTarget || 1)) * (weightV2 ? wElapsedFrac : 1);
         const parts = [{ w: 0.2, v: core.clamp(0, 1, weighInsDone / 1) }];
@@ -252,7 +264,7 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
           weightGoalUpdate = { docId: 'weightLoss', patch: { completionBonusAwarded: true, status: 'completed', completionDate: FieldValue.serverTimestamp() } };
         }
       } else {
-        const { D, D_base, gainTarget } = core.D_weightGain({ W0, Wg, Wt, Tweeks });
+        const { D, D_base, gainTarget } = core.D_weightGain({ W0, Wg, Wt, Tweeks, WtPhase: weightV3 ? maxThisWeek : null });
         const dW = weightV2 && avgPrevWeek != null && avgThisWeek != null ? avgThisWeek - avgPrevWeek : Wt - Number(weightPrevWeekEnd);
         const O = core.clamp(0, 1, dW / (gainTarget || 1)) * (weightV2 ? wElapsedFrac : 1);
         const parts = [{ w: 0.3, v: core.clamp(0, 1, weighInsDone / 1) }];
@@ -302,8 +314,19 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
     const userData = userSnap.exists ? userSnap.data() : {};
     const weeklyData = weeklySnap.exists ? weeklySnap.data() : null;
 
-    let weightBonus = 0;
-    if (weightGoalUpdate && goalSnap) {
+    // Goal-completion bonus, ANCHORED to the week that granted it — exactly
+    // like mmrBefore/streakBefore above.
+    //
+    // The old guard ("skip if the goal is already flagged awarded") was meant
+    // to stop double-awarding across concurrent runs. But a recompute rebuilds
+    // the week's delta from scratch and re-applies it to the anchored
+    // mmrBefore, so the guard didn't prevent a second payment — it REVOKED the
+    // first one. Prod: Watto earned +100 on 2026-07-25 and the next 6h run
+    // silently took it back. Re-reading the week's own stored bonus makes the
+    // award idempotent instead of self-erasing.
+    const priorWeightBonus = weeklyData && typeof weeklyData.weightBonus === 'number' ? Number(weeklyData.weightBonus) : 0;
+    let weightBonus = priorWeightBonus > 0 ? priorWeightBonus : 0;
+    if (weightBonus === 0 && weightGoalUpdate && goalSnap) {
       const alreadyAwarded = goalSnap.exists && goalSnap.data()?.completionBonusAwarded === true;
       if (!alreadyAwarded) weightBonus = weightBonusRaw;
     }

@@ -2,7 +2,7 @@ import { collection, doc, documentId, getDocs, limit, onSnapshot, orderBy, query
 
 import { db } from '../firebase/firebase';
 import { missedWeekPenalty, partialWeekPenalty, streakMultiplier } from '../mmr/constants';
-import { D_calDays, D_minutes, D_workouts, D_weightGain, D_weightLoss, weightV2ActiveForWeek } from '../mmr/difficulty';
+import { D_calDays, D_minutes, D_workouts, D_weightGain, D_weightLoss, weightV2ActiveForWeek, weightV3ActiveForWeek } from '../mmr/difficulty';
 import { applyRankWithDemotionRules, bandForMMR } from '../mmr/ranks';
 import { lowerTierProgressBonus } from '../mmr/progression';
 import { breadthFactor, combineWeekScore, coreCategoryCount, goalScore } from '../mmr/scoring';
@@ -111,6 +111,10 @@ function pickWeeklyWeights(weights: Array<{ date: string; weight: number; tsMs: 
   const avgThisWeek = inWeek.length ? inWeek.reduce((a, b) => a + b.weight, 0) / inWeek.length : null;
   const avgPrevWeek = prevWeekEntries.length ? prevWeekEntries.reduce((a, b) => a + b.weight, 0) / prevWeekEntries.length : null;
 
+  // v3: best weigh-in each way, for phase difficulty (mirrors mmr-compute).
+  const minThisWeek = inWeek.length ? Math.min(...inWeek.map((w) => w.weight)) : null;
+  const maxThisWeek = inWeek.length ? Math.max(...inWeek.map((w) => w.weight)) : null;
+
   return {
     weighInsDone: inWeek.length,
     weightStartOfWeek: startOfWeek?.weight ?? null,
@@ -118,6 +122,8 @@ function pickWeeklyWeights(weights: Array<{ date: string; weight: number; tsMs: 
     weightPrevWeekEnd: prevWeekEnd?.weight ?? null,
     avgThisWeek,
     avgPrevWeek,
+    minThisWeek,
+    maxThisWeek,
   };
 }
 
@@ -181,10 +187,12 @@ export function computeProjection(
   }
   const fromLogs = calorieDaysHitFromTotals(totalsInWeek, params.dailyCalorieGoal ?? null, params.goalMode ?? null, calorieBandActiveForWeek(params.weekId));
   const calorieDaysHit = Math.max(toggleDays, fromLogs);
-  const { weighInsDone, weightEndOfWeek, weightPrevWeekEnd, avgThisWeek, avgPrevWeek } = pickWeeklyWeights(params.weights, start, end);
-  // Weight v2 (mirrors the scorers). The projection's frame system already
+  const { weighInsDone, weightEndOfWeek, weightPrevWeekEnd, avgThisWeek, avgPrevWeek, minThisWeek, maxThisWeek } =
+    pickWeeklyWeights(params.weights, start, end);
+  // Weight v2/v3 (mirrors the scorer). The projection's frame system already
   // drips current-week value via elapsedFrac, so change C needs nothing here.
   const weightV2 = weightV2ActiveForWeek(params.weekId);
+  const weightV3 = weightV3ActiveForWeek(params.weekId);
 
   const active: Array<{ id: string; type: string; D: number; A: number; O: number; score: number }> = [];
 
@@ -224,7 +232,10 @@ export function computeProjection(
 
     if (Number.isFinite(W0) && Number.isFinite(Wg) && Number.isFinite(Wt)) {
       if (isLoss) {
-        const { D, lossTarget } = D_weightLoss({ W0, Wg, Wt, Tweeks, hIn: params.heightIn, bmiBase: weightV2 });
+        const { D, lossTarget } = D_weightLoss({
+          W0, Wg, Wt, Tweeks, hIn: params.heightIn, bmiBase: weightV2,
+          WtPhase: weightV3 ? minThisWeek : null,
+        });
         const dW = weightV2 && avgPrevWeek != null && avgThisWeek != null ? avgPrevWeek - avgThisWeek : Number(weightPrevWeekEnd) - Wt;
         const O = clamp(0, 1, dW / (lossTarget || 1));
 
@@ -238,7 +249,7 @@ export function computeProjection(
 
         active.push({ id: 'weightLoss', type: 'weightLoss', D, A, O, score: goalScore(D, A, O) });
       } else {
-        const { D, gainTarget } = D_weightGain({ W0, Wg, Wt, Tweeks });
+        const { D, gainTarget } = D_weightGain({ W0, Wg, Wt, Tweeks, WtPhase: weightV3 ? maxThisWeek : null });
         const dW = weightV2 && avgPrevWeek != null && avgThisWeek != null ? avgThisWeek - avgPrevWeek : Wt - Number(weightPrevWeekEnd);
         const O = clamp(0, 1, dW / (gainTarget || 1));
 
