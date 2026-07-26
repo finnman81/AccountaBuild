@@ -57,7 +57,7 @@ function weightV2ActiveForWeek(weekId) {
 }
 // Weight-v3 gate — phase difficulty follows the week's BEST weigh-in so a late
 // swing can't claw back banked FP. See src/mmr/difficulty.ts for rationale.
-const WEIGHT_V3_FROM_WEEK = '2026-W32';
+const WEIGHT_V3_FROM_WEEK = '2026-W31';
 function weightV3ActiveForWeek(weekId) {
   return typeof weekId === 'string' && weekId >= WEIGHT_V3_FROM_WEEK;
 }

@@ -14,10 +14,13 @@ const core = require('../../functions/mmr-core');
 const WATTO = { W0: 228, Wg: 220, Tweeks: 12, hIn: 77, bmiBase: false } as const;
 
 describe('weight v3 gate', () => {
-  it('activates at W32 and never earlier', () => {
-    expect(WEIGHT_V3_FROM_WEEK).toBe('2026-W32');
-    expect(weightV3ActiveForWeek('2026-W30')).toBe(false);
-    expect(weightV3ActiveForWeek('2026-W31')).toBe(false); // v2 week keeps v2 math
+  // Merged into v2's week (2026-W31) after an A/B showed v3's increment on top
+  // of v2 is <= +10 FP and never negative — see difficulty.ts.
+  it('activates at W31 and never earlier', () => {
+    expect(WEIGHT_V3_FROM_WEEK).toBe('2026-W31');
+    expect(weightV3ActiveForWeek('2026-W29')).toBe(false);
+    expect(weightV3ActiveForWeek('2026-W30')).toBe(false); // closed week keeps its math forever
+    expect(weightV3ActiveForWeek('2026-W31')).toBe(true);
     expect(weightV3ActiveForWeek('2026-W32')).toBe(true);
     expect(weightV3ActiveForWeek(null)).toBe(false);
   });

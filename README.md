@@ -166,7 +166,7 @@ Never flip scoring by deploy timing. Gate on the ISO week id:
 ```ts
 export const CAL_BAND_FROM_WEEK = '2026-W30';   // src/mmr/adherence.ts
 export const WEIGHT_V2_FROM_WEEK = '2026-W31';  // src/mmr/difficulty.ts
-export const WEIGHT_V3_FROM_WEEK = '2026-W32';  // src/mmr/difficulty.ts
+export const WEIGHT_V3_FROM_WEEK = '2026-W31';  // src/mmr/difficulty.ts (merged with v2)
 ```
 
 Ship the code whenever; it activates itself at that Monday 00:00 ET. Weeks before
@@ -189,7 +189,7 @@ under-logging is *flagged* (`lowCalorieDays` on the weekly doc), never punished.
   bank a whole week. Week-close totals are unaffected.
 - Rationale + real-user impact tables: `Notes/FP_WEIGHT_V2_PROPOSAL.md`.
 
-### Weight (v3, from 2026-W32)
+### Weight (v3, from 2026-W31 — ships with v2)
 - **No clawback**: phase difficulty (cubic in progress) follows the week's BEST
   weigh-in (`WtPhase`: min for loss, max for gain), so a late 1-2 lb water swing
   can't re-grade FP already banked. Outcome still uses real end-of-week /

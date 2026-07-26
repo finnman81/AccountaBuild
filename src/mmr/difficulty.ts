@@ -43,8 +43,14 @@ export function weightV2ActiveForWeek(weekId: string | null | undefined): boolea
 }
 
 /**
- * Weight-v3 (2026-08-03): phase difficulty tracks the BEST progress reached
+ * Weight-v3 (2026-07-27): phase difficulty tracks the BEST progress reached
  * during the week instead of the final weigh-in.
+ *
+ * Ships in the SAME week as v2 (originally gated a week later for clean
+ * attribution). An A/B over real W30 data showed v3's increment on top of v2 is
+ * <= +10 FP for anyone and is structurally never negative — it only declines to
+ * take points away — so separating the rollouts bought nothing worth a week of
+ * the clawback bug.
  *
  * WHY: D_phase is cubic in progress, so a normal 1-2 lb water swing after a
  * good weigh-in re-graded the WHOLE week downward — banked FP visibly went
@@ -54,7 +60,7 @@ export function weightV2ActiveForWeek(weekId: string | null | undefined): boolea
  * (or v2 average) weight, so this only stops retroactive clawback — it never
  * pays for progress you didn't make.
  */
-export const WEIGHT_V3_FROM_WEEK = '2026-W32';
+export const WEIGHT_V3_FROM_WEEK = '2026-W31';
 
 export function weightV3ActiveForWeek(weekId: string | null | undefined): boolean {
   return typeof weekId === 'string' && weekId >= WEIGHT_V3_FROM_WEEK;
