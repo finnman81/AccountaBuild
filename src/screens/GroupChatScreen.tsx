@@ -11,7 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HomeStackParamList } from '../navigation/types';
 import { db } from '../firebase/firebase';
 import { AuthContext } from '../store/AuthContext';
-import { GroupMessage, sendGroupMessage, subscribeGroupMessages } from '../services/chat';
+import { GroupMessage, sendGroupMessage, setMessageReaction, subscribeGroupMessages } from '../services/chat';
 import { markGroupChatSeen } from '../services/groups';
 import { subscribeGroupLogs, setLogReaction, type GroupLog } from '../services/logs';
 import { getHydrated, setHydrated } from '../services/hydrationCache';
@@ -22,6 +22,7 @@ import { subscribeMyCanSeeUids } from '../services/visibility';
 import { todayYYYYMMDD } from '../utils/dates';
 import AppText from '../components/ui/AppText';
 import LogCard from '../components/chat/LogCard';
+import MilestoneCard from '../components/chat/MilestoneCard';
 import { colors, radius, spacing } from '../theme';
 
 type FeedItem =
@@ -179,6 +180,18 @@ export default function GroupChatScreen({ route }: Props) {
     }
   };
 
+  // Milestone cards are posted by the server (uid 'system'), so the reaction
+  // map is the only field a reader is allowed to write — no author push here.
+  const toggleMessageReaction = async (messageId: string, emoji: string, mine: boolean) => {
+    if (!user) return;
+    try {
+      await setMessageReaction(groupId, messageId, user.uid, mine ? null : emoji);
+      await Haptics.selectionAsync();
+    } catch {
+      /* non-fatal */
+    }
+  };
+
   useFocusEffect(
     React.useCallback(() => {
       if (!user) return;
@@ -254,6 +267,13 @@ export default function GroupChatScreen({ route }: Props) {
             }
             const mine = user?.uid === item.msg.uid;
             const isSystem = (item.msg as any).system === true;
+            if (item.msg.milestone) {
+              return (
+                <View style={styles.msgRow}>
+                  <MilestoneCard msg={item.msg} myUid={user?.uid ?? ''} onToggleReaction={toggleMessageReaction} />
+                </View>
+              );
+            }
             if (isSystem) {
               return (
                 <View style={styles.systemRow}>

@@ -268,6 +268,18 @@ export default function MMRGoalsScreen() {
 
         const activeId = weightMode === 'loss' ? 'weightLoss' : 'weightGain';
         const inactiveId = weightMode === 'loss' ? 'weightGain' : 'weightLoss';
+        // Setting genuinely different targets = a NEW goal, so re-arm the
+        // one-time completion bonus. Without this, anyone who finished a goal
+        // could never earn a completion bonus again — the flag is permanent
+        // and gates the award. Unchanged targets keep the flag, so re-saving
+        // the same goal can't re-farm it.
+        const prev = (raw as any)[activeId] ?? null;
+        const isNewTarget =
+          !prev ||
+          Number(prev.startWeight) !== ws ||
+          Number(prev.goalWeight) !== wg ||
+          String(prev.startDate ?? '') !== sd ||
+          String(prev.targetEndDate ?? '') !== ed;
         await upsertGoal(user.uid, activeId, {
           type: activeId,
           status: 'active',
@@ -275,6 +287,7 @@ export default function MMRGoalsScreen() {
           goalWeight: wg,
           startDate: sd,
           targetEndDate: ed,
+          ...(isNewTarget ? { completionBonusAwarded: false, completionDate: null } : {}),
         });
         await upsertGoal(user.uid, inactiveId, { type: inactiveId, status: 'paused' });
       } else {

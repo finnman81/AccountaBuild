@@ -1,11 +1,13 @@
 import {
   addDoc,
   collection,
+  doc,
   limit,
   onSnapshot,
   orderBy,
   query,
   serverTimestamp,
+  setDoc,
 } from 'firebase/firestore';
 
 import { db } from '../firebase/firebase';
@@ -17,7 +19,26 @@ export type GroupMessage = {
   uid: string;
   text: string;
   createdAt?: unknown;
+  /** Server-posted notice (uid 'system'), e.g. the weekly recap. */
+  system?: boolean;
+  senderName?: string;
+  /**
+   * Celebration payload. When present the message renders as a milestone card
+   * the whole crew can react to (goal reached, streak milestone, …).
+   */
+  milestone?: { kind: string; uid: string; title: string; body?: string; emoji?: string };
+  /** uid -> emoji, same shape as log reactions. */
+  reactions?: Record<string, string | null>;
 };
+
+/**
+ * Toggle this user's reaction on a chat message. Group members may write ONLY
+ * this field (firestore.rules), which is what lets everyone cheer a
+ * server-posted milestone card they don't own.
+ */
+export async function setMessageReaction(groupId: string, messageId: string, uid: string, emoji: string | null): Promise<void> {
+  await setDoc(doc(db, 'groups', groupId, 'messages', messageId), { reactions: { [uid]: emoji } }, { merge: true });
+}
 
 export async function sendGroupMessage(params: { groupId: string; uid: string; text: string }) {
   const trimmed = params.text.trim();
