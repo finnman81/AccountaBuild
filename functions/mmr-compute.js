@@ -21,7 +21,7 @@
  */
 const { FieldValue } = require('firebase-admin/firestore');
 const core = require('./mmr-core');
-const { celebrateGoalCompletion } = require('./celebrations');
+const { celebrateGoalCompletion, celebrateTierPromotion } = require('./celebrations');
 
 function parseDateLocal(yyyyMmDd) {
   return new Date(`${yyyyMmDd}T12:00:00`);
@@ -420,6 +420,13 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
     const hardModeBefore = typeof userData?.hardModeWeeks === 'number' ? Number(userData.hardModeWeeks) : 0;
     const hardModeAfter = completedWeek && maxD >= 1.6 ? hardModeBefore + 1 : 0;
 
+    // Was this exact promotion already recorded on a previous run? Same test the
+    // activity-item writer uses below — hoisted so the result can expose an
+    // exactly-once "promoted THIS run" signal for the group celebration.
+    const promotionAlreadyRecorded =
+      weeklyData?.promotion?.to?.tier === band.tier &&
+      (weeklyData?.promotion?.to?.division ?? null) === (band.division ?? null);
+
     const result = {
       uid,
       weekId,
@@ -441,6 +448,15 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
       // signal the auto-celebration keys on.
       bonusAwardedNow: apply && weightGoalUpdate != null && weightBonus > 0 && priorWeightBonus === 0,
       bonusGoalId: weightGoalUpdate ? weightGoalUpdate.docId : null,
+      // TIER jumps only (Silver -> Gold), never division ticks: divisions move
+      // most weeks for an active user, and a pop-up that common trains everyone
+      // to dismiss celebrations unread. Division changes stay a private
+      // Activity-feed item. Exactly-once via the same already-recorded test the
+      // activity writer uses.
+      tierPromotedNow: apply && tierPromoted && !promotionAlreadyRecorded,
+      newTier: band.tier,
+      newDivision: band.division ?? null,
+      prevTier: oldBand.tier,
       // Post-week state, exposed so the anchor repair below (and admin
       // tooling) can re-base the NEXT week's baselines without a re-read.
       streakAfter,
@@ -625,6 +641,14 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
   // allowed to fail scoring (module catches internally).
   if (summary && summary.bonusAwardedNow && summary.bonusGoalId) {
     await celebrateGoalCompletion(db, { uid, goalId: summary.bonusGoalId, goal: goals[summary.bonusGoalId] ?? null, now });
+  }
+  if (summary && summary.tierPromotedNow) {
+    await celebrateTierPromotion(db, {
+      uid, weekId, now,
+      prevTier: summary.prevTier,
+      newTier: summary.newTier,
+      newDivision: summary.newDivision,
+    });
   }
 
   // Self-healing anchor chain: next week's doc may have been created BEFORE

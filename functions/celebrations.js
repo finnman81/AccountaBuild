@@ -33,30 +33,13 @@ function earlyLine(completedOn, targetEndDate) {
   return `That's ${weeks === 1 ? 'a week' : `${weeks} weeks`} ahead of their own deadline.`;
 }
 
-async function celebrateGoalCompletion(db, { uid, goalId, goal, now = new Date() }) {
+/**
+ * Shared publisher: queue the pop-up + push the honoree's group-mates.
+ * `ann` must carry a deterministic id — that's the dedupe key.
+ */
+async function publishCelebration(db, { uid, ann, pushTitle, pushBody }) {
   try {
-    const userSnap = await db.collection('users').doc(uid).get();
-    const user = userSnap.exists ? userSnap.data() : {};
-    const name = String(user.displayName ?? '').trim() || 'A teammate';
-    const isGain = goalId === 'weightGain';
-
-    const from = fmtLb(goal?.startWeight);
-    const to = fmtLb(goal?.goalWeight);
-    const lines = [];
-    if (from && to) lines.push(`${from} → ${to}. Goal ${isGain ? 'gained' : 'done'}.`);
-    const early = goal?.targetEndDate ? earlyLine(now, String(goal.targetEndDate)) : null;
-    if (early) lines.push(early);
-    lines.push('Send them some hype 👇');
-
-    const ann = {
-      id: `goal-${goalId}-${uid}-${now.toISOString().slice(0, 10)}`,
-      emoji: '🎯',
-      title: `${name} hit their goal weight`,
-      lines,
-      celebrate: { uid, name, hypeIds: HYPE_IDS },
-    };
-
-    // Queue append with dedupe + cap. Transaction so two concurrent completions
+    // Queue append with dedupe + cap. Transaction so two concurrent celebrations
     // (different users, same 6h run) can't clobber each other's append.
     const cfgRef = db.doc('config/app');
     let queued = false;
@@ -91,19 +74,79 @@ async function celebrateGoalCompletion(db, { uid, goalId, goal, now = new Date()
       pushes.push({
         uid: mateUid,
         token: mate.expoPushToken,
-        title: `🎯 ${name} hit their goal weight!`,
-        body: 'Open the app to send some hype 👏',
+        title: pushTitle,
+        body: pushBody,
         data: { type: 'milestone', screen: 'Today' },
       });
     }
     const sent = pushes.length ? await sendExpoPushes(db, pushes) : { sent: 0 };
-    console.log(`[celebrations] ${name} ${goalId} celebrated; pushes sent ${sent.sent}`);
+    console.log(`[celebrations] queued ${ann.id}; pushes sent ${sent.sent}`);
     return { queued: true, pushed: sent.sent ?? 0 };
   } catch (e) {
     // Celebration must never break scoring.
-    console.warn('[celebrations] failed for', uid, goalId, e);
+    console.warn('[celebrations] failed for', uid, ann && ann.id, e);
     return { queued: false, error: String(e?.message ?? e) };
   }
 }
 
-module.exports = { celebrateGoalCompletion };
+/** Weight goal finished. */
+async function celebrateGoalCompletion(db, { uid, goalId, goal, now = new Date() }) {
+  const userSnap = await db.collection('users').doc(uid).get();
+  const user = userSnap.exists ? userSnap.data() : {};
+  const name = String(user.displayName ?? '').trim() || 'A teammate';
+  const isGain = goalId === 'weightGain';
+
+  const from = fmtLb(goal?.startWeight);
+  const to = fmtLb(goal?.goalWeight);
+  const lines = [];
+  if (from && to) lines.push(`${from} → ${to}. Goal ${isGain ? 'gained' : 'done'}.`);
+  const early = goal?.targetEndDate ? earlyLine(now, String(goal.targetEndDate)) : null;
+  if (early) lines.push(early);
+  lines.push('Send them some hype 👇');
+
+  return publishCelebration(db, {
+    uid,
+    ann: {
+      id: `goal-${goalId}-${uid}-${now.toISOString().slice(0, 10)}`,
+      emoji: '🎯',
+      title: `${name} hit their goal weight`,
+      lines,
+      celebrate: { uid, name, hypeIds: HYPE_IDS },
+    },
+    pushTitle: `🎯 ${name} hit their goal weight!`,
+    pushBody: 'Open the app to send some hype 👏',
+  });
+}
+
+/**
+ * TIER promotion (Silver -> Gold). Division ticks deliberately excluded — see
+ * the tierPromotedNow note in mmr-compute.js.
+ */
+async function celebrateTierPromotion(db, { uid, prevTier, newTier, newDivision, weekId, now = new Date() }) {
+  const userSnap = await db.collection('users').doc(uid).get();
+  const user = userSnap.exists ? userSnap.data() : {};
+  const name = String(user.displayName ?? '').trim() || 'A teammate';
+  const ROMAN = ['', 'I', 'II', 'III', 'IV'];
+  const label = `${newTier}${newDivision ? ` ${ROMAN[newDivision]}` : ''}`;
+
+  return publishCelebration(db, {
+    uid,
+    ann: {
+      // Keyed by uid + destination tier + week: re-running the week can't
+      // re-queue, and a LATER promotion to the same tier (after a demotion)
+      // gets its own id.
+      id: `tier-${uid}-${newTier}-${weekId}`,
+      emoji: '⬆️',
+      title: `${name} reached ${newTier}`,
+      lines: [
+        `${prevTier} → ${label}. A whole tier, earned a week at a time.`,
+        'Send them some hype 👇',
+      ],
+      celebrate: { uid, name, hypeIds: HYPE_IDS },
+    },
+    pushTitle: `⬆️ ${name} reached ${newTier}!`,
+    pushBody: 'Open the app to send some hype 👏',
+  });
+}
+
+module.exports = { celebrateGoalCompletion, celebrateTierPromotion, publishCelebration };

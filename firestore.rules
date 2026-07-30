@@ -273,6 +273,19 @@ service cloud.firestore {
         allow write: if signedIn() && request.auth.uid == uid && isGroupMember(groupId);
       }
 
+      // Weekly commitment signatures: groups/{gid}/signatures/{weekId}_{uid}.
+      // CREATE-ONLY by the signer — a signature you can retract isn't a
+      // commitment, so update/delete are denied outright (no un-signing, no
+      // editing someone else's). Purely symbolic: the scorer never reads this.
+      match /signatures/{sigId} {
+        allow read: if isGroupMember(groupId);
+        allow create: if isGroupMember(groupId)
+          && request.resource.data.uid == request.auth.uid
+          && sigId == request.resource.data.weekId + '_' + request.auth.uid
+          && request.resource.data.weekId is string;
+        allow update, delete: if false;
+      }
+
       match /messages/{messageId} {
         allow read: if isGroupMember(groupId);
         allow create: if isGroupMember(groupId);
