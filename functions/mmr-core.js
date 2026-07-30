@@ -61,15 +61,60 @@ const WEIGHT_V3_FROM_WEEK = '2026-W31';
 function weightV3ActiveForWeek(weekId) {
   return typeof weekId === 'string' && weekId >= WEIGHT_V3_FROM_WEEK;
 }
-const WEIGHT_BONUS_CAP = 100;
+// Sanity bound only, NOT a balance lever — see src/mmr/difficulty.ts. 100 was
+// binding for every goal over ~8 lb, flattening a 31 lb cut and a 13 lb one to
+// the same payout; 500 only catches fat-fingered goal input.
+const WEIGHT_BONUS_CAP = 500;
 const WEIGHT_BONUS_PER_LB = 10;
+
+// Progress checkpoints: pay the pot across the journey, not all at the finish.
+// Back-loaded; the 10% rung exists for LONG goals (and matches the clinical
+// 5-10% "first meaningful loss" threshold).
+const WEIGHT_CHECKPOINTS = [
+  { at: 0.10, share: 0.10 },
+  { at: 0.25, share: 0.15 },
+  { at: 0.50, share: 0.15 },
+  { at: 0.75, share: 0.20 },
+  { at: 1.00, share: 0.40 },
+];
+// Cumulative rounding so the rungs sum EXACTLY to the pot (independent
+// rounding inflated 450 -> 451). See src/mmr/difficulty.ts.
+function checkpointLadder(pot) {
+  let cum = 0;
+  let prevRounded = 0;
+  return WEIGHT_CHECKPOINTS.map((c) => {
+    cum += c.share;
+    const rounded = Math.round(pot * cum);
+    const fp = rounded - prevRounded;
+    prevRounded = rounded;
+    return { at: c.at, fp };
+  });
+}
+function checkpointAward(pot, at) {
+  const hit = checkpointLadder(pot).find((r) => Math.abs(r.at - at) < 1e-6);
+  return hit ? hit.fp : 0;
+}
+// `progress` MUST come from the best weekly AVERAGE, never a single weigh-in.
+function checkpointsReached(progress) {
+  const p = clamp(0, 1, progress);
+  return WEIGHT_CHECKPOINTS.filter((c) => p >= c.at).map((c) => c.at);
+}
 // One-time goal-completion bonus. Pre-v3: min(100, 300*D_base), which always
 // hit the cap because D_base barely moves with goal size — every completed
 // goal paid 100 FP, farmable once the app prompts "set a new goal". v3 scales
 // with the pounds actually committed. See src/mmr/difficulty.ts.
-function weightCompletionBonus({ lbs, D_base, v3 }) {
-  if (!v3) return Math.min(WEIGHT_BONUS_CAP, 300 * D_base);
-  return clamp(0, WEIGHT_BONUS_CAP, WEIGHT_BONUS_PER_LB * Math.max(0, lbs) * D_base);
+function weightCompletionBonus({ lbs, D_base, v3, uncapped }) {
+  if (!v3) return Math.min(100, 300 * D_base);
+  // The 100 cap survives until checkpoints activate, so W31 is not restated.
+  const cap = uncapped ? WEIGHT_BONUS_CAP : 100;
+  return clamp(0, cap, WEIGHT_BONUS_PER_LB * Math.max(0, lbs) * D_base);
+}
+
+// Checkpoints + raised cap activate together; SEPARATE from the v3 gate because
+// v3 already shipped in W31. See src/mmr/difficulty.ts.
+const WEIGHT_CHECKPOINTS_FROM_WEEK = '2026-W32';
+function checkpointsActiveForWeek(weekId) {
+  return typeof weekId === 'string' && weekId >= WEIGHT_CHECKPOINTS_FROM_WEEK;
 }
 
 function D_weightLoss({ W0, Wg, Wt, Tweeks: TweeksIn, hIn, bmiBase, WtPhase }) {
@@ -370,6 +415,12 @@ module.exports = {
   weightV3ActiveForWeek,
   WEIGHT_V3_FROM_WEEK,
   weightCompletionBonus,
+  WEIGHT_CHECKPOINTS,
+  WEIGHT_CHECKPOINTS_FROM_WEEK,
+  checkpointsActiveForWeek,
+  checkpointAward,
+  checkpointLadder,
+  checkpointsReached,
   WEIGHT_BONUS_CAP,
   WEIGHT_BONUS_PER_LB,
   countLowCalorieDays,

@@ -66,8 +66,69 @@ export function weightV3ActiveForWeek(weekId: string | null | undefined): boolea
   return typeof weekId === 'string' && weekId >= WEIGHT_V3_FROM_WEEK;
 }
 
-export const WEIGHT_BONUS_CAP = 100;
+/**
+ * Sanity bound only — NOT a balance lever. Raised from 100 to 500 in W32
+ * because 100 was binding for every goal over ~8 lb, flattening a 31 lb cut
+ * and a 13 lb one to the identical payout and defeating the whole point of
+ * scaling. 500 is far above any realistic goal, so it only catches fat-fingered
+ * input (a mistyped 300 -> 150 would otherwise mint 2,250 FP).
+ */
+export const WEIGHT_BONUS_CAP = 500;
 export const WEIGHT_BONUS_PER_LB = 10;
+
+/**
+ * Progress checkpoints. The pot is paid out across the journey instead of all
+ * at the finish: proximal sub-goals sustain self-efficacy far better than one
+ * distant target (Bandura), and for a 31 lb goal the first reward was otherwise
+ * ~8 lb and months away.
+ *
+ * The 10% rung exists specifically for LONG goals — it is also roughly where
+ * clinical guidance puts the first medically meaningful loss (5-10% of body
+ * weight). Back-loaded on purpose: finishing is still by far the biggest prize.
+ */
+export const WEIGHT_CHECKPOINTS: ReadonlyArray<{ at: number; share: number }> = [
+  { at: 0.10, share: 0.10 },
+  { at: 0.25, share: 0.15 },
+  { at: 0.50, share: 0.15 },
+  { at: 0.75, share: 0.20 },
+  { at: 1.00, share: 0.40 },
+];
+
+/**
+ * The full payout ladder for a pot.
+ *
+ * Rounds CUMULATIVELY (each rung is the difference between running totals)
+ * rather than rounding each share independently — otherwise 0.10/0.15/0.15/
+ * 0.20/0.40 of 450 pays out 451 and the pot silently inflates. Caught by the
+ * "shares sum to exactly the whole pot" test.
+ */
+export function checkpointLadder(pot: number): Array<{ at: number; fp: number }> {
+  let cum = 0;
+  let prevRounded = 0;
+  return WEIGHT_CHECKPOINTS.map((c) => {
+    cum += c.share;
+    const rounded = Math.round(pot * cum);
+    const fp = rounded - prevRounded;
+    prevRounded = rounded;
+    return { at: c.at, fp };
+  });
+}
+
+/** FP for the rung at `at`, given the full pot. */
+export function checkpointAward(pot: number, at: number): number {
+  return checkpointLadder(pot).find((r) => Math.abs(r.at - at) < 1e-6)?.fp ?? 0;
+}
+
+/**
+ * Which checkpoints a given best-ever progress has unlocked.
+ * `progress` MUST come from the best weekly AVERAGE, never a single weigh-in —
+ * one water-weight morning shouldn't unlock a rung (and v2 already established
+ * averages as the honest measure).
+ */
+export function checkpointsReached(progress: number): number[] {
+  const p = clamp(0, 1, progress);
+  return WEIGHT_CHECKPOINTS.filter((c) => p >= c.at).map((c) => c.at);
+}
 
 /**
  * One-time bonus for FINISHING a weight goal.
@@ -80,10 +141,23 @@ export const WEIGHT_BONUS_PER_LB = 10;
  * actually committed, so a token 1 lb goal is worth ~11 FP and anything
  * genuinely ambitious still caps out.
  */
-export function weightCompletionBonus(params: { lbs: number; D_base: number; v3: boolean }): number {
+export function weightCompletionBonus(params: { lbs: number; D_base: number; v3: boolean; uncapped?: boolean }): number {
   const { lbs, D_base, v3 } = params;
-  if (!v3) return Math.min(WEIGHT_BONUS_CAP, 300 * D_base);
-  return clamp(0, WEIGHT_BONUS_CAP, WEIGHT_BONUS_PER_LB * Math.max(0, lbs) * D_base);
+  if (!v3) return Math.min(100, 300 * D_base);
+  // The 100 cap survives until checkpoints activate, so W31 is not restated.
+  const cap = params.uncapped ? WEIGHT_BONUS_CAP : 100;
+  return clamp(0, cap, WEIGHT_BONUS_PER_LB * Math.max(0, lbs) * D_base);
+}
+
+/**
+ * Checkpoints + the raised cap activate together (2026-08-03). Separate from
+ * the v3 gate because v3 already shipped in W31 — reusing it would retroactively
+ * change a week that is already being scored.
+ */
+export const WEIGHT_CHECKPOINTS_FROM_WEEK = '2026-W32';
+
+export function checkpointsActiveForWeek(weekId: string | null | undefined): boolean {
+  return typeof weekId === 'string' && weekId >= WEIGHT_CHECKPOINTS_FROM_WEEK;
 }
 
 export function D_weightLoss(params: {

@@ -21,7 +21,7 @@
  */
 const { FieldValue } = require('firebase-admin/firestore');
 const core = require('./mmr-core');
-const { celebrateGoalCompletion, celebrateTierPromotion } = require('./celebrations');
+const { celebrateGoalCompletion, celebrateTierPromotion, notifyCheckpoint } = require('./celebrations');
 
 function parseDateLocal(yyyyMmDd) {
   return new Date(`${yyyyMmDd}T12:00:00`);
@@ -163,6 +163,63 @@ function pickWeeklyWeights(weights, start, end) {
   };
 }
 
+
+/**
+ * Best progress EVER reached, measured on weekly AVERAGES (never a single
+ * weigh-in — one water-weight morning must not unlock a checkpoint rung).
+ * Monotonic by construction: checkpoints ratchet and are never revoked, the
+ * same principle v3 established for phase difficulty.
+ *
+ * Weeks whose average swings more than 12 lb from the previous week are
+ * skipped as implausible — that is the fat-fingered-entry guard (prod has seen
+ * a 212 lb user log the dial default of 180).
+ */
+function bestWeeklyAvgProgress(weights, W0, Wg, isGain) {
+  const byDate = {};
+  for (const e of weights) {
+    const prev = byDate[e.date];
+    const prevMs = prev?.tsMs ?? -1;
+    const nextMs = e.tsMs ?? Number.MAX_SAFE_INTEGER;
+    if (!prev || nextMs >= prevMs) byDate[e.date] = e;
+  }
+  const byWeek = {};
+  Object.values(byDate).forEach((e) => {
+    const wk = core.isoWeekIdInTz(new Date(`${e.date}T12:00:00`), core.DEFAULT_TZ);
+    (byWeek[wk] = byWeek[wk] || []).push(e.weight);
+  });
+  const weeks = Object.keys(byWeek).sort().map((wk) => ({
+    wk,
+    avg: byWeek[wk].reduce((a, b) => a + b, 0) / byWeek[wk].length,
+  }));
+  const clean = [];
+  for (const w of weeks) {
+    const prev = clean[clean.length - 1];
+    if (prev && Math.abs(w.avg - prev.avg) > 12) continue;
+    clean.push(w);
+  }
+  const L = Math.abs(W0 - Wg) || 1;
+  let best = 0;
+  for (const w of clean) {
+    const p = isGain ? (w.avg - W0) / L : (W0 - w.avg) / L;
+    if (p > best) best = p;
+  }
+  return core.clamp(0, 1, best);
+}
+
+/**
+ * Checkpoint award for THIS run: the pot-share of every rung newly unlocked.
+ * The cross-week ledger lives on the goal doc (checkpointsAwarded); the
+ * per-week amount is anchored on the weekly doc by the caller, so recomputes
+ * re-apply rather than revoke.
+ */
+function checkpointDelta({ pBest, pot, alreadyAwarded }) {
+  const already = Array.isArray(alreadyAwarded) ? alreadyAwarded.map(Number) : [];
+  const reached = core.checkpointsReached(pBest);
+  const fresh = reached.filter((t) => !already.some((a) => Math.abs(a - t) < 1e-6));
+  const fp = fresh.reduce((sum, t) => sum + core.checkpointAward(pot, t), 0);
+  return { fresh, reached, fp, hitFinal: fresh.some((t) => t >= 1) };
+}
+
 /**
  * Compute (and optionally apply) one user's MMR for one ISO week.
  * apply=false runs the exact computation but skips every write (dry run).
@@ -207,6 +264,7 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
   // Weight v2 (2026-W31) / v3 (2026-W32) gates — see src/mmr/difficulty.ts.
   const weightV2 = core.weightV2ActiveForWeek(weekId);
   const weightV3 = core.weightV3ActiveForWeek(weekId);
+  const cpOn = core.checkpointsActiveForWeek(weekId);
   const wTodayEt = core.yyyyMmDdInTz(now, core.DEFAULT_TZ);
   const wElapsedFrac = isCurrentWeek ? Math.max(1, dates.filter((d) => d <= wTodayEt).length) / 7 : 1;
   const userHeightIn = Number.isFinite(Number(userPre?.height)) && Number(userPre?.height) > 0 ? Number(userPre.height) : null;
@@ -234,6 +292,7 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
 
   let weightBonusRaw = 0;
   let weightGoalUpdate = null;
+  let checkpointsHit = []; // rungs unlocked THIS run (drives the notification)
   const weightGoal = goals.weightLoss?.status === 'active' ? goals.weightLoss : goals.weightGain?.status === 'active' ? goals.weightGain : null;
   if (weightGoal && Number.isFinite(weightEndOfWeek) && Number.isFinite(weightPrevWeekEnd)) {
     const isLoss = weightGoal.type === 'weightLoss';
@@ -257,12 +316,33 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
         const sumW = parts.reduce((a, b) => a + b.w, 0) || 1;
         const A = parts.reduce((a, b) => a + (b.w / sumW) * b.v, 0);
         active.push({ id: 'weightLoss', type: 'weightLoss', D, A, O, score: core.goalScore(D, A, O) });
-        // Mirror of the client rule: plausible weigh-in + capped bonus.
-        const plausibleLoss = Math.abs(Wt - Number(weightPrevWeekEnd)) <= 10;
-        const reached = Wt <= Wg && plausibleLoss;
-        if (reached && !weightGoal.completionBonusAwarded) {
-          weightBonusRaw = core.weightCompletionBonus({ lbs: W0 - Wg, D_base, v3: weightV3 });
-          weightGoalUpdate = { docId: 'weightLoss', patch: { completionBonusAwarded: true, status: 'completed', completionDate: FieldValue.serverTimestamp() } };
+        const pot = core.weightCompletionBonus({ lbs: W0 - Wg, D_base, v3: weightV3, uncapped: cpOn });
+        if (cpOn) {
+          // Paid across the journey: every rung newly unlocked this run.
+          const cp = checkpointDelta({
+            pBest: bestWeeklyAvgProgress(weights, W0, Wg, false),
+            pot,
+            alreadyAwarded: weightGoal.checkpointsAwarded,
+          });
+          if (cp.fp > 0) {
+            weightBonusRaw = cp.fp;
+            checkpointsHit = cp.fresh;
+            weightGoalUpdate = {
+              docId: 'weightLoss',
+              patch: {
+                checkpointsAwarded: cp.reached,
+                ...(cp.hitFinal ? { completionBonusAwarded: true, status: 'completed', completionDate: FieldValue.serverTimestamp() } : {}),
+              },
+            };
+          }
+        } else {
+          // Pre-W32: single lump at 100%, plausible weigh-in required.
+          const plausibleLoss = Math.abs(Wt - Number(weightPrevWeekEnd)) <= 10;
+          const reached = Wt <= Wg && plausibleLoss;
+          if (reached && !weightGoal.completionBonusAwarded) {
+            weightBonusRaw = pot;
+            weightGoalUpdate = { docId: 'weightLoss', patch: { completionBonusAwarded: true, status: 'completed', completionDate: FieldValue.serverTimestamp() } };
+          }
         }
       } else {
         const { D, D_base, gainTarget } = core.D_weightGain({ W0, Wg, Wt, Tweeks, WtPhase: weightV3 ? maxThisWeek : null });
@@ -276,11 +356,31 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
         const sumW = parts.reduce((a, b) => a + b.w, 0) || 1;
         const A = parts.reduce((a, b) => a + (b.w / sumW) * b.v, 0);
         active.push({ id: 'weightGain', type: 'weightGain', D, A, O, score: core.goalScore(D, A, O) });
-        const plausibleGain = Math.abs(Wt - Number(weightPrevWeekEnd)) <= 10;
-        const reached = Wt >= Wg && plausibleGain;
-        if (reached && !weightGoal.completionBonusAwarded) {
-          weightBonusRaw = core.weightCompletionBonus({ lbs: Wg - W0, D_base, v3: weightV3 });
-          weightGoalUpdate = { docId: 'weightGain', patch: { completionBonusAwarded: true, status: 'completed', completionDate: FieldValue.serverTimestamp() } };
+        const pot = core.weightCompletionBonus({ lbs: Wg - W0, D_base, v3: weightV3, uncapped: cpOn });
+        if (cpOn) {
+          const cp = checkpointDelta({
+            pBest: bestWeeklyAvgProgress(weights, W0, Wg, true),
+            pot,
+            alreadyAwarded: weightGoal.checkpointsAwarded,
+          });
+          if (cp.fp > 0) {
+            weightBonusRaw = cp.fp;
+            checkpointsHit = cp.fresh;
+            weightGoalUpdate = {
+              docId: 'weightGain',
+              patch: {
+                checkpointsAwarded: cp.reached,
+                ...(cp.hitFinal ? { completionBonusAwarded: true, status: 'completed', completionDate: FieldValue.serverTimestamp() } : {}),
+              },
+            };
+          }
+        } else {
+          const plausibleGain = Math.abs(Wt - Number(weightPrevWeekEnd)) <= 10;
+          const reached = Wt >= Wg && plausibleGain;
+          if (reached && !weightGoal.completionBonusAwarded) {
+            weightBonusRaw = pot;
+            weightGoalUpdate = { docId: 'weightGain', patch: { completionBonusAwarded: true, status: 'completed', completionDate: FieldValue.serverTimestamp() } };
+          }
         }
       }
     }
@@ -448,6 +548,10 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
       // signal the auto-celebration keys on.
       bonusAwardedNow: apply && weightGoalUpdate != null && weightBonus > 0 && priorWeightBonus === 0,
       bonusGoalId: weightGoalUpdate ? weightGoalUpdate.docId : null,
+      // Rungs unlocked on THIS run (anchored re-runs re-apply priorWeightBonus
+      // and report none) — drives the personal milestone push.
+      checkpointsHitNow: apply && priorWeightBonus === 0 ? checkpointsHit : [],
+      checkpointFp: apply && priorWeightBonus === 0 ? weightBonusRaw : 0,
       // TIER jumps only (Silver -> Gold), never division ticks: divisions move
       // most weeks for an active user, and a pop-up that common trains everyone
       // to dismiss celebrations unread. Division changes stay a private
@@ -639,6 +743,21 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
   // Auto-celebration: exactly-once on the run that first awarded a goal's
   // completion bonus. Queues the group pop-up + pushes teammates; never
   // allowed to fail scoring (module catches internally).
+  if (summary && Array.isArray(summary.checkpointsHitNow) && summary.checkpointsHitNow.length) {
+    // Personal only. The GROUP pop-up stays exclusive to 100% (below) — five
+    // group celebrations per goal per member would train everyone to dismiss
+    // them, cheapening the finish.
+    const partial = summary.checkpointsHitNow.filter((t) => t < 1);
+    if (partial.length) {
+      await notifyCheckpoint(db, {
+        uid,
+        goalId: summary.bonusGoalId,
+        goal: goals[summary.bonusGoalId] ?? null,
+        pct: Math.max(...partial),
+        fp: summary.checkpointFp,
+      });
+    }
+  }
   if (summary && summary.bonusAwardedNow && summary.bonusGoalId) {
     await celebrateGoalCompletion(db, { uid, goalId: summary.bonusGoalId, goal: goals[summary.bonusGoalId] ?? null, now });
   }
@@ -722,4 +841,4 @@ async function computeUserUpToCurrentWeek(db, { uid, apply = true, now = new Dat
   return results;
 }
 
-module.exports = { computeUserWeek, computeUserUpToCurrentWeek, getGoals, getGroupIds, getWeekTotals };
+module.exports = { computeUserWeek, computeUserUpToCurrentWeek, getGoals, getGroupIds, getWeekTotals, getWeights, bestWeeklyAvgProgress, checkpointDelta };

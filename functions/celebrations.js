@@ -149,4 +149,43 @@ async function celebrateTierPromotion(db, { uid, prevTier, newTier, newDivision,
   });
 }
 
-module.exports = { celebrateGoalCompletion, celebrateTierPromotion, publishCelebration };
+
+/**
+ * PERSONAL milestone push (10/25/75% rungs). Deliberately not a group event —
+ * the group pop-up stays exclusive to 100% so it keeps its weight.
+ * Respects the streakReminder-class "teamActivity" pref like other nudges.
+ */
+async function notifyCheckpoint(db, { uid, goalId, goal, pct, fp }) {
+  try {
+    const snap = await db.collection('users').doc(uid).get();
+    const u = snap.exists ? snap.data() : {};
+    if (!isExpoToken(u.expoPushToken)) return { pushed: 0 };
+
+    const W0 = Number(goal?.startWeight);
+    const Wg = Number(goal?.goalWeight);
+    const isGain = goalId === 'weightGain';
+    const total = Number.isFinite(W0) && Number.isFinite(Wg) ? Math.abs(W0 - Wg) : null;
+    const done = total != null ? Math.round(total * pct * 10) / 10 : null;
+    const left = total != null ? Math.round((total - total * pct) * 10) / 10 : null;
+
+    const label = `${Math.round(pct * 100)}%`;
+    // The 10% rung is the clinically meaningful one — name it as an achievement,
+    // not a consolation prize.
+    const title = pct <= 0.1 ? `🩺 First milestone: ${label} there` : `📍 ${label} of the way`;
+    const body = done != null && left != null
+      ? `${done} lb ${isGain ? 'gained' : 'down'}, ${left} to go — +${Math.round(fp)} FP banked. That progress is locked in.`
+      : `+${Math.round(fp)} FP banked. That progress is locked in.`;
+
+    const res = await sendExpoPushes(db, [{
+      uid, token: u.expoPushToken, title, body,
+      data: { type: 'checkpoint', screen: 'Progress' },
+    }]);
+    console.log(`[celebrations] checkpoint ${label} -> ${uid}; pushed ${res.sent}`);
+    return { pushed: res.sent ?? 0 };
+  } catch (e) {
+    console.warn('[celebrations] checkpoint notify failed for', uid, e);
+    return { pushed: 0, error: String(e?.message ?? e) };
+  }
+}
+
+module.exports = { celebrateGoalCompletion, celebrateTierPromotion, notifyCheckpoint, publishCelebration };
