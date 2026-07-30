@@ -41,7 +41,10 @@ a nested `AccountaBuild/` wrapper folder). Run all commands from the repo root.
 - **Hype pings**: 11 pickable cheer/nudge variants (`src/services/hypeCatalog.ts`
   + `functions/hype-catalog.js`, kept in lockstep — client sends only a `hypeId`,
   the server renders the copy). Nudges require the recipient's `allowNudges === true`.
-- **Milestone celebrations**: when a weight goal completes, the server auto-queues
+- **Sign your week**: hold-to-commit ritual (Mon/Tue), then a live "N/M signed"
+  strip with un-signed teammates greyed out. Purely symbolic — see below.
+- **Milestone celebrations**: when a weight goal completes OR a user jumps a
+  TIER, the server auto-queues
   a celebration pop-up for the whole group (hype buttons send the honoree a real
   cheer) and pushes teammates — `functions/celebrations.js`, exactly-once off the
   completion-bonus award. Chat also renders reactable milestone cards
@@ -189,6 +192,32 @@ under-logging is *flagged* (`lowCalorieDays` on the weekly doc), never punished.
   bank a whole week. Week-close totals are unaffected.
 - Rationale + real-user impact tables: `Notes/FP_WEIGHT_V2_PROPOSAL.md`.
 
+### Weight goal checkpoints (from 2026-W32)
+
+The completion pot is paid across the journey, not all at the finish:
+**10% / 25% / 50% / 75% / 100%**, shares `10/15/15/20/40` (back-loaded, so
+finishing is still the biggest prize). Proximal sub-goals sustain motivation
+better than one distant target; the 10% rung exists for LONG goals (a 31 lb
+goal's first reward was otherwise ~8 lb away) and is roughly the clinical
+"first meaningful loss" threshold.
+
+- Pot = `10 FP/lb x D_base`, cap **500**. The old 100 cap bound every goal over
+  ~8 lb and flattened a 31 lb cut and a 13 lb one to the same payout. 500 is a
+  sanity bound against fat-fingered input, **not** a balance lever — it starts
+  binding around 34 lb, so raise it if someone joins with more to lose.
+- Rungs ratchet on the **best weekly AVERAGE**, never a single weigh-in, and are
+  **never revoked** — the cross-week ledger is `goals/{id}.checkpointsAwarded`,
+  the per-week amount stays anchored on the weekly doc so recomputes re-apply
+  instead of erasing.
+- Weeks whose average swings >12 lb are skipped as implausible (fat-finger).
+- **Round CUMULATIVELY** (`checkpointLadder`) — rounding each share
+  independently paid out 451 FP of a 450 pot.
+- Gate: `WEIGHT_CHECKPOINTS_FROM_WEEK` — its OWN constant, deliberately not
+  reusing v3's, because v3 shipped in W31 and reusing it would restate a week
+  already being scored.
+- Notifications: **personal** push at partial rungs; the GROUP pop-up stays
+  exclusive to 100% so it keeps its weight.
+
 ### Weight (v3, from 2026-W31 — ships with v2)
 - **No clawback**: phase difficulty (cubic in progress) follows the week's BEST
   weigh-in (`WtPhase`: min for loss, max for gain), so a late 1-2 lb water swing
@@ -219,6 +248,40 @@ under-logging is *flagged* (`lowCalorieDays` on the weekly doc), never punished.
 - **Goal changes are Monday-only** once a user has active goals (first-time setup
   is always allowed), so nobody edits targets mid-race.
 - **Leaderboards default to THIS WEEK's FP**, with an All-Time toggle.
+
+## Sign your week (symbolic commitment)
+
+Hold 1.5s on Today (Mon/Tue only) to commit to the group for the week; the card
+then becomes a live "N/M signed" strip with un-signed teammates greyed out.
+Signing on Friday would mean nothing — the deadline is what gives it weight.
+
+**Deliberately outside the scoring engine**: no FP, nothing the scorer reads.
+Missed weeks are already punished by scoring; a signature's power is social, and
+keeping it out of `mmr-compute` means it can never cause a scoring bug.
+
+`groups/{gid}/signatures/{weekId}_{uid}` is **create-only** by rule — a
+commitment you can quietly retract isn't one. The doc id must equal
+`{weekId}_{uid}`, so one-per-person-per-week is enforced by the id rather than a
+read-then-write race. Service: `src/services/signatures.ts`.
+
+## Auto-celebrations
+
+`functions/celebrations.js` publishes a group pop-up + teammate pushes when the
+scorer detects a once-only milestone. Both hang off exactly-once signals from
+`computeUserWeek`:
+
+- `bonusAwardedNow` — a weight goal's completion bonus was FIRST awarded
+- `tierPromotedNow` — a **tier** jump (Silver -> Gold). Division ticks are
+  excluded on purpose: they move most weeks for an active user, and a pop-up
+  that common trains everyone to dismiss celebrations unread.
+
+Announcement ids are deterministic and the queue append is transactional, so
+recomputes and concurrent runs can't double-post. The honoree is never pushed
+about their own news. Failures log and never break scoring.
+
+**Verify new celebration paths with an intercepted dry-run before they fire for
+real** (real reads, writes + `sendExpoPushes` stubbed) — these run in front of
+the whole group the first time they execute.
 
 ## Observability
 
