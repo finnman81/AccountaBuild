@@ -17,9 +17,9 @@ type Props = {
 };
 
 export default function RankHeroCard({ mmrState, onPress, onViewLeaderboard }: Props) {
-  const { rankLabel, progressToNext, nextDivisionLabel } = useMemo(() => {
+  const { rankLabel, progressToNext, nextDivisionLabel, inBand, bandSize, toNext } = useMemo(() => {
     if (!mmrState) {
-      return { rankLabel: 'Unranked', progressToNext: 0, nextDivisionLabel: null };
+      return { rankLabel: 'Unranked', progressToNext: 0, nextDivisionLabel: null, inBand: 0, bandSize: 0, toNext: 0 };
     }
 
     const div = mmrState.rankDivision;
@@ -43,7 +43,15 @@ export default function RankHeroCard({ mmrState, onPress, onViewLeaderboard }: P
         : nextBand.tier
       : null;
 
-    return { rankLabel, progressToNext, nextDivisionLabel };
+    // FP *within this rank* rather than the lifetime total: "27 / 200" answers
+    // "how close am I?" at a glance, which is what the bar underneath is
+    // already showing. The lifetime number is still on the Leaderboard.
+    // Master/Challenger have no ceiling, so fall back to the total there.
+    const inBand = Math.max(0, Math.round(mmrState.mmr - currentBand.min));
+    const bandSize = Number.isFinite(currentBand.max) ? Math.round(currentBand.max - currentBand.min) + 1 : 0;
+    const toNext = bandSize > 0 ? Math.max(0, bandSize - inBand) : 0;
+
+    return { rankLabel, progressToNext, nextDivisionLabel, inBand, bandSize, toNext };
   }, [mmrState]);
 
   if (!mmrState) {
@@ -76,14 +84,22 @@ export default function RankHeroCard({ mmrState, onPress, onViewLeaderboard }: P
               {rankLabel}
             </Text>
             <Text variant="bodySmall" style={{ color: colors.textSecondary }}>
-              <AnimatedNumber value={mmrState.mmr} /> FP
+              {bandSize > 0 ? (
+                <>
+                  <AnimatedNumber value={inBand} /> / {bandSize} FP
+                </>
+              ) : (
+                <>
+                  <AnimatedNumber value={mmrState.mmr} /> FP
+                </>
+              )}
               {(mmrState.streakFreezes ?? 0) > 0 ? `  •  🧊×${mmrState.streakFreezes}` : ''}
             </Text>
             {nextDivisionLabel && (
               <View style={{ marginTop: spacing.xs }}>
                 <ProgressBar progress={progressToNext} height={6} />
                 <Text variant="labelSmall" style={{ color: colors.textMuted, marginTop: 4 }}>
-                  Progress to {nextDivisionLabel}
+                  {toNext > 0 ? `${toNext} FP to ${nextDivisionLabel}` : `Progress to ${nextDivisionLabel}`}
                 </Text>
               </View>
             )}
