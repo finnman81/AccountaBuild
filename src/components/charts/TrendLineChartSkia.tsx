@@ -62,7 +62,7 @@ export default function TrendLineChartSkia({
         xKey="x"
         yKeys={['y']}
         domain={{ y: domainY }}
-        domainPadding={{ left: 10, right: 14, top: showPointLabels ? 24 : 14, bottom: 8 }}
+        domainPadding={{ left: 10, right: 14, top: showPointLabels ? 24 : 14, bottom: showPointLabels ? 18 : 8 }}
       >
         {({ points, chartBounds }) => {
           const pts = points.y.filter((p) => p.y != null);
@@ -92,7 +92,10 @@ export default function TrendLineChartSkia({
                       <SkiaText
                         key={`lbl-${i}`}
                         x={x}
-                        y={Math.max((p.y as number) - 10, chartBounds.top + 10)}
+                        // Clamp INSIDE the canvas both ways — the lowest
+                        // point's label was drawn past the bottom edge and
+                        // rendered half-cut (prod screenshot, 2026-08-01).
+                        y={Math.min(Math.max((p.y as number) - 10, chartBounds.top + 10), chartBounds.bottom - 4)}
                         text={label}
                         font={font}
                         color={labelColor}

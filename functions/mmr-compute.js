@@ -22,6 +22,7 @@
 const { FieldValue } = require('firebase-admin/firestore');
 const core = require('./mmr-core');
 const { celebrateGoalCompletion, celebrateTierPromotion, notifyCheckpoint } = require('./celebrations');
+const { awardBadges } = require('./badges');
 
 function parseDateLocal(yyyyMmDd) {
   return new Date(`${yyyyMmDd}T12:00:00`);
@@ -293,6 +294,11 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
   let weightBonusRaw = 0;
   let weightGoalUpdate = null;
   let checkpointsHit = []; // rungs unlocked THIS run (drives the notification)
+  // TRUE only when the goal actually FINISHED this run. bonusAwardedNow means
+  // "some pot FP was paid", which since checkpoints includes partial rungs —
+  // gating the group "hit their goal weight" celebration on it would announce
+  // a false finish on someone's first 10% milestone.
+  let goalCompletedNow = false;
   const weightGoal = goals.weightLoss?.status === 'active' ? goals.weightLoss : goals.weightGain?.status === 'active' ? goals.weightGain : null;
   if (weightGoal && Number.isFinite(weightEndOfWeek) && Number.isFinite(weightPrevWeekEnd)) {
     const isLoss = weightGoal.type === 'weightLoss';
@@ -327,6 +333,7 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
           if (cp.fp > 0) {
             weightBonusRaw = cp.fp;
             checkpointsHit = cp.fresh;
+            goalCompletedNow = cp.hitFinal;
             weightGoalUpdate = {
               docId: 'weightLoss',
               patch: {
@@ -341,6 +348,7 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
           const reached = Wt <= Wg && plausibleLoss;
           if (reached && !weightGoal.completionBonusAwarded) {
             weightBonusRaw = pot;
+            goalCompletedNow = true;
             weightGoalUpdate = { docId: 'weightLoss', patch: { completionBonusAwarded: true, status: 'completed', completionDate: FieldValue.serverTimestamp() } };
           }
         }
@@ -366,6 +374,7 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
           if (cp.fp > 0) {
             weightBonusRaw = cp.fp;
             checkpointsHit = cp.fresh;
+            goalCompletedNow = cp.hitFinal;
             weightGoalUpdate = {
               docId: 'weightGain',
               patch: {
@@ -379,6 +388,7 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
           const reached = Wt >= Wg && plausibleGain;
           if (reached && !weightGoal.completionBonusAwarded) {
             weightBonusRaw = pot;
+            goalCompletedNow = true;
             weightGoalUpdate = { docId: 'weightGain', patch: { completionBonusAwarded: true, status: 'completed', completionDate: FieldValue.serverTimestamp() } };
           }
         }
@@ -547,6 +557,7 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
       // re-runs re-apply priorWeightBonus and stay false) — the exactly-once
       // signal the auto-celebration keys on.
       bonusAwardedNow: apply && weightGoalUpdate != null && weightBonus > 0 && priorWeightBonus === 0,
+      goalCompletedNow: apply && goalCompletedNow && priorWeightBonus === 0,
       bonusGoalId: weightGoalUpdate ? weightGoalUpdate.docId : null,
       // Rungs unlocked on THIS run (anchored re-runs re-apply priorWeightBonus
       // and report none) — drives the personal milestone push.
@@ -567,6 +578,7 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
       freezeAfter,
       shieldAfter,
       missedAfter: consecutiveMissedWeeks,
+      missedBefore,
     };
 
     if (!apply) return result;
@@ -758,7 +770,20 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
       });
     }
   }
-  if (summary && summary.bonusAwardedNow && summary.bonusGoalId) {
+  // New-badge sweep + live badgesPublic mirror. Conditions are monotonic
+  // within a week, create() dedupes, and the tier/goal flags are the same
+  // exactly-once signals the celebrations use.
+  if (apply && summary && !summary.error) {
+    await awardBadges(db, uid, {
+      seasonId,
+      summary,
+      minutesDone,
+      completedWeek,
+      missedBefore: summary.missedBefore,
+    });
+  }
+
+  if (summary && summary.goalCompletedNow && summary.bonusGoalId) {
     await celebrateGoalCompletion(db, { uid, goalId: summary.bonusGoalId, goal: goals[summary.bonusGoalId] ?? null, now });
   }
   if (summary && summary.tierPromotedNow) {

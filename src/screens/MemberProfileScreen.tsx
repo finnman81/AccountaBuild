@@ -19,6 +19,8 @@ import Avatar from '../components/ui/Avatar';
 import Card from '../components/ui/Card';
 import RankEmblem from '../components/ui/RankEmblem';
 import StatTile from '../components/ui/StatTile';
+import BadgeMedallion from '../components/ui/BadgeMedallion';
+import { lookKeyForPublicBadge } from '../services/badgeCatalog';
 import { colors, radius, spacing } from '../theme';
 import type { Tier } from '../mmr/types';
 
@@ -209,10 +211,13 @@ export default function MemberProfileScreen({ route, navigation }: Props) {
         </View>
         {pub?.badgesPublic && pub.badgesPublic.length > 0 ? (
           <View style={styles.badgeRow}>
-            {pub.badgesPublic.slice(0, 8).map((b) => (
-              <View key={b.id} style={styles.badgeChip}>
-                <AppText variant="label" style={styles.badgeChipText}>🏅 {b.label}</AppText>
-              </View>
+            {pub.badgesPublic.slice(0, 9).map((b) => (
+              <BadgeMedallion
+                key={b.id}
+                lookKey={lookKeyForPublicBadge(b)}
+                label={b.label}
+                sub={b.seasonId ?? null}
+              />
             ))}
           </View>
         ) : null}
@@ -263,15 +268,6 @@ const styles = StyleSheet.create({
   tile: { flex: 1 },
   weekCard: { marginTop: spacing.md },
   badgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.md },
-  badgeChip: {
-    backgroundColor: 'rgba(233,181,66,0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(233,181,66,0.35)',
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-  },
-  badgeChipText: { color: colors.rankGold, fontWeight: '700' },
   weekRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: spacing.sm },
   chartCard: { marginTop: spacing.md, borderRadius: radius.card },
   axisRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: spacing.sm, paddingHorizontal: spacing.xs },

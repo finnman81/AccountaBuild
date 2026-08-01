@@ -2,6 +2,8 @@ import React, { useMemo } from 'react';
 import { ScrollView, View, StyleSheet } from 'react-native';
 import { Card, Text, Button, Modal, Portal, useTheme } from 'react-native-paper';
 import RankBadge from '../mmr/RankBadge';
+import BadgeMedallion from '../ui/BadgeMedallion';
+import { badgeLook } from '../../services/badgeCatalog';
 import { colors } from '../../theme/colors';
 import { spacing } from '../../theme/spacing';
 import { radius } from '../../theme/radius';
@@ -159,21 +161,12 @@ export default function RankDetailsModal({ visible, mmrState, badges, onDismiss 
                         </Text>
                         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
                           {badges.filter(isAchievementBadge).map((b) => (
-                            <View
+                            <BadgeMedallion
                               key={b.id}
-                              style={{
-                                paddingHorizontal: spacing.sm,
-                                paddingVertical: spacing.xs,
-                                borderRadius: 999,
-                                backgroundColor: theme.colors.surfaceVariant,
-                                borderWidth: 1,
-                                borderColor: theme.colors.outlineVariant,
-                              }}
-                            >
-                              <Text variant="labelSmall" style={{ color: colors.textPrimary }}>
-                                {b.title}
-                              </Text>
-                            </View>
+                              lookKey={(b as any).achievementId ?? b.id}
+                              label={b.title}
+                              sub={badgeLook((b as any).achievementId ?? b.id).flavor ?? b.seasonId}
+                            />
                           ))}
                         </View>
                       </View>

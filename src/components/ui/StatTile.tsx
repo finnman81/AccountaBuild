@@ -21,8 +21,17 @@ export default function StatTile({ label, value, unit, delta, deltaColor = color
     <View style={[styles.tile, style]}>
       <Text style={styles.label}>{label.toUpperCase()}</Text>
       <View style={styles.valueRow}>
-        <Text style={styles.value}>{value}</Text>
-        {unit ? <Text style={styles.unit}> {unit}</Text> : null}
+        {/* Shrink-to-fit instead of clipping: a 4-digit value plus a unit
+            ("1070" + "47m avg") overflows a third-width tile on smaller
+            screens, and fixed 24pt just cut the digits off. */}
+        <Text style={styles.value} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+          {value}
+        </Text>
+        {unit ? (
+          <Text style={styles.unit} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+            {' '}{unit}
+          </Text>
+        ) : null}
       </View>
       {delta ? <Text style={[styles.delta, { color: deltaColor }]}>{delta}</Text> : null}
     </View>
@@ -52,11 +61,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.textPrimary,
     fontVariant: ['tabular-nums'],
+    flexShrink: 1,
   },
   unit: {
     fontSize: 13,
     fontWeight: '600',
     color: colors.textSecondary,
+    flexShrink: 1,
   },
   delta: {
     fontSize: 12,
