@@ -9,9 +9,17 @@
  *  - streakRiskReminder:   daily 18:00 ET "log today or fall off pace"
  *  - updateMmrScheduled:   weekly FP compute + rank-change & Monday-recap pushes
  *
- * Prefs: users/{uid}.notifPrefs mirrors the app's local toggles
- * (chatMessages / teamActivity / streakReminder / weeklyRecap); a missing
- * field means enabled. Nudges additionally require allowNudges === true.
+ * Prefs: users/{uid}.notifPrefs mirrors the app's local toggles; a missing
+ * field means ENABLED. Nudges additionally require allowNudges === true.
+ *   chatMessages   - group chat
+ *   streakReminder - 18:00 ET "log today"
+ *   weeklyRecap    - Monday recap + rank-change pushes
+ *   teamActivity   - DAILY crew chatter: first-log-of-day, daily champion
+ *   milestones     - RARE crew moments: goal completions, tier promotions,
+ *                    challenge start/end
+ * teamActivity vs milestones split 2026-07-31: one flag gated both, so the
+ * only way to mute the daily chatter was to also miss teammates finishing
+ * goals (user feedback: "the notifications are too much").
  */
 const { onDocumentCreated, onDocumentWritten } = require('firebase-functions/v2/firestore');
 const { onSchedule } = require('firebase-functions/v2/scheduler');
@@ -580,7 +588,7 @@ exports.challengeLifecycle = onSchedule(
           for (const uid of memberUids) {
             const u = users.get(uid);
             if (!u || !isExpoToken(u.expoPushToken)) continue;
-            if (!prefEnabled(u, 'teamActivity')) continue;
+            if (!prefEnabled(u, 'milestones')) continue;
             items.push({ uid, token: u.expoPushToken, title, body, data: { type: 'challenge', screen: 'Today' } });
           }
           if (items.length) await sendExpoPushes(db, items);

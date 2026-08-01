@@ -70,7 +70,9 @@ async function publishCelebration(db, { uid, ann, pushTitle, pushBody }) {
       const mateSnap = await db.collection('users').doc(mateUid).get();
       const mate = mateSnap.exists ? mateSnap.data() : {};
       if (!isExpoToken(mate.expoPushToken)) continue;
-      if (!prefEnabled(mate, 'teamActivity')) continue;
+      // 'milestones', not 'teamActivity': muting daily chatter must not
+      // silence a teammate finishing a goal or jumping a tier.
+      if (!prefEnabled(mate, 'milestones')) continue;
       pushes.push({
         uid: mateUid,
         token: mate.expoPushToken,

@@ -8,7 +8,18 @@ import { upsertMyPublicUser } from './publicUsers';
 /** User-facing notification toggles (design 15). */
 export type AppNotificationSettings = {
   streakReminder: boolean; // mirrors the local reminder scheduler's `enabled`
+  /**
+   * DAILY crew chatter: "X logged today", daily champion. This is the volume
+   * knob — up to one push per teammate per day.
+   */
   teamActivity: boolean;
+  /**
+   * RARE crew moments: goal completions, tier promotions, challenge start/end.
+   * Split out from teamActivity (2026-07-31) because muting the daily noise
+   * also silenced the celebrations, so the only way to stop the chatter was to
+   * miss the good stuff.
+   */
+  milestones: boolean;
   nudgesAllowed: boolean; // also mirrored to the user profile so teammates know
   chatMessages: boolean;
   weeklyRecap: boolean; // Monday recap + rank-change pushes
@@ -18,6 +29,7 @@ const KEY = 'app_notification_settings';
 const DEFAULTS: AppNotificationSettings = {
   streakReminder: true,
   teamActivity: true,
+  milestones: true,
   nudgesAllowed: false,
   chatMessages: true,
   weeklyRecap: true,
@@ -57,6 +69,7 @@ export async function setAppNotificationSetting<K extends keyof AppNotificationS
           notifPrefs: {
             streakReminder: next.streakReminder,
             teamActivity: next.teamActivity,
+            milestones: next.milestones,
             chatMessages: next.chatMessages,
             weeklyRecap: next.weeklyRecap,
           },
