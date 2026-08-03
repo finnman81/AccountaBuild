@@ -11,6 +11,7 @@ import { AuthContext } from '../../store/AuthContext';
 import { db } from '../../firebase/firebase';
 import { colors, radius, spacing } from '../../theme';
 import { enqueueSocialPush } from '../../services/socialPush';
+import { answerPoll, getMyAnswer, isValidPoll, type Poll } from '../../services/polls';
 import { hypeById, type Hype } from '../../services/hypeCatalog';
 import { friendlyNameFromDisplayName } from '../../utils/formatters';
 
@@ -46,6 +47,11 @@ type Announcement = {
    * second reaction store, so the honoree actually hears about it.
    */
   celebrate?: { uid: string; name: string; hypeIds: string[] };
+  /**
+   * Poll payload. Tapping an option records the answer and dismisses — one
+   * response per person, enforced by doc id (services/polls.ts).
+   */
+  poll?: Poll;
   lines: string[];
   /** ISO timestamp — stays hidden until this moment (scheduled reveal). */
   activeFrom?: string;
@@ -59,6 +65,7 @@ export default function WhatsNewModal() {
   const { user } = useContext(AuthContext);
   const [ann, setAnn] = useState<Announcement | null>(null);
   const [sentEmoji, setSentEmoji] = useState<string | null>(null);
+  const [pickedOption, setPickedOption] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user?.uid) return;
@@ -109,7 +116,32 @@ export default function WhatsNewModal() {
     })();
   }, [user?.uid]);
 
+  // Rules deny reading pollResponses, so "already answered" comes from the
+  // local record. Matters when someone answers and closes the app without
+  // tapping Done — the poll reappears and should show their pick, not blank.
+  useEffect(() => {
+    const p = (ann as any)?.poll;
+    if (!p?.id || !user?.uid) return;
+    let alive = true;
+    void getMyAnswer(p.id, user.uid).then((prev) => {
+      if (alive && prev) setPickedOption(prev);
+    });
+    return () => { alive = false; };
+  }, [ann, user?.uid]);
+
   if (!ann || !user?.uid) return null;
+
+  const poll = isValidPoll((ann as any).poll) ? ((ann as any).poll as Poll) : null;
+
+  const pick = async (optionId: string) => {
+    if (!poll || !user?.uid) return;
+    setPickedOption(optionId); // optimistic — the write is fire-and-forget
+    try {
+      await answerPoll({ pollId: poll.id, uid: user.uid, optionId, displayName: user.displayName ?? null });
+    } catch {
+      /* offline: the local pick still reads as answered; not worth a retry UI */
+    }
+  };
 
   const celebrate = ann.celebrate;
   const isHonoree = celebrate?.uid === user.uid;
@@ -171,6 +203,36 @@ export default function WhatsNewModal() {
             </AppText>
           ))}
         </View>
+        {poll ? (
+          <View style={{ marginTop: spacing.lg, gap: spacing.sm }}>
+            {poll.question ? (
+              <AppText variant="rowTitle" color="primary" style={{ textAlign: 'center', marginBottom: spacing.xs }}>
+                {poll.question}
+              </AppText>
+            ) : null}
+            {poll.options.map((o) => {
+              const picked = pickedOption === o.id;
+              return (
+                <TouchableOpacity
+                  key={o.id}
+                  style={[styles.pollOption, picked && styles.pollOptionPicked]}
+                  onPress={() => void pick(o.id)}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: picked }}
+                >
+                  <AppText variant="rowTitle" color={picked ? 'accent' : 'primary'}>
+                    {o.emoji ? `${o.emoji}  ` : ''}{o.label}
+                  </AppText>
+                  {picked ? <AppText variant="rowTitle" color="accent">✓</AppText> : null}
+                </TouchableOpacity>
+              );
+            })}
+            <AppText variant="label" color="muted" style={{ textAlign: 'center', marginTop: spacing.xs }}>
+              {pickedOption ? 'Thanks — answer saved. Tap another to change it.' : 'Tap one. Only Jake sees the results.'}
+            </AppText>
+          </View>
+        ) : null}
         {celebrate && !isHonoree ? (
           <>
             <AppText variant="eyebrow" color="muted" style={{ textAlign: 'center', marginTop: spacing.lg }}>
@@ -193,7 +255,9 @@ export default function WhatsNewModal() {
           </>
         ) : null}
         <TouchableOpacity style={styles.cta} onPress={dismiss} activeOpacity={0.85}>
-          <AppText variant="rowTitle" style={{ color: '#FFFFFF' }}>{sentEmoji ? 'Done' : 'Got it'}</AppText>
+          <AppText variant="rowTitle" style={{ color: '#FFFFFF' }}>
+            {sentEmoji || pickedOption ? 'Done' : poll ? 'Skip' : 'Got it'}
+          </AppText>
         </TouchableOpacity>
       </Modal>
     </Portal>
@@ -209,6 +273,18 @@ const styles = StyleSheet.create({
     marginHorizontal: spacing.lg,
     padding: spacing.lg,
   },
+  pollOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.surface2,
+    borderRadius: radius.button,
+    borderWidth: 1,
+    borderColor: colors.divider,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.md,
+  },
+  pollOptionPicked: { borderColor: colors.primary, backgroundColor: colors.primaryTint },
   hypeRow: { flexDirection: 'row', justifyContent: 'center', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.sm },
   hypeBtn: {
     width: 56,
