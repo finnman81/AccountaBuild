@@ -5,7 +5,8 @@ import * as TaskManager from 'expo-task-manager';
 import * as BackgroundTask from 'expo-background-task';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 
-import { auth } from '../../firebase/firebase';
+import { auth, db } from '../../firebase/firebase';
+import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { getHealthSettings } from '../healthSettings';
 
 /**
@@ -40,29 +41,79 @@ function waitForAuthedUser(timeoutMs = 8000): Promise<User | null> {
   });
 }
 
+/**
+ * Prod-visible wake telemetry: users/{uid}.healthBg. Without this there is NO
+ * way to tell from data whether background execution ever happens (log docs
+ * carry event time, not write time) — background sync "worked" for a month on
+ * faith alone.
+ */
+function recordWake(uid: string, trigger: 'bgtask' | 'hk-observer', synced: boolean): void {
+  void setDoc(
+    doc(db, 'users', uid),
+    { healthBg: { lastWakeAt: serverTimestamp(), lastTrigger: trigger, lastSynced: synced } },
+    { merge: true },
+  ).catch(() => {});
+}
+
+/** Shared headless sync: resolve auth/group/settings itself, then sync. */
+async function runHeadlessSync(trigger: 'bgtask' | 'hk-observer'): Promise<boolean> {
+  const user = await waitForAuthedUser();
+  if (!user) return false;
+  const groupId = await AsyncStorage.getItem(`activeGroupId:${user.uid}`);
+  if (!groupId) { recordWake(user.uid, trigger, false); return false; }
+  const settings = await getHealthSettings(user.uid);
+  if (!settings.syncWorkouts && !settings.syncCalories && !settings.syncWeight) {
+    recordWake(user.uid, trigger, false);
+    return false;
+  }
+  const { syncHealthData } = await import('../healthSync');
+  await syncHealthData(user.uid, groupId, settings);
+  recordWake(user.uid, trigger, true);
+  return true;
+}
+
 // Define the task at import time (required by expo-task-manager). No-op in Expo Go.
 if (!isExpoGo && Platform.OS !== 'web') {
   TaskManager.defineTask(BACKGROUND_HEALTH_SYNC_TASK, async () => {
     try {
-      const user = await waitForAuthedUser();
-      if (!user) return BackgroundTask.BackgroundTaskResult.Success;
-
-      const groupId = await AsyncStorage.getItem(`activeGroupId:${user.uid}`);
-      if (!groupId) return BackgroundTask.BackgroundTaskResult.Success;
-
-      const settings = await getHealthSettings(user.uid);
-      if (!settings.syncWorkouts && !settings.syncCalories && !settings.syncWeight) {
-        return BackgroundTask.BackgroundTaskResult.Success;
-      }
-
-      const { syncHealthData } = await import('../healthSync');
-      await syncHealthData(user.uid, groupId, settings);
+      await runHeadlessSync('bgtask');
       return BackgroundTask.BackgroundTaskResult.Success;
     } catch (e) {
       console.error('[BackgroundHealthSync] task failed:', e);
       return BackgroundTask.BackgroundTaskResult.Failed;
     }
   });
+
+  /**
+   * iOS instant path, REACT-FREE. The component-mounted observers only exist
+   * once the tree is up with user+group+settings subscriptions resolved — on a
+   * cold background wake iOS gives us seconds, and that race was the weak link.
+   * This registration lives at module scope: it runs on every bundle boot
+   * (including headless HK wakes), resolves its own inputs, and syncs directly.
+   * Double-syncs with the component path are harmless — deterministic log ids
+   * + tombstones make syncHealthData idempotent.
+   */
+  if (Platform.OS === 'ios') {
+    let lastRun = 0;
+    void (async () => {
+      try {
+        const user = await waitForAuthedUser(15000);
+        if (!user) return;
+        const settings = await getHealthSettings(user.uid);
+        if (!settings.syncWorkouts && !settings.syncCalories && !settings.syncWeight) return;
+        const HS = await import('./healthService');
+        await HS.setupBackgroundObservers(() => {
+          const now = Date.now();
+          if (now - lastRun < 60_000) return; // debounce bursts of HK changes
+          lastRun = now;
+          void runHeadlessSync('hk-observer').catch(() => {});
+        });
+        console.log('[BackgroundHealthSync] headless HK observers registered');
+      } catch (e) {
+        console.warn('[BackgroundHealthSync] headless observer setup failed:', e);
+      }
+    })();
+  }
 }
 
 /** Register the periodic background sync task (idempotent). Call once on app start. */

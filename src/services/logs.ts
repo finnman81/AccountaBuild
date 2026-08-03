@@ -187,6 +187,10 @@ export async function upsertGroupLogById(
       type: data.type,
       date: normalizeLogDate(data.date),
       ts: eventAtValid ? Timestamp.fromDate(data.eventAt as Date) : serverTimestamp(),
+      // ts is the EVENT time (stable across re-syncs); writtenAt is the wall
+      // clock of this write. The gap between them is the sync lag — the only
+      // way to verify from data that background delivery actually fires.
+      writtenAt: serverTimestamp(),
       source: data.source ?? 'self_reported',
       payload: data.payload,
     },

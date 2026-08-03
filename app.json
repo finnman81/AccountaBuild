@@ -39,7 +39,8 @@
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.health.READ_EXERCISE",
         "android.permission.health.READ_NUTRITION",
-        "android.permission.health.READ_WEIGHT"
+        "android.permission.health.READ_WEIGHT",
+        "android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND"
       ],
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
