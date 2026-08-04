@@ -39,27 +39,37 @@ function earlyLine(completedOn, targetEndDate) {
  */
 async function publishCelebration(db, { uid, ann, pushTitle, pushBody }) {
   try {
-    // Queue append with dedupe + cap. Transaction so two concurrent celebrations
-    // (different users, same 6h run) can't clobber each other's append.
-    const cfgRef = db.doc('config/app');
-    let queued = false;
-    await db.runTransaction(async (tx) => {
-      const cfg = (await tx.get(cfgRef)).data() || {};
-      const queue = Array.isArray(cfg.announcements) ? cfg.announcements : [];
-      if (queue.some((a) => a && a.id === ann.id)) return;
-      const next = [...queue, ann].slice(-MAX_QUEUE);
-      tx.set(cfgRef, {
-        announcements: next,
-        announcement: ann, // legacy single field — old bundles read ONLY this
-        updatedAt: FieldValue.serverTimestamp(),
-      }, { merge: true });
-      queued = true;
-    });
+    // Which groups does this person belong to? A celebration is THEIR crew's
+    // news — publishing to a global queue would pop it up for strangers the
+    // moment a second group exists.
+    const groupsSnap = await db.collection('users').doc(uid).collection('groups').get();
+    const groupIds = groupsSnap.docs.map((d) => String(d.data()?.groupId ?? d.id)).filter(Boolean);
+    if (!groupIds.length) return { queued: false, reason: 'no groups' };
+
+    // Write the announcement into each group's own queue. Deterministic doc id
+    // = the dedupe, so recomputes and concurrent runs can't double-post.
+    let queued = 0;
+    for (const gid of groupIds) {
+      const ref = db.collection('groups').doc(gid).collection('announcements').doc(ann.id);
+      try {
+        await ref.create({ ...ann, createdAt: FieldValue.serverTimestamp() });
+        queued += 1;
+      } catch {
+        /* already published to this group — the exactly-once path */
+      }
+      // Keep each queue bounded.
+      try {
+        const all = await db.collection('groups').doc(gid).collection('announcements')
+          .orderBy('createdAt', 'desc').get();
+        const stale = all.docs.slice(MAX_QUEUE);
+        await Promise.all(stale.map((d) => d.ref.delete().catch(() => {})));
+      } catch {
+        /* trimming is best-effort */
+      }
+    }
     if (!queued) return { queued: false };
 
     // Push the honoree's group-mates (never the honoree — it's their news).
-    const groupsSnap = await db.collection('users').doc(uid).collection('groups').get();
-    const groupIds = groupsSnap.docs.map((d) => String(d.data()?.groupId ?? d.id)).filter(Boolean);
     const mateUids = new Set();
     for (const gid of groupIds) {
       const members = await db.collection('groups').doc(gid).collection('members').get();
@@ -82,8 +92,8 @@ async function publishCelebration(db, { uid, ann, pushTitle, pushBody }) {
       });
     }
     const sent = pushes.length ? await sendExpoPushes(db, pushes) : { sent: 0 };
-    console.log(`[celebrations] queued ${ann.id}; pushes sent ${sent.sent}`);
-    return { queued: true, pushed: sent.sent ?? 0 };
+    console.log(`[celebrations] queued ${ann.id} to ${queued} group(s); pushes sent ${sent.sent}`);
+    return { queued: true, groups: queued, pushed: sent.sent ?? 0 };
   } catch (e) {
     // Celebration must never break scoring.
     console.warn('[celebrations] failed for', uid, ann && ann.id, e);

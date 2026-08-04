@@ -2,7 +2,7 @@ import React, { useContext, useEffect, useState } from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Modal, Portal } from 'react-native-paper';
-import { arrayUnion, doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { arrayUnion, collection, doc, getDoc, getDocs, serverTimestamp, setDoc } from 'firebase/firestore';
 
 import * as Haptics from 'expo-haptics';
 
@@ -72,19 +72,37 @@ export default function WhatsNewModal() {
     const uid = user.uid;
     (async () => {
       try {
-        const snap = await getDoc(doc(db, 'config', 'app'));
-        const data = snap.exists() ? (snap.data() as any) : null;
-        if (!data) return;
+        // TWO sources now:
+        //  - config/app        = genuine app-wide news (releases, polls)
+        //  - groups/{gid}/announcements = THIS user's crews' celebrations
+        // Celebrations moved per-group so one crew's goal party can't pop up
+        // on a stranger's phone once more than one group exists.
+        const myGroupsSnap = await getDocs(collection(db, 'users', uid, 'groups')).catch(() => null);
+        const groupIds = (myGroupsSnap?.docs ?? [])
+          .map((d) => String((d.data() as any)?.groupId ?? d.id))
+          .filter(Boolean);
 
+        const [globalSnap, ...groupSnaps] = await Promise.all([
+          getDoc(doc(db, 'config', 'app')).catch(() => null),
+          ...groupIds.map((gid) =>
+            getDocs(collection(db, 'groups', gid, 'announcements')).catch(() => null),
+          ),
+        ]);
+
+        const data = globalSnap?.exists() ? (globalSnap.data() as any) : null;
         // Queue first, legacy single field as fallback. IMPORTANT: keep BOTH
         // fields populated in config — clients on the pre-queue bundle read
         // ONLY `announcement`, so publishing to the array alone makes them go
         // silent (regression, caught 2026-07-21). Dedupe by id since the
         // legacy field normally duplicates the newest queue entry.
-        const fromQueue: Announcement[] = Array.isArray(data.announcements) ? data.announcements.filter(isValid) : [];
-        const legacyOne: Announcement[] = isValid(data.announcement) ? [data.announcement] : [];
+        const fromQueue: Announcement[] = Array.isArray(data?.announcements) ? data.announcements.filter(isValid) : [];
+        const legacyOne: Announcement[] = isValid(data?.announcement) ? [data.announcement] : [];
+        const fromGroups: Announcement[] = groupSnaps.flatMap((g) =>
+          (g?.docs ?? []).map((d) => d.data() as any).filter(isValid),
+        );
+
         const byId = new Map<string, Announcement>();
-        for (const a of [...fromQueue, ...legacyOne]) if (!byId.has(a.id)) byId.set(a.id, a);
+        for (const a of [...fromGroups, ...fromQueue, ...legacyOne]) if (!byId.has(a.id)) byId.set(a.id, a);
         const queue: Announcement[] = [...byId.values()];
         if (!queue.length) return;
 

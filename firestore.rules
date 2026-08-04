@@ -293,6 +293,18 @@ service cloud.firestore {
         allow write: if signedIn() && request.auth.uid == uid && isGroupMember(groupId);
       }
 
+      // Per-group announcement queue — celebrations (goal completions, tier
+      // jumps) belong to ONE group, not the whole app. config/app stays for
+      // genuine app-wide news only.
+      //
+      // WHY: a single global queue meant the day a second group existed, one
+      // crew's celebration would pop up on a stranger's phone. Server-written
+      // only (functions/celebrations.js via admin).
+      match /announcements/{annId} {
+        allow read: if isGroupMember(groupId);
+        allow write: if false;
+      }
+
       // Weekly commitment signatures: groups/{gid}/signatures/{weekId}_{uid}.
       // CREATE-ONLY by the signer — a signature you can retract isn't a
       // commitment, so update/delete are denied outright (no un-signing, no

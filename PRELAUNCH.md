@@ -34,14 +34,18 @@ HealthKit apps get extra review scrutiny:
 
 ## 💥 Tier 2 — breaks the moment strangers join
 
-### 4. Group-scoped celebrations  ← biggest engineering item
-All announcements live in ONE global queue (`config/app.announcements`).
-Today that's fine — one group. The day a second group exists, one group's
-goal/tier celebrations pop up on strangers' phones.
-- Move celebration pop-ups to `groups/{gid}/announcements`; WhatsNewModal
-  merges global (app news only) + per-group queues
-- `functions/celebrations.js` writes to the honoree's groups, not the world
-- Keep the legacy dual-write rules in mind for old bundles (see README)
+### 4. ~~Group-scoped celebrations~~ ✅ DONE 2026-08-03
+Celebrations now write to `groups/{gid}/announcements` (server-only, members
+read). WhatsNewModal merges global app-news + every group the user belongs to.
+`config/app` is app-wide news + polls ONLY.
+
+Verified by building a real second group and firing a celebration: it landed
+in BPM's queue only, the outsider's group stayed empty, global config stayed
+clean, the outsider got no push, and reading BPM's queue over the wire
+returned 403.
+
+NOTE: old bundles (pre-2026-08-03) read only `config/app`, so they see app
+news but not group celebrations. Acceptable — everyone in BPM is current.
 
 ### 5. Cheer-push spam guard
 `pushQueue` lets any authenticated user push a cheer to ANY uid — no shared-
@@ -109,6 +113,10 @@ combined) → invite links + empty states (#6, design pass first).
 Privacy policy (#3) is writing, not code — can happen in parallel.
 
 **Phase 1 — TestFlight wave (30-50 users, 2-3 stranger groups)**
+> POLL FINDING (2026-08-03, `invite-ready`): nobody picked "I've got someone
+> in mind" — the yeses were all "once it's on the App Store". So there are no
+> natural TestFlight recruits. Consider shrinking Phase 1 to a small
+> multi-group smoke test and pushing straight at the Tier 1 store blockers.
 - Real multi-group test: celebrations scoping, visibility index, invites
 - TestFlight imposes no review gate on the moderation/deletion items yet
 - Watch: Sentry, `clientErrors`, `pushFailures`, background-sync telemetry
