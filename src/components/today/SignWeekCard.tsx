@@ -8,6 +8,7 @@ import { AuthContext } from '../../store/AuthContext';
 import { useActiveGroup } from '../../store/ActiveGroupContext';
 import { colors, radius, spacing } from '../../theme';
 import { currentWeekId, signCurrentWeek, signingOpen, subscribeWeekSignatures } from '../../services/signatures';
+import { getHydrated, setHydrated } from '../../services/hydrationCache';
 import { friendlyNameFromDisplayName } from '../../utils/formatters';
 import type { PublicUser } from '../../services/publicUsers';
 
@@ -31,7 +32,17 @@ type Props = {
 export default function SignWeekCard({ memberUids, publicUsers, canSee }: Props) {
   const { user } = useContext(AuthContext);
   const { activeGroupId } = useActiveGroup();
-  const [signed, setSigned] = useState<Set<string>>(new Set());
+  // Seed from the hydration cache so the card paints its CORRECT shape on the
+  // first frame. Without this it rendered the tall "Sign your week" ceremony,
+  // then collapsed to the thin strip ~500ms later when Firestore resolved —
+  // shoving the whole screen up. Sentry showed first paint unchanged (575 ->
+  // 584ms), because the problem was never speed: it was reflow at the very top
+  // of Today, which reads as launch jank.
+  const cacheKey = activeGroupId ? `signatures:${activeGroupId}:${currentWeekId()}` : null;
+  const [signed, setSigned] = useState<Set<string>>(
+    () => new Set(cacheKey ? getHydrated<string[]>(cacheKey) ?? [] : []),
+  );
+  const [loaded, setLoaded] = useState<boolean>(() => !!(cacheKey && getHydrated<string[]>(cacheKey)));
   const [busy, setBusy] = useState(false);
   const [justSigned, setJustSigned] = useState(false);
 
@@ -45,7 +56,11 @@ export default function SignWeekCard({ memberUids, publicUsers, canSee }: Props)
 
   useEffect(() => {
     if (!activeGroupId) return;
-    return subscribeWeekSignatures(activeGroupId, weekId, setSigned);
+    return subscribeWeekSignatures(activeGroupId, weekId, (uids) => {
+      setSigned(uids);
+      setLoaded(true);
+      setHydrated(`signatures:${activeGroupId}:${weekId}`, Array.from(uids));
+    });
   }, [activeGroupId, weekId]);
 
   const visible = useMemo(
@@ -105,6 +120,9 @@ export default function SignWeekCard({ memberUids, publicUsers, canSee }: Props)
   useEffect(() => () => clearHaptics(), []);
 
   if (!activeGroupId || !myUid) return null;
+  // First run on this device (no cache yet): render nothing rather than guess
+  // wrong and reflow a moment later.
+  if (!loaded) return null;
 
   const signedCount = visible.filter((u) => signed.has(u)).length;
 
