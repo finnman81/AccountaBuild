@@ -28,7 +28,7 @@ Verified end-to-end on a throwaway account seeded across every collection:
 bug (BPM read 6 with 8 real members) and repaired it. Any future
 membership change should recount too.
 
-### 2. ~~UGC moderation~~ ✅ MOSTLY DONE 2026-08-04
+### 2. ~~UGC moderation~~ ✅ DONE 2026-08-04
 - Long-press any chat message or log → **Report** or **Block** (`moderation.ts`)
 - `reports` is CREATE-ONLY and unreadable by clients: a reporter can't check
   whether a report landed, and a reported user can't discover who filed it.
@@ -43,15 +43,32 @@ membership change should recount too.
 
 Verified with 9 prod probes incl. a control (unblock → cheer delivers again).
 
-STILL TODO for this item: report/block on PHOTOS specifically (ViewPhotos
-screen), a support email in Settings, and zero-tolerance terms text.
+Photos covered too (long-press in ViewPhotos; blocked authors filtered out).
+Support email + zero-tolerance terms live in Settings → Support.
 
-### 3. Privacy policy + App Privacy labels
-HealthKit apps get extra review scrutiny:
-- Hosted privacy policy URL (health data handling explicitly covered)
-- Accurate App Privacy nutrition labels (health & fitness data, identifiers)
-- Health data must never feed advertising (we don't — say so)
-- Support URL + terms
+### 3. Privacy policy + App Privacy labels — 🟡 written, needs HOSTING
+Policy text is written: [PRIVACY.md](PRIVACY.md). An in-app summary also ships
+at Settings → Terms & Privacy (so review never blocks on a hosted page, and it
+works offline).
+
+**REMAINING — needs Jake, ~15 min, no code:**
+1. Host PRIVACY.md at a public URL. Natural home: `app.munitor.ai/accountabuild/privacy`
+   (munitor-dashboard repo — deliberately not touched from here).
+2. Paste that URL into App Store Connect → App Privacy → Privacy Policy URL.
+3. Fill the App Privacy "nutrition labels". Correct answers for this app:
+
+| Category | Collected | Linked to user | Tracking | Purpose |
+|---|---|---|---|---|
+| Health & Fitness | YES | YES | NO | App Functionality |
+| Contact Info (email) | YES | YES | NO | App Functionality |
+| User Content (photos, messages) | YES | YES | NO | App Functionality |
+| Identifiers (user ID) | YES | YES | NO | App Functionality |
+| Diagnostics (crash/perf) | YES | NO | NO | App Functionality |
+| Usage Data / Advertising | **NO** | — | — | — |
+
+**Tracking = NO across the board** (no ad networks, no data brokers, no
+third-party analytics beyond crash reporting) — so App Tracking Transparency is
+NOT required. Health data is never used for advertising; say so if asked.
 
 ---
 
@@ -130,10 +147,13 @@ payload — same pattern as `celebrate` (hype buttons):
 ## 🗺️ Phased rollout plan
 
 **Phase 0 — build the blockers** (current)
-Order: group-scoped celebrations (#4) → account deletion + report/block
-(#1, #2) → spam guard + App Check + Sentry sampling (#5, #8, #9 — one day
-combined) → invite links + empty states (#6, design pass first).
-Privacy policy (#3) is writing, not code — can happen in parallel.
+- ✅ #4 group-scoped celebrations
+- ✅ #1 account deletion
+- ✅ #2 report + block (chat, logs, photos, support email, terms)
+- 🟡 #3 privacy policy — written, needs hosting + App Store Connect labels (Jake)
+- ⬜ #5 cheer spam guard (shared-group check; blocks already enforced)
+- ⬜ #8/#9 Sentry sampling + App Check
+- ⬜ #6 invite links + empty states — design pass with Jake first
 
 **Phase 1 — TestFlight wave (30-50 users, 2-3 stranger groups)**
 > POLL FINDING (2026-08-03, `invite-ready`): nobody picked "I've got someone

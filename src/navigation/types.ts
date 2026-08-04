@@ -80,6 +80,7 @@ export type ProfileStackParamList = {
   Notifications: undefined;
   HealthSettings: undefined;
   BlockedUsers: undefined;
+  Legal: undefined;
 };
 
 export type TabsParamList = {

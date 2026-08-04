@@ -40,6 +40,7 @@ import MMRHistoryScreen from '../screens/MMRHistoryScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
 import HealthSettingsScreen from '../screens/HealthSettingsScreen';
 import BlockedUsersScreen from '../screens/BlockedUsersScreen';
+import LegalScreen from '../screens/LegalScreen';
 import ProgressScreen from '../screens/ProgressScreen';
 import HistoryScreen from '../screens/HistoryScreen';
 import HomeScreen from '../screens/HomeScreen';
@@ -106,6 +107,7 @@ function ProfileStackNavigator() {
       <ProfileStack.Screen name="Notifications" component={NotificationsScreen} options={{ title: 'Notifications' }} />
       <ProfileStack.Screen name="HealthSettings" component={HealthSettingsScreen} options={{ title: 'Health & Fitness' }} />
       <ProfileStack.Screen name="BlockedUsers" component={BlockedUsersScreen} options={{ headerShown: false }} />
+      <ProfileStack.Screen name="Legal" component={LegalScreen} options={{ headerShown: false }} />
     </ProfileStack.Navigator>
   );
 }

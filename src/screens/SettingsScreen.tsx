@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useState } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Switch, Alert } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Switch, Alert, Linking } from 'react-native';
 import { Icon } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -8,6 +8,7 @@ import Constants from 'expo-constants';
 import { AuthContext } from '../store/AuthContext';
 import { getAppNotificationSettings, setAppNotificationSetting, type AppNotificationSettings } from '../services/appSettings';
 import { deleteMyAccount } from '../services/accountDeletion';
+import { SUPPORT_EMAIL } from './LegalScreen';
 import AppText from '../components/ui/AppText';
 import { colors, radius, spacing } from '../theme';
 
@@ -145,6 +146,16 @@ export default function SettingsScreen() {
           <NavRow title="Edit profile" onPress={() => nav.navigate('EditProfile')} />
           <NavRow title="Blocked users" onPress={() => nav.navigate('BlockedUsers')} />
           <NavRow title="Email" value={user?.email ?? '—'} divider={false} />
+        </View>
+
+        <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>Support</AppText>
+        <View style={styles.group}>
+          <NavRow
+            title="Contact support"
+            value={SUPPORT_EMAIL}
+            onPress={() => void Linking.openURL(`mailto:${SUPPORT_EMAIL}`).catch(() => {})}
+          />
+          <NavRow title="Terms & Privacy" onPress={() => nav.navigate('Legal')} divider={false} />
         </View>
 
         <TouchableOpacity style={styles.signOutCard} onPress={confirmSignOut} activeOpacity={0.8}>
