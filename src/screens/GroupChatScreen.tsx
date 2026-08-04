@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useMemo, useState } from 'react';
-import { FlatList, KeyboardAvoidingView, Platform, View, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
+import { Alert, FlatList, KeyboardAvoidingView, Platform, View, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { Icon } from 'react-native-paper';
@@ -18,6 +18,7 @@ import { getHydrated, setHydrated } from '../services/hydrationCache';
 import { enqueueSocialPush } from '../services/socialPush';
 import { friendlyNameFromDisplayName } from '../utils/formatters';
 import { subscribePublicUsers, type PublicUser } from '../services/publicUsers';
+import { blockUser, reportContent, subscribeMyBlocks } from '../services/moderation';
 import { subscribeMyCanSeeUids } from '../services/visibility';
 import { todayYYYYMMDD } from '../utils/dates';
 import AppText from '../components/ui/AppText';
@@ -78,6 +79,7 @@ export default function GroupChatScreen({ route }: Props) {
   );
   const [canSee, setCanSee] = useState<Set<string>>(() => new Set(user?.uid ? getHydrated<string[]>(`canSee:${user.uid}`) ?? [] : []));
   const [logs, setLogs] = useState<GroupLog[]>([]);
+  const [blocked, setBlocked] = useState<Set<string>>(new Set());
   const [text, setText] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [sendFailed, setSendFailed] = useState(false);
@@ -109,6 +111,49 @@ export default function GroupChatScreen({ route }: Props) {
   // 100, not 200: the feed only renders the last 3 days of logs, so the extra
   // 100 docs were fetched and immediately filtered out on every open.
   useEffect(() => subscribeGroupLogs(groupId, setLogs, undefined, 100), [groupId]);
+  useEffect(() => {
+    if (!user?.uid) return;
+    return subscribeMyBlocks(user.uid, setBlocked);
+  }, [user?.uid]);
+
+  /**
+   * Long-press any message or log -> report / block. App Store Guideline 1.2
+   * requires BOTH for user-generated content; blocking hides them from this
+   * feed immediately and stops cheers/nudges in either direction (enforced
+   * server-side in sendSocialPush, so it can't be routed around).
+   */
+  const moderate = (targetUid: string, kind: 'message' | 'log', contentId: string, text?: string) => {
+    if (!user?.uid || targetUid === user.uid) return;
+    const who = nameFor(targetUid);
+    Alert.alert(who, 'What would you like to do?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Report',
+        style: 'destructive',
+        onPress: () => {
+          void reportContent({
+            reporterUid: user.uid,
+            targetUid,
+            kind,
+            reason: 'Reported from group chat',
+            groupId,
+            contentId,
+            contentText: text ?? null,
+          }).catch(() => {});
+          Alert.alert('Reported', 'Thanks — this has been sent for review.');
+        },
+      },
+      {
+        text: `Block ${who}`,
+        style: 'destructive',
+        onPress: () =>
+          Alert.alert(`Block ${who}?`, `You won't see their messages or logs, and they can't cheer or nudge you.`, [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Block', style: 'destructive', onPress: () => void blockUser(user.uid, targetUid).catch(() => {}) },
+          ]),
+      },
+    ]);
+  };
 
   const nameFor = (uid: string) => friendlyNameFromDisplayName(publicUsers[uid]?.displayName ?? null, uid);
 
@@ -127,13 +172,19 @@ export default function GroupChatScreen({ route }: Props) {
   // (newest first, for the inverted list). Logs are limited to the last few days
   // so the stream stays readable.
   const feed = useMemo<FeedItem[]>(() => {
-    const allowed = new Set(memberUids.filter((u) => u === user?.uid || canSee.has(u)));
+    // Blocked users disappear from the feed entirely — messages AND logs.
+    const allowed = new Set(
+      memberUids.filter((u) => u === user?.uid || (canSee.has(u) && !blocked.has(u))),
+    );
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - 3);
     const cutoffStr = `${cutoff.getFullYear()}-${String(cutoff.getMonth() + 1).padStart(2, '0')}-${String(cutoff.getDate()).padStart(2, '0')}`;
 
     const items: FeedItem[] = [];
-    for (const m of messages) items.push({ kind: 'message', id: `m_${m.id}`, ms: tsMs(m.createdAt) || Date.now(), msg: m });
+    for (const m of messages) {
+      if (blocked.has(m.uid)) continue;
+      items.push({ kind: 'message', id: `m_${m.id}`, ms: tsMs(m.createdAt) || Date.now(), msg: m });
+    }
     for (const l of logs) {
       if (!allowed.has(l.uid) || l.date < cutoffStr) continue;
       items.push({ kind: 'log', id: `l_${l.id}`, ms: tsMs(l.ts), log: l });
@@ -154,7 +205,7 @@ export default function GroupChatScreen({ route }: Props) {
     }
     return withDays;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages, logs, memberUids, canSee, user?.uid]);
+  }, [messages, logs, memberUids, canSee, user?.uid, blocked]);
 
   const toggleReaction = async (logId: string, emoji: string, mine: boolean) => {
     if (!user) return;
@@ -260,9 +311,14 @@ export default function GroupChatScreen({ route }: Props) {
             }
             if (item.kind === 'log') {
               return (
-                <View style={styles.msgRow}>
+                <TouchableOpacity
+                  style={styles.msgRow}
+                  activeOpacity={1}
+                  onLongPress={() => moderate(item.log.uid, 'log', item.log.id)}
+                  delayLongPress={450}
+                >
                   <LogCard log={item.log} name={nameFor(item.log.uid)} myUid={user?.uid ?? ''} onToggleReaction={toggleReaction} />
-                </View>
+                </TouchableOpacity>
               );
             }
             const mine = user?.uid === item.msg.uid;
@@ -282,7 +338,12 @@ export default function GroupChatScreen({ route }: Props) {
               );
             }
             return (
-              <View style={[styles.msgRow, { alignItems: mine ? 'flex-end' : 'flex-start' }]}>
+              <TouchableOpacity
+                style={[styles.msgRow, { alignItems: mine ? 'flex-end' : 'flex-start' }]}
+                activeOpacity={1}
+                onLongPress={() => (mine ? undefined : moderate(item.msg.uid, 'message', item.msg.id, item.msg.text))}
+                delayLongPress={450}
+              >
                 {!mine && (
                   <AppText variant="label" color="muted" style={styles.sender}>
                     {nameFor(item.msg.uid)}  ·  {timeLabel(item.ms)}
@@ -298,7 +359,7 @@ export default function GroupChatScreen({ route }: Props) {
                   <AppText variant="body" style={{ color: mine ? '#FFFFFF' : colors.textPrimary }}>{item.msg.text}</AppText>
                 </View>
                 {mine && <AppText variant="label" color="muted" style={styles.mineTime}>{timeLabel(item.ms)}</AppText>}
-              </View>
+              </TouchableOpacity>
             );
           }}
         />

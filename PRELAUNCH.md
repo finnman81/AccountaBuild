@@ -28,12 +28,23 @@ Verified end-to-end on a throwaway account seeded across every collection:
 bug (BPM read 6 with 8 real members) and repaired it. Any future
 membership change should recount too.
 
-### 2. UGC moderation (chat + progress photos)
-Apple requires, for any user-generated content: a way to **report** content,
-a way to **block** users, and zero-tolerance terms. Minimum viable:
-- Long-press → "Report" on messages/photos → `reports` collection (create-only)
-- Per-user block list that filters chat/feed/photos client-side
-- Support email + a moderation pass on reports (manual is fine at this scale)
+### 2. ~~UGC moderation~~ ✅ MOSTLY DONE 2026-08-04
+- Long-press any chat message or log → **Report** or **Block** (`moderation.ts`)
+- `reports` is CREATE-ONLY and unreadable by clients: a reporter can't check
+  whether a report landed, and a reported user can't discover who filed it.
+  Reports snapshot the offending text (authors can edit/delete it).
+- Blocks live at `users/{uid}/blocks/{blockedUid}` — owner-only, so nobody can
+  enumerate who blocked them. Blocked users vanish from the feed both ways.
+- **Blocks enforced SERVER-side** in `sendSocialPush` (both directions):
+  client-side filtering alone would let a blocked person keep cheering, which
+  is a harassment channel once the app is public.
+- Blocked-users screen (Settings → Account → Blocked users) so blocking is
+  reversible, not a one-way trapdoor.
+
+Verified with 9 prod probes incl. a control (unblock → cheer delivers again).
+
+STILL TODO for this item: report/block on PHOTOS specifically (ViewPhotos
+screen), a support email in Settings, and zero-tolerance terms text.
 
 ### 3. Privacy policy + App Privacy labels
 HealthKit apps get extra review scrutiny:

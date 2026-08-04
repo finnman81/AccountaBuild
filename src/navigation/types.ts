@@ -79,6 +79,7 @@ export type ProfileStackParamList = {
   MMRHistory: undefined;
   Notifications: undefined;
   HealthSettings: undefined;
+  BlockedUsers: undefined;
 };
 
 export type TabsParamList = {

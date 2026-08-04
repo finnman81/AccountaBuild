@@ -214,6 +214,28 @@ service cloud.firestore {
       allow read, delete: if false;
     }
 
+    // UGC moderation (App Store Guideline 1.2 — required for user-generated
+    // content). Reports are CREATE-ONLY and never readable by clients: a
+    // reporter must not be able to check whether someone reported them, and a
+    // reported user must not be able to find out who filed it.
+    match /reports/{reportId} {
+      allow create: if signedIn()
+        && request.resource.data.reporterUid == request.auth.uid
+        && request.resource.data.targetUid is string
+        && request.resource.data.kind is string
+        && request.resource.data.reason is string
+        && request.resource.data.reason.size() <= 500;
+      allow read, update, delete: if false;
+    }
+
+    // Per-user block list: users/{uid}/blocks/{blockedUid}.
+    // Owner-only, and the OWNER's copy is what filters their feed. Blocks are
+    // enforced BOTH ways server-side for pushes (see sendSocialPush), so a
+    // blocked person can't route around it by cheering.
+    match /users/{uid}/blocks/{blockedUid} {
+      allow read, write: if signedIn() && request.auth.uid == uid;
+    }
+
     // Client JS error reports (errorReporter.ts). Create-only: clients can
     // file a report but never read/alter the collection (viewed via console
     // or admin scripts).

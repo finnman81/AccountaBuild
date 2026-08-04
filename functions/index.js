@@ -88,6 +88,21 @@ exports.sendSocialPush = onDocumentCreated('pushQueue/{id}', async (event) => {
       return;
     }
 
+    // Blocks are enforced BOTH directions, server-side. Client-side filtering
+    // alone would let a blocked person keep cheering (the app just wouldn't
+    // show it) — a harassment channel the moment the app is public.
+    if (fromUid) {
+      const [theyBlockedMe, iBlockedThem] = await Promise.all([
+        db.doc(`users/${toUid}/blocks/${fromUid}`).get().then((s) => s.exists).catch(() => false),
+        db.doc(`users/${fromUid}/blocks/${toUid}`).get().then((s) => s.exists).catch(() => false),
+      ]);
+      if (theyBlockedMe || iBlockedThem) {
+        console.log('[sendSocialPush] dropped: block between', fromUid, 'and', toUid);
+        await cleanup();
+        return;
+      }
+    }
+
     const name = (fromName && String(fromName)) || 'A teammate';
     const emoji = (data.emoji && String(data.emoji)) || '💪';
     const logType = (data.logType && String(data.logType)) || 'log';
