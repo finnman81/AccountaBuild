@@ -7,6 +7,7 @@ import Constants from 'expo-constants';
 
 import { AuthContext } from '../store/AuthContext';
 import { getAppNotificationSettings, setAppNotificationSetting, type AppNotificationSettings } from '../services/appSettings';
+import { deleteMyAccount } from '../services/accountDeletion';
 import AppText from '../components/ui/AppText';
 import { colors, radius, spacing } from '../theme';
 
@@ -46,6 +47,7 @@ function NavRow({ title, value, onPress, divider = true }: { title: string; valu
 
 export default function SettingsScreen() {
   const { user, logout } = useContext(AuthContext);
+  const [deleting, setDeleting] = useState(false);
   const nav = useNavigation<any>();
   const [prefs, setPrefs] = useState<AppNotificationSettings | null>(null);
 
@@ -65,6 +67,51 @@ export default function SettingsScreen() {
       { text: 'Cancel', style: 'cancel' },
       { text: 'Sign out', style: 'destructive', onPress: () => void logout() },
     ]);
+
+  /**
+   * Two-step confirm, because this is irreversible. Apple requires account
+   * deletion to be reachable in-app (Guideline 5.1.1(v)); the second prompt is
+   * ours — an accidental tap shouldn't end someone's streak history.
+   */
+  const runDelete = async () => {
+    setDeleting(true);
+    try {
+      await deleteMyAccount();
+      // The auth record is gone; onAuthStateChanged drops the app back to the
+      // signed-out stack on its own.
+      await logout().catch(() => {});
+    } catch {
+      setDeleting(false);
+      Alert.alert(
+        'Could not delete',
+        'Something went wrong and nothing was deleted. Please try again, or email support if it keeps happening.',
+      );
+    }
+  };
+
+  const confirmDelete = () =>
+    Alert.alert(
+      'Delete account',
+      [
+        'This permanently deletes your account, goals, logs, weigh-ins, FP history and badges, and removes you from your groups.',
+        '',
+        'Your chat messages stay in the conversation but are detached from your name.',
+        '',
+        'This cannot be undone.',
+      ].join('\n'),
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Continue',
+          style: 'destructive',
+          onPress: () =>
+            Alert.alert('Are you sure?', 'Last chance — this is permanent.', [
+              { text: 'Keep my account', style: 'cancel' },
+              { text: 'Delete forever', style: 'destructive', onPress: () => void runDelete() },
+            ]),
+        },
+      ],
+    );
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -103,6 +150,19 @@ export default function SettingsScreen() {
           <AppText variant="rowTitle" color="danger">Sign out</AppText>
         </TouchableOpacity>
 
+        <TouchableOpacity
+          style={styles.deleteRow}
+          onPress={confirmDelete}
+          activeOpacity={0.7}
+          disabled={deleting}
+          accessibilityRole="button"
+          accessibilityLabel="Delete account"
+        >
+          <AppText variant="rowSubtitle" color="muted">
+            {deleting ? 'Deleting your account…' : 'Delete account'}
+          </AppText>
+        </TouchableOpacity>
+
         <AppText variant="label" color="muted" style={styles.version}>AccountaBuild {version}</AppText>
       </ScrollView>
     </SafeAreaView>
@@ -120,6 +180,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.md, gap: spacing.md, minHeight: 52 },
   rowLeft: { flex: 1, gap: 2 },
   divider: { height: 1, backgroundColor: colors.divider },
+  deleteRow: { marginTop: spacing.md, alignItems: 'center', paddingVertical: spacing.md },
   signOutCard: { marginTop: spacing.xl, backgroundColor: colors.surface, borderRadius: radius.card, borderWidth: 1, borderColor: colors.borderCard, paddingVertical: spacing.base, alignItems: 'center' },
   version: { textAlign: 'center', marginTop: spacing.lg },
 });

@@ -28,6 +28,7 @@ const { initializeApp } = require('firebase-admin/app');
 const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestore');
 const { computeUserWeek, computeUserUpToCurrentWeek } = require('./mmr-compute');
 const { ensureSeasonRollover } = require('./mmr-season');
+const { deleteAccount } = require('./account-deletion');
 const { evaluateStreakRisk, evaluateDailyChampion, evaluateVacationPrompt } = require('./notif-logic');
 const core = require('./mmr-core');
 const { sendExpoPushes, isExpoToken, prefEnabled, inQuietHours } = require('./push-helper');
@@ -470,6 +471,33 @@ exports.recomputeMyMmr = onCall({ timeoutSeconds: 120, memory: '256MiB' }, async
   } catch (e) {
     console.error('[recomputeMyMmr] failed for', uid, e);
     throw new HttpsError('internal', 'Recompute failed. The scheduled run will settle your score.');
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Account deletion (App Store Guideline 5.1.1(v))
+// ---------------------------------------------------------------------------
+/**
+ * Delete the CALLER's own account. Server-side by necessity: rules deny client
+ * deletes of users/{uid} and publicUsers/{uid} (delete-and-recreate was an
+ * FP-reset exploit), so the app cannot tear itself down.
+ *
+ * Auth-scoped to request.auth.uid — there is deliberately no "delete user X"
+ * parameter, so this can never become an account-nuking weapon.
+ */
+exports.deleteMyAccount = onCall({ timeoutSeconds: 300, memory: '256MiB' }, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError('unauthenticated', 'Sign in first.');
+  // Typed confirmation, so a mis-wired button can never delete an account.
+  if (request.data?.confirm !== 'DELETE') {
+    throw new HttpsError('failed-precondition', 'Confirmation required.');
+  }
+  try {
+    const report = await deleteAccount(db, uid);
+    return { ok: true, ...report };
+  } catch (e) {
+    console.error('[deleteMyAccount] failed for', uid, e);
+    throw new HttpsError('internal', 'Could not delete the account. Nothing was lost — try again.');
   }
 });
 

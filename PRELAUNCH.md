@@ -8,13 +8,25 @@ Companion docs: [README.md](README.md) for architecture, `Notes/` for proposals.
 
 ## 🚫 Tier 1 — Apple will reject the app without these
 
-### 1. In-app account deletion
-Guideline 5.1.1(v): apps with account creation MUST offer in-app deletion.
-Firestore rules deliberately deny client user-doc deletes (delete-recreate was
-an FP exploit), so this needs a **Cloud Function**: callable, auth-scoped,
-tears down `users/{uid}` + subcollections, `publicUsers/{uid}`, group
-memberships, visibility index entries, auth record. Settings gets a
-"Delete account" row with a confirm flow.
+### 1. ~~In-app account deletion~~ ✅ DONE 2026-08-04
+`deleteMyAccount` callable (`functions/account-deletion.js`) + Settings row
+with a two-step confirm. Auth-scoped to the caller — there is deliberately no
+"delete user X" parameter. Requires a literal 'DELETE' confirmation so a
+mis-wired button can't destroy an account.
+
+DELETED: users/{uid} + all 13 subcollections, publicUsers + weeklyPublic,
+visibility + canSee, group memberships & goals, their own logs, signatures,
+poll responses, username, auth record.
+KEPT + ANONYMIZED: chat messages (uid -> 'deleted', name -> 'Deleted user') —
+ripping them out would leave replies dangling. Apple requires the ACCOUNT be
+deleted, not that shared conversation be rewritten.
+
+Verified end-to-end on a throwaway account seeded across every collection:
+25/25 orphan checks clean.
+
+**Roster counts RECOUNT, never `increment(-1)`** — the test exposed a drift
+bug (BPM read 6 with 8 real members) and repaired it. Any future
+membership change should recount too.
 
 ### 2. UGC moderation (chat + progress photos)
 Apple requires, for any user-generated content: a way to **report** content,
