@@ -88,6 +88,23 @@ exports.sendSocialPush = onDocumentCreated('pushQueue/{id}', async (event) => {
       return;
     }
 
+    // SHARED-GROUP GUARD. pushQueue rules only check that fromUid is you —
+    // nothing stopped a crafted client from cheering/nudging ANY uid in the
+    // database. Harmless among 7 friends, a spam-and-harassment vector the day
+    // the app is public. The visibility index is server-maintained and already
+    // means exactly "these two share a group", so it's the cheapest correct
+    // check (no member-list scans).
+    if (fromUid && fromUid !== toUid) {
+      const shareGroup = await db.doc(`visibility/${toUid}/canSee/${fromUid}`).get()
+        .then((s) => s.exists)
+        .catch(() => false);
+      if (!shareGroup) {
+        console.log('[sendSocialPush] dropped: no shared group', fromUid, '->', toUid);
+        await cleanup();
+        return;
+      }
+    }
+
     // Blocks are enforced BOTH directions, server-side. Client-side filtering
     // alone would let a blocked person keep cheering (the app just wouldn't
     // show it) — a harassment channel the moment the app is public.

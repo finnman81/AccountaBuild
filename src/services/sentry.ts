@@ -27,6 +27,23 @@ function dsn(): string {
 }
 
 /** Initialize Sentry if a DSN is configured and the native module is present. */
+/**
+ * Trace sampling. Errors are ALWAYS 100% (see init) — this only governs
+ * performance traces, which are the quota driver.
+ *
+ * Overridable per build via EXPO_PUBLIC_SENTRY_TRACES_RATE so the rate can be
+ * lowered at launch without a code change. Default 0.25 rather than the
+ * textbook 0.1: at this size 10% would yield roughly one trace per screen per
+ * day, which is too sparse to spot a regression — and 25% of 7 users is still
+ * a rounding error on quota. Drop to ~0.05 once the user count is in the
+ * hundreds; that is when the bill, not the signal, becomes the binding
+ * constraint.
+ */
+const TRACES_SAMPLE_RATE = (() => {
+  const raw = Number(process.env.EXPO_PUBLIC_SENTRY_TRACES_RATE);
+  return Number.isFinite(raw) && raw >= 0 && raw <= 1 ? raw : 0.25;
+})();
+
 export function initSentry(): void {
   if (started) return;
   started = true;
@@ -48,10 +65,10 @@ export function initSentry(): void {
     navigationIntegration = sentry.reactNavigationIntegration?.({ enableTimeToInitialDisplay: true }) ?? null;
     sentry.init({
       dsn: d,
-      // 100% sampling: 7 beta users generate trivial volume, and we're actively
-      // hunting the cold-start / tab-switch lag. Lower this before any real
-      // growth — it is the main driver of quota burn.
-      tracesSampleRate: 1.0,
+      // ERRORS stay at 100% forever — they're low-volume and they're the whole
+      // point. Only TRACES are sampled; they're the quota driver.
+      sampleRate: 1.0,
+      tracesSampleRate: TRACES_SAMPLE_RATE,
       enableAutoSessionTracking: true,
       environment: __DEV__ ? 'development' : 'production',
       integrations: navigationIntegration ? [navigationIntegration] : [],

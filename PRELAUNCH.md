@@ -87,10 +87,13 @@ returned 403.
 NOTE: old bundles (pre-2026-08-03) read only `config/app`, so they see app
 news but not group celebrations. Acceptable — everyone in BPM is current.
 
-### 5. Cheer-push spam guard
-`pushQueue` lets any authenticated user push a cheer to ANY uid — no shared-
-group check. Harassment vector on a public app. Fix in `sendSocialPush`:
-verify sender and recipient share a group before delivering. (~1 hour)
+### 5. ~~Cheer-push spam guard~~ ✅ DONE 2026-08-04
+`sendSocialPush` now requires sender and recipient to share a group before
+delivering anything. Uses the server-maintained visibility index, which already
+means exactly "these two share a group" — no member-list scans.
+
+Verified with a control: an outsider's cheer is dropped with no activity item,
+while a real teammate's cheer still delivers (guard isn't over-blocking).
 
 ### 6. New-user empty experience + invites
 Everything assumes you land in an active group. A stranger lands in an empty
@@ -111,14 +114,40 @@ timeout). Fine at 24 users; stops finishing around ~500-1,000. Fan out via
 Cloud Tasks or per-shard scheduled functions. Not needed for a soft launch;
 required before any real growth push.
 
-### 8. Sentry sampling
-Tracing is at 100% sample rate — priced for 7 users. Drop to ~10% at launch
-(`src/services/sentry.ts`) or the bill beats the users.
+### 8. ~~Sentry sampling~~ ✅ DONE 2026-08-04
+ERRORS stay at 100% forever (low volume, and they're the point). Only TRACES
+are sampled — they're the quota driver. Now 0.25, overridable per build via
+`EXPO_PUBLIC_SENTRY_TRACES_RATE` so the rate drops at launch with no code
+change.
 
-### 9. Firebase App Check
-Public API surface + scripted abuse insurance. Enforce on Firestore +
-Functions once enabled in console + client attestation shipped (needs a
-native build — bundle with the next one).
+0.25 rather than the textbook 0.10 deliberately: at 7 users, 10% yields roughly
+one trace per screen per day — too sparse to catch a regression — and 25% of 7
+users is a rounding error on quota. **Drop to ~0.05 once users are in the
+hundreds**; that's when cost, not signal, becomes the binding constraint.
+
+### 9. Firebase App Check — ⚠️ NOT a quick win for this stack (investigated 2026-08-04)
+Blocked on an architectural mismatch, not effort:
+
+We use the **Firebase JS SDK** (`firebase ^12.15.0`), not `@react-native-firebase`.
+The JS SDK's App Check providers are `ReCaptchaV3Provider` /
+`ReCaptchaEnterpriseProvider` (both **browser-only** — they need `window`/
+`document`) and `CustomProvider`. There is no React Native attestation path in
+the JS SDK.
+
+Real options:
+- **Add `@react-native-firebase/app` + `/app-check`** alongside the JS SDK.
+  Works, but pulls a second Firebase implementation into the app, plus a native
+  build and console config (App Attest/DeviceCheck on iOS, Play Integrity on
+  Android). Non-trivial and worth doing deliberately, not in passing.
+- **CustomProvider** backed by our own attestation endpoint — more code, weaker
+  guarantees, not worth it.
+
+**Recommendation: defer past launch.** App Check protects *quota* from scripted
+clients; it does NOT gate data access — Firestore rules do that, and ours are
+tight and probe-tested (deletion 25/25, moderation 9/9, polls 7/7, signatures
+6/6, celebrations isolation). With the shared-group guard (#5) and block
+enforcement now in place, the abuse surface is small. Revisit if quota abuse
+actually appears.
 
 ### 10. Read-cost audit (deferred, revisit at ~100 users)
 Windowed group-log listeners and per-open weekDeltas fetches are fine now.
@@ -151,8 +180,9 @@ payload — same pattern as `celebrate` (hype buttons):
 - ✅ #1 account deletion
 - ✅ #2 report + block (chat, logs, photos, support email, terms)
 - 🟡 #3 privacy policy — written, needs hosting + App Store Connect labels (Jake)
-- ⬜ #5 cheer spam guard (shared-group check; blocks already enforced)
-- ⬜ #8/#9 Sentry sampling + App Check
+- ✅ #5 cheer spam guard (shared-group check + block enforcement)
+- ✅ #8 Sentry sampling (traces 0.25, env-overridable; errors stay 100%)
+- ⚠️ #9 App Check — deferred past launch, see Tier 3 for why
 - ⬜ #6 invite links + empty states — design pass with Jake first
 
 **Phase 1 — TestFlight wave (30-50 users, 2-3 stranger groups)**
