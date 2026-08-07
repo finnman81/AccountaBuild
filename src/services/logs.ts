@@ -180,17 +180,25 @@ export async function upsertGroupLogById(
   data: { uid: string; type: LogType; date?: string; source?: string; payload: Record<string, unknown>; eventAt?: Date },
 ): Promise<string> {
   const eventAtValid = data.eventAt instanceof Date && !Number.isNaN(data.eventAt.valueOf());
+  const ref = doc(db, 'groups', groupId, 'logs', logId);
+  // writtenAt must be stamped ONLY on first arrival. It was inside the merge
+  // below, so every idempotent re-sync overwrote it — which made a week-old log
+  // that sync merely re-touched look like it took 150h to arrive, and made the
+  // measured "sync lag" meaningless (caught 2026-08-07 while investigating
+  // exactly that). One existence read per synced log is cheap at this volume
+  // and is the only way to distinguish first write from re-touch.
+  const existing = await getDoc(ref).catch(() => null);
+  const isNew = !existing?.exists();
   await setDoc(
-    doc(db, 'groups', groupId, 'logs', logId),
+    ref,
     {
       uid: data.uid,
       type: data.type,
       date: normalizeLogDate(data.date),
       ts: eventAtValid ? Timestamp.fromDate(data.eventAt as Date) : serverTimestamp(),
-      // ts is the EVENT time (stable across re-syncs); writtenAt is the wall
-      // clock of this write. The gap between them is the sync lag — the only
-      // way to verify from data that background delivery actually fires.
-      writtenAt: serverTimestamp(),
+      // ts is the EVENT time (stable across re-syncs); writtenAt is when the log
+      // FIRST landed. The gap between them is the true sync lag.
+      ...(isNew ? { writtenAt: serverTimestamp() } : {}),
       source: data.source ?? 'self_reported',
       payload: data.payload,
     },
