@@ -8,18 +8,23 @@ import { setLogFpDelta } from '../../services/logs';
 import { colors } from '../../theme/colors';
 
 /**
- * Floats feedback after EVERY manual log: "+N FP" when the projected week
- * score moved, or a neutral "Logged ✓" when the gain was under 1 FP (e.g. a
- * weigh-in with no weight goal) — a save should never feel ignored.
+ * Floats feedback after EVERY manual log: "+N FP" for what THAT log is worth,
+ * or a neutral "Logged ✓" when it's worth under 1 FP (e.g. a weigh-in with no
+ * weight goal) — a save should never feel ignored.
  *
- * The projection stream and the "log saved" event can arrive in either order
- * (Firestore latency compensation fires snapshots before the write promise
- * resolves), so we track the most recent projected increase AND stay "armed"
- * for a window after each save, with a timer fallback when no gain arrives.
+ * ATTRIBUTION, not observation. The old version watched for any increase in
+ * projected FP within 15s of a save and credited it to that log. When the 4s
+ * live-settle recompute landed in the same window carrying unrelated gains,
+ * the toast bundled them: Regmong saw "+103 FP" for a workout genuinely worth
+ * +5, the rest being his weigh-in and the week's multipliers settling
+ * (prod, 2026-08-07). Users then calibrate on a number that isn't real.
+ *
+ * Now we read the log's OWN marginal value from the projection's what-if
+ * engine — the same number "See the math" promises for your next workout —
+ * captured from a snapshot taken BEFORE the save landed.
  */
-const PAIR_WINDOW_MS = 5000; // increase that already happened counts for a save this recent
-const ARM_WINDOW_MS = 15000; // after a save, the next increase within this window floats
-const FALLBACK_MS = 3500; // no gain by then -> show the neutral confirmation
+const PRE_SAVE_GUARD_MS = 400; // a snapshot newer than this may already include the save
+const SNAPSHOT_HISTORY = 4;
 
 type Toast = { kind: 'gain'; delta: number } | { kind: 'logged' };
 
@@ -27,21 +32,12 @@ export default function FpGainOverlay() {
   const { user } = useContext(AuthContext);
   const [toast, setToast] = useState<Toast | null>(null);
 
-  const baseline = useRef<number | null>(null);
-  const lastIncrease = useRef<{ delta: number; at: number } | null>(null);
-  const armedUntil = useRef(0);
-  // The log doc awaiting an FP stamp (set on save, consumed when a gain pairs).
+  // Recent what-if snapshots, so a save can be valued against the state
+  // BEFORE it landed (the projection stream and the save event race).
+  const snaps = useRef<Array<{ whatIf: { workout: number; calorieDay: number; weighIn: number }; at: number }>>([]);
   const pendingStamp = useRef<SavedLogInfo | null>(null);
-  const fallbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const opacity = useRef(new Animated.Value(0)).current;
   const rise = useRef(new Animated.Value(0)).current;
-
-  const clearFallback = () => {
-    if (fallbackTimer.current) {
-      clearTimeout(fallbackTimer.current);
-      fallbackTimer.current = null;
-    }
-  };
 
   const show = (next: Toast) => {
     setToast(next);
@@ -58,7 +54,6 @@ export default function FpGainOverlay() {
   };
 
   const showGain = (delta: number) => {
-    clearFallback();
     // Sub-1 gains still deserve acknowledgement — round up to +1 rather than
     // staying silent (the projection genuinely moved).
     const rounded = delta >= 0.5 ? Math.max(1, Math.round(delta)) : null;
@@ -74,53 +69,42 @@ export default function FpGainOverlay() {
 
   useEffect(() => {
     if (!user?.uid) return;
+
+    // Keep a short history of what-if values so a save can be priced against
+    // the state BEFORE it landed — the projection stream and the save event
+    // race, and a snapshot that already includes the new log would value it
+    // at ~0.
     const unsubProj = subscribeMyMmrProjection(user.uid, (p) => {
-      if (!p) return;
-      // WeekEnd frame, not mmrProjected: the toast (and the fpDelta stamp it
-      // writes) must celebrate what the log adds to the week's FINAL score —
-      // the same number the "See the math" what-ifs promise. The now-frame
-      // projection drip-feeds by design and shows on-pace logs as ~0.
-      const val = p.mmrWeekEndProjected;
-      const prev = baseline.current;
-      baseline.current = val;
-      if (prev == null || val <= prev) return;
-      const delta = val - prev;
-      const now = Date.now();
-      lastIncrease.current = { delta, at: now };
-      if (now <= armedUntil.current) {
-        armedUntil.current = 0;
-        // Consume the increase so a rapid second save can't re-show it.
-        lastIncrease.current = null;
-        showGain(delta);
-      }
+      if (!p?.whatIf) return;
+      snaps.current = [...snaps.current, { whatIf: p.whatIf, at: Date.now() }].slice(-SNAPSHOT_HISTORY);
     });
+
     const unsubSaved = subscribeLogSaved((info) => {
-      const now = Date.now();
       pendingStamp.current = info ?? null;
-      const inc = lastIncrease.current;
-      if (inc && now - inc.at <= PAIR_WINDOW_MS) {
-        lastIncrease.current = null;
-        showGain(inc.delta);
+      const now = Date.now();
+      const pre =
+        [...snaps.current].reverse().find((sn) => sn.at < now - PRE_SAVE_GUARD_MS) ??
+        snaps.current[snaps.current.length - 1];
+
+      // Photos have no scoring dimension, and an unknown kind can't be priced.
+      const key =
+        info?.kind === 'workout' ? 'workout'
+        : info?.kind === 'calories' ? 'calorieDay'
+        : info?.kind === 'weight' ? 'weighIn'
+        : null;
+
+      if (!pre || !key) {
+        show({ kind: 'logged' });
+        pendingStamp.current = null;
         return;
       }
-      armedUntil.current = now + ARM_WINDOW_MS;
-      // Guarantee feedback: if no projected gain lands shortly, confirm the
-      // log anyway (weight logs without a weight goal move nothing, etc).
-      clearFallback();
-      fallbackTimer.current = setTimeout(() => {
-        fallbackTimer.current = null;
-        if (armedUntil.current > 0) {
-          armedUntil.current = 0;
-          show({ kind: 'logged' });
-        }
-      }, FALLBACK_MS);
+      showGain(pre.whatIf[key] ?? 0);
     });
+
     return () => {
       unsubProj();
       unsubSaved();
-      clearFallback();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.uid]);
 
   if (!toast) return null;

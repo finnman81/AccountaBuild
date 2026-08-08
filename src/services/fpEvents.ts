@@ -8,7 +8,12 @@
  */
 
 /** Where the just-saved log lives, so the FP toast can stamp its fpDelta back on it. */
-export type SavedLogInfo = { groupId: string; logId: string };
+/**
+ * `kind` lets the FP toast look up the log's OWN marginal value from the
+ * projection's what-if engine, instead of crediting it with whatever FP
+ * happened to move nearby (see FpGainOverlay).
+ */
+export type SavedLogInfo = { groupId: string; logId: string; kind?: 'workout' | 'calories' | 'weight' | 'photo' };
 
 type Listener = (info?: SavedLogInfo) => void;
 

@@ -248,7 +248,7 @@ export default function LogComposer({ initialType = 'weight', onClose, onSaved, 
       if (mode === 'weight') lastSavedWeightRef.current = weight;
       const last: LastValues = { weightLb: weight, calories, duration, workoutType, meal };
       void AsyncStorage.setItem(`${LAST_VALUES_KEY_PREFIX}:${user.uid}`, JSON.stringify(last)).catch(() => {});
-      notifyLogSaved(savedRef ? { groupId: activeGroupId, logId: savedRef.id } : undefined);
+      notifyLogSaved(savedRef ? { groupId: activeGroupId, logId: savedRef.id, kind: mode as any } : undefined);
       // First-ever log: fire a one-time celebration. Guard on a per-user flag so
       // it never replays. Set it BEFORE notifying so a double-tap can't double-fire.
       void (async () => {
