@@ -46,15 +46,19 @@ Verified with 9 prod probes incl. a control (unblock → cheer delivers again).
 Photos covered too (long-press in ViewPhotos; blocked authors filtered out).
 Support email + zero-tolerance terms live in Settings → Support.
 
-### 3. Privacy policy + App Privacy labels — 🟡 written, needs HOSTING
-Policy text is written: [PRIVACY.md](PRIVACY.md). An in-app summary also ships
-at Settings → Terms & Privacy (so review never blocks on a hosted page, and it
-works offline).
+### 3. Privacy policy + App Privacy labels — 🟡 HOSTED, labels remain
+**Privacy policy is LIVE: https://app.munitor.ai/accountabuild/privacy**
+(200, no redirects, auth-guard exempted — Apple's reviewer sees the policy,
+not a login screen). In-app summary also ships at Settings → Terms & Privacy.
 
-**REMAINING — needs Jake, ~15 min, no code:**
-1. Host PRIVACY.md at a public URL. Natural home: `app.munitor.ai/accountabuild/privacy`
-   (munitor-dashboard repo — deliberately not touched from here).
-2. Paste that URL into App Store Connect → App Privacy → Privacy Policy URL.
+> DEPLOY NOTE (munitor-dashboard): that project has NO GitHub integration —
+> pushing to master does NOT deploy. Production ships via `npx vercel --prod`.
+
+**REMAINING — App Store Connect, ~10 min:**
+1. Paste the privacy URL into App Store Connect → App Privacy → Privacy Policy URL.
+2. **Support URL** (separate ASC field): needs `app.munitor.ai/accountabuild/support`
+   — a simple page with support@munitor.ai + a link to the privacy policy.
+   (Being added in the munitor-dashboard session.)
 3. Fill the App Privacy "nutrition labels". Correct answers for this app:
 
 | Category | Collected | Linked to user | Tracking | Purpose |
