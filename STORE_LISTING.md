@@ -101,9 +101,12 @@ etc.) EXCEPT:
 > AccountaBuild is a group fitness accountability app. Accounts are required
 > (all content is group-scoped).
 >
-> DEMO ACCOUNT: [credentials here — see below]
-> The demo account is a member of an active demo group with seeded workouts,
-> chat, a leaderboard, and rank history, so all social features are visible.
+> DEMO ACCOUNT:
+>   email:    demo.reviewer@munitor.ai
+>   password: Crew-Demo-2026!
+> The demo account is a member of an active group ("Morning Crew", 4 members)
+> with three weeks of workouts, weigh-ins, chat, a live leaderboard, and rank
+> history, so all social features are visible immediately after sign-in.
 >
 > Health data: HealthKit is read-only and optional (Settings → Health). The
 > app functions fully without granting it.
@@ -111,10 +114,12 @@ etc.) EXCEPT:
 > Moderation: long-press any message, log, or photo to report or block;
 > Settings → Blocked users to manage.
 
-**TODO before submission: demo account.** Reviewers reject what they can't
-see, and an empty account shows nothing. Needs: a `demo@` account + a demo
-group with 2-3 seeded members, logs, chat, and FP history. (Buildable
-server-side with the admin key — ask Claude.)
+**Demo account: DONE (2026-08-10).** Built by `scripts/_seed-demo-group.js`
+(re-runnable; deterministic seed). Group `demo-review-crew` is fully isolated:
+demo members belong to no other group and carry no push tokens, so nothing it
+does can ever notify a real user. Ranks/FP/badges were produced by the real
+scorer over 3 weeks of seeded logs — re-run the script any time the data needs
+refreshing before a future review.
 
 ## Screenshots — shot list (6.9" required; 6.7" reuses)
 
