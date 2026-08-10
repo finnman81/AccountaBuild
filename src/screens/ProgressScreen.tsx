@@ -618,6 +618,20 @@ export default function ProgressScreen({ navigation }: Props) {
             </AppText>
             <AppText variant="rowSubtitle" color="secondary">{chart.subtitle}</AppText>
 
+            {/* Legend — only when two lines are actually drawn. */}
+            {chart.secondary ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.base, marginTop: spacing.sm }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <View style={{ width: 16, height: 3, borderRadius: 2, backgroundColor: colors.primary }} />
+                  <AppText variant="label" color="secondary">You</AppText>
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <View style={{ width: 16, height: 2, borderRadius: 2, backgroundColor: `${colors.textMuted}88` }} />
+                  <AppText variant="label" color="muted">Crew avg</AppText>
+                </View>
+              </View>
+            ) : null}
+
             <View style={{ height: spacing.md }} />
             {chart.realCount < 2 ? (
               <View style={{ height: 160, alignItems: 'center', justifyContent: 'center' }}>
