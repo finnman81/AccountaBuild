@@ -46,7 +46,16 @@ Verified with 9 prod probes incl. a control (unblock → cheer delivers again).
 Photos covered too (long-press in ViewPhotos; blocked authors filtered out).
 Support email + zero-tolerance terms live in Settings → Support.
 
-### 3. Privacy policy + App Privacy labels — 🟡 HOSTED, labels remain
+### 3. ~~Privacy policy + App Privacy labels~~ ✅ DONE 2026-08-10
+Published in App Store Connect:
+- Privacy Policy URL: https://app.munitor.ai/accountabuild/privacy (live, 200, no auth wall)
+- Support URL: https://app.munitor.ai/accountabuild/support (version page field)
+- App Privacy labels published: 9 data types. Linked to identity: Email, Health,
+  Fitness, Photos, Other User Content, User ID, Device ID (all App Functionality
+  only). NOT linked: Crash + Performance Data. **Tracking = NO everywhere — do
+  not add an analytics/ads SDK without revisiting, or ATT kicks in.**
+
+Original notes for reference:
 **Privacy policy is LIVE: https://app.munitor.ai/accountabuild/privacy**
 (200, no redirects, auth-guard exempted — Apple's reviewer sees the policy,
 not a login screen). In-app summary also ships at Settings → Terms & Privacy.
@@ -183,7 +192,10 @@ payload — same pattern as `celebrate` (hype buttons):
 - ✅ #4 group-scoped celebrations
 - ✅ #1 account deletion
 - ✅ #2 report + block (chat, logs, photos, support email, terms)
-- 🟡 #3 privacy policy — written, needs hosting + App Store Connect labels (Jake)
+- ✅ #3 privacy policy hosted + ASC labels published (2026-08-10)
+- **→ TIER 1 IS FULLY CLOSED — nothing blocks an App Store submission on
+  Apple's requirements side. Remaining: store metadata (screenshots,
+  description) + the invite/empty-states design pass.**
 - ✅ #5 cheer spam guard (shared-group check + block enforcement)
 - ✅ #8 Sentry sampling (traces 0.25, env-overridable; errors stay 100%)
 - ⚠️ #9 App Check — deferred past launch, see Tier 3 for why
@@ -200,6 +212,8 @@ payload — same pattern as `celebrate` (hype buttons):
 - Run the first in-app survey ("what's missing?") on this cohort
 
 **Phase 2 — App Store submission**
+- Strip unused `ACCESS_FINE_LOCATION` from android permissions in app.json
+  before the Play submission (nothing uses location; Play flags it)
 - Tier 1 items done + verified; privacy labels filled; screenshots/metadata
 - Android: next native build needs `production-android` profile (local
   keystore — see README) + the Health Connect background-read permission
