@@ -10,6 +10,9 @@ import Screen from '../components/layout/Screen';
 import EmptyState from '../components/state/EmptyState';
 import TrendLineChart from '../components/charts/TrendLineChart';
 import ComplianceBars from '../components/progress/ComplianceBars';
+import CrewWeekCard, { type CrewWeekStats } from '../components/progress/CrewWeekCard';
+import ConsistencyMatrix, { type MatrixRow } from '../components/progress/ConsistencyMatrix';
+import { friendlyNameFromDisplayName } from '../utils/formatters';
 import { subscribeMyCanSeeUids } from '../services/visibility';
 import { subscribePublicUsers } from '../services/publicUsers';
 import { getHydrated, setHydrated } from '../services/hydrationCache';
@@ -214,117 +217,113 @@ export default function ProgressScreen({ navigation }: Props) {
     return out;
   }, []);
 
-  // Calculate new metrics: Total Group Weight Change, Total Training Minutes, Logging Consistency %
-  const weeklyMetrics = useMemo(() => {
-    if (!activeGroupId) {
-      return {
-        totalWeightChange: null as number | null,
-        totalTrainingMinutes: 0,
-        loggingConsistency: 0,
-        totalWeightChangeDelta: null as number | null,
-        totalTrainingMinutesDelta: null as number | null,
-        loggingConsistencyDelta: null as number | null,
-      };
-    }
+  /**
+   * Crew totals + records. TOTALS, not averages: totals scale with effort and
+   * feel collective, and averaging calories across cutters and bulkers (the
+   * old table) described nobody.
+   */
+  const crewWeek = useMemo<CrewWeekStats>(() => {
     const weekStart = weekStartMondayLocal();
-    const memberCount = memberUids.length || groupMeta?.memberCount || 0;
-    
-    // Calculate total training minutes this week
-    let totalMins = 0;
+    const prevStart = new Date(weekStart);
+    prevStart.setDate(prevStart.getDate() - 7);
+
+    let workouts = 0, minutes = 0, prevWorkouts = 0, prevMinutes = 0;
+    let longest: { name: string; minutes: number } | null = null;
+    const minsByDow: Record<number, number> = {};
+    const daysByUid: Record<string, Set<string>> = {};
+    const weightByUid: Record<string, { first: number; last: number }> = {};
+
+    const nameOf = (uid: string) => friendlyNameFromDisplayName(publicUsers[uid]?.displayName ?? null, uid);
+
     for (const l of groupLogs) {
       const dt = parseYYYYMMDDLocal(l.date);
-      if (Number.isNaN(dt.valueOf()) || dt < weekStart) continue;
+      if (Number.isNaN(dt.valueOf()) || dt < prevStart) continue;
+      const thisWeek = dt >= weekStart;
       if (l.type === 'workout') {
-        const mins = Number((l.payload as any)?.durationMinutes);
-        if (Number.isFinite(mins) && mins > 0) totalMins += mins;
-      }
-    }
-    
-    // Calculate total weight change (first weight vs last weight this week)
-    const weightByUid: Record<string, { first: number | null; last: number | null }> = {};
-    for (const l of groupLogs) {
-      if (l.type !== 'weight') continue;
-      const w = Number((l.payload as any)?.weight);
-      if (!Number.isFinite(w) || w <= 0) continue;
-      const dt = parseYYYYMMDDLocal(l.date);
-      if (Number.isNaN(dt.valueOf()) || dt < weekStart) continue;
-      if (!weightByUid[l.uid]) weightByUid[l.uid] = { first: null, last: null };
-      if (weightByUid[l.uid].first == null) weightByUid[l.uid].first = w;
-      weightByUid[l.uid].last = w;
-    }
-    let totalWeightChange = 0;
-    for (const uid of Object.keys(weightByUid)) {
-      const entry = weightByUid[uid];
-      if (entry.first != null && entry.last != null) {
-        totalWeightChange += entry.last - entry.first;
-      }
-    }
-    
-    // Calculate logging consistency (members who logged at least once this week / total members)
-    const membersWhoLogged = new Set<string>();
-    for (const l of groupLogs) {
-      const dt = parseYYYYMMDDLocal(l.date);
-      if (Number.isNaN(dt.valueOf()) || dt < weekStart) continue;
-      if (['workout', 'calories', 'weight'].includes(l.type)) {
-        membersWhoLogged.add(l.uid);
-      }
-    }
-    const consistency = memberCount > 0 ? Math.round((membersWhoLogged.size / memberCount) * 100) : 0;
-    
-    // Calculate deltas vs previous week (simplified - compare to week before)
-    const prevWeekStart = new Date(weekStart);
-    prevWeekStart.setDate(prevWeekStart.getDate() - 7);
-    let prevWeekMins = 0;
-    const prevWeekWeightByUid: Record<string, { first: number | null; last: number | null }> = {};
-    const prevWeekLogged = new Set<string>();
-    
-    for (const l of groupLogs) {
-      const dt = parseYYYYMMDDLocal(l.date);
-      if (Number.isNaN(dt.valueOf()) || dt < prevWeekStart || dt >= weekStart) continue;
-      if (l.type === 'workout') {
-        const mins = Number((l.payload as any)?.durationMinutes);
-        if (Number.isFinite(mins) && mins > 0) prevWeekMins += mins;
-      }
-      if (l.type === 'weight') {
-        const w = Number((l.payload as any)?.weight);
-        if (Number.isFinite(w) && w > 0) {
-          if (!prevWeekWeightByUid[l.uid]) prevWeekWeightByUid[l.uid] = { first: null, last: null };
-          if (prevWeekWeightByUid[l.uid].first == null) prevWeekWeightByUid[l.uid].first = w;
-          prevWeekWeightByUid[l.uid].last = w;
+        const mins = Number((l.payload as any)?.durationMinutes) || 0;
+        if (thisWeek) {
+          workouts += 1;
+          minutes += mins;
+          minsByDow[dt.getDay()] = (minsByDow[dt.getDay()] ?? 0) + mins;
+          if (mins > 0 && (!longest || mins > longest.minutes)) longest = { name: nameOf(l.uid), minutes: Math.round(mins) };
+        } else {
+          prevWorkouts += 1;
+          prevMinutes += mins;
         }
       }
-      if (['workout', 'calories', 'weight'].includes(l.type)) {
-        prevWeekLogged.add(l.uid);
+      if (thisWeek) (daysByUid[l.uid] = daysByUid[l.uid] ?? new Set()).add(l.date);
+      if (thisWeek && l.type === 'weight') {
+        const w = Number((l.payload as any)?.weight);
+        if (Number.isFinite(w) && w > 0) {
+          if (!weightByUid[l.uid]) weightByUid[l.uid] = { first: w, last: w };
+          else weightByUid[l.uid].last = w;
+        }
       }
     }
-    
-    let prevWeekWeightChange = 0;
-    for (const uid of Object.keys(prevWeekWeightByUid)) {
-      const entry = prevWeekWeightByUid[uid];
-      if (entry.first != null && entry.last != null) {
-        prevWeekWeightChange += entry.last - entry.first;
-      }
-    }
-    const prevWeekConsistency = memberCount > 0 ? Math.round((prevWeekLogged.size / memberCount) * 100) : 0;
-    
-    return {
-      totalWeightChange: totalWeightChange !== 0 ? totalWeightChange : null,
-      totalTrainingMinutes: totalMins,
-      loggingConsistency: consistency,
-      totalWeightChangeDelta: totalWeightChange !== 0 && prevWeekWeightChange !== 0 ? totalWeightChange - prevWeekWeightChange : null,
-      totalTrainingMinutesDelta: prevWeekMins > 0 ? totalMins - prevWeekMins : null,
-      loggingConsistencyDelta: prevWeekConsistency > 0 ? consistency - prevWeekConsistency : null,
-    };
-  }, [activeGroupId, groupLogs, memberUids.length, groupMeta?.memberCount]);
 
+    let lbDropped = 0;
+    for (const e of Object.values(weightByUid)) lbDropped += Math.max(0, e.first - e.last);
+
+    let biggestDay: CrewWeekStats['biggestDay'] = null;
+    for (const [dow, m] of Object.entries(minsByDow)) {
+      if (!biggestDay || m > biggestDay.minutes) {
+        biggestDay = { label: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][Number(dow)] ?? '', minutes: m };
+      }
+    }
+    let mostConsistent: CrewWeekStats['mostConsistent'] = null;
+    for (const [uid, days] of Object.entries(daysByUid)) {
+      if (!mostConsistent || days.size > mostConsistent.days) mostConsistent = { name: nameOf(uid), days: days.size };
+    }
+
+    return {
+      workouts, minutes, lbDropped, longestSession: longest, biggestDay, mostConsistent,
+      deltas: {
+        workouts: prevWorkouts > 0 ? workouts - prevWorkouts : null,
+        minutes: prevMinutes > 0 ? minutes - prevMinutes : null,
+      },
+    };
+  }, [groupLogs, publicUsers]);
+
+  /** 7xN dot grid: who logged which day (visible members only). */
+  const matrix = useMemo(() => {
+    const visible = memberUids.filter((uid) => uid === user?.uid || canSee.has(uid));
+    const byUid: Record<string, Set<string>> = {};
+    const weekStart = weekStartMondayLocal();
+    for (const l of groupLogs) {
+      const dt = parseYYYYMMDDLocal(l.date);
+      if (Number.isNaN(dt.valueOf()) || dt < weekStart) continue;
+      if (!['workout', 'calories', 'weight', 'photo'].includes(l.type)) continue;
+      (byUid[l.uid] = byUid[l.uid] ?? new Set()).add(l.date);
+    }
+    const rows: MatrixRow[] = visible.map((uid) => ({
+      uid,
+      name: friendlyNameFromDisplayName(publicUsers[uid]?.displayName ?? null, uid),
+      days: weekDates.map((d) => byUid[uid]?.has(d) ?? false),
+    }));
+    rows.sort((a, b) => b.days.filter(Boolean).length - a.days.filter(Boolean).length || a.name.localeCompare(b.name));
+    const todayStr = formatYYYYMMDD(new Date());
+    return { rows, todayIndex: Math.max(0, weekDates.indexOf(todayStr)) };
+  }, [groupLogs, memberUids, canSee, publicUsers, user?.uid, weekDates]);
+
+  /**
+   * Per-day series for the trend, aligned to weekDates.
+   *  - crew minutes: average per member (the old metric, kept as the muted line)
+   *  - MY minutes:   the primary line — comparison is the point
+   *  - weight:       % lost since first weigh-in of the week, mine vs crew avg
+   *  - calories:     REDEFINED. Averaged kcal across cutters and bulkers was
+   *    meaningless; now it's "% of that day's calorie-loggers within their OWN
+   *    budget" (<=120% of dailyCalorieGoal, mirroring the scoring band).
+   */
   const aggregates = useMemo(() => {
-    if (!activeGroupId) return { series: [] as number[], history: [] as any[], yLabel: '', title: '' };
     const weekStart = weekStartMondayLocal();
     const memberCount = memberUids.length || groupMeta?.memberCount || 0;
     const divisor = Math.max(1, memberCount);
+    const myUid = user?.uid ?? '';
 
-    const workoutMinsByDate: Record<string, number> = {};
-    const caloriesByDate: Record<string, number> = {};
+    const crewMinsByDate: Record<string, number> = {};
+    const myMinsByDate: Record<string, number> = {};
+    const calsByDateByUid: Record<string, Record<string, number>> = {};
+    const weightByDateByUid: Record<string, Record<string, { w: number; tsMs: number }>> = {};
 
     for (const l of groupLogs) {
       const dt = parseYYYYMMDDLocal(l.date);
@@ -332,112 +331,137 @@ export default function ProgressScreen({ navigation }: Props) {
       if (l.type === 'workout') {
         const mins = Number((l.payload as any)?.durationMinutes);
         if (!Number.isFinite(mins) || mins <= 0) continue;
-        workoutMinsByDate[l.date] = (workoutMinsByDate[l.date] ?? 0) + mins;
+        crewMinsByDate[l.date] = (crewMinsByDate[l.date] ?? 0) + mins;
+        if (l.uid === myUid) myMinsByDate[l.date] = (myMinsByDate[l.date] ?? 0) + mins;
       }
       if (l.type === 'calories') {
         const c = Number((l.payload as any)?.calories);
         if (!Number.isFinite(c) || c <= 0) continue;
-        caloriesByDate[l.date] = (caloriesByDate[l.date] ?? 0) + c;
+        (calsByDateByUid[l.date] = calsByDateByUid[l.date] ?? {})[l.uid] =
+          (calsByDateByUid[l.date]?.[l.uid] ?? 0) + c;
+      }
+      if (l.type === 'weight') {
+        const w = Number((l.payload as any)?.weight);
+        if (!Number.isFinite(w) || w <= 0) continue;
+        const ms = toMillis(l.ts ?? null) ?? 0;
+        weightByDateByUid[l.date] = weightByDateByUid[l.date] ?? {};
+        const prev = weightByDateByUid[l.date][l.uid];
+        if (!prev || ms >= prev.tsMs) weightByDateByUid[l.date][l.uid] = { w, tsMs: ms };
       }
     }
 
-    const weightByDateByUid: Record<string, Record<string, { w: number; tsMs: number }>> = {};
-    for (const l of groupLogs) {
-      if (l.type !== 'weight') continue;
-      const w = Number((l.payload as any)?.weight);
-      if (!Number.isFinite(w) || w <= 0) continue;
-      const dt = parseYYYYMMDDLocal(l.date);
-      if (Number.isNaN(dt.valueOf()) || dt < weekStart) continue;
-      const ms = toMillis(l.ts ?? null) ?? 0;
-      weightByDateByUid[l.date] = weightByDateByUid[l.date] ?? {};
-      const prev = weightByDateByUid[l.date][l.uid];
-      if (!prev || ms >= prev.tsMs) weightByDateByUid[l.date][l.uid] = { w, tsMs: ms };
-    }
+    // Weight: % lost vs each member's FIRST weigh-in of the week.
     const baselineByUid: Record<string, number> = {};
     for (const d of Object.keys(weightByDateByUid).sort()) {
       for (const [uid, entry] of Object.entries(weightByDateByUid[d])) {
         if (baselineByUid[uid] == null) baselineByUid[uid] = entry.w;
       }
     }
-
-    const avgPercentLossByDate: Record<string, number | null> = {};
+    const crewPct: Array<number | null> = [];
+    const myPct: Array<number | null> = [];
     for (const d of weekDates) {
       const day = weightByDateByUid[d] ?? {};
       const vals: number[] = [];
+      let mine: number | null = null;
       for (const [uid, entry] of Object.entries(day)) {
         const base = baselineByUid[uid];
         if (!Number.isFinite(base) || base <= 0) continue;
-        const pct = ((base - entry.w) / base) * 100;
-        if (Number.isFinite(pct)) vals.push(pct);
+        const pct = Math.round(((base - entry.w) / base) * 10000) / 100;
+        vals.push(pct);
+        if (uid === myUid) mine = pct;
       }
-      avgPercentLossByDate[d] = vals.length ? Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 100) / 100 : null;
+      crewPct.push(vals.length ? Math.round((vals.reduce((x, y) => x + y, 0) / vals.length) * 100) / 100 : null);
+      myPct.push(mine);
     }
 
-    const history = weekDates.map((d) => {
-      const avgMins = Math.round(((workoutMinsByDate[d] ?? 0) / divisor) * 10) / 10;
-      const avgCals = Math.round(((caloriesByDate[d] ?? 0) / divisor) * 10) / 10;
-      const avgPct = avgPercentLossByDate[d];
-      return { date: d, avgPct, avgMins, avgCals };
-    });
-
-    if (metric === 'workout') {
-      return { title: 'Workout (Avg minutes)', yLabel: 'Minutes', series: history.map((h) => h.avgMins), history };
+    // Calories: % of that day's loggers within their own budget.
+    const onBudgetPct: Array<number | null> = [];
+    let myOnBudgetDays = 0;
+    let myLoggedDays = 0;
+    const myBudget = Number(publicUsers[myUid]?.dailyCalorieGoal) || null;
+    for (const d of weekDates) {
+      const day = calsByDateByUid[d] ?? {};
+      let ok = 0;
+      let counted = 0;
+      for (const [uid, total] of Object.entries(day)) {
+        const budget = Number(publicUsers[uid]?.dailyCalorieGoal) || null;
+        if (!budget) continue; // no budget -> can't judge, don't punish
+        counted += 1;
+        if (total <= budget * 1.2) ok += 1; // mirrors the scoring band's ceiling
+      }
+      onBudgetPct.push(counted ? Math.round((ok / counted) * 100) : null);
+      if (day[myUid] != null && myBudget) {
+        myLoggedDays += 1;
+        if (day[myUid] <= myBudget * 1.2) myOnBudgetDays += 1;
+      }
     }
-    if (metric === 'calories') {
-      // NOTE: the data here is average calories LOGGED per member per day —
-      // the old "Calories under goal" title misdescribed it.
-      return { title: 'Calories logged (avg)', yLabel: 'Calories', series: history.map((h) => h.avgCals), history };
-    }
-    // weight
-    return {
-      title: 'Weight trend (Avg Percent Loss)',
-      yLabel: 'Percent',
-      series: history.map((h) => (h.avgPct == null ? 0 : h.avgPct)),
-      history,
-    };
-  }, [activeGroupId, groupLogs, groupMeta?.memberCount, memberUids.length, metric, weekDates]);
 
-  // Build a clean chart model per metric so all three trends are consistent:
-  // - ONLY ELAPSED days are plotted: the line ends at today instead of diving
-  //   to a fake zero-cliff across the not-yet-happened rest of the week.
-  // - weight: missing days are carried forward (0% would be a false plunge),
-  //   axis is tight around the real values.
-  // - workout/calories: a missing PAST day genuinely IS zero, so the axis is
-  //   anchored at 0 and topped by the week's max.
+    const crewMins = weekDates.map((d) => Math.round(((crewMinsByDate[d] ?? 0) / divisor) * 10) / 10);
+    const myMins = weekDates.map((d) => myMinsByDate[d] ?? 0);
+    return { crewMins, myMins, crewPct, myPct, onBudgetPct, myOnBudgetDays, myLoggedDays };
+  }, [groupLogs, groupMeta?.memberCount, memberUids.length, publicUsers, user?.uid, weekDates]);
+
+  /**
+   * Chart model per metric. Elapsed days only (the line ends at today, no fake
+   * zero-cliff). Primary = YOU where a personal series exists; crew rides as
+   * the muted secondary — comparison is what makes the number interesting.
+   */
   const chart = useMemo(() => {
     const todayStr = formatYYYYMMDD(new Date());
-    const elapsed = aggregates.history.filter((h: any) => h.date <= todayStr);
-    const raw = elapsed.map((h: any) => {
-      if (metric === 'weight') return { v: h.avgPct as number | null, has: h.avgPct != null };
-      if (metric === 'workout') return { v: h.avgMins as number, has: h.avgMins > 0 };
-      return { v: h.avgCals as number, has: h.avgCals > 0 };
-    });
-    const realCount = raw.filter((r) => r.has).length;
+    const n = weekDates.filter((d) => d <= todayStr).length;
+    const carry = (arr: Array<number | null>) => {
+      let last = arr.find((v) => v != null) ?? 0;
+      return arr.slice(0, n).map((v) => {
+        if (v != null) last = v;
+        return last as number;
+      });
+    };
 
     let series: number[];
-    if (metric === 'weight') {
-      const firstReal = raw.find((r) => r.has)?.v ?? 0;
-      let last = firstReal as number;
-      series = raw.map((r) => {
-        if (r.has) last = r.v as number;
-        return last;
-      });
+    let secondary: number[] | undefined;
+    let realCount: number;
+    let title: string;
+    let subtitle: string;
+
+    if (metric === 'workout') {
+      const mine = aggregates.myMins.slice(0, n);
+      const crew = aggregates.crewMins.slice(0, n);
+      const iLogged = mine.some((v) => v > 0);
+      series = iLogged ? mine : crew;
+      secondary = iLogged ? crew : undefined;
+      realCount = series.filter((v) => v > 0).length;
+      title = iLogged ? 'Minutes — you vs crew avg' : 'Minutes — crew avg';
+      subtitle = iLogged ? 'Blue is you; grey is the crew average' : 'Log a workout to see your own line';
+    } else if (metric === 'weight') {
+      const mineHas = aggregates.myPct.slice(0, n).some((v) => v != null);
+      series = carry(mineHas ? aggregates.myPct : aggregates.crewPct);
+      secondary = mineHas ? carry(aggregates.crewPct) : undefined;
+      realCount = (mineHas ? aggregates.myPct : aggregates.crewPct).slice(0, n).filter((v) => v != null).length;
+      title = mineHas ? '% lost this week — you vs crew' : '% lost this week — crew avg';
+      subtitle = 'Change vs first weigh-in of the week';
     } else {
-      series = raw.map((r) => (r.has ? (r.v as number) : 0));
+      series = aggregates.onBudgetPct.slice(0, n).map((v) => v ?? 0);
+      secondary = undefined;
+      realCount = aggregates.onBudgetPct.slice(0, n).filter((v) => v != null).length;
+      title = 'Crew on budget';
+      subtitle = "% of the day's calorie-loggers within their own budget";
     }
 
     let yMin: number;
     let yMax: number;
     if (metric === 'weight') {
-      yMin = Math.min(...series);
-      yMax = Math.max(...series);
+      const all = [...series, ...(secondary ?? [])];
+      yMin = Math.min(...all);
+      yMax = Math.max(...all);
       if (yMin === yMax) { yMin -= 1; yMax += 1; } else { const pad = (yMax - yMin) * 0.15; yMin -= pad; yMax += pad; }
+    } else if (metric === 'calories') {
+      yMin = 0; yMax = 100;
     } else {
       yMin = 0;
-      yMax = Math.max(1, ...series) * 1.1;
+      yMax = Math.max(1, ...series, ...(secondary ?? [])) * 1.1;
     }
-    return { series, yMin, yMax, realCount, dates: elapsed.map((h: any) => h.date as string) };
-  }, [aggregates.history, metric]);
+    return { series, secondary, yMin, yMax, realCount, title, subtitle, dates: weekDates.slice(0, n) };
+  }, [aggregates, metric, weekDates]);
 
   const yTicks = useMemo(() => {
     if (chart.realCount === 0) return { top: '—', mid: '—', bot: '—' };
@@ -447,10 +471,11 @@ export default function ProgressScreen({ navigation }: Props) {
   }, [chart, metric]);
 
   const formatPointLabel = useMemo(() => {
-    // Zero-days get no label (a row of "0"s was pure clutter).
+    // Zero-days get no label (a row of "0"s was pure clutter). Labels apply to
+    // the PRIMARY line only — the muted crew line stays unlabeled by design.
     if (metric === 'weight') return (v: number) => `${Math.round(v * 100) / 100}%`;
     if (metric === 'workout') return (v: number) => (v > 0 ? `${Math.round(v)}m` : '');
-    return (v: number) => (v > 0 ? `${Math.round(v)}` : '');
+    return (v: number) => (v > 0 ? `${Math.round(v)}%` : '');
   }, [metric]);
 
   if (!user) {
@@ -538,100 +563,7 @@ export default function ProgressScreen({ navigation }: Props) {
 
       <View style={{ height: spacing.base }} />
 
-      {/* Weekly Metrics Summary */}
-      <Card>
-        <AppText variant="rowTitle" color="primary" style={{ marginBottom: spacing.md }}>This Week</AppText>
-        <View
-          style={{
-            flexDirection: 'row',
-            gap: spacing.md,
-            flexWrap: 'wrap',
-          }}
-        >
-          {/* Total Group Weight Change */}
-          <View style={{ flex: 1, minWidth: 120 }}>
-            <AppText variant="label" color="secondary" style={{ marginBottom: spacing.xs }}>
-              Total Weight Change
-            </AppText>
-            <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs }}>
-              <AppText variant="numberMd" color="primary">
-                {weeklyMetrics.totalWeightChange != null
-                  ? formatDeltaForUnits(weeklyMetrics.totalWeightChange, units)
-                  : '—'}
-              </AppText>
-              {weeklyMetrics.totalWeightChangeDelta != null && (
-                <AppText
-                  variant="label"
-                  style={{
-                    color:
-                      weeklyMetrics.totalWeightChangeDelta > 0
-                        ? colors.success
-                        : weeklyMetrics.totalWeightChangeDelta < 0
-                          ? colors.danger
-                          : colors.textMuted,
-                  }}
-                >
-                  {weeklyMetrics.totalWeightChangeDelta > 0 ? '↑' : weeklyMetrics.totalWeightChangeDelta < 0 ? '↓' : '→'}
-                </AppText>
-              )}
-            </View>
-          </View>
-
-          {/* Total Training Minutes */}
-          <View style={{ flex: 1, minWidth: 120 }}>
-            <AppText variant="label" color="secondary" style={{ marginBottom: spacing.xs }}>
-              Total Training Minutes
-            </AppText>
-            <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs }}>
-              <AppText variant="numberMd" color="primary">
-                {formatMinutesHM(weeklyMetrics.totalTrainingMinutes)}
-              </AppText>
-              {weeklyMetrics.totalTrainingMinutesDelta != null && (
-                <AppText
-                  variant="label"
-                  style={{
-                    color:
-                      weeklyMetrics.totalTrainingMinutesDelta > 0
-                        ? colors.success
-                        : weeklyMetrics.totalTrainingMinutesDelta < 0
-                          ? colors.danger
-                          : colors.textMuted,
-                  }}
-                >
-                  {weeklyMetrics.totalTrainingMinutesDelta > 0 ? '↑' : weeklyMetrics.totalTrainingMinutesDelta < 0 ? '↓' : '→'}
-                </AppText>
-              )}
-            </View>
-          </View>
-
-          {/* Logging Consistency */}
-          <View style={{ flex: 1, minWidth: 120 }}>
-            <AppText variant="label" color="secondary" style={{ marginBottom: spacing.xs }}>
-              Logging Consistency
-            </AppText>
-            <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs }}>
-              <AppText variant="numberMd" color="primary">
-                {weeklyMetrics.loggingConsistency}%
-              </AppText>
-              {weeklyMetrics.loggingConsistencyDelta != null && (
-                <AppText
-                  variant="label"
-                  style={{
-                    color:
-                      weeklyMetrics.loggingConsistencyDelta > 0
-                        ? colors.success
-                        : weeklyMetrics.loggingConsistencyDelta < 0
-                          ? colors.danger
-                          : colors.textMuted,
-                  }}
-                >
-                  {weeklyMetrics.loggingConsistencyDelta > 0 ? '↑' : weeklyMetrics.loggingConsistencyDelta < 0 ? '↓' : '→'}
-                </AppText>
-              )}
-            </View>
-          </View>
-        </View>
-      </Card>
+      <CrewWeekCard stats={crewWeek} />
 
       <View style={{ height: spacing.base }} />
 
@@ -652,40 +584,6 @@ export default function ProgressScreen({ navigation }: Props) {
             No goals set yet — members can set weekly targets in Goals.
           </AppText>
         )}
-      </Card>
-
-      <View style={{ height: spacing.base }} />
-
-      {/* Weekly Insight Summary */}
-      <Card>
-        <AppText variant="rowTitle" color="primary" style={{ marginBottom: spacing.md }}>Weekly Insight</AppText>
-        <View
-          style={{
-            borderRadius: radius.card,
-            padding: spacing.md,
-            backgroundColor: colors.surface2,
-            borderWidth: 1,
-            borderColor: 'rgba(255, 255, 255, 0.04)',
-          }}
-        >
-          <AppText variant="body" color="primary" style={{ lineHeight: 20 }}>
-            {(() => {
-                const insights: string[] = [];
-                if (weeklyMetrics.totalWeightChange != null && weeklyMetrics.totalWeightChange < 0) {
-                  insights.push(`Group lost ${formatDeltaForUnits(Math.abs(weeklyMetrics.totalWeightChange), units)} total`);
-                }
-                if (weeklyMetrics.totalTrainingMinutes > 0) {
-                  insights.push(`${formatMinutesHM(weeklyMetrics.totalTrainingMinutes)} total training time`);
-                }
-                if (weeklyMetrics.loggingConsistency >= 80) {
-                  insights.push(`${weeklyMetrics.loggingConsistency}% logging consistency`);
-                } else if (weeklyMetrics.loggingConsistency < 50) {
-                  insights.push(`Only ${weeklyMetrics.loggingConsistency}% logged this week`);
-                }
-                return insights.length > 0 ? insights.join(' • ') : 'Start logging to see insights.';
-              })()}
-          </AppText>
-        </View>
       </Card>
 
       <View style={{ height: spacing.base }} />
@@ -716,13 +614,9 @@ export default function ProgressScreen({ navigation }: Props) {
             }}
           >
             <AppText variant="rowTitle" color="primary" style={{ marginBottom: spacing.xs }}>
-              {aggregates.title}
+              {chart.title}
             </AppText>
-            <AppText variant="rowSubtitle" color="secondary">
-              {metric === 'weight'
-                ? 'This week vs first weigh-in this week'
-                : `This week • averaged across ${Math.max(1, memberUids.length || groupMeta?.memberCount || 0)} members`}
-            </AppText>
+            <AppText variant="rowSubtitle" color="secondary">{chart.subtitle}</AppText>
 
             <View style={{ height: spacing.md }} />
             {chart.realCount < 2 ? (
@@ -748,6 +642,7 @@ export default function ProgressScreen({ navigation }: Props) {
                       <View style={{ flex: 1, overflow: 'hidden' }}>
                         <TrendLineChart
                           values={chart.series}
+                          secondaryValues={chart.secondary}
                           height={160}
                           width={chartW}
                           yMin={chart.yMin}
@@ -776,49 +671,16 @@ export default function ProgressScreen({ navigation }: Props) {
               </View>
             )}
           </View>
+        {metric === 'calories' && aggregates.myLoggedDays > 0 ? (
+          <AppText variant="rowSubtitle" color="secondary" style={{ marginTop: spacing.sm, textAlign: 'center' }}>
+            You: {aggregates.myOnBudgetDays}/{aggregates.myLoggedDays} logged days on budget
+          </AppText>
+        ) : null}
       </Card>
 
       <View style={{ height: spacing.base }} />
 
-      <Card>
-        <AppText variant="rowTitle" color="primary">History</AppText>
-        <AppText variant="rowSubtitle" color="secondary" style={{ marginTop: 2, marginBottom: spacing.md }}>
-          Daily group averages this week
-        </AppText>
-        {aggregates.history.length === 0 ? (
-          <View style={{ paddingVertical: spacing.md }}>
-            <AppText variant="body" color="muted">No data yet.</AppText>
-          </View>
-        ) : (
-          <>
-            {/* Header */}
-            <View style={{ flexDirection: 'row', paddingBottom: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.divider }}>
-              <AppText variant="label" color="muted" style={{ flex: 1.4 }}>DAY</AppText>
-              <AppText variant="label" color="muted" style={{ flex: 1, textAlign: 'right' }}>WT %</AppText>
-              <AppText variant="label" color="muted" style={{ flex: 1, textAlign: 'right' }}>MIN</AppText>
-              <AppText variant="label" color="muted" style={{ flex: 1, textAlign: 'right' }}>CAL</AppText>
-            </View>
-            {aggregates.history.map((h: any, i: number) => {
-              const dow = parseYYYYMMDDLocal(h.date);
-              const dayLabel = dow.toLocaleDateString(undefined, { weekday: 'short' });
-              const num = (v: number) => (v > 0 ? String(Math.round(v)) : '—');
-              return (
-                <View
-                  key={`${h.date}-${i}`}
-                  style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.sm, borderTopWidth: i === 0 ? 0 : 1, borderTopColor: colors.divider }}
-                >
-                  <AppText variant="rowSubtitle" color="primary" style={{ flex: 1.4 }}>{dayLabel}</AppText>
-                  <AppText variant="rowSubtitle" color="secondary" style={{ flex: 1, textAlign: 'right', fontVariant: ['tabular-nums'] }}>
-                    {h.avgPct == null ? '—' : `${h.avgPct > 0 ? '' : ''}${h.avgPct}`}
-                  </AppText>
-                  <AppText variant="rowSubtitle" color="secondary" style={{ flex: 1, textAlign: 'right', fontVariant: ['tabular-nums'] }}>{num(h.avgMins)}</AppText>
-                  <AppText variant="rowSubtitle" color="secondary" style={{ flex: 1, textAlign: 'right', fontVariant: ['tabular-nums'] }}>{num(h.avgCals)}</AppText>
-                </View>
-              );
-            })}
-          </>
-        )}
-      </Card>
+      <ConsistencyMatrix rows={matrix.rows} todayIndex={matrix.todayIndex} />
 
       <View style={{ height: spacing.base }} />
 

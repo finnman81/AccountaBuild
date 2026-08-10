@@ -9,6 +9,8 @@ const INTER_SEMIBOLD = require('@expo-google-fonts/inter/600SemiBold/Inter_600Se
 
 type Props = {
   values: number[];
+  /** Optional second series (e.g. crew average) — muted line, no area/labels. */
+  secondaryValues?: number[];
   height?: number;
   width?: number;
   color?: string;
@@ -27,6 +29,7 @@ type Props = {
  */
 export default function TrendLineChartSkia({
   values,
+  secondaryValues,
   height = 160,
   width,
   color = colors.primary,
@@ -39,17 +42,24 @@ export default function TrendLineChartSkia({
   const font = useFont(INTER_SEMIBOLD, 11);
 
   const data = useMemo(
-    () => values.map((y, x) => ({ x, y: Number.isFinite(y) ? y : 0 })),
-    [values],
+    () =>
+      values.map((y, x) => ({
+        x,
+        y: Number.isFinite(y) ? y : 0,
+        // Secondary series rides the same x-axis; pad/trim to primary length.
+        y2: Number.isFinite(secondaryValues?.[x] as number) ? (secondaryValues![x] as number) : null,
+      })),
+    [values, secondaryValues],
   );
+  const hasSecondary = useMemo(() => (secondaryValues ?? []).some((v) => Number.isFinite(v)), [secondaryValues]);
 
   const domainY = useMemo((): [number, number] => {
-    const vals = values.filter((n) => Number.isFinite(n));
+    const vals = [...values, ...(secondaryValues ?? [])].filter((n) => Number.isFinite(n));
     if (!vals.length) return [0, 1];
     const lo = yMin ?? Math.min(...vals);
     const hi = yMax ?? Math.max(...vals);
     return lo === hi ? [lo - 1, hi + 1] : [lo, hi];
-  }, [values, yMin, yMax]);
+  }, [values, secondaryValues, yMin, yMax]);
 
   if (data.length < 2) return <View style={{ height, width: width ?? '100%' }} />;
 
@@ -60,12 +70,13 @@ export default function TrendLineChartSkia({
       <CartesianChart
         data={data}
         xKey="x"
-        yKeys={['y']}
+        yKeys={hasSecondary ? ['y', 'y2'] : ['y']}
         domain={{ y: domainY }}
         domainPadding={{ left: 10, right: 14, top: showPointLabels ? 24 : 14, bottom: showPointLabels ? 18 : 8 }}
       >
         {({ points, chartBounds }) => {
           const pts = points.y.filter((p) => p.y != null);
+          const pts2 = hasSecondary ? ((points as any).y2 ?? []).filter((p: any) => p.y != null) : [];
           const last = pts[pts.length - 1];
           return (
             <>
@@ -76,6 +87,9 @@ export default function TrendLineChartSkia({
                   colors={[`${color}55`, `${color}08`]}
                 />
               </Area>
+              {pts2.length >= 2 ? (
+                <Line points={pts2} color={`${colors.textMuted}88`} strokeWidth={2} curveType="monotoneX" animate={{ type: 'timing', duration: 400 }} />
+              ) : null}
               <Line points={points.y} color={color} strokeWidth={3} curveType="monotoneX" animate={{ type: 'timing', duration: 400 }} />
               {last ? (
                 <>

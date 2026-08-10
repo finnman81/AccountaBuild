@@ -2,6 +2,8 @@ import type React from 'react';
 
 export type TrendLineChartProps = {
   values: number[];
+  /** Second muted series (Skia impl only; the legacy SVG fallback ignores it). */
+  secondaryValues?: number[];
   height?: number;
   width?: number;
   color?: string;
