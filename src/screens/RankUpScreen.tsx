@@ -70,7 +70,7 @@ export default function RankUpScreen({ route, navigation }: Props) {
           </AppText>
           <AppText variant="body" color="secondary" style={styles.subcopy}>
             {promo
-              ? 'Your week paid off. Keep the crew moving and defend the climb.'
+              ? 'Your week paid off. Keep your group moving and defend the climb.'
               : 'A soft week cost you ground. One strong week puts it right back.'}
           </AppText>
 
@@ -85,7 +85,7 @@ export default function RankUpScreen({ route, navigation }: Props) {
         <View style={styles.actions}>
           <TouchableOpacity style={[styles.shareBtn, { backgroundColor: accent }]} onPress={share} activeOpacity={0.85}>
             <AppText variant="rowTitle" style={{ color: promo ? '#3D2C05' : '#FFFFFF' }}>
-              {promo ? 'Share with your crew' : 'Plan my comeback'}
+              {promo ? 'Share with your group' : 'Plan my comeback'}
             </AppText>
           </TouchableOpacity>
           <TouchableOpacity style={styles.continueBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>

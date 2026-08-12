@@ -293,7 +293,7 @@ export default function GroupChatScreen({ route }: Props) {
           ListEmptyComponent={
             <View style={styles.emptyWrap}>
               <Icon source="chat-outline" size={32} color={colors.textMuted} />
-              <AppText variant="rowTitle" color="secondary" style={{ marginTop: spacing.md }}>Say hi to your crew</AppText>
+              <AppText variant="rowTitle" color="secondary" style={{ marginTop: spacing.md }}>Say hi to the group</AppText>
               <AppText variant="rowSubtitle" color="muted" style={{ marginTop: 4, textAlign: 'center' }}>
                 Messages and everyone's logs show up here.
               </AppText>

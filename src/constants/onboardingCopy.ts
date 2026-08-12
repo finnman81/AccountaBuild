@@ -6,15 +6,15 @@
 export const onboardingCopy = {
   // Screen 1: Welcome screen ("Midnight Blue" revamp — design 01)
   welcome: {
-    headline: "Fitness is a\nteam sport.",
-    subtext: "AccountaBuild keeps you honest — log daily, climb the ranks, and never let your crew down.",
+    headline: "Nobody left\nbehind.",
+    subtext: "Start a group. Hold each other to a higher standard.",
     credibilityLine: "Log in seconds. Rank up weekly.",
     cta: "Get started",
-    ctaSubtext: "Takes ~60 seconds",
+    ctaSubtext: "Two minutes to set up",
     valueRows: [
-      { icon: 'clock-fast', tint: 'primary', title: 'Log in seconds', subtitle: 'Calories, workouts, weight — one tap each' },
-      { icon: 'account-group', tint: 'success', title: 'Your crew sees you', subtitle: 'Everyone knows who showed up today' },
-      { icon: 'diamond-stone', tint: 'gold', title: 'Climb the ranks', subtitle: 'Seasonal Fitness Points from Iron to Challenger' },
+      { icon: 'clock-fast', tint: 'primary', title: 'Log it in seconds', subtitle: 'One tap each, or let Apple Health log it for you' },
+      { icon: 'account-group', tint: 'success', title: 'No hiding', subtitle: "Everyone sees who showed up and who didn't" },
+      { icon: 'diamond-stone', tint: 'gold', title: 'Earn your rank', subtitle: 'Fitness Points from Iron to Challenger' },
     ] as const,
   },
 
@@ -22,7 +22,7 @@ export const onboardingCopy = {
   // Each intent seeds sensible default goals; detailed tuning lives in Edit Profile.
   goalsIntent: {
     headline: "What are you\ntraining for?",
-    subtext: "This sets your default goals — you can change it anytime.",
+    subtext: "This sets your starting goals.",
     cta: "Continue",
     options: [
       { key: 'lose_weight', title: 'Lose weight', subtitle: 'Calorie deficit + steady cardio', icon: 'heart-outline',
@@ -39,11 +39,11 @@ export const onboardingCopy = {
   // MMR explainer — between the intent picker and Basic Info.
   mmrIntro: {
     headline: "Climb the ranks",
-    subtext: "Every week you hit your goals, you earn Fitness Points (FP) and move up the ladder — from Iron all the way to Challenger.",
+    subtext: "Hit your goals, earn Fitness Points, move up. Miss, and you slip.",
     cta: "Got it",
     rows: [
-      { icon: 'calendar-check', tint: 'primary', title: 'Win your week', subtitle: 'Hit your weekly goals to earn rank points' },
-      { icon: 'arm-flex-outline', tint: 'gold', title: 'Harder goals, faster climb', subtitle: 'Tougher targets are worth more — difficulty multiplies your gains' },
+      { icon: 'calendar-check', tint: 'primary', title: 'Win your week', subtitle: 'Hit your weekly goals to earn FP' },
+      { icon: 'arm-flex-outline', tint: 'gold', title: 'Harder goals, faster climb', subtitle: 'Tougher targets are worth more FP' },
       { icon: 'shield-half-full', tint: 'success', title: 'Consistency protects you', subtitle: 'Streaks build shields; missed weeks cost rank' },
     ] as const,
   },
@@ -51,27 +51,27 @@ export const onboardingCopy = {
   // Screen 2: Basic Info
   basicInfo: {
     headline: "Basic info",
-    subtext: "This helps set realistic targets.",
+    subtext: "Your targets get built from this.",
   },
 
   // Recommended targets — computed from intent + basic info, user can tweak.
   recommended: {
-    headline: "Your recommended targets",
-    subtextPersonalized: "Based on your stats and goal — tweak anything before you lock it in.",
-    subtextFallback: "Solid starting points for your goal — tweak anything before you lock it in.",
+    headline: "Your starting targets",
+    subtextPersonalized: "Built from your stats and goal. Adjust anything before you lock it in.",
+    subtextFallback: "Solid starting points. Adjust anything before you lock it in.",
     cta: "Looks good",
-    note: "You can change these anytime in Goals. Harder targets earn more FP.",
+    note: "Change these anytime in Goals. Harder targets earn more FP.",
   },
   
   // Screen 3: Accountability
   accountability: {
-    headline: "Accountability improves consistency",
-    subtext: "A system built around shared goals and accountability.",
-    primaryStat: "People are up to 65% more likely to reach a goal when they commit to someone else.",
-    statHighlight: "65% more likely",
-    citation: "American Society of Training & Development",
-    supportingLine: "Group-based accountability improves exercise adherence and long-term consistency.",
-    productTieIn: "AccountaBuild is designed around this principle.",
+    headline: "Motivation fades.\nAccountability doesn't.",
+    subtext: "Everyone's dangerous for two weeks in January. The ones still going in March answer to somebody else.",
+    primaryStat: "People who sent weekly progress reports to a friend hit their goals at 76%. People who kept their goals private: 43%.",
+    statHighlight: "76%",
+    citation: "Dr. Gail Matthews, Dominican University of California",
+    supportingLine: "Weekly progress, shared with people who expect it.",
+    productTieIn: "",
   },
   
   // Screen 4: Goals
@@ -83,6 +83,6 @@ export const onboardingCopy = {
   // Screen 5: Finish
   finish: {
     headline: "You're set.",
-    subtext: "Let's start building consistency.",
+    subtext: "Goals locked. One thing left: the people who'll hold you to them.",
   },
 };

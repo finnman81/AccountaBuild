@@ -122,7 +122,7 @@ export default function OnboardingFinishScreen({ navigation }: Props) {
 
       // Final step: get them into a group (onboarding completes there, so the
       // group choice lands them straight on Today).
-      navigation.navigate('Group');
+      navigation.navigate('Accountability');
     } catch (error) {
       console.error('[Onboarding] Error finishing setup:', error);
     } finally {
@@ -143,7 +143,7 @@ export default function OnboardingFinishScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <OnboardingHeader currentStep={6} totalSteps={6} showBack={true} onBack={handleBack} />
+      <OnboardingHeader currentStep={5} totalSteps={6} showBack={true} onBack={handleBack} />
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}

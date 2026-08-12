@@ -133,7 +133,7 @@ export default function SetupChecklistCard() {
           <Icon source="bell-ring-outline" size={20} color={colors.primary} />
           <View style={styles.rowText}>
             <Text style={styles.rowTitle}>Turn on notifications</Text>
-            <Text style={styles.rowSub}>Cheers and nudges from your crew can't reach you without them.</Text>
+            <Text style={styles.rowSub}>Cheers and nudges from your group can't reach you without them.</Text>
           </View>
           <TouchableOpacity style={styles.btn} onPress={enablePush} activeOpacity={0.85}>
             <Text style={styles.btnText}>{pushCanAsk ? 'Enable' : 'Settings'}</Text>

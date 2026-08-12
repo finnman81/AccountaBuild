@@ -289,7 +289,7 @@ export default function WeekReviewScreen({ route, navigation }: Props) {
 
         {/* Team standings for the week */}
         {team.length > 0 ? (
-          <Section title="Your crew">
+          <Section title="Your group">
             {team.slice(0, 8).map((t, i) => {
               const isMe = t.uid === myUid;
               return (

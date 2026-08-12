@@ -51,7 +51,7 @@ export default function CrewWeekCard({ stats }: { stats: CrewWeekStats }) {
 
   return (
     <Card>
-      <AppText variant="rowTitle" color="primary">Crew this week</AppText>
+      <AppText variant="rowTitle" color="primary">Your group this week</AppText>
       <AppText variant="rowSubtitle" color="secondary" style={{ marginTop: 2, marginBottom: spacing.md }}>
         Combined totals · ▲▼ vs last week
       </AppText>

@@ -99,9 +99,9 @@ export default function OnboardingGroupScreen({ navigation }: Props) {
       <OnboardingHeader currentStep={6} totalSteps={6} showBack={mode !== 'choose'} onBack={() => (mode === 'choose' ? navigation.goBack() : setMode('choose'))} />
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-          <AppText variant="pageTitle" color="primary" style={styles.headline}>Find your crew</AppText>
+          <AppText variant="pageTitle" color="primary" style={styles.headline}>Find your people</AppText>
           <AppText variant="body" color="secondary" style={styles.subtext}>
-            AccountaBuild works with a group — that's who keeps you honest. Join a friend's group or start your own.
+            Join with a code from a friend, or start a group and bring them in.
           </AppText>
 
           {mode === 'choose' ? (
@@ -118,7 +118,7 @@ export default function OnboardingGroupScreen({ navigation }: Props) {
                 <View style={styles.choiceIcon}><Icon source="plus" size={22} color={colors.primary} /></View>
                 <View style={{ flex: 1 }}>
                   <AppText variant="rowTitle" color="primary">Create a group</AppText>
-                  <AppText variant="rowSubtitle" color="muted">Start one and invite your crew</AppText>
+                  <AppText variant="rowSubtitle" color="muted">Start one and bring your people in</AppText>
                 </View>
                 <Icon source="chevron-right" size={22} color={colors.textMuted} />
               </TouchableOpacity>

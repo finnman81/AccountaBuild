@@ -23,7 +23,7 @@ export default function ConsistencyMatrix({ rows, todayIndex }: { rows: MatrixRo
   if (!rows.length) return null;
   return (
     <Card>
-      <AppText variant="rowTitle" color="primary">Crew consistency</AppText>
+      <AppText variant="rowTitle" color="primary">Group consistency</AppText>
       <AppText variant="rowSubtitle" color="secondary" style={{ marginTop: 2, marginBottom: spacing.md }}>
         A dot for every day logged this week
       </AppText>

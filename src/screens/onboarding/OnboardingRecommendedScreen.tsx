@@ -136,7 +136,7 @@ export default function OnboardingRecommendedScreen({ navigation }: Props) {
       await updateOnboardingStep(user.uid, 4);
       onboardingAnalytics.goalsSaved();
       onboardingAnalytics.continue(4, 5);
-      navigation.navigate('Accountability');
+      navigation.navigate('Finish');
     } catch (error) {
       console.error('[Onboarding] Error saving targets:', error);
     } finally {

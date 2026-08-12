@@ -165,7 +165,7 @@ export default function SignWeekCard({ memberUids, publicUsers, canSee }: Props)
       <AppText variant="rowTitle" color="primary">✍️ Sign your week</AppText>
       <AppText variant="rowSubtitle" color="secondary" style={{ marginTop: 4 }}>
         Committing out loud to people who'll notice is the difference between
-        wanting it and doing it. {signedCount > 0 ? `${signedCount} of your crew already signed.` : 'Be the one who goes first.'}
+        wanting it and doing it. {signedCount > 0 ? `${signedCount} of your group already signed.` : 'Be the one who goes first.'}
       </AppText>
 
       <Pressable

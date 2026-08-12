@@ -66,7 +66,7 @@ export default function RegisterScreen({ navigation }: Props) {
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-            <AuthHeader title="Create your account" subline="Start your first week and bring your crew." />
+            <AuthHeader title="Create your account" subline="Start your first week and bring your people." />
 
             <SocialAuthButtons
               onApple={() => Alert.alert('Coming soon', 'Apple sign-up is on the way — use email for now.')}

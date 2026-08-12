@@ -63,7 +63,7 @@ export default function ActivityScreen({ navigation }: Props) {
             <Icon source="bell-outline" size={30} color={colors.textMuted} />
             <AppText variant="rowTitle" color="primary" style={{ marginTop: spacing.sm }}>Nothing yet</AppText>
             <AppText variant="rowSubtitle" color="muted" style={styles.emptyText}>
-              Cheers, nudges, and rank changes from your crew show up here.
+              Cheers, nudges, and rank changes from your group show up here.
             </AppText>
           </View>
         ) : (

@@ -430,20 +430,20 @@ export default function ProgressScreen({ navigation }: Props) {
       series = iLogged ? mine : crew;
       secondary = iLogged ? crew : undefined;
       realCount = series.filter((v) => v > 0).length;
-      title = iLogged ? 'Minutes — you vs crew avg' : 'Minutes — crew avg';
-      subtitle = iLogged ? 'Blue is you; grey is the crew average' : 'Log a workout to see your own line';
+      title = iLogged ? 'Minutes: you vs group avg' : 'Minutes: group avg';
+      subtitle = iLogged ? 'Blue is you; grey is the group average' : 'Log a workout to see your own line';
     } else if (metric === 'weight') {
       const mineHas = aggregates.myPct.slice(0, n).some((v) => v != null);
       series = carry(mineHas ? aggregates.myPct : aggregates.crewPct);
       secondary = mineHas ? carry(aggregates.crewPct) : undefined;
       realCount = (mineHas ? aggregates.myPct : aggregates.crewPct).slice(0, n).filter((v) => v != null).length;
-      title = mineHas ? '% lost this week — you vs crew' : '% lost this week — crew avg';
+      title = mineHas ? '% lost this week: you vs group' : '% lost this week: group avg';
       subtitle = 'Change vs first weigh-in of the week';
     } else {
       series = aggregates.onBudgetPct.slice(0, n).map((v) => v ?? 0);
       secondary = undefined;
       realCount = aggregates.onBudgetPct.slice(0, n).filter((v) => v != null).length;
-      title = 'Crew on budget';
+      title = 'Group on budget';
       subtitle = "% of the day's calorie-loggers within their own budget";
     }
 
@@ -627,7 +627,7 @@ export default function ProgressScreen({ navigation }: Props) {
                 </View>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <View style={{ width: 16, height: 2, borderRadius: 2, backgroundColor: `${colors.textMuted}88` }} />
-                  <AppText variant="label" color="muted">Crew avg</AppText>
+                  <AppText variant="label" color="muted">Group avg</AppText>
                 </View>
               </View>
             ) : null}

@@ -246,9 +246,9 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
           }}
         >
           <Icon source="account-group" size={40} color={colors.primary} />
-          <Text style={{ color: colors.textPrimary, fontSize: 18, fontWeight: '700', marginTop: 12 }}>Find your crew</Text>
+          <Text style={{ color: colors.textPrimary, fontSize: 18, fontWeight: '700', marginTop: 12 }}>Find your people</Text>
           <Text style={{ color: colors.textSecondary, fontSize: 14, textAlign: 'center', marginTop: 6, lineHeight: 20 }}>
-            Fitness is a team sport. Join a group with a code from a friend, or start your own — logging unlocks once you're in.
+            Nobody left behind. Join with a code from a friend, or start a group and bring them in.
           </Text>
           <Pressable
             onPress={onJoinGroup ?? (() => {})}

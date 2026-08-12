@@ -367,7 +367,7 @@ export default function LogComposer({ initialType = 'weight', onClose, onSaved, 
         {error && <Text style={{ color: colors.danger, fontSize: 13, marginBottom: 8 }}>{error}</Text>}
         {!activeGroupId && !!user?.uid && (
           <Text style={{ color: colors.textSecondary, fontSize: 13, marginBottom: 8, textAlign: 'center' }}>
-            Join a group to start logging — logs live with your crew.
+            Join a group to start logging.
           </Text>
         )}
         {mode !== 'photo' && (

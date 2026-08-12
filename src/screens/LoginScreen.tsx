@@ -61,7 +61,7 @@ export default function LoginScreen({ navigation }: Props) {
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-            <AuthHeader title="Welcome back" subline="Log in to pick up where your crew left off." />
+            <AuthHeader title="Welcome back" subline="Log in to pick up where your group left off." />
 
             <SocialAuthButtons
               onApple={() => Alert.alert('Coming soon', 'Apple sign-in is on the way — use email for now.')}

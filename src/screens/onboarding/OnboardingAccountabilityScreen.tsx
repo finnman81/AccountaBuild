@@ -32,7 +32,7 @@ export default function OnboardingAccountabilityScreen({ navigation }: Props) {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       await updateOnboardingStep(user.uid, 3);
       onboardingAnalytics.continue(3, 4);
-      navigation.navigate('Finish');
+      navigation.navigate('Group');
     } catch (error) {
       console.error('[Onboarding] Error saving step:', error);
     }
@@ -44,7 +44,7 @@ export default function OnboardingAccountabilityScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={['top']}>
-      <OnboardingHeader currentStep={5} totalSteps={6} showBack={true} onBack={handleBack} />
+      <OnboardingHeader currentStep={6} totalSteps={6} showBack={true} onBack={handleBack} />
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
@@ -67,9 +67,11 @@ export default function OnboardingAccountabilityScreen({ navigation }: Props) {
           />
         </View>
 
-        <Text variant="bodyMedium" style={[styles.productTieIn, { color: theme.colors.onSurfaceVariant }]}>
-          {onboardingCopy.accountability.productTieIn}
-        </Text>
+        {onboardingCopy.accountability.productTieIn ? (
+          <Text variant="bodyMedium" style={[styles.productTieIn, { color: theme.colors.onSurfaceVariant }]}>
+            {onboardingCopy.accountability.productTieIn}
+          </Text>
+        ) : null}
       </ScrollView>
 
       <View style={[styles.footer, { backgroundColor: theme.colors.background }]}>
