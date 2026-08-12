@@ -199,7 +199,16 @@ payload — same pattern as `celebrate` (hype buttons):
 - ✅ #5 cheer spam guard (shared-group check + block enforcement)
 - ✅ #8 Sentry sampling (traces 0.25, env-overridable; errors stay 100%)
 - ⚠️ #9 App Check — deferred past launch, see Tier 3 for why
-- ⬜ #6 invite links + empty states — design pass with Jake first
+- ✅ #6 invite links + empty states — DONE 2026-08-11. Onboarding rewritten
+  with Jake page-by-page (new register: rugged, no em dashes, "crew" retired
+  app-wide; accountability page moved before the group ask, real Dominican
+  76/43 stat). Invite links: https://app.munitor.ai/join/CODE (universal
+  link + accountabuild:// scheme, AASA live on the dashboard, landing page
+  public + noindex). Confirm step shows the group name via a joinCodes get;
+  links never auto-join. NEEDS THE NEXT NATIVE BUILD (scheme + entitlement).
+  Launch day: set APP_STORE_URL in the dashboard's /join page + redeploy.
+- **→ PHASE 0 IS CLOSED.** Remaining before submission: native build,
+  screenshots, paste STORE_LISTING.md into ASC.
 
 **Phase 1 — TestFlight wave (30-50 users, 2-3 stranger groups)**
 > POLL FINDING (2026-08-03, `invite-ready`): nobody picked "I've got someone
