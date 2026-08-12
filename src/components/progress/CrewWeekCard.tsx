@@ -53,7 +53,7 @@ export default function CrewWeekCard({ stats }: { stats: CrewWeekStats }) {
     <Card>
       <AppText variant="rowTitle" color="primary">Your group this week</AppText>
       <AppText variant="rowSubtitle" color="secondary" style={{ marginTop: 2, marginBottom: spacing.md }}>
-        Combined totals · ▲▼ vs last week
+        Combined totals · ▲▼ vs last week at this point
       </AppText>
       <View style={styles.tiles}>
         <Tile emoji="💪" tint="#4ADE80" value={String(stats.workouts)} label="WORKOUTS" delta={stats.deltas.workouts} />

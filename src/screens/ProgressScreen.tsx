@@ -227,6 +227,12 @@ export default function ProgressScreen({ navigation }: Props) {
     const weekStart = weekStartMondayLocal();
     const prevStart = new Date(weekStart);
     prevStart.setDate(prevStart.getDate() - 7);
+    // Same-point comparison: this week is partial until Sunday, so last week
+    // must be cut at the same moment (now minus 7 days) or the delta reads
+    // ▼ all week and ▲ means nothing (Jake, 2026-08-12). Logs without a
+    // usable ts count as end-of-day — erring toward including them keeps the
+    // baseline honest rather than flattering.
+    const prevCutoffMs = Date.now() - 7 * 24 * 3600 * 1000;
 
     let workouts = 0, minutes = 0, prevWorkouts = 0, prevMinutes = 0;
     let longest: { name: string; minutes: number } | null = null;
@@ -248,8 +254,11 @@ export default function ProgressScreen({ navigation }: Props) {
           minsByDow[dt.getDay()] = (minsByDow[dt.getDay()] ?? 0) + mins;
           if (mins > 0 && (!longest || mins > longest.minutes)) longest = { name: nameOf(l.uid), minutes: Math.round(mins) };
         } else {
-          prevWorkouts += 1;
-          prevMinutes += mins;
+          const atMs = toMillis(l.ts ?? null) ?? dt.getTime() + 86399_000;
+          if (atMs <= prevCutoffMs) {
+            prevWorkouts += 1;
+            prevMinutes += mins;
+          }
         }
       }
       if (thisWeek) (daysByUid[l.uid] = daysByUid[l.uid] ?? new Set()).add(l.date);
