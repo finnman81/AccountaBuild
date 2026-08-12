@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Image, ScrollView, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import { Image, ScrollView, TouchableOpacity, View } from 'react-native';
 import { Icon, Modal, Portal } from 'react-native-paper';
 import { collection, doc, onSnapshot } from 'firebase/firestore';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -66,11 +66,12 @@ function weekdayShort(idx: number) {
 }
 
 export default function ProgressScreen({ navigation }: Props) {
-  const { width } = useWindowDimensions();
   const rootNav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { user } = React.useContext(AuthContext);
   const { activeGroupId, groups, isReady, setActiveGroupId } = useActiveGroup();
   const [metric, setMetric] = useState<'weight' | 'workout' | 'calories'>('weight');
+  // Trend canvas width, measured by onLayout (never estimated — see chart row).
+  const [chartBoxW, setChartBoxW] = useState(0);
   const units = useMyUnits();
 
   const [photoLogs, setPhotoLogs] = useState<GroupLog[]>([]);
@@ -507,17 +508,47 @@ export default function ProgressScreen({ navigation }: Props) {
     );
   }
 
+  // Header context: which week, how deep into it, framed as time left rather
+  // than time spent — pressure is the register.
+  const dayNum = matrix.todayIndex + 1;
+  const headerRange = (() => {
+    const fmt = (s: string) => {
+      const d = parseYYYYMMDDLocal(s);
+      return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    };
+    return `${fmt(weekDates[0])} – ${fmt(weekDates[6])}`;
+  })();
+
   return (
     <Screen scroll safeTop={false}>
       <Card>
-        <AppText variant="pageTitle" color="primary">Progress</AppText>
-        {activeGroupName ? (
-          <AppText variant="rowSubtitle" color="secondary" style={{ marginTop: 2 }}>{activeGroupName}</AppText>
-        ) : null}
-        <AppText variant="eyebrow" color="muted" style={{ marginTop: spacing.md, marginBottom: spacing.sm }}>
-          Group
+        <AppText variant="eyebrow" color="muted">{headerRange}</AppText>
+        <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+          <AppText variant="pageTitle" color="primary">Progress</AppText>
+          {activeGroupName ? (
+            <AppText variant="rowSubtitle" color="secondary" style={{ marginBottom: 4 }}>{activeGroupName}</AppText>
+          ) : null}
+        </View>
+        {/* The week as a fuse: elapsed days fill, today burns, the rest waits. */}
+        <View style={{ flexDirection: 'row', gap: 5, marginTop: spacing.md }}>
+          {weekDates.map((d, i) => (
+            <View
+              key={d}
+              style={{
+                flex: 1,
+                height: 5,
+                borderRadius: 3,
+                backgroundColor: i < dayNum ? colors.primary : colors.surface2,
+                opacity: i === matrix.todayIndex ? 1 : i < dayNum ? 0.55 : 1,
+              }}
+            />
+          ))}
+        </View>
+        <AppText variant="label" color="muted" style={{ marginTop: spacing.sm }}>
+          Day {dayNum} of 7 · {7 - dayNum} {7 - dayNum === 1 ? 'day' : 'days'} left to earn it
         </AppText>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
+        {groups.length > 1 ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm, marginTop: spacing.md }}>
           {groups.map((g) => {
             const active = g.groupId === activeGroupId;
             return (
@@ -540,8 +571,14 @@ export default function ProgressScreen({ navigation }: Props) {
               </TouchableOpacity>
             );
           })}
-        </ScrollView>
+          </ScrollView>
+        ) : null}
       </Card>
+
+      <View style={{ height: spacing.base }} />
+
+      {/* The group's week up top — who's showing up is the page's headline. */}
+      <ConsistencyMatrix rows={matrix.rows} todayIndex={matrix.todayIndex} />
 
       <View style={{ height: spacing.base }} />
 
@@ -642,46 +679,52 @@ export default function ProgressScreen({ navigation }: Props) {
               </View>
             ) : (
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                {(() => {
-                  const yAxisW = 48;
-                  const estimatedCardPadding = 32;
-                  const chartW = Math.max(240, width - 32 - estimatedCardPadding - yAxisW);
-                  return (
+                <View style={{ width: 48, justifyContent: 'space-between', height: 160, paddingVertical: 20 }}>
+                  <AppText variant="label" color="muted" style={{ textAlign: 'right' }}>{yTicks.top}</AppText>
+                  <AppText variant="label" color="muted" style={{ textAlign: 'right' }}>{yTicks.mid}</AppText>
+                  <AppText variant="label" color="muted" style={{ textAlign: 'right' }}>{yTicks.bot}</AppText>
+                </View>
+                {/* MEASURED width, not estimated: the old width-minus-paddings
+                    guess ran wider than the flex box, and overflow:hidden ate
+                    the last point label + x tick (prod shots, 2026-08-12). */}
+                <View
+                  style={{ flex: 1, overflow: 'hidden' }}
+                  onLayout={(e) => {
+                    const w = Math.round(e.nativeEvent.layout.width);
+                    if (w > 0 && w !== chartBoxW) setChartBoxW(w);
+                  }}
+                >
+                  {chartBoxW > 0 ? (
                     <>
-                      <View style={{ width: yAxisW, justifyContent: 'space-between', height: 160, paddingVertical: 20 }}>
-                        <AppText variant="label" color="muted" style={{ textAlign: 'right' }}>{yTicks.top}</AppText>
-                        <AppText variant="label" color="muted" style={{ textAlign: 'right' }}>{yTicks.mid}</AppText>
-                        <AppText variant="label" color="muted" style={{ textAlign: 'right' }}>{yTicks.bot}</AppText>
-                      </View>
-                      <View style={{ flex: 1, overflow: 'hidden' }}>
-                        <TrendLineChart
-                          values={chart.series}
-                          secondaryValues={chart.secondary}
-                          height={160}
-                          width={chartW}
-                          yMin={chart.yMin}
-                          yMax={chart.yMax}
-                          color={colors.primary}
-                          showPointLabels
-                          formatPointLabel={formatPointLabel}
-                          labelColor={colors.textPrimary}
-                        />
-                        {/* X labels must match the plotted (elapsed-only) days,
-                            or they'd misalign with the truncated series. */}
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6, paddingHorizontal: 4 }}>
-                          {chart.dates.map((d, i) => {
-                            const idx = parseYYYYMMDDLocal(d).getDay();
-                            return (
-                              <AppText key={`${d}-${i}`} variant="label" color="muted">
-                                {weekdayShort(idx)}
-                              </AppText>
-                            );
-                          })}
-                        </View>
+                      <TrendLineChart
+                        values={chart.series}
+                        secondaryValues={chart.secondary}
+                        height={160}
+                        width={chartBoxW}
+                        yMin={chart.yMin}
+                        yMax={chart.yMax}
+                        color={colors.primary}
+                        showPointLabels
+                        formatPointLabel={formatPointLabel}
+                        labelColor={colors.textPrimary}
+                      />
+                      {/* X labels must match the plotted (elapsed-only) days,
+                          or they'd misalign with the truncated series. */}
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6, paddingHorizontal: 4 }}>
+                        {chart.dates.map((d, i) => {
+                          const idx = parseYYYYMMDDLocal(d).getDay();
+                          return (
+                            <AppText key={`${d}-${i}`} variant="label" color="muted">
+                              {weekdayShort(idx)}
+                            </AppText>
+                          );
+                        })}
                       </View>
                     </>
-                  );
-                })()}
+                  ) : (
+                    <View style={{ height: 160 }} />
+                  )}
+                </View>
               </View>
             )}
           </View>
@@ -691,10 +734,6 @@ export default function ProgressScreen({ navigation }: Props) {
           </AppText>
         ) : null}
       </Card>
-
-      <View style={{ height: spacing.base }} />
-
-      <ConsistencyMatrix rows={matrix.rows} todayIndex={matrix.todayIndex} />
 
       <View style={{ height: spacing.base }} />
 
