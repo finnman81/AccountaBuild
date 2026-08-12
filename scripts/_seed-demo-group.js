@@ -63,7 +63,7 @@ function datesBack(nDays) {
 
   // ---- group + membership (NO real users, ever) ----
   await db.doc(`groups/${GROUP_ID}`).set({
-    name: 'Morning Crew', createdBy: uids.reviewer, memberCount: MEMBERS.length,
+    name: 'Morning Grind', createdBy: uids.reviewer, memberCount: MEMBERS.length,
     streakRule: 'any', createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
   }, { merge: true });
   await db.doc(`joinCodes/${JOIN_CODE}`).set({ groupId: GROUP_ID, createdBy: uids.reviewer });
@@ -71,7 +71,7 @@ function datesBack(nDays) {
   for (const m of MEMBERS) {
     const uid = uids[m.key];
     await db.doc(`groups/${GROUP_ID}/members/${uid}`).set({ uid, role: m.key === 'reviewer' ? 'admin' : 'member' });
-    await db.doc(`users/${uid}/groups/${GROUP_ID}`).set({ groupId: GROUP_ID, name: 'Morning Crew' });
+    await db.doc(`users/${uid}/groups/${GROUP_ID}`).set({ groupId: GROUP_ID, name: 'Morning Grind' });
     await db.doc(`users/${uid}`).set({
       email: m.email, displayName: m.name, height: 68 + Math.round(rnd() * 6),
       mmr: core.STARTING_MMR, rankTier: 'Silver', rankDivision: 4, mp: 0,
@@ -99,7 +99,7 @@ function datesBack(nDays) {
   // ---- 3 weeks of logs, weights, chat ----
   const days = datesBack(21);
   const CHAT = [
-    ['alexr', 'morning crew lets gooo 💪'], ['samc', 'legs are DESTROYED from yesterday'],
+    ['alexr', 'morning grind lets gooo 💪'], ['samc', 'legs are DESTROYED from yesterday'],
     ['reviewer', 'new week, signing in'], ['jlee', 'down another pound this week 🎉'],
     ['alexr', 'who is hitting the gym at 6?'], ['reviewer', 'me. do not let me sleep in'],
     ['samc', 'that hiit session was no joke'], ['jlee', 'consistency over intensity, boys'],
@@ -175,6 +175,6 @@ function datesBack(nDays) {
   console.log('\n=== FOR APP STORE CONNECT REVIEW NOTES ===');
   console.log(`  email:    ${DEMO_EMAIL}`);
   console.log(`  password: ${DEMO_PASSWORD}`);
-  console.log(`  group:    Morning Crew (join code ${JOIN_CODE})`);
+  console.log(`  group:    Morning Grind (join code ${JOIN_CODE})`);
   process.exit(0);
 })().catch((e) => { console.error(e); process.exit(1); });

@@ -2,6 +2,8 @@
 
 Draft metadata for App Store Connect, version 1.0 public release.
 Character limits are Apple's; counts noted where tight.
+Register: rugged, plain, no em dashes, no "crew" (matches the 2026-08-11
+onboarding rewrite).
 
 ---
 
@@ -11,10 +13,10 @@ Character limits are Apple's; counts noted where tight.
 
 ## Subtitle (30 chars max)
 
-**Fitness with your crew** (22 ✓)
+**Group fitness accountability** (28 ✓)
 
 Alternatives, all fit:
-- "Group fitness accountability" (28)
+- "Nobody left behind" (18) — brand line, weaker for search
 - "Train together. Stay honest." (28)
 
 ## Category
@@ -24,55 +26,55 @@ Alternatives, all fit:
 
 ## Promotional Text (170 chars, editable without review)
 
-> Your crew sees every workout, every streak, every rank-up. Log it, earn
-> Fitness Points, and climb from Iron to Challenger — together. (139 ✓)
+> Your group sees every workout, every streak, every rank-up. Log it, earn
+> Fitness Points, and climb from Iron to Challenger. Nobody left behind. (143 ✓)
 
 ## Description (4,000 chars max)
 
 > **The workout app that makes quitting embarrassing.**
 >
 > AccountaBuild is fitness accountability with the people you actually know.
-> Join a small group — your friends, your gym crew, your family — and every
+> Join a small group: your friends, your gym buddies, your family. Every
 > workout, weigh-in, and logged meal shows up for all of them. No followers,
 > no influencers, no strangers. Just your people, watching you show up.
 >
 > **EARN FITNESS POINTS. CLIMB THE RANKS.**
-> Every log earns Fitness Points, scored against goals you set yourself —
-> tougher goals are worth more. Climb a competitive ladder from Iron to
+> Every log earns Fitness Points, scored against goals you set yourself.
+> Tougher goals are worth more. Climb a competitive ladder from Iron to
 > Challenger, division by division, exactly like a ranked game. Miss a week
-> and you'll slip. Your crew will notice. That's the point.
+> and you slip. Your group will notice. That's the point.
 >
 > **A WEEKLY RACE THAT RESETS EVERY MONDAY.**
-> The leaderboard isn't about who joined first — everyone re-enters at zero
+> The leaderboard isn't about who joined first. Everyone re-enters at zero
 > each week. Streaks build multipliers. Hit checkpoints on your weight goal
 > and bank points along the way, not just at the finish line.
 >
 > **SIGN YOUR WEEK.**
-> Every Monday, hold to sign — a small ritual that tells your crew you're in
+> Every Monday, hold to sign. A small ritual that tells your group you're in
 > this week. Everyone sees who signed. Everyone sees who didn't.
 >
 > **CHEER. NUDGE. CELEBRATE.**
 > Send hype when a teammate logs. Nudge them when they haven't. When someone
-> hits their goal weight or jumps a rank tier, the whole crew celebrates —
+> hits their goal weight or jumps a rank tier, the whole group celebrates,
 > automatically.
 >
 > **SYNCS WHILE YOUR PHONE IS IN YOUR POCKET.**
-> Connect Apple Health and workouts appear on their own — finish a session on
-> your watch and your crew sees it minutes later, before you've touched the
+> Connect Apple Health and workouts appear on their own. Finish a session on
+> your watch and your group sees it minutes later, before you've touched the
 > app. Manual logging takes seconds when you'd rather type it.
 >
 > **YOUR WEIGHT STAYS PRIVATE.**
-> Teammates see your workouts, streaks, points, and progress — never your
+> Teammates see your workouts, streaks, points, and progress. Never your
 > body weight. Health data is never sold, never used for ads, never shared.
 >
 > **BUILT FOR SMALL, REAL GROUPS.**
-> • Group chat with your crew's logs woven into the feed
+> • Group chat with your group's logs woven into the feed
 > • Weekly report every Monday: what you earned and why
-> • "See the math" — every point is explainable, no black box
+> • "See the math": every point is explainable, no black box
 > • Badges for streaks, comebacks, goals crushed, and marathon weeks
-> • Progress dashboards: you vs your crew, week by week
+> • Progress dashboards: you vs your group, week by week
 >
-> Grab your crew. Sign your week. Show up.
+> Nobody left behind. Sign your week. Show up.
 
 ## Keywords (100 chars max, comma-separated, no spaces after commas)
 
@@ -82,8 +84,8 @@ Alternatives, all fit:
 
 ## What's New (first release)
 
-> Welcome to AccountaBuild 1.0 — group fitness accountability with Fitness
-> Points, weekly races, streaks, and celebrations. Grab your crew and sign
+> Welcome to AccountaBuild 1.0. Group fitness accountability with Fitness
+> Points, weekly races, streaks, and celebrations. Grab your people and sign
 > your first week.
 
 ## Age Rating questionnaire
@@ -104,7 +106,7 @@ etc.) EXCEPT:
 > DEMO ACCOUNT:
 >   email:    demo.reviewer@munitor.ai
 >   password: Crew-Demo-2026!
-> The demo account is a member of an active group ("Morning Crew", 4 members)
+> The demo account is a member of an active group ("Morning Grind", 4 members)
 > with three weeks of workouts, weigh-ins, chat, a live leaderboard, and rank
 > history, so all social features are visible immediately after sign-in.
 >
@@ -119,14 +121,15 @@ etc.) EXCEPT:
 demo members belong to no other group and carry no push tokens, so nothing it
 does can ever notify a real user. Ranks/FP/badges were produced by the real
 scorer over 3 weeks of seeded logs — re-run the script any time the data needs
-refreshing before a future review.
+refreshing before a future review. (Group display name "Morning Grind",
+renamed from "Morning Crew" 2026-08-11.)
 
 ## Screenshots — shot list (6.9" required; 6.7" reuses)
 
 Order sells the story: social proof first, mechanics second.
 
-1. **Today screen, full crew** — rail of avatars with streaks, "This week's
-   race" card. Caption: *"Your crew sees you show up"*
+1. **Today screen, full group** — rail of avatars with streaks, "This week's
+   race" card. Caption: *"Your group sees you show up"*
 2. **Leaderboard, weekly race** — podium view. Caption: *"Everyone starts at
    zero on Monday"*
 3. **Profile rank card** — Gold emblem, "27 / 200 FP", progress bar. Caption:
@@ -134,7 +137,7 @@ Order sells the story: social proof first, mechanics second.
 4. **A celebration pop-up** — "Watto reached Gold" with hype buttons. Caption:
    *"Wins get loud"*
 5. **Sign your week card** — hold-to-sign. Caption: *"Commit out loud"*
-6. **Progress screen** — consistency dot matrix + you-vs-crew chart. Caption:
+6. **Progress screen** — consistency dot matrix + you-vs-group chart. Caption:
    *"The whole week at a glance"*
 7. (optional) **Group chat** with logs + reactions inline.
 
