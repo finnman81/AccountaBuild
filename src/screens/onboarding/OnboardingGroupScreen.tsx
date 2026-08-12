@@ -1,4 +1,4 @@
-import React, { useContext, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, TouchableOpacity } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useNavigation, CommonActions } from '@react-navigation/native';
@@ -15,6 +15,7 @@ import AppText from '../../components/ui/AppText';
 import TextField from '../../components/ui/TextField';
 import { completeOnboarding } from '../../services/onboarding';
 import { createGroup, joinGroupByCode } from '../../services/groups';
+import { consumePendingJoinCode, fetchJoinPreview, type JoinPreview } from '../../services/inviteLinks';
 import { onboardingAnalytics } from '../../services/analytics';
 import { friendlyNameFromDisplayName } from '../../utils/formatters';
 import { colors, radius, spacing } from '../../theme';
@@ -38,6 +39,24 @@ export default function OnboardingGroupScreen({ navigation }: Props) {
   const [groupName, setGroupName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [preview, setPreview] = useState<JoinPreview | null>(null);
+
+  // A new user who tapped an invite link before (or during) signup lands here
+  // with the code waiting: jump straight to join mode, prefilled. They still
+  // press the button themselves.
+  useEffect(() => {
+    consumePendingJoinCode().then((code) => {
+      if (code) { setJoinCode(code); setMode('join'); }
+    });
+  }, []);
+
+  useEffect(() => {
+    const code = joinCode.trim().toUpperCase();
+    if (code.length !== 6) { setPreview(null); return; }
+    let cancelled = false;
+    fetchJoinPreview(code).then((p) => { if (!cancelled) setPreview(p); });
+    return () => { cancelled = true; };
+  }, [joinCode]);
 
   const finish = async (groupId?: string) => {
     if (!user?.uid) return;
@@ -126,8 +145,15 @@ export default function OnboardingGroupScreen({ navigation }: Props) {
           ) : mode === 'join' ? (
             <View style={styles.form}>
               <TextField label="Join code" autoCapitalize="characters" autoCorrect={false} value={joinCode} onChangeText={setJoinCode} editable={!busy} placeholder="ABC123" />
+              {preview ? (
+                <AppText variant="rowSubtitle" color="secondary">
+                  You're joining <AppText variant="rowSubtitle" color="primary">{preview.name}</AppText>
+                </AppText>
+              ) : null}
               {error ? <AppText variant="rowSubtitle" color="danger" style={styles.error}>{error}</AppText> : null}
-              <PrimaryButton onPress={onJoin} loading={busy} disabled={busy || joinCode.trim().length < 6} style={styles.cta}>Join group</PrimaryButton>
+              <PrimaryButton onPress={onJoin} loading={busy} disabled={busy || joinCode.trim().length < 6} style={styles.cta}>
+                {preview ? `Join ${preview.name}` : 'Join group'}
+              </PrimaryButton>
             </View>
           ) : (
             <View style={styles.form}>

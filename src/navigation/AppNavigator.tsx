@@ -1,4 +1,5 @@
 import React, { useContext, useEffect } from 'react';
+import { Linking } from 'react-native';
 import { DarkTheme as NavDarkTheme, NavigationContainer } from '@react-navigation/native';
 import * as SplashScreen from 'expo-splash-screen';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -26,8 +27,9 @@ import RegisterScreen from '../screens/RegisterScreen';
 import { RootStackParamList } from './types';
 import TabsNavigator from './TabsNavigator';
 import OnboardingNavigator from './OnboardingNavigator';
-import { navigationRef, flushPendingNavigation } from './navigationRef';
+import { navigationRef, flushPendingNavigation, navigateToJoinGroup } from './navigationRef';
 import { registerSentryNavigation } from '../services/sentry';
+import { parseJoinCodeFromUrl, setPendingJoinCode } from '../services/inviteLinks';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -38,6 +40,24 @@ export default function AppNavigator() {
 
   const configError = !isFirebaseConfigured() || firebaseInitError;
   const ready = configError || (!isLoading && !onboardingLoading);
+
+  // Invite links (accountabuild://join/CODE, https://app.munitor.ai/join/CODE).
+  // Always stash the code first: a signed-out or mid-onboarding user can't be
+  // navigated anywhere useful, so the join UIs consume the stash when they
+  // mount. Only a signed-in, onboarded user gets navigated directly.
+  const canNavigateToJoin = !!user && onboardingCompleted;
+  useEffect(() => {
+    let cancelled = false;
+    const handle = (url: string | null) => {
+      const code = parseJoinCodeFromUrl(url);
+      if (!code || cancelled) return;
+      setPendingJoinCode(code);
+      if (canNavigateToJoin) navigateToJoinGroup(code);
+    };
+    Linking.getInitialURL().then(handle).catch(() => {});
+    const sub = Linking.addEventListener('url', (e) => handle(e.url));
+    return () => { cancelled = true; sub.remove(); };
+  }, [canNavigateToJoin]);
 
   // Reveal the app (hide the held native splash) only once we know the first
   // screen. A 6s safety net hides it regardless, so a hung read can't strand

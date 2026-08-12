@@ -1,4 +1,4 @@
-import React, { useContext, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { Snackbar } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -11,6 +11,7 @@ import type { RootStackParamList } from '../navigation/types';
 import { AuthContext } from '../store/AuthContext';
 import { useActiveGroup } from '../store/ActiveGroupContext';
 import { joinGroupByCode } from '../services/groups';
+import { consumePendingJoinCode, fetchJoinPreview, type JoinPreview } from '../services/inviteLinks';
 import { friendlyNameFromDisplayName } from '../utils/formatters';
 import AppText from '../components/ui/AppText';
 import Card from '../components/ui/Card';
@@ -20,14 +21,32 @@ import { colors, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<GroupsStackParamList, 'JoinGroup'>;
 
-export default function JoinGroupScreen({ navigation }: Props) {
+export default function JoinGroupScreen({ navigation, route }: Props) {
   const { user } = useContext(AuthContext);
   const { setActiveGroupId } = useActiveGroup();
   const rootNav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const [joinCode, setJoinCode] = useState('');
+  const [joinCode, setJoinCode] = useState(route.params?.joinCode ?? '');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [preview, setPreview] = useState<JoinPreview | null>(null);
+
+  // Invite-link arrivals: a code can ride in as a nav param (warm app) or sit
+  // in the pending stash (cold start). Either way it prefills; the user still
+  // confirms by pressing Join — links never join anyone to anything.
+  useEffect(() => {
+    if (route.params?.joinCode) return;
+    consumePendingJoinCode().then((code) => { if (code) setJoinCode(code); });
+  }, [route.params?.joinCode]);
+
+  // The confirm step: name the group before the user commits.
+  useEffect(() => {
+    const code = joinCode.trim().toUpperCase();
+    if (code.length !== 6) { setPreview(null); return; }
+    let cancelled = false;
+    fetchJoinPreview(code).then((p) => { if (!cancelled) setPreview(p); });
+    return () => { cancelled = true; };
+  }, [joinCode]);
 
   const onSubmit = async () => {
     if (!user) return;
@@ -84,11 +103,16 @@ export default function JoinGroupScreen({ navigation }: Props) {
                 onChangeText={setJoinCode}
                 editable={!isSubmitting}
               />
+              {preview ? (
+                <AppText variant="rowSubtitle" color="secondary">
+                  You're joining <AppText variant="rowSubtitle" color="primary">{preview.name}</AppText>
+                </AppText>
+              ) : null}
               {error ? (
                 <AppText variant="rowSubtitle" color="danger">{error}</AppText>
               ) : null}
               <PrimaryButton onPress={onSubmit} loading={isSubmitting} disabled={isSubmitting}>
-                Join
+                {preview ? `Join ${preview.name}` : 'Join'}
               </PrimaryButton>
             </View>
           </Card>

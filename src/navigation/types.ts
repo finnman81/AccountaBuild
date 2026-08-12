@@ -57,7 +57,7 @@ export type HomeStackParamList = {
 export type GroupsStackParamList = {
   GroupList: undefined;
   CreateGroup: undefined;
-  JoinGroup: undefined;
+  JoinGroup: { joinCode?: string } | undefined;
   GroupInfo: { groupId: string };
   GroupChat: { groupId: string };
   Challenge: { groupId: string };

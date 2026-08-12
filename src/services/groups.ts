@@ -473,5 +473,9 @@ export async function leaveGroup(params: { uid: string; groupId: string }) {
  */
 export function buildInviteMessage(groupName: string | null | undefined, joinCode: string): string {
   const name = (groupName && groupName.trim()) || 'my group';
-  return `Join my group "${name}" on AccountaBuild — we keep each other on track with workouts, calories, and weekly goals. Open the app, tap Join group, and enter code ${joinCode}`;
+  // The link opens the app straight to the join screen when installed, and a
+  // landing page (code + App Store button) when not. The code stays in the
+  // text too: after a fresh install iOS drops the link context, and this
+  // message is where the recipient finds it again.
+  return `Join "${name}" on AccountaBuild. We hold each other to it: workouts, calories, weekly goals.\nhttps://app.munitor.ai/join/${joinCode}\nCode: ${joinCode}`;
 }

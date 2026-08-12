@@ -36,6 +36,13 @@ export function navigateToGroupChat(groupId: string) {
   });
 }
 
+/** Deep-link to the join screen with a code from an invite link. */
+export function navigateToJoinGroup(joinCode: string) {
+  runOrQueue(() => {
+    navigationRef.navigate('MainTabs', { screen: 'GroupsTab', params: { screen: 'JoinGroup', params: { joinCode } } } as any);
+  });
+}
+
 /** Open the weekly report (auto-open launcher + recap banner). Queues until
  * the container is ready — a component-hook navigate that fires on the first
  * Firestore snapshot can silently no-op during startup. */
