@@ -149,6 +149,18 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
     if (!activeGroupId) setWeekDeltas({});
   }, [activeGroupId]);
 
+  /**
+   * The FP trend line. "Yesterday" only survives inside one week (see
+   * useYesterdayFp); on Mon/Tue the honest figure is week-to-date, which is the
+   * same number the race card shows — so the two can never contradict.
+   */
+  const fpTrend = useMemo(() => {
+    if (yesterdayFp != null && yesterdayFp !== 0) return { label: 'Yesterday', value: yesterdayFp };
+    const wk = Math.round(Number(weekDeltas[myUid]));
+    if (yesterdayFp == null && Number.isFinite(wk) && wk !== 0) return { label: 'This week', value: wk };
+    return null;
+  }, [yesterdayFp, weekDeltas, myUid]);
+
   // Pull-to-refresh. Everything else on this screen is a live listener, so the
   // only things a manual refresh can genuinely do are (a) ask the server to
   // resettle my FP now instead of after the settler's debounce, and (b) refetch
@@ -360,11 +372,11 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
 
       <View style={{ height: 20 }} />
       <VacationCard uid={myUid} myLogDates={logs.filter((l) => l.uid === myUid).map((l) => l.date)} />
-      {yesterdayFp != null && yesterdayFp !== 0 ? (
+      {fpTrend ? (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10, paddingHorizontal: 2 }}>
-          <Icon source={yesterdayFp > 0 ? 'trending-up' : 'trending-down'} size={16} color={yesterdayFp > 0 ? colors.rankGold : colors.danger} />
-          <Text style={{ fontSize: 13, fontWeight: '600', color: yesterdayFp > 0 ? colors.rankGold : colors.danger }}>
-            {yesterdayFp > 0 ? `Yesterday: +${yesterdayFp} FP` : `Yesterday: ${yesterdayFp} FP`}
+          <Icon source={fpTrend.value > 0 ? 'trending-up' : 'trending-down'} size={16} color={fpTrend.value > 0 ? colors.rankGold : colors.danger} />
+          <Text style={{ fontSize: 13, fontWeight: '600', color: fpTrend.value > 0 ? colors.rankGold : colors.danger }}>
+            {`${fpTrend.label}: ${fpTrend.value > 0 ? '+' : ''}${fpTrend.value} FP`}
           </Text>
         </View>
       ) : null}

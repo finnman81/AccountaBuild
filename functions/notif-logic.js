@@ -126,9 +126,15 @@ async function evaluateDailyChampion(db, now) {
           db.doc(`users/${uid}/fpDaily/${yDay}`).get(),
           db.doc(`users/${uid}/fpDaily/${bDay}`).get(),
         ]);
-        const y = ySnap.exists ? Number(ySnap.data().mmr) : NaN;
-        const b = bSnap.exists ? Number(bSnap.data().mmr) : NaN;
-        if (Number.isFinite(y) && Number.isFinite(b)) fpDeltas.set(uid, Math.round(y - b));
+        const yData = ySnap.exists ? ySnap.data() : null;
+        const bData = bSnap.exists ? bSnap.data() : null;
+        const y = yData ? Number(yData.mmr) : NaN;
+        const b = bData ? Number(bData.mmr) : NaN;
+        // Same-week only. Across the Sunday->Monday close the diff is last
+        // week's final settlement, not yesterday's effort — on 2026-08-11 that
+        // would have crowned a +118 that was entirely W32 settling up.
+        const sameWeek = !!(yData && bData) && yData.weekId && yData.weekId === bData.weekId;
+        if (sameWeek && Number.isFinite(y) && Number.isFinite(b)) fpDeltas.set(uid, Math.round(y - b));
         else allHaveFp = false;
       }
       // FP mode also needs a strictly positive winner — a day where everyone's
