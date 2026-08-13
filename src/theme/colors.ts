@@ -9,21 +9,24 @@ import type { Tier } from '../mmr/types';
 
 export const colors = {
   // Core surfaces
+  // Layer separation deliberately WIDENED (2026-08-13): the old ramp stepped
+  // only ~3-4% per layer and the UI read flat next to WHOOP-class dark apps.
+  // Background stays near-black; each layer above it jumps harder.
   background: '#0B0C10', // darkest base
-  surface: '#14161D', // cards
-  surface2: '#1D202A', // inner panels, inputs, inactive segments
+  surface: '#15181F', // cards
+  surface2: '#242936', // inner panels, inputs, inactive segments
   tabBar: '#101218',
-  divider: 'rgba(255,255,255,0.06)', // hairline dividers
-  borderCard: 'rgba(255,255,255,0.05)', // 1px card border
+  divider: 'rgba(255,255,255,0.09)', // hairline dividers
+  borderCard: 'rgba(255,255,255,0.08)', // 1px card border
   dashedBorder: '#3A4152', // dashed/empty affordance border
 
   // Status pill backgrounds
-  pillNoLog: '#1D202A',
+  pillNoLog: '#242936',
 
   // Text
   textPrimary: '#F2F4F8',
-  textSecondary: '#97A0B2',
-  textMuted: '#626B7D',
+  textSecondary: '#A0AABC',
+  textMuted: '#7A8498',
   faint: '#3A4152', // faint/disabled text + inactive marks
 
   // Accent (single blue)
