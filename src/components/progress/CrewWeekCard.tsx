@@ -15,9 +15,15 @@ export type CrewWeekStats = {
   biggestDay: { label: string; minutes: number } | null;
   mostConsistent: { name: string; days: number } | null;
   deltas: { workouts: number | null; minutes: number | null };
+  /** Same-point-last-week baselines — the small grey number under the value. */
+  prev: { workouts: number | null; minutes: number | null };
 };
 
-function Tile({ emoji, tint, value, label, delta }: { emoji: string; tint: string; value: string; label: string; delta?: number | null }) {
+/**
+ * WHOOP-style tile: big value, colored ▲▼, and the small grey baseline
+ * underneath saying what it's being compared against.
+ */
+function Tile({ emoji, tint, value, label, delta, prev }: { emoji: string; tint: string; value: string; label: string; delta?: number | null; prev?: string | null }) {
   return (
     <View style={[styles.tile, { borderColor: `${tint}44` }]}>
       <View style={[styles.emblem, { backgroundColor: `${tint}1C` }]}>
@@ -33,6 +39,9 @@ function Tile({ emoji, tint, value, label, delta }: { emoji: string; tint: strin
           </AppText>
         ) : null}
       </View>
+      {prev ? (
+        <AppText variant="label" color="muted" numberOfLines={1}>{prev}</AppText>
+      ) : null}
       <AppText variant="label" color="muted">{label}</AppText>
     </View>
   );
@@ -56,8 +65,22 @@ export default function CrewWeekCard({ stats }: { stats: CrewWeekStats }) {
         Combined totals · ▲▼ vs last week at this point
       </AppText>
       <View style={styles.tiles}>
-        <Tile emoji="💪" tint="#4ADE80" value={String(stats.workouts)} label="WORKOUTS" delta={stats.deltas.workouts} />
-        <Tile emoji="⏱" tint="#38BDF8" value={formatMinutesHM(stats.minutes)} label="TRAINED" delta={stats.deltas.minutes} />
+        <Tile
+          emoji="💪"
+          tint="#4ADE80"
+          value={String(stats.workouts)}
+          label="WORKOUTS"
+          delta={stats.deltas.workouts}
+          prev={stats.prev.workouts != null ? String(stats.prev.workouts) : null}
+        />
+        <Tile
+          emoji="⏱"
+          tint="#38BDF8"
+          value={formatMinutesHM(stats.minutes)}
+          label="TRAINED"
+          delta={stats.deltas.minutes}
+          prev={stats.prev.minutes != null ? formatMinutesHM(stats.prev.minutes) : null}
+        />
         <Tile
           emoji="⚖️"
           tint="#E9B542"

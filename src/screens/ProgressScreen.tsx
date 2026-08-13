@@ -291,6 +291,10 @@ export default function ProgressScreen({ navigation }: Props) {
         workouts: prevWorkouts > 0 ? workouts - prevWorkouts : null,
         minutes: prevMinutes > 0 ? minutes - prevMinutes : null,
       },
+      prev: {
+        workouts: prevWorkouts > 0 ? prevWorkouts : null,
+        minutes: prevMinutes > 0 ? Math.round(prevMinutes) : null,
+      },
     };
   }, [groupLogs, publicUsers]);
 
