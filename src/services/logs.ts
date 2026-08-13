@@ -208,24 +208,37 @@ export async function upsertGroupLogById(
   return logId;
 }
 
-/** Delete a log by id (used when a synced health sample was deleted in Health). */
-export async function deleteGroupLogById(groupId: string, logId: string): Promise<void> {
-  // Health-synced logs need a TOMBSTONE, or the next sync's idempotent upsert
-  // resurrects them ("I delete the extra and it comes back"). Manual logs
-  // delete cleanly — sync never re-creates those.
-  try {
-    const snap = await getDoc(doc(db, 'groups', groupId, 'logs', logId));
-    const d = snap.exists() ? (snap.data() as any) : null;
-    if (d?.uid && d?.source && d.source !== 'self_reported') {
-      await setDoc(doc(db, 'users', d.uid, 'healthTombstones', logId), {
-        groupId,
-        type: d.type ?? null,
-        date: d.date ?? null,
-        deletedAt: serverTimestamp(),
-      });
+/**
+ * Delete a log by id.
+ *
+ * `tombstone` distinguishes WHO is deleting:
+ *  - USER deletes (default true): tombstone health-synced logs, or the next
+ *    sync's idempotent upsert resurrects them ("I delete the extra and it
+ *    comes back").
+ *  - SYNC deletes (pass false): when HealthKit's anchored delta says a sample
+ *    was deleted, remove the log but never tombstone. If the sample is truly
+ *    gone from Health it can't re-import anyway; if HealthKit misreported
+ *    (watch/phone merge artifacts — prod 2026-08-12, Jake's workout + dinner
+ *    vanished), the direct-window read re-imports it next sync, which is the
+ *    correct self-heal. A tombstone here turns one false report into
+ *    permanent data loss.
+ */
+export async function deleteGroupLogById(groupId: string, logId: string, opts?: { tombstone?: boolean }): Promise<void> {
+  if (opts?.tombstone !== false) {
+    try {
+      const snap = await getDoc(doc(db, 'groups', groupId, 'logs', logId));
+      const d = snap.exists() ? (snap.data() as any) : null;
+      if (d?.uid && d?.source && d.source !== 'self_reported') {
+        await setDoc(doc(db, 'users', d.uid, 'healthTombstones', logId), {
+          groupId,
+          type: d.type ?? null,
+          date: d.date ?? null,
+          deletedAt: serverTimestamp(),
+        });
+      }
+    } catch {
+      /* tombstone is best-effort; the delete below must still run */
     }
-  } catch {
-    /* tombstone is best-effort; the delete below must still run */
   }
   await deleteDoc(doc(db, 'groups', groupId, 'logs', logId));
 }

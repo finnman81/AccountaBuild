@@ -29,19 +29,29 @@ let syncPromise: Promise<SyncResult> | null = null;
 /** How far back sync imports (days). Covers a week of unopened-app activity. */
 const BACKFILL_DAYS = 7;
 
-/** Delete the group logs for samples that were removed in Apple Health. */
+/**
+ * Delete the group logs for samples that were removed in Apple Health.
+ *
+ * Two guards against HealthKit misreporting deletions (watch/phone merges can
+ * flag LIVE samples as deleted — prod 2026-08-12 ate a workout + dinner):
+ *  - a uuid we just imported this run is alive by definition; never delete it
+ *  - sync deletes never tombstone, so a false report costs one sync cycle,
+ *    not the sample forever (the direct-window read re-imports it)
+ */
 async function deleteSyncedLogs(
   groupId: string,
   deletedUuids: string[],
   result: SyncResult,
   label: string,
+  justImportedIds?: Set<string>,
 ): Promise<number> {
   let removed = 0;
   for (const uuid of deletedUuids) {
     const id = healthLogDocId(uuid);
     if (!id) continue;
+    if (justImportedIds?.has(id)) continue;
     try {
-      await deleteGroupLogById(groupId, id);
+      await deleteGroupLogById(groupId, id, { tombstone: false });
       removed += 1;
     } catch (e) {
       result.errors.push(`${label} delete: ${e}`);
@@ -149,12 +159,14 @@ export async function syncHealthData(uid: string, groupId: string, settings: Hea
           }
 
           let synced = 0;
+          const importedIds = new Set<string>();
           for (const w of kept) {
             const date = formatYYYYMMDDLocal(w.startDate);
             if (!importOk(date)) continue;
             try {
               const logId = resolveHealthLogId(w.uuid, { type: 'workout', date, value: w.durationMinutes, source });
               if (await isTombstoned(logId)) continue;
+              importedIds.add(logId);
               await upsertGroupLogById(groupId, logId, {
                 uid,
                 type: 'workout',
@@ -173,7 +185,7 @@ export async function syncHealthData(uid: string, groupId: string, settings: Hea
           // Deletions via the anchored delta (skip first run to avoid no-op churn).
           const anchor = await getAnchor(uid, 'workouts');
           const { deletedUuids, newAnchor } = await HealthService.readWorkoutsSinceAnchor(anchor);
-          const removed = anchor ? await deleteSyncedLogs(groupId, deletedUuids, result, 'workout') : 0;
+          const removed = anchor ? await deleteSyncedLogs(groupId, deletedUuids, result, 'workout', importedIds) : 0;
           if (newAnchor) await setAnchor(uid, 'workouts', newAnchor);
           result.diagnostics!.workouts = { dataFromHealth: { source, totalCount: items.length, dedupedCount: items.length - kept.length, deletedCount: removed }, syncedCount: synced };
           console.log('[HealthSync] Workouts: synced', synced, 'deleted', removed, 'of', items.length);
@@ -190,10 +202,12 @@ export async function syncHealthData(uid: string, groupId: string, settings: Hea
         try {
           const entries = await HealthService.readTodayCalorieEntries();
           let synced = 0;
+          const importedIds = new Set<string>();
           for (const entry of entries) {
             try {
               const logId = resolveHealthLogId(entry.uuid, { type: 'calories', date: entry.date, value: entry.calories, meal: entry.meal, source });
               if (await isTombstoned(logId)) continue;
+              importedIds.add(logId);
               await upsertGroupLogById(groupId, logId, {
                 uid,
                 type: 'calories',
@@ -216,6 +230,7 @@ export async function syncHealthData(uid: string, groupId: string, settings: Hea
             try {
               const logId = resolveHealthLogId(entry.uuid, { type: 'calories', date: entry.date, value: entry.calories, meal: entry.meal, source });
               if (await isTombstoned(logId)) continue;
+              importedIds.add(logId);
               await upsertGroupLogById(groupId, logId, {
                 uid,
                 type: 'calories',
@@ -230,7 +245,7 @@ export async function syncHealthData(uid: string, groupId: string, settings: Hea
             }
           }
           if (synced > 0) result.caloriesSynced = true;
-          const removed = anchor ? await deleteSyncedLogs(groupId, deletedUuids, result, 'calorie') : 0;
+          const removed = anchor ? await deleteSyncedLogs(groupId, deletedUuids, result, 'calorie', importedIds) : 0;
           if (newAnchor) await setAnchor(uid, 'calories', newAnchor);
 
           result.diagnostics!.calories = { dataFromHealth: { source, entriesCount: entries.length, deletedCount: removed, firstRun: !anchor }, syncedCount: synced };
