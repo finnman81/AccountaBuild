@@ -65,3 +65,4 @@ logs/
 .cursor/
 # Cross-project nightly digest (written by a scheduled task, not part of the app)
 brain.md
+firebase-debug.log
