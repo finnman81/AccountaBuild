@@ -196,6 +196,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.divider,
     padding: spacing.base,
+    // Own BOTH margins. Everything above this in the Today stack (the recap
+    // banner, UpdateBanner, TargetReviewCard) sets only marginTop, so without
+    // a top margin here the two cards met edge-to-edge and read as overlapping
+    // — visible every Monday, the one day the recap and the sign card coexist.
+    marginTop: spacing.base,
     marginBottom: spacing.base,
   },
   holdBtn: {
@@ -216,6 +221,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.card,
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
+    marginTop: spacing.base,
     marginBottom: spacing.base,
   },
   stripHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
