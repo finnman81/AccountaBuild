@@ -42,6 +42,9 @@ export type PublicUser = {
   streakDaysUpdatedAtMs?: number | null;
   /** ISO week the user has declared as a vacation week (null when none). */
   vacationWeekId?: string | null;
+  /** Hibernation range mirror (server-written) — drives the pod + 😴 badge. */
+  hibernatingFromWeekId?: string | null;
+  hibernatingUntilWeekId?: string | null;
   /** Compact earned-badge mirror (newest first) for teammate profiles. */
   badgesPublic?: Array<{ id: string; type: string; label: string; seasonId?: string }>;
 };
@@ -164,6 +167,14 @@ export function subscribePublicUsers(uids: string[], onChange: (map: Record<stri
           allowNudges: data?.allowNudges === true,
           streakDaysPublic: typeof data?.streakDaysPublic === 'number' ? data.streakDaysPublic : null,
           streakDaysUpdatedAtMs: typeof data?.streakDaysUpdatedAtMs === 'number' ? data.streakDaysUpdatedAtMs : null,
+          // NOTE: this mapper is a whitelist — a field absent here never
+          // reaches the UI no matter what the doc says. vacationWeekId was
+          // declared on the type and read by the leaderboard but never copied,
+          // so the 🏖️ badge had been dead since it shipped; hibernation hit the
+          // identical trap on day one (2026-08-17).
+          vacationWeekId: typeof data?.vacationWeekId === 'string' ? data.vacationWeekId : null,
+          hibernatingFromWeekId: typeof data?.hibernatingFromWeekId === 'string' ? data.hibernatingFromWeekId : null,
+          hibernatingUntilWeekId: typeof data?.hibernatingUntilWeekId === 'string' ? data.hibernatingUntilWeekId : null,
           badgesPublic: Array.isArray(data?.badgesPublic) ? data.badgesPublic : undefined,
         };
       }
