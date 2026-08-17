@@ -25,7 +25,7 @@ import SegmentedControl from '../components/ui/SegmentedControl';
 import { AuthContext } from '../store/AuthContext';
 import { useActiveGroup } from '../store/ActiveGroupContext';
 import { db } from '../firebase/firebase';
-import { subscribeGroupLogs, subscribeGroupPhotoLogs, type GroupLog } from '../services/logs';
+import { subscribeGroupLogsSince, subscribeGroupPhotoLogs, type GroupLog } from '../services/logs';
 import { formatMinutesHM, formatDeltaForUnits } from '../utils/formatters';
 import { useMyUnits } from '../hooks/useMyUnits';
 import { colors, spacing, radius } from '../theme';
@@ -111,12 +111,13 @@ export default function ProgressScreen({ navigation }: Props) {
       setGroupLogs([]);
       return;
     }
-    return subscribeGroupLogs(
-      activeGroupId,
-      (items) => setGroupLogs(items),
-      undefined,
-      250,
-    );
+    // DATE-bounded, not count-bounded: every aggregate on this screen measures
+    // a date range, and a count window silently truncates the older end of it
+    // (see subscribeGroupLogsSince). Two weeks back covers this week plus the
+    // same-point-last-week baseline.
+    const prev = weekStartMondayLocal();
+    prev.setDate(prev.getDate() - 7);
+    return subscribeGroupLogsSince(activeGroupId, formatYYYYMMDD(prev), (items) => setGroupLogs(items));
   }, [activeGroupId]);
 
   useEffect(() => {

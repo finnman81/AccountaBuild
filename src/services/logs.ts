@@ -259,6 +259,31 @@ export async function setLogReaction(groupId: string, logId: string, uid: string
   await setDoc(doc(db, 'groups', groupId, 'logs', logId), { reactions: { [uid]: emoji } }, { merge: true });
 }
 
+/**
+ * Every log on or after `sinceDate` (YYYY-MM-DD), with NO count limit.
+ *
+ * The windowed feed (subscribeGroupLogs) is wrong for weekly aggregates: it
+ * takes the N most recent logs regardless of date, so a busy group's window
+ * stops short of the period being measured. Prod 2026-08-16: BPM logged 400
+ * entries in 14 days, the 250-log window only reached 2026-08-07, and the
+ * Progress card compared a full 48-workout week against a TRUNCATED 20-workout
+ * baseline — printing a green ▲ while the group was actually down 12 workouts.
+ * Anything that aggregates a date range must bound by DATE, not by count.
+ */
+export function subscribeGroupLogsSince(
+  groupId: string,
+  sinceDate: string,
+  onChange: (logs: GroupLog[]) => void,
+  onError?: (err: unknown) => void,
+) {
+  const ref = query(collection(db, 'groups', groupId, 'logs'), where('date', '>=', sinceDate));
+  return onSnapshot(
+    ref,
+    (snap) => onChange(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<GroupLog, 'id'>) }))),
+    onError,
+  );
+}
+
 export function subscribeGroupLogs(
   groupId: string,
   onChange: (logs: GroupLog[]) => void,
