@@ -9,7 +9,7 @@ import { db } from '../firebase/firebase';
 import { AuthContext } from '../store/AuthContext';
 import { RootStackParamList } from '../navigation/types';
 import { subscribePublicUsers, subscribeWeeklyPublic, type PublicUser, type WeeklyPublic } from '../services/publicUsers';
-import { subscribeGroupLogs, type GroupLog } from '../services/logs';
+import { subscribeMemberLogsSince, daysAgoYYYYMMDD, type GroupLog } from '../services/logs';
 import { computeGoalStreak } from '../viewmodels/today';
 import { friendlyNameFromDisplayName } from '../utils/formatters';
 import { DEFAULT_TZ, isoWeekDatesInTz, isoWeekIdInTz, yyyyMmDdInTz } from '../mmr/time';
@@ -44,12 +44,6 @@ const WORKOUT_LABELS: Record<string, string> = {
   tennis: 'Tennis',
 };
 
-function daysAgoYYYYMMDD(n: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() - n);
-  return yyyyMmDdInTz(d, DEFAULT_TZ);
-}
-
 function weekLabel(weekId: string) {
   const m = /^(\d{4})-W(\d{2})$/.exec(String(weekId).trim());
   return m ? `W${m[2]}` : weekId;
@@ -73,7 +67,7 @@ export default function MemberProfileScreen({ route, navigation }: Props) {
   const [group, setGroup] = useState<{ streakRule?: 'workout' | 'any' } | null>(null);
 
   useEffect(() => subscribePublicUsers([uid], (m) => setPub(m[uid] ?? null)), [uid]);
-  useEffect(() => subscribeGroupLogs(groupId, setLogs, undefined, 800), [groupId]);
+  useEffect(() => subscribeMemberLogsSince(groupId, uid, daysAgoYYYYMMDD(35), setLogs), [groupId]);
   useEffect(() => subscribeWeeklyPublic(uid, 26, setWeeks, () => setWeeks([])), [uid]);
   useEffect(() => onSnapshot(doc(db, 'groups', groupId), (s) => setGroup(s.exists() ? ((s.data() as any) ?? null) : null)), [groupId]);
 

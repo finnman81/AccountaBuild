@@ -12,7 +12,7 @@ import { db } from '../firebase/firebase';
 import { subscribeGroupMemberUids } from '../services/leaderboard';
 import { subscribeMyCanSeeUids } from '../services/visibility';
 import { subscribePublicUsers, type PublicUser } from '../services/publicUsers';
-import { subscribeGroupLogs, type GroupLog } from '../services/logs';
+import { subscribeGroupLogsSince, daysAgoYYYYMMDD, type GroupLog } from '../services/logs';
 import { buildLeaderboard, type LeaderboardRow } from '../viewmodels/leaderboard';
 import { DEFAULT_TZ, isoWeekIdInTz } from '../mmr/time';
 import { recomputeMyMmr } from '../services/mmrRecompute';
@@ -87,7 +87,7 @@ export default function LeaderboardScreen({ route }: Props) {
     const allowed = memberUids.filter((uid) => uid === user.uid || canSee.has(uid));
     return subscribePublicUsers(allowed, (map) => { setPublicUsers(map); setHydrated(`publicUsers:${groupId}`, map); });
   }, [canSee, memberUids, user?.uid, groupId]);
-  useEffect(() => subscribeGroupLogs(groupId, setLogs, undefined, 400), [groupId]);
+  useEffect(() => subscribeGroupLogsSince(groupId, daysAgoYYYYMMDD(14), setLogs), [groupId]);
 
   const { rows, gapToTop, rival, chaser } = useMemo(() => {
     if (!user?.uid) return { rows: [] as LeaderboardRow[], gapToTop: null, rival: null, chaser: null };

@@ -22,7 +22,7 @@ import { buildChallengeStandings } from '../viewmodels/challengeStandings';
 import { subscribeGroupMembers, type GroupMember } from '../services/groups';
 import { subscribePublicUsers, type PublicUser } from '../services/publicUsers';
 import { subscribeMyCanSeeUids } from '../services/visibility';
-import { subscribeGroupLogs, type GroupLog } from '../services/logs';
+import { subscribeGroupLogsSince, daysAgoYYYYMMDD, type GroupLog } from '../services/logs';
 import { DEFAULT_TZ, isoWeekIdInTz, isoWeekRangeInTz, nextIsoWeekId } from '../mmr/time';
 import { isValidYYYYMMDD } from '../utils/dates';
 import AppText from '../components/ui/AppText';
@@ -73,7 +73,9 @@ export default function ChallengeScreen({ route, navigation }: Props) {
     [groupId],
   );
   useEffect(() => subscribeGroupMembers(groupId, setMembers), [groupId]);
-  useEffect(() => subscribeGroupLogs(groupId, setLogs, undefined, 1500), [groupId]);
+  // A challenge runs up to 7 weeks; standings need every week of it. 70 days
+  // covers the longest challenge with room for a late-finishing week.
+  useEffect(() => subscribeGroupLogsSince(groupId, daysAgoYYYYMMDD(70), setLogs), [groupId]);
   useEffect(() => {
     if (!myUid) return;
     return subscribeMyCanSeeUids(myUid, (uids) => setCanSee(new Set(uids)));

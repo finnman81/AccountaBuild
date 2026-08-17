@@ -10,7 +10,7 @@ import { AuthContext } from '../store/AuthContext';
 import { RootStackParamList } from '../navigation/types';
 import { subscribePublicUsers, type PublicUser } from '../services/publicUsers';
 import { subscribeMyCanSeeUids } from '../services/visibility';
-import { subscribeGroupLogs, setLogReaction, type GroupLog, type LogType } from '../services/logs';
+import { subscribeMemberLogsSince, daysAgoYYYYMMDD, setLogReaction, type GroupLog, type LogType } from '../services/logs';
 import { getHydrated, setHydrated } from '../services/hydrationCache';
 import { enqueueSocialPush } from '../services/socialPush';
 import HypePickerSheet from '../components/social/HypePickerSheet';
@@ -94,17 +94,16 @@ export default function MemberDetailScreen({ route, navigation }: Props) {
   useEffect(() => subscribePublicUsers([uid], (m) => setPub(m[uid] ?? null)), [uid]);
   useEffect(
     () =>
-      subscribeGroupLogs(
-        groupId,
-        (rows) => {
-          setLogs(rows);
-          const next = toDayMarks(rows);
-          setMarks(next);
-          setHydrated(`memberDays:${groupId}`, next);
-        },
-        undefined,
-        400,
-      ),
+      // The day-mark calendar renders MARK_DAYS of history, so the feed must
+      // reach that far back by DATE. The old 400-doc window covered ~14 days in
+      // an 8-person group and less as groups grow, so most of the calendar was
+      // blank for reasons that had nothing to do with the member.
+      subscribeMemberLogsSince(groupId, uid, daysAgoYYYYMMDD(MARK_DAYS), (rows) => {
+        setLogs(rows);
+        const next = toDayMarks(rows);
+        setMarks(next);
+        setHydrated(`memberDays:${groupId}`, next);
+      }),
     [groupId],
   );
   useEffect(() => {

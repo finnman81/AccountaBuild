@@ -15,7 +15,7 @@ import { subscribeMyProfile } from '../services/profile';
 import { db } from '../firebase/firebase';
 import { formatHeightInches, formatMinutesHM, formatWeightForUnits } from '../utils/formatters';
 import { useActiveGroup } from '../store/ActiveGroupContext';
-import { subscribeGroupLogs, type GroupLog } from '../services/logs';
+import { subscribeGroupLogsSince, daysAgoYYYYMMDD, type GroupLog } from '../services/logs';
 import type { RootStackParamList, ProfileStackParamList } from '../navigation/types';
 import { DEFAULT_TZ, isoWeekIdInTz, yyyyMmDdInTz } from '../mmr/time';
 import { computeGoalStreak } from '../viewmodels/today';
@@ -242,7 +242,7 @@ export default function ProfileScreen() {
       setGroupLogs([]);
       return;
     }
-    return subscribeGroupLogs(activeGroupId, (items) => setGroupLogs(items), undefined, 200);
+    return subscribeGroupLogsSince(activeGroupId, daysAgoYYYYMMDD(14), (items) => setGroupLogs(items));
   }, [activeGroupId]);
 
   const streakRule = (group?.streakRule ?? 'workout') as 'workout' | 'any';

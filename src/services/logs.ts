@@ -18,6 +18,7 @@ import {
 import { db } from '../firebase/firebase';
 import { touchGroupActivity } from './groups';
 import { isValidYYYYMMDD, todayYYYYMMDD } from '../utils/dates';
+import { DEFAULT_TZ, yyyyMmDdInTz } from '../mmr/time';
 
 export type WorkoutType =
   | 'weightLifting'
@@ -270,6 +271,17 @@ export async function setLogReaction(groupId: string, logId: string, uid: string
  * baseline — printing a green ▲ while the group was actually down 12 workouts.
  * Anything that aggregates a date range must bound by DATE, not by count.
  */
+/**
+ * YYYY-MM-DD for `n` days ago — the floor for a date-bounded feed.
+ * TZ-aware so the boundary matches the scorer's day boundaries rather than
+ * whatever timezone the device happens to be in.
+ */
+export function daysAgoYYYYMMDD(n: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return yyyyMmDdInTz(d, DEFAULT_TZ);
+}
+
 export function subscribeGroupLogsSince(
   groupId: string,
   sinceDate: string,
@@ -277,6 +289,31 @@ export function subscribeGroupLogsSince(
   onError?: (err: unknown) => void,
 ) {
   const ref = query(collection(db, 'groups', groupId, 'logs'), where('date', '>=', sinceDate));
+  return onSnapshot(
+    ref,
+    (snap) => onChange(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<GroupLog, 'id'>) }))),
+    onError,
+  );
+}
+
+/**
+ * ONE member's logs since a date. The per-member screens were reading the
+ * whole group's history to render a single person's calendar: 1,020 docs in an
+ * 8-member group, ~5,100 in a 40-member one, to mark the days of one member.
+ * Uses the existing uid+date composite index.
+ */
+export function subscribeMemberLogsSince(
+  groupId: string,
+  uid: string,
+  sinceDate: string,
+  onChange: (logs: GroupLog[]) => void,
+  onError?: (err: unknown) => void,
+) {
+  const ref = query(
+    collection(db, 'groups', groupId, 'logs'),
+    where('uid', '==', uid),
+    where('date', '>=', sinceDate),
+  );
   return onSnapshot(
     ref,
     (snap) => onChange(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<GroupLog, 'id'>) }))),

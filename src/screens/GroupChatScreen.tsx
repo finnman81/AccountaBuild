@@ -13,7 +13,7 @@ import { db } from '../firebase/firebase';
 import { AuthContext } from '../store/AuthContext';
 import { GroupMessage, sendGroupMessage, setMessageReaction, subscribeGroupMessages } from '../services/chat';
 import { markGroupChatSeen } from '../services/groups';
-import { subscribeGroupLogs, setLogReaction, type GroupLog } from '../services/logs';
+import { subscribeGroupLogsSince, daysAgoYYYYMMDD, setLogReaction, type GroupLog } from '../services/logs';
 import { getHydrated, setHydrated } from '../services/hydrationCache';
 import { enqueueSocialPush } from '../services/socialPush';
 import { friendlyNameFromDisplayName } from '../utils/formatters';
@@ -110,7 +110,7 @@ export default function GroupChatScreen({ route }: Props) {
   }, [canSee, memberUids, user?.uid, groupId]);
   // 100, not 200: the feed only renders the last 3 days of logs, so the extra
   // 100 docs were fetched and immediately filtered out on every open.
-  useEffect(() => subscribeGroupLogs(groupId, setLogs, undefined, 100), [groupId]);
+  useEffect(() => subscribeGroupLogsSince(groupId, daysAgoYYYYMMDD(7), setLogs), [groupId]);
   useEffect(() => {
     if (!user?.uid) return;
     return subscribeMyBlocks(user.uid, setBlocked);

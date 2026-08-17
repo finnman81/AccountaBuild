@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import { subscribeGroupMemberUids } from '../services/leaderboard';
-import { subscribeGroupLogs, type GroupLog } from '../services/logs';
+import { subscribeGroupLogsSince, daysAgoYYYYMMDD, type GroupLog } from '../services/logs';
 import { subscribePublicUsers, type PublicUser } from '../services/publicUsers';
 import { buildGroupOverview, type GroupOverview } from '../viewmodels/groups';
 import { DEFAULT_TZ, isoWeekDatesInTz, isoWeekIdInTz, yyyyMmDdInTz } from '../mmr/time';
@@ -29,7 +29,7 @@ export function useGroupsOverview(groupIds: string[], myUid: string | undefined)
     const unsubs: Array<() => void> = [];
     for (const gid of groupIds) {
       unsubs.push(subscribeGroupMemberUids(gid, (uids) => setMembersByGroup((prev) => ({ ...prev, [gid]: uids }))));
-      unsubs.push(subscribeGroupLogs(gid, (l) => setLogsByGroup((prev) => ({ ...prev, [gid]: l })), undefined, 400));
+      unsubs.push(subscribeGroupLogsSince(gid, daysAgoYYYYMMDD(14), (l) => setLogsByGroup((prev) => ({ ...prev, [gid]: l }))));
     }
     return () => unsubs.forEach((u) => u());
     // eslint-disable-next-line react-hooks/exhaustive-deps

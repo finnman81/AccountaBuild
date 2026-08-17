@@ -7,7 +7,7 @@ import { useActiveGroup } from '../store/ActiveGroupContext';
 import { subscribeGroupMemberUids } from '../services/leaderboard';
 import { subscribeMyCanSeeUids } from '../services/visibility';
 import { subscribePublicUsers, type PublicUser } from '../services/publicUsers';
-import { subscribeGroupLogs, type GroupLog } from '../services/logs';
+import { subscribeGroupLogsSince, daysAgoYYYYMMDD, type GroupLog } from '../services/logs';
 import { getHydrated, setHydrated } from '../services/hydrationCache';
 
 export type TodayGroup = { name?: string; logoURL?: string | null; streakRule?: 'workout' | 'any' } | null;
@@ -90,7 +90,7 @@ export function useTodayData() {
       setLogs([]);
       return;
     }
-    return subscribeGroupLogs(activeGroupId, setLogs, undefined, 300);
+    return subscribeGroupLogsSince(activeGroupId, daysAgoYYYYMMDD(14), setLogs);
   }, [activeGroupId]);
 
   useEffect(() => {
