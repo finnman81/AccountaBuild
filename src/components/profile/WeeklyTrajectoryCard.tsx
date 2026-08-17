@@ -7,7 +7,7 @@ import { colors } from '../../theme/colors';
 import { spacing } from '../../theme/spacing';
 import { radius } from '../../theme/radius';
 import type { MmrProjection } from '../../services/mmrProjection';
-import { bandForMMR } from '../../mmr/ranks';
+import { bandForMMR, bandOrderIndex } from '../../mmr/ranks';
 
 type Props = {
   projection: MmrProjection | null;
@@ -71,9 +71,20 @@ export default function WeeklyTrajectoryCard({ projection, dailyStreak = 0, onVi
     const projectedDiv = projection.projectedDivision;
     const roman = projectedDiv === 1 ? 'I' : projectedDiv === 2 ? 'II' : projectedDiv === 3 ? 'III' : projectedDiv === 4 ? 'IV' : '';
     const projectedRankLabel = projectedDiv ? `${projectedTier} ${roman}` : projectedTier;
+    // "On track FOR" only makes sense when the rank is somewhere you aren't yet.
+    // The line was unconditional, so a steady week read "On track for Gold II"
+    // to someone already sitting in Gold II — a destination they'd arrived at.
+    const projectedIdx = bandOrderIndex({ tier: projectedTier, division: projectedDiv } as any);
+    const currentIdx = bandOrderIndex(currentBand);
+    const rankPhrase =
+      projectedIdx > currentIdx
+        ? `On track for ${projectedRankLabel}`
+        : projectedIdx < currentIdx
+          ? `Slipping to ${projectedRankLabel}`
+          : `Holding ${projectedRankLabel}`;
     const primaryParts = projection.weekJustStarted
       ? { sign: null as string | null, delta: null as number | null, suffix: `Holding ${projectedRankLabel}` }
-      : { sign, delta: Math.abs(Math.round(deltaMMR)), suffix: ` FP • On track for ${projectedRankLabel}` };
+      : { sign, delta: Math.abs(Math.round(deltaMMR)), suffix: ` FP • ${rankPhrase}` };
 
     // Secondary line (color-coded)
     const secondaryLine = statusText;
