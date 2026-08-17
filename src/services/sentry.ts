@@ -72,6 +72,36 @@ export function initSentry(): void {
       enableAutoSessionTracking: true,
       environment: __DEV__ ? 'development' : 'production',
       integrations: navigationIntegration ? [navigationIntegration] : [],
+      /**
+       * Drop Firestore's offline-read rejection. It fires on background wakes
+       * (HK observer / background task) before iOS has connectivity: the read
+       * throws, the sync path catches it, and the next wake retries. Nothing
+       * is lost.
+       *
+       * It is unavoidable on this stack — Firestore's persistent cache is
+       * IndexedDB-backed and the React Native build of the JS SDK ships no
+       * IndexedDB layer, so reads can only ever come from memory or the wire
+       * (verified against firebase 12.15.0). Disk caching would need
+       * @react-native-firebase, i.e. a second Firebase implementation.
+       *
+       * Keeping it visible buried the signal: 4 benign events were the ONLY
+       * entries in the error feed, so a real error would have looked like more
+       * of the same. Narrow on purpose — message AND unhandled-rejection, so a
+       * genuine offline bug thrown from real code still reports.
+       */
+      beforeSend(event: any) {
+        try {
+          const v = event?.exception?.values?.[0];
+          const offlineRead =
+            v?.type === 'FirebaseError' &&
+            typeof v?.value === 'string' &&
+            v.value.includes('client is offline') &&
+            v?.mechanism?.type === 'onunhandledrejection';
+          return offlineRead ? null : event;
+        } catch {
+          return event; // never let the filter swallow a report
+        }
+      },
     });
   } catch {
     sentry = null; // native module absent (older build) — silently stay off
