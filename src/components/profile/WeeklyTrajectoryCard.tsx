@@ -44,10 +44,18 @@ export default function WeeklyTrajectoryCard({ projection, dailyStreak = 0, onVi
       status = 'holding';
       statusColor = colors.textSecondary;
       statusText = 'Week just started — first log sets your pace';
-    } else if (projection.missedIfEndedNow) {
+    } else if (projection.missedIfEndedNow && projection.demotionPossible) {
+      // Only when a demotion is genuinely reachable this week (worst case run
+      // through the real rules, shield included).
       status = 'risk';
       statusColor = colors.danger;
       statusText = 'Demotion risk';
+    } else if (projection.missedIfEndedNow) {
+      // On pace to miss the week: a real penalty, but the rank is safe. Saying
+      // "demotion risk" here was false and trained people to ignore the banner.
+      status = 'risk';
+      statusColor = colors.warning;
+      statusText = 'On pace to miss the week';
     } else if (projectedBand.tier !== currentBand.tier || (projectedBand.division && currentBand.division && projectedBand.division > currentBand.division)) {
       status = 'promotion';
       statusColor = colors.success;

@@ -28,6 +28,18 @@ export type MmrProjection = {
   missedIfEndedNow: boolean;
   /** Early in the week with nothing logged yet — neutral, not "at risk". */
   weekJustStarted: boolean;
+  /**
+   * Could this week ACTUALLY drop your rank? Computed from the worst case the
+   * week can still produce (log nothing from here = the full missed-week
+   * penalty) run through the real demotion rules, shield included.
+   *
+   * Missing a week and being demoted are different things: the penalty is
+   * ~1.5% of FP, while demotion needs that to carry you below the band's
+   * demote buffer with no shield. Treating "missed" as "demotion risk" cried
+   * wolf at users who were nowhere near dropping — Jake at Gold II 3045 could
+   * log nothing all week, land at 2999, and still be Gold II.
+   */
+  demotionPossible: boolean;
   /** Raw needs for "still winnable" messaging (0 target = category off). */
   workoutsDone: number;
   workoutsTarget: number;
@@ -316,6 +328,19 @@ export function computeProjection(
   const mpProjected = ranked.mp;
   const deltaMPProjected = mpProjected - params.mpBefore;
 
+  // Worst case still reachable this week: earn nothing more, take the full
+  // missed-week penalty. If even that holds the band, demotion is off the
+  // table and the UI must not claim otherwise.
+  const worstCaseMMR = Math.max(0, Math.round(params.mmrBefore - missedWeekPenalty(params.mmrBefore)));
+  const worstBand = applyRankWithDemotionRules({
+    oldBand,
+    newMMR: worstCaseMMR,
+    tierShieldWeeksRemaining: params.tierShieldWeeksRemaining,
+  }).band;
+  const demotionPossible =
+    worstBand.tier !== oldBand.tier ||
+    (worstBand.division ?? 0) > (oldBand.division ?? 0); // higher division number = lower rank
+
   // Self-audit rows: what each goal is contributing and why.
   const GOAL_LABELS: Record<string, string> = {
     workouts: 'Workouts',
@@ -389,6 +414,7 @@ export function computeProjection(
     completedIfEndedNow,
     missedIfEndedNow,
     weekJustStarted,
+    demotionPossible,
     workoutsDone,
     workoutsTarget: (params.goals.workouts?.status ?? 'active') === 'active' && Number.isFinite(params.goals.workouts?.targetWorkoutsPerWeek) ? Number(params.goals.workouts.targetWorkoutsPerWeek) : 0,
     calorieDaysDone: calorieDaysHit,
