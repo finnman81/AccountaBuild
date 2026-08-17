@@ -28,7 +28,11 @@ service cloud.firestore {
               'streakWeeks', 'streakFreezes', 'tierShieldWeeksRemaining',
               'consecutiveMissedWeeks', 'lastWeekIdUpdated', 'seasonPeak',
               'hardModeWeeks', 'firstWeekId', 'currentSeasonId',
-              'lastSeasonRolledFrom', 'lastSeasonRolledTo', 'seasonRolledAt'];
+              'lastSeasonRolledFrom', 'lastSeasonRolledTo', 'seasonRolledAt',
+              // Hibernation is a multi-week penalty shield, so it is scoring
+              // state: writable ONLY by the setHibernation callable. A client
+              // that could set its own range would be permanently immune.
+              'hibernation'];
     }
 
     // User profile documents: users/{uid}

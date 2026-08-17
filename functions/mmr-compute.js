@@ -492,7 +492,22 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
     // no penalty, streak HELD (not incremented, not reset), no freeze spent.
     // Anything logged still scores normally, so vacation is a penalty shield,
     // never a week eraser. Mirrored in src/services/mmrUpdate.ts.
-    const onVacation = weeklyData?.vacation === true;
+    //
+    // HIBERNATION is the same shield over a DATE RANGE (deployment, injury,
+    // long trip) rather than one week, granted via the setHibernation callable
+    // instead of the seasonal vacation allowance. Identical scoring effect, so
+    // one flag drives both branches below.
+    const hib = userData?.hibernation;
+    const hibernating =
+      !!hib &&
+      typeof hib.fromWeekId === 'string' &&
+      typeof hib.untilWeekId === 'string' &&
+      weekId >= hib.fromWeekId &&
+      weekId <= hib.untilWeekId;
+    // Grace week: the first week AFTER waking can't penalize either. Nobody
+    // returns from a month away and hits five workouts in week one.
+    const inGraceWeek = !!hib && typeof hib.graceWeekId === 'string' && weekId === hib.graceWeekId;
+    const onVacation = weeklyData?.vacation === true || hibernating || inGraceWeek;
 
     // Freeze mechanics only at week CLOSE — mid-week state never consumes/earns.
     const freezeUsed = !isCurrentWeek && !completedWeek && !onVacation && streakBefore > 0 && freezeBefore > 0;

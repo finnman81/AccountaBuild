@@ -144,6 +144,7 @@ export default function SettingsScreen() {
         <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>Account</AppText>
         <View style={styles.group}>
           <NavRow title="Edit profile" onPress={() => nav.navigate('EditProfile')} />
+          <NavRow title="Hibernation" value="Away a while?" onPress={() => nav.navigate('Hibernation')} />
           <NavRow title="Blocked users" onPress={() => nav.navigate('BlockedUsers')} />
           <NavRow title="Email" value={user?.email ?? '—'} divider={false} />
         </View>

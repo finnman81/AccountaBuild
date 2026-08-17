@@ -2,6 +2,7 @@ import type { GroupLog, LogType } from '../services/logs';
 import type { PublicUser } from '../services/publicUsers';
 import type { Tier } from '../mmr/types';
 import { formatMinutesHM, formatWeightForUnits, friendlyNameFromDisplayName, type Units } from '../utils/formatters';
+import { isHibernating } from '../services/hibernation';
 
 export type ChecklistType = 'calories' | 'workout' | 'weight';
 export type Division = 1 | 2 | 3 | 4;
@@ -302,8 +303,15 @@ export function buildTeamToday(params: {
   streakRule: 'workout' | 'any';
   /** True once past the local at-risk cutoff (6 PM). */
   pastCutoff: boolean;
+  /** Current ISO week — hibernating members drop out of the rail entirely. */
+  currentWeekId?: string;
 }): TeamToday {
-  const allowed = params.memberUids.filter((u) => u === params.myUid || params.canSee.has(u));
+  // A member who's away for weeks isn't "not logged today", they're absent.
+  // Counting them would drag "6/8 logged" down every day of their trip and
+  // quietly make the whole group look worse for someone else's deployment.
+  const allowed = params.memberUids
+    .filter((u) => u === params.myUid || params.canSee.has(u))
+    .filter((u) => !(params.currentWeekId && isHibernating(params.publicUsers[u] as any, params.currentWeekId)));
   const allowedTypes: Set<LogType> =
     params.streakRule === 'any' ? new Set<LogType>(['calories', 'workout', 'weight', 'photo']) : new Set<LogType>(['workout']);
 

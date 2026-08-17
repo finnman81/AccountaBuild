@@ -3,6 +3,7 @@ import type { PublicUser } from '../services/publicUsers';
 import type { Tier } from '../mmr/types';
 import { computeStreakDays } from './today';
 import { friendlyNameFromDisplayName } from '../utils/formatters';
+import { isHibernating } from '../services/hibernation';
 
 export type Division = 1 | 2 | 3 | 4;
 
@@ -25,6 +26,8 @@ export type LeaderboardRow = {
   movement: Movement | null;
   /** Declared vacation for the current week (🏖️ badge — explains a frozen row). */
   onVacation: boolean;
+  /** Away for weeks (deployment/injury/trip): 😴 badge, sorted to the bottom. */
+  hibernating: boolean;
 };
 
 export type LeaderboardData = {
@@ -85,6 +88,7 @@ export function buildLeaderboard(params: {
         isMe: uid === myUid,
         movement,
         onVacation: !!params.currentWeekId && p?.vacationWeekId === params.currentWeekId,
+        hibernating: !!params.currentWeekId && isHibernating(p as any, params.currentWeekId),
       };
     });
 
@@ -92,7 +96,14 @@ export function buildLeaderboard(params: {
   // but the RANK NUMBER itself uses standard competition ranking (1224): equal
   // MMR shares the same rank, and the next distinct MMR skips to its true
   // position (e.g. two people tied at #1, next person is #3 — not #2).
-  rows.sort((a, b) => (b.mmr ?? -1) - (a.mmr ?? -1) || a.name.localeCompare(b.name));
+  // Sleeping members sink below everyone competing: their score is frozen by
+  // design, so leaving them mid-table reads as a rank they're defending.
+  rows.sort(
+    (a, b) =>
+      Number(a.hibernating) - Number(b.hibernating) ||
+      (b.mmr ?? -1) - (a.mmr ?? -1) ||
+      a.name.localeCompare(b.name),
+  );
   const ranks: number[] = rows.map((r, i) => (i > 0 && r.mmr === rows[i - 1].mmr ? -1 : i + 1));
   for (let i = 0; i < ranks.length; i += 1) if (ranks[i] === -1) ranks[i] = ranks[i - 1]!;
   const ranked: LeaderboardRow[] = rows.map((r, i) => ({

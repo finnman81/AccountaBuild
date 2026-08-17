@@ -10,6 +10,16 @@ const { isExpoToken, prefEnabled } = require('./push-helper');
 const TZ = core.DEFAULT_TZ;
 
 /**
+ * Asleep this week? Hibernating users are shielded from penalties, so every
+ * "you're about to lose your streak" nag is both wrong and unkind — they're
+ * deployed, injured, or away. Mirrors the check in mmr-compute.js.
+ */
+function isHibernating(userData, weekId) {
+  const h = userData && userData.hibernation;
+  return !!h && typeof h.fromWeekId === 'string' && weekId >= h.fromWeekId && weekId <= h.untilWeekId;
+}
+
+/**
  * Who should get a streak-at-risk push right now?
  * "At risk" = has not logged today AND a weekly target now needs EVERY
  * remaining day (including today) — skipping today makes the week unreachable.
@@ -30,6 +40,7 @@ async function evaluateStreakRisk(db, now) {
     const data = u.data() || {};
     if (!isExpoToken(data.expoPushToken)) continue;
     if (!prefEnabled(data, 'streakReminder')) continue;
+    if (isHibernating(data, weekId)) continue; // asleep — their streak is held
 
     try {
       const [goals, groupIds] = await Promise.all([getGoals(db, u.id), getGroupIds(db, u.id)]);
@@ -201,6 +212,7 @@ async function evaluateVacationPrompt(db, now) {
     const data = u.data() || {};
     try {
       if (!data.expoPushToken || !String(data.expoPushToken).startsWith('Expo')) continue;
+      if (isHibernating(data, weekId)) continue; // already covered, don't offer vacation
       if (data.vacationPromptWeekId === weekId) continue; // already asked this week
       const used = Number(data.vacationUsed && data.vacationUsed[seasonId]) || 0;
       if (used >= VACATION_WEEKS_PER_SEASON) continue;

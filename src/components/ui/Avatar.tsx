@@ -3,6 +3,7 @@ import { Image, View, StyleSheet } from 'react-native';
 import { Text } from 'react-native-paper';
 import { requireOptionalNativeModule } from 'expo-modules-core';
 import { colors } from '../../theme/colors';
+import HibernationPod from './HibernationPod';
 
 /**
  * expo-image when the native module exists (build ≥37: disk-cached avatars, no
@@ -24,6 +25,8 @@ type AvatarProps = {
   status?: AvatarStatus;
   /** Red "at risk" badge dot in the top-right corner. */
   atRisk?: boolean;
+  /** Asleep: overlay the healing-pod treatment on their real photo. */
+  hibernating?: boolean;
 };
 
 function initialsFromName(name: string): string {
@@ -40,8 +43,8 @@ const RING_COLOR: Record<AvatarStatus, string> = {
   danger: colors.ringDanger,
 };
 
-export default function Avatar({ photoURL, name, size = 40, status, atRisk }: AvatarProps) {
-  const inner = photoURL ? (
+export default function Avatar({ photoURL, name, size = 40, status, atRisk, hibernating }: AvatarProps) {
+  const base = photoURL ? (
     ExpoImage ? (
       <ExpoImage
         source={{ uri: photoURL }}
@@ -58,6 +61,15 @@ export default function Avatar({ photoURL, name, size = 40, status, atRisk }: Av
     <View style={[styles.avatar, { width: size, height: size, borderRadius: size / 2, backgroundColor: colors.surface2 }]}>
       <Text style={{ fontSize: size * 0.4, color: colors.textSecondary, fontWeight: '600' }}>{initialsFromName(name).slice(0, 2)}</Text>
     </View>
+  );
+
+  const inner = hibernating ? (
+    <View style={{ width: size, height: size, borderRadius: size / 2, overflow: 'hidden' }}>
+      {base}
+      <HibernationPod size={size} />
+    </View>
+  ) : (
+    base
   );
 
   if (!status && !atRisk) return inner;

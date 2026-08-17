@@ -16,6 +16,8 @@ import { friendlyNameFromDisplayName } from '../utils/formatters';
 import { subscribeMyCanSeeUids } from '../services/visibility';
 import { subscribePublicUsers } from '../services/publicUsers';
 import { getHydrated, setHydrated } from '../services/hydrationCache';
+import { isHibernating } from '../services/hibernation';
+import { DEFAULT_TZ, isoWeekIdInTz } from '../mmr/time';
 import Card from '../components/ui/Card';
 import AppText from '../components/ui/AppText';
 import PrimaryButton from '../components/ui/PrimaryButton';
@@ -69,6 +71,7 @@ export default function ProgressScreen({ navigation }: Props) {
   const rootNav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { user } = React.useContext(AuthContext);
   const { activeGroupId, groups, isReady, setActiveGroupId } = useActiveGroup();
+  const currentWeekId = isoWeekIdInTz(new Date(), DEFAULT_TZ);
   const [metric, setMetric] = useState<'weight' | 'workout' | 'calories'>('weight');
   // Trend canvas width, measured by onLayout (never estimated — see chart row).
   const [chartBoxW, setChartBoxW] = useState(0);
@@ -185,6 +188,9 @@ export default function ProgressScreen({ navigation }: Props) {
     for (const uid of memberUids) {
       const g = publicUsers[uid];
       if (!g) continue;
+      // A sleeping member has no targets to miss; counting them would drag the
+      // whole group's compliance down for someone else's deployment.
+      if (isHibernating(g as any, currentWeekId)) continue;
       const weightGoal = Math.max(0, Number(g.logWeightDaysPerWeek ?? 0));
       const caloriesGoal = Math.max(0, Number(g.logCaloriesDaysPerWeek ?? 0));
       const workoutsGoal = Math.max(0, Number(g.workoutsPerWeek ?? 0));
@@ -300,7 +306,9 @@ export default function ProgressScreen({ navigation }: Props) {
 
   /** 7xN dot grid: who logged which day (visible members only). */
   const matrix = useMemo(() => {
-    const visible = memberUids.filter((uid) => uid === user?.uid || canSee.has(uid));
+    const visible = memberUids
+      .filter((uid) => uid === user?.uid || canSee.has(uid))
+      .filter((uid) => !isHibernating(publicUsers[uid] as any, currentWeekId));
     const byUid: Record<string, Set<string>> = {};
     const weekStart = weekStartMondayLocal();
     for (const l of groupLogs) {

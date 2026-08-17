@@ -30,6 +30,10 @@ const { computeUserWeek, computeUserUpToCurrentWeek } = require('./mmr-compute')
 const { ensureSeasonRollover } = require('./mmr-season');
 const { deleteAccount } = require('./account-deletion');
 const { evaluateStreakRisk, evaluateDailyChampion, evaluateVacationPrompt } = require('./notif-logic');
+const { setHibernation, wakeExpiredHibernations } = require('./hibernation');
+const { publishCelebration } = require('./celebrations');
+
+exports.setHibernation = setHibernation;
 const core = require('./mmr-core');
 const { sendExpoPushes, isExpoToken, prefEnabled, inQuietHours } = require('./push-helper');
 const { renderHype } = require('./hype-catalog');
@@ -83,6 +87,19 @@ exports.sendSocialPush = onDocumentCreated('pushQueue/{id}', async (event) => {
     const token = user && user.expoPushToken;
 
     // Nudges require the recipient to have opted in; cheers/reactions are always allowed.
+    // A hibernating member is never nudged either — "you haven't logged" aimed
+    // at someone deployed or injured is the one push guaranteed to land wrong.
+    // Cheers still get through: being missed is the point of the feature.
+    const hib = user && user.hibernation;
+    const asleep =
+      !!hib &&
+      typeof hib.fromWeekId === 'string' &&
+      core.isoWeekIdInTz(new Date(), TZ) >= hib.fromWeekId &&
+      core.isoWeekIdInTz(new Date(), TZ) <= hib.untilWeekId;
+    if (type === 'nudge' && asleep) {
+      await cleanup();
+      return;
+    }
     if (type === 'nudge' && !(user && user.allowNudges === true)) {
       await cleanup();
       return;
@@ -351,6 +368,12 @@ exports.updateMmrScheduled = onSchedule(
     const weekDates = core.isoWeekDatesInTz(currentWeekId, TZ);
     const prevWeekEnd = new Date(core.zonedNoonUtcFromYmd(weekDates[0], TZ).getTime() - 24 * 60 * 60 * 1000);
     const prevWeekId = core.isoWeekIdInTz(prevWeekEnd, TZ);
+
+    // Wake anyone whose hibernation range has passed BEFORE scoring, so their
+    // first scored week is the grace week rather than a penalized one.
+    await wakeExpiredHibernations(db, publishCelebration).catch((e) =>
+      console.warn('[updateMmrScheduled] hibernation wake failed', e),
+    );
 
     const users = await db.collection('users').get();
     let ok = 0;

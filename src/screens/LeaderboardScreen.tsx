@@ -218,15 +218,18 @@ export default function LeaderboardScreen({ route }: Props) {
                 {listRows.map((r) => (
                   <TouchableOpacity key={r.uid} style={[styles.row, r.isMe && styles.rowMe]} activeOpacity={0.85} onPress={() => openMember(r.uid)}>
                     <AppText variant="rowSubtitle" color="muted" style={styles.rank}>{r.isTied ? `T-${r.rank}` : r.rank}</AppText>
-                    <Avatar photoURL={r.photoURL} name={r.name} size={34} />
+                    <Avatar photoURL={r.photoURL} name={r.name} size={34} hibernating={r.hibernating} />
                     <View style={styles.rowInfo}>
-                      <AppText variant="rowTitle" color={r.isMe ? 'accent' : 'primary'} numberOfLines={1}>{r.onVacation ? `${r.name} 🏖️` : r.name}</AppText>
+                      <AppText variant="rowTitle" color={r.isMe ? 'accent' : 'primary'} numberOfLines={1}>
+                        {r.hibernating ? `${r.name} 😴` : r.onVacation ? `${r.name} 🏖️` : r.name}
+                      </AppText>
                       <AppText variant="rowSubtitle" color="muted">
-                        {r.tier ? `${r.tier}${r.division ? ` ${ROMAN[r.division]}` : ''}` : 'Unranked'}
-                        {r.streakDays > 0 ? ` · ${r.streakDays}d` : ''}
+                        {r.hibernating
+                          ? 'Hibernating · score held'
+                          : `${r.tier ? `${r.tier}${r.division ? ` ${ROMAN[r.division]}` : ''}` : 'Unranked'}${r.streakDays > 0 ? ` · ${r.streakDays}d` : ''}`}
                       </AppText>
                     </View>
-                    {r.atRisk ? (
+                    {r.atRisk && !r.hibernating ? (
                       <View style={styles.riskTag}><AppText variant="eyebrow" style={styles.riskText}>AT RISK</AppText></View>
                     ) : null}
                     {r.movement && r.movement !== 'same' ? (

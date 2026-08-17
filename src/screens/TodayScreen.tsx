@@ -187,8 +187,8 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
     [logs, myUid, today, dailyCalorieGoal, units],
   );
   const team = useMemo(
-    () => buildTeamToday({ memberUids, publicUsers, canSee, myUid, logs, today, streakRule, pastCutoff }),
-    [memberUids, publicUsers, canSee, myUid, logs, today, streakRule, pastCutoff],
+    () => buildTeamToday({ memberUids, publicUsers, canSee, myUid, logs, today, streakRule, pastCutoff, currentWeekId: weekId }),
+    [memberUids, publicUsers, canSee, myUid, logs, today, streakRule, pastCutoff, weekId],
   );
   const preview = useMemo(
     () => buildLeaderboardPreview({ memberUids, publicUsers, canSee, myUid, limit: 3, weekDeltas }),
