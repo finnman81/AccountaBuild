@@ -62,7 +62,7 @@ async function ask() {
     id: `poll-${pollId}`,
     emoji: '📋',
     title: 'Quick question',
-    lines: ['One tap — it helps decide what gets built next.'],
+    lines: ['One tap. It helps decide what gets built next.'],
     poll,
     ...(now ? {} : { activeFrom: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString() }),
   };
