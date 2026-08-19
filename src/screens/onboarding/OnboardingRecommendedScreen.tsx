@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useState } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, StyleSheet, ScrollView, Switch, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as Haptics from 'expo-haptics';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -19,6 +19,9 @@ import { onboardingCopy } from '../../constants/onboardingCopy';
 import { db } from '../../firebase/firebase';
 import { recommendTargets, suggestTargetDate, WORKOUTS_BY_INTENT, type GoalMode } from '../../utils/recommendedTargets';
 import { colors, spacing, radius } from '../../theme';
+
+/** Calorie-logging cadence onboarding assumes; tunable later in Goals. */
+const CALORIE_DAYS_PER_WEEK = 5;
 
 function formatTargetDate(iso: string): string {
   const d = new Date(`${iso}T00:00:00`);
@@ -42,6 +45,29 @@ function isPast(iso: string): boolean {
   return d.getTime() <= today.getTime();
 }
 
+/**
+ * Category header with an on/off switch. Deliberately the same shape as
+ * MMRGoalsScreen's CategoryHeader so the two screens teach the same model:
+ * a category you switch off is never scored and never penalizes you.
+ */
+function CategoryToggle({ title, subtitle, value, onValueChange }: { title: string; subtitle: string; value: boolean; onValueChange: (v: boolean) => void }) {
+  return (
+    <View style={styles.catRow}>
+      <View style={{ flex: 1, paddingRight: spacing.sm }}>
+        <AppText variant="rowTitle" color="primary">{title}</AppText>
+        <AppText variant="rowSubtitle" color="muted" style={{ marginTop: 2 }}>{subtitle}</AppText>
+      </View>
+      <Switch
+        value={value}
+        onValueChange={(v) => { onValueChange(v); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+        trackColor={{ false: colors.ringNotLogged, true: colors.primary }}
+        thumbColor="#FFFFFF"
+        ios_backgroundColor={colors.ringNotLogged}
+      />
+    </View>
+  );
+}
+
 type Props = NativeStackScreenProps<OnboardingStackParamList, 'Recommended'>;
 
 /**
@@ -56,6 +82,13 @@ export default function OnboardingRecommendedScreen({ navigation }: Props) {
 
   const [calories, setCalories] = useState('');
   const [workouts, setWorkouts] = useState(4);
+  // Which categories this person actually wants. All on by default (the group
+  // norm), but switching one off here is a first-class choice, not a hidden
+  // setting buried in Goals.
+  const [workoutsOn, setWorkoutsOn] = useState(true);
+  const [caloriesOn, setCaloriesOn] = useState(true);
+  const [weightOn, setWeightOn] = useState(true);
+  const [weighDays, setWeighDays] = useState(3);
   const [targetDate, setTargetDate] = useState<string | null>(null);
   const [targetPace, setTargetPace] = useState<number | null>(null);
   const [personalized, setPersonalized] = useState(false);
@@ -92,9 +125,19 @@ export default function OnboardingRecommendedScreen({ navigation }: Props) {
         const existingCal = typeof d?.dailyCalorieGoal === 'number' ? d.dailyCalorieGoal : null;
         const existingWk = typeof d?.workoutsPerWeek === 'number' ? d.workoutsPerWeek : null;
         setHadExisting(existingCal != null || existingWk != null);
-        setCalories(String(existingCal ?? rec.dailyCalorieGoal));
-        setWorkouts(existingWk ?? rec.workoutsPerWeek);
+        setCalories(String(existingCal || rec.dailyCalorieGoal));
+        setWorkouts(existingWk || rec.workoutsPerWeek);
         setPersonalized(rec.personalized);
+
+        // Re-onboarding: a 0 in the profile mirror IS the off switch (that's
+        // how MMRGoalsScreen records a disabled category), so honour it rather
+        // than silently switching someone's tracking back on.
+        if (existingWk === 0) setWorkoutsOn(false);
+        if (typeof d?.logCaloriesDaysPerWeek === 'number' && d.logCaloriesDaysPerWeek === 0) setCaloriesOn(false);
+        if (typeof d?.logWeightDaysPerWeek === 'number') {
+          if (d.logWeightDaysPerWeek === 0) setWeightOn(false);
+          else setWeighDays(d.logWeightDaysPerWeek);
+        }
 
         // Suggest a realistic goal target date (existing value wins on re-onboard).
         const sug = suggestTargetDate({ weightLb: d?.weightCurrent, goalLb: d?.weightGoal, goalMode });
@@ -113,25 +156,42 @@ export default function OnboardingRecommendedScreen({ navigation }: Props) {
     };
   }, [user?.uid]);
 
+  const anyCategoryOn = workoutsOn || caloriesOn || weightOn;
+
   const handleContinue = async () => {
-    if (!user?.uid) return;
+    if (!user?.uid || !anyCategoryOn) return;
     const cal = Number(calories);
-    if (!Number.isFinite(cal) || cal < 800 || cal > 8000) return;
+    // Calories only has to be valid if they're actually tracking it.
+    if (caloriesOn && (!Number.isFinite(cal) || cal < 800 || cal > 8000)) return;
 
     setIsSubmitting(true);
     try {
+      // Profile mirror. A disabled category writes 0 — the same convention
+      // MMRGoalsScreen uses, which the group compliance charts read.
       await updateMyProfile({
         uid: user.uid,
-        dailyCalorieGoal: Math.round(cal),
-        workoutsPerWeek: workouts,
-        ...(targetDate ? { weightTargetDate: targetDate } : {}),
+        ...(caloriesOn && Number.isFinite(cal) ? { dailyCalorieGoal: Math.round(cal) } : {}),
+        workoutsPerWeek: workoutsOn ? workouts : 0,
+        logCaloriesDaysPerWeek: caloriesOn ? CALORIE_DAYS_PER_WEEK : 0,
+        logWeightDaysPerWeek: weightOn ? weighDays : 0,
+        ...(weightOn && targetDate ? { weightTargetDate: targetDate } : {}),
       });
       // CRITICAL: also create the SCORING goal docs (users/{uid}/goals) — the
       // FP engine reads these, not the profile fields. Without them, a user
       // who never opens Profile→Goals earns ZERO FP for workouts/calories
       // (hit in prod: 4 users logging workouts stuck at 1800).
-      await upsertGoal(user.uid, 'workouts', { type: 'workouts', status: 'active', targetWorkoutsPerWeek: workouts });
-      await upsertGoal(user.uid, 'calorieDays', { type: 'calorieDays', status: 'active', targetDaysPerWeek: 5 });
+      // 'paused' is how a switched-off category is recorded, so it is never
+      // scored AND never penalized.
+      await upsertGoal(user.uid, 'workouts', {
+        type: 'workouts',
+        status: workoutsOn ? 'active' : 'paused',
+        targetWorkoutsPerWeek: workouts,
+      });
+      await upsertGoal(user.uid, 'calorieDays', {
+        type: 'calorieDays',
+        status: caloriesOn ? 'active' : 'paused',
+        targetDaysPerWeek: CALORIE_DAYS_PER_WEEK,
+      });
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       await updateOnboardingStep(user.uid, 4);
       onboardingAnalytics.goalsSaved();
@@ -154,7 +214,7 @@ export default function OnboardingRecommendedScreen({ navigation }: Props) {
           </AppText>
           <AppText variant="body" color="secondary" style={styles.subtext}>
             {hadExisting
-              ? 'These are your current targets — tweak anything before you lock it in.'
+              ? 'These are your current settings. Switch off anything you no longer want tracked.'
               : personalized
                 ? recommended.subtextPersonalized
                 : recommended.subtextFallback}
@@ -162,70 +222,117 @@ export default function OnboardingRecommendedScreen({ navigation }: Props) {
 
           {!loading && (
             <>
-              <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>Workouts / week</AppText>
-              <View style={styles.chips}>
-                {[1, 2, 3, 4, 5, 6, 7].map((n) => {
-                  const sel = workouts === n;
-                  return (
-                    <TouchableOpacity
-                      key={n}
-                      onPress={() => {
-                        setWorkouts(n);
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      }}
-                      style={[styles.chip, sel && styles.chipSelected]}
-                    >
-                      <AppText variant="rowTitle" color={sel ? 'accent' : 'secondary'}>{n}</AppText>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-
-              <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>Daily calories</AppText>
-              <View style={styles.group}>
-                <EditRow
-                  label="Calorie target"
-                  value={calories}
-                  onChangeText={(t) => setCalories(t.replace(/[^0-9]/g, ''))}
-                  subline={personalized && !hadExisting ? 'Estimated from your stats and goal' : undefined}
-                  suffix="kcal"
-                  keyboardType="number-pad"
-                  showDivider={false}
-                />
-              </View>
-
-              {targetDate ? (
-                <>
-                  <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>Goal target date</AppText>
-                  <View style={styles.group}>
-                    <View style={styles.dateRow}>
+              <CategoryToggle
+                title="Workouts"
+                subtitle="Sessions per week"
+                value={workoutsOn}
+                onValueChange={setWorkoutsOn}
+              />
+              {workoutsOn ? (
+                <View style={styles.chips}>
+                  {[1, 2, 3, 4, 5, 6, 7].map((n) => {
+                    const sel = workouts === n;
+                    return (
                       <TouchableOpacity
+                        key={n}
                         onPress={() => {
-                          const next = shiftISO(targetDate, -7);
-                          if (!isPast(next)) { setTargetDate(next); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }
+                          setWorkouts(n);
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                         }}
-                        style={[styles.stepBtn, isPast(shiftISO(targetDate, -7)) && styles.stepBtnDisabled]}
+                        style={[styles.chip, sel && styles.chipSelected]}
                       >
-                        <AppText variant="rowTitle" color="secondary">−</AppText>
+                        <AppText variant="rowTitle" color={sel ? 'accent' : 'secondary'}>{n}</AppText>
                       </TouchableOpacity>
-                      <View style={styles.dateCenter}>
-                        <AppText variant="rowTitle" color="primary">{formatTargetDate(targetDate)}</AppText>
-                        {targetPace ? (
-                          <AppText variant="rowSubtitle" color="muted">~{targetPace} lb/week</AppText>
-                        ) : null}
-                      </View>
-                      <TouchableOpacity
-                        onPress={() => { setTargetDate(shiftISO(targetDate, 7)); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
-                        style={styles.stepBtn}
-                      >
-                        <AppText variant="rowTitle" color="secondary">+</AppText>
-                      </TouchableOpacity>
-                    </View>
+                    );
+                  })}
+                </View>
+              ) : null}
+
+              <CategoryToggle
+                title="Calories"
+                subtitle="Daily intake target"
+                value={caloriesOn}
+                onValueChange={setCaloriesOn}
+              />
+              {caloriesOn ? (
+                <View style={styles.group}>
+                  <EditRow
+                    label="Calorie target"
+                    value={calories}
+                    onChangeText={(t) => setCalories(t.replace(/[^0-9]/g, ''))}
+                    subline={personalized && !hadExisting ? 'Estimated from your stats and goal' : undefined}
+                    suffix="kcal"
+                    keyboardType="number-pad"
+                    showDivider={false}
+                  />
+                </View>
+              ) : null}
+
+              <CategoryToggle
+                title="Weight"
+                subtitle="Weigh-ins per week"
+                value={weightOn}
+                onValueChange={setWeightOn}
+              />
+              {weightOn ? (
+                <>
+                  <View style={styles.chips}>
+                    {[1, 2, 3, 4, 5, 6, 7].map((n) => {
+                      const sel = weighDays === n;
+                      return (
+                        <TouchableOpacity
+                          key={n}
+                          onPress={() => {
+                            setWeighDays(n);
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          }}
+                          style={[styles.chip, sel && styles.chipSelected]}
+                        >
+                          <AppText variant="rowTitle" color={sel ? 'accent' : 'secondary'}>{n}</AppText>
+                        </TouchableOpacity>
+                      );
+                    })}
                   </View>
-                  <AppText variant="rowSubtitle" color="muted" style={styles.note}>
-                    A realistic date at a healthy pace — nudge it a week at a time. You can change it anytime.
-                  </AppText>
+                  {targetDate ? (
+                    <>
+                      <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>Goal target date</AppText>
+                      <View style={styles.group}>
+                        <View style={styles.dateRow}>
+                          <TouchableOpacity
+                            onPress={() => {
+                              const next = shiftISO(targetDate, -7);
+                              if (!isPast(next)) { setTargetDate(next); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }
+                            }}
+                            style={[styles.stepBtn, isPast(shiftISO(targetDate, -7)) && styles.stepBtnDisabled]}
+                          >
+                            <AppText variant="rowTitle" color="secondary">−</AppText>
+                          </TouchableOpacity>
+                          <View style={styles.dateCenter}>
+                            <AppText variant="rowTitle" color="primary">{formatTargetDate(targetDate)}</AppText>
+                            {targetPace ? (
+                              <AppText variant="rowSubtitle" color="muted">~{targetPace} lb/week</AppText>
+                            ) : null}
+                          </View>
+                          <TouchableOpacity
+                            onPress={() => { setTargetDate(shiftISO(targetDate, 7)); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+                            style={styles.stepBtn}
+                          >
+                            <AppText variant="rowTitle" color="secondary">+</AppText>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                      <AppText variant="rowSubtitle" color="muted" style={styles.note}>
+                        A realistic date at a healthy pace. Nudge it a week at a time, and change it anytime.
+                      </AppText>
+                    </>
+                  ) : null}
                 </>
+              ) : null}
+
+              {!anyCategoryOn ? (
+                <AppText variant="rowSubtitle" color="danger" style={styles.note}>
+                  Pick at least one thing to track.
+                </AppText>
               ) : null}
 
               <AppText variant="rowSubtitle" color="muted" style={styles.note}>
@@ -236,7 +343,7 @@ export default function OnboardingRecommendedScreen({ navigation }: Props) {
         </ScrollView>
 
         <View style={styles.footer}>
-          <PrimaryButton onPress={handleContinue} loading={isSubmitting} disabled={loading || isSubmitting || !calories} style={styles.button}>
+          <PrimaryButton onPress={handleContinue} loading={isSubmitting} disabled={loading || isSubmitting || !anyCategoryOn || (caloriesOn && !calories)} style={styles.button}>
             {recommended.cta}
           </PrimaryButton>
         </View>
@@ -272,6 +379,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.base,
   },
   note: { marginTop: spacing.base, lineHeight: 18 },
+  catRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: spacing.xl,
+    marginBottom: spacing.sm,
+  },
   dateRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.md, gap: spacing.md },
   dateCenter: { flex: 1, alignItems: 'center', gap: 2 },
   stepBtn: { width: 44, height: 44, borderRadius: radius.tile, backgroundColor: colors.surface2, alignItems: 'center', justifyContent: 'center' },

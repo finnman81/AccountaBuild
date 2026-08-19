@@ -56,11 +56,11 @@ export const onboardingCopy = {
 
   // Recommended targets — computed from intent + basic info, user can tweak.
   recommended: {
-    headline: "Your starting targets",
-    subtextPersonalized: "Built from your stats and goal. Adjust anything before you lock it in.",
-    subtextFallback: "Solid starting points. Adjust anything before you lock it in.",
+    headline: "What do you want\nto track?",
+    subtextPersonalized: "Track all three or just one. Switch off anything you don't want scored, and adjust the rest.",
+    subtextFallback: "Track all three or just one. Switch off anything you don't want scored, and adjust the rest.",
     cta: "Looks good",
-    note: "Change these anytime in Goals. Harder targets earn more FP.",
+    note: "Anything switched off is never scored and never costs you FP. Change all of this anytime in Goals.",
   },
   
   // Screen 3: Accountability
