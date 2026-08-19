@@ -4,7 +4,11 @@ import { Icon, Text } from 'react-native-paper';
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { useNavigation } from '@react-navigation/native';
+
 import { AuthContext } from '../../store/AuthContext';
+import { subscribeMyProfile } from '../../services/profile';
+import { subscribeMyMmrGoals } from '../../services/mmrGoals';
 import { registerPushToken } from '../../services/pushTokens';
 import { syncNotifPrefsToServer } from '../../services/appSettings';
 import { subscribeHealthSettings } from '../../services/healthSettings';
@@ -15,12 +19,21 @@ import { colors } from '../../theme/colors';
 const DISMISS_KEY_PREFIX = 'setupChecklistDismissed';
 
 /**
- * "Get set up" nudge on Today for users missing push notifications or health
- * sync — the people push notifications literally cannot reach. Each row fixes
- * itself in one tap; the card disappears when everything is on (or dismissed).
+ * "Get set up" nudge on Today for users missing push notifications, health
+ * sync, or a weight goal. Each row fixes itself in one tap; the card
+ * disappears when everything is on (or dismissed).
+ *
+ * The weight row exists because opting into weight tracking during onboarding
+ * does NOT create the scoring goal: FP for weight comes from an active
+ * weightLoss/weightGain doc (mmr-compute.js:302), and onboarding never
+ * collects a goal weight. Without this prompt someone weighs in all week and
+ * silently earns nothing — two BPM members were in exactly that state when
+ * this was found (2026-08-19). Strictly conditional: only for people who
+ * ASKED to track weight.
  */
 export default function SetupChecklistCard() {
   const { user } = useContext(AuthContext);
+  const nav = useNavigation<any>();
 
   const [dismissed, setDismissed] = useState<boolean | null>(null);
   const [pushGranted, setPushGranted] = useState<boolean | null>(null);
@@ -28,6 +41,9 @@ export default function SetupChecklistCard() {
   const [healthOn, setHealthOn] = useState<boolean | null>(null);
   const [healthBusy, setHealthBusy] = useState(false);
   const [healthError, setHealthError] = useState(false);
+  // null = still loading (keeps the card from flashing a row it may not need)
+  const [tracksWeight, setTracksWeight] = useState<boolean | null>(null);
+  const [hasWeightGoal, setHasWeightGoal] = useState<boolean | null>(null);
 
   const dismissKey = user?.uid ? `${DISMISS_KEY_PREFIX}:${user.uid}` : null;
 
@@ -59,6 +75,23 @@ export default function SetupChecklistCard() {
       (s) => setHealthOn(!!s && (s.syncWorkouts || s.syncCalories || s.syncWeight)),
       () => setHealthOn(false),
     );
+  }, [user?.uid]);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    return subscribeMyProfile(
+      user.uid,
+      (p) => setTracksWeight(!!p && Number(p.logWeightDaysPerWeek ?? 0) > 0),
+      () => setTracksWeight(false),
+    );
+  }, [user?.uid]);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    return subscribeMyMmrGoals(user.uid, (goals) => {
+      const active = (g: any) => g?.status === 'active';
+      setHasWeightGoal(active(goals?.weightLoss) || active(goals?.weightGain));
+    });
   }, [user?.uid]);
 
   const enablePush = async () => {
@@ -113,9 +146,13 @@ export default function SetupChecklistCard() {
 
   // Wait until every signal has loaded to avoid a flash; hide when done/dismissed.
   if (dismissed !== false || pushGranted === null || healthOn === null) return null;
+  if (tracksWeight === null || hasWeightGoal === null) return null;
   const needsPush = !pushGranted;
   const needsHealth = !healthOn;
-  if (!needsPush && !needsHealth) return null;
+  // ONLY for people who opted into weight tracking. Someone tracking just
+  // workouts must never be nagged about a goal weight they never wanted.
+  const needsWeightGoal = tracksWeight && !hasWeightGoal;
+  if (!needsPush && !needsHealth && !needsWeightGoal) return null;
 
   const healthLabel = Platform.OS === 'ios' ? 'Apple Health' : 'Health Connect';
 
@@ -155,6 +192,23 @@ export default function SetupChecklistCard() {
           </TouchableOpacity>
         </View>
       ) : null}
+
+      {needsWeightGoal ? (
+        <View style={[styles.row, (needsPush || needsHealth) && styles.rowDivider]}>
+          <Icon source="scale-bathroom" size={20} color={colors.rankGold} />
+          <View style={styles.rowText}>
+            <Text style={styles.rowTitle}>Set your goal weight</Text>
+            <Text style={styles.rowSub}>You're logging weigh-ins, but they don't earn FP until you set a target.</Text>
+          </View>
+          <TouchableOpacity
+            style={[styles.btn, styles.btnWeight]}
+            onPress={() => nav.navigate('MMRGoals')}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.btnText}>Set</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -178,5 +232,6 @@ const styles = StyleSheet.create({
   rowSub: { color: colors.textSecondary, fontSize: 12, marginTop: 2, lineHeight: 16 },
   btn: { backgroundColor: colors.primary, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 },
   btnHealth: { backgroundColor: colors.success },
+  btnWeight: { backgroundColor: colors.rankGold },
   btnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
 });

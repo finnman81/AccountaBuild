@@ -276,6 +276,12 @@ export default function OnboardingRecommendedScreen({ navigation }: Props) {
               />
               {weightOn ? (
                 <>
+                  {/* Say the quiet part here rather than letting someone log
+                      weigh-ins for weeks and wonder why they score nothing.
+                      Today's setup card follows this up with a one-tap link. */}
+                  <AppText variant="rowSubtitle" color="muted" style={styles.weightNote}>
+                    Set a goal weight later in Goals to earn FP for this.
+                  </AppText>
                   <View style={styles.chips}>
                     {[1, 2, 3, 4, 5, 6, 7].map((n) => {
                       const sel = weighDays === n;
@@ -379,6 +385,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.base,
   },
   note: { marginTop: spacing.base, lineHeight: 18 },
+  weightNote: { marginTop: -spacing.xs, marginBottom: spacing.sm, lineHeight: 17 },
   catRow: {
     flexDirection: 'row',
     alignItems: 'center',
