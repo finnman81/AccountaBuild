@@ -1,4 +1,4 @@
-import { collection, doc, onSnapshot, query, serverTimestamp, setDoc, where } from 'firebase/firestore';
+import { collection, doc, getDocs, limit, onSnapshot, query, serverTimestamp, setDoc, where } from 'firebase/firestore';
 
 import { db } from '../firebase/firebase';
 import { DEFAULT_TZ, isoWeekDatesInTz, isoWeekIdInTz, yyyyMmDdInTz } from '../mmr/time';
@@ -30,6 +30,26 @@ export function signingOpen(now: Date = new Date()): boolean {
   const today = yyyyMmDdInTz(now, DEFAULT_TZ);
   const idx = dates.indexOf(today); // 0 = Monday
   return idx >= 0 && idx < SIGN_WINDOW_DAYS;
+}
+
+/**
+ * Has this person EVER signed in this group? Signature doc ids are
+ * `{weekId}_{uid}`, which Firestore can't match by suffix, so this leans on
+ * the uid field. One doc is enough to answer it.
+ *
+ * Powers the first-timer explainer: the 2026-08-19 poll found zero people
+ * disliked hold-to-sign, but the one member who answered "I don't know what
+ * that is" had signed 0 weeks — the feature's problem is discovery, not design.
+ */
+export async function hasEverSigned(groupId: string, uid: string): Promise<boolean> {
+  try {
+    const snap = await getDocs(
+      query(collection(db, 'groups', groupId, 'signatures'), where('uid', '==', uid), limit(1)),
+    );
+    return !snap.empty;
+  } catch {
+    return true; // on error, assume yes — never show a first-timer hint wrongly
+  }
 }
 
 export function subscribeWeekSignatures(

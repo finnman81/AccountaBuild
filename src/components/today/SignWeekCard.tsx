@@ -7,7 +7,7 @@ import Avatar from '../ui/Avatar';
 import { AuthContext } from '../../store/AuthContext';
 import { useActiveGroup } from '../../store/ActiveGroupContext';
 import { colors, radius, spacing } from '../../theme';
-import { currentWeekId, signCurrentWeek, signingOpen, subscribeWeekSignatures } from '../../services/signatures';
+import { currentWeekId, hasEverSigned, signCurrentWeek, signingOpen, subscribeWeekSignatures } from '../../services/signatures';
 import { getHydrated, setHydrated } from '../../services/hydrationCache';
 import { friendlyNameFromDisplayName } from '../../utils/formatters';
 import type { PublicUser } from '../../services/publicUsers';
@@ -45,6 +45,9 @@ export default function SignWeekCard({ memberUids, publicUsers, canSee }: Props)
   const [loaded, setLoaded] = useState<boolean>(() => !!(cacheKey && getHydrated<string[]>(cacheKey)));
   const [busy, setBusy] = useState(false);
   const [justSigned, setJustSigned] = useState(false);
+  // First-timers get one extra line explaining what this is. Everyone who has
+  // signed before gets the card exactly as it was.
+  const [firstTimer, setFirstTimer] = useState(false);
 
   const weekId = currentWeekId();
   const isOpen = signingOpen();
@@ -62,6 +65,15 @@ export default function SignWeekCard({ memberUids, publicUsers, canSee }: Props)
       setHydrated(`signatures:${activeGroupId}:${weekId}`, Array.from(uids));
     });
   }, [activeGroupId, weekId]);
+
+  useEffect(() => {
+    if (!activeGroupId || !myUid) return;
+    let cancelled = false;
+    hasEverSigned(activeGroupId, myUid).then((ever) => {
+      if (!cancelled) setFirstTimer(!ever);
+    });
+    return () => { cancelled = true; };
+  }, [activeGroupId, myUid]);
 
   const visible = useMemo(
     () => memberUids.filter((u) => u === myUid || canSee.has(u)),
@@ -168,6 +180,16 @@ export default function SignWeekCard({ memberUids, publicUsers, canSee }: Props)
         wanting it and doing it. {signedCount > 0 ? `${signedCount} of your group already signed.` : 'Be the one who goes first.'}
       </AppText>
 
+      {firstTimer ? (
+        <View style={styles.firstTimer}>
+          <AppText variant="rowSubtitle" color="secondary" style={{ lineHeight: 19 }}>
+            <AppText variant="rowSubtitle" color="primary">New here?</AppText> Press and hold the
+            button below for a second. Your name goes up for the group to see. It costs no FP and
+            nothing happens if you skip it. Open Monday and Tuesday only.
+          </AppText>
+        </View>
+      ) : null}
+
       <Pressable
         onPressIn={onPressIn}
         onPressOut={onPressOut}
@@ -202,6 +224,14 @@ const styles = StyleSheet.create({
     // — visible every Monday, the one day the recap and the sign card coexist.
     marginTop: spacing.base,
     marginBottom: spacing.base,
+  },
+  firstTimer: {
+    marginTop: spacing.md,
+    padding: spacing.md,
+    borderRadius: radius.tile,
+    backgroundColor: colors.primaryTint,
+    borderWidth: 1,
+    borderColor: 'rgba(62,139,255,0.28)',
   },
   holdBtn: {
     height: 52,

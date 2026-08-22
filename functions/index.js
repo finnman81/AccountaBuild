@@ -29,7 +29,7 @@ const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestor
 const { computeUserWeek, computeUserUpToCurrentWeek } = require('./mmr-compute');
 const { ensureSeasonRollover } = require('./mmr-season');
 const { deleteAccount } = require('./account-deletion');
-const { evaluateStreakRisk, evaluateDailyChampion, evaluateVacationPrompt } = require('./notif-logic');
+const { evaluateStreakRisk, evaluateDailyChampion, evaluateVacationPrompt, evaluateSignNudge } = require('./notif-logic');
 const { setHibernation, wakeExpiredHibernations } = require('./hibernation');
 const { publishCelebration } = require('./celebrations');
 
@@ -326,14 +326,27 @@ exports.streakRiskReminder = onSchedule(
     const { items, evaluated } = await evaluateStreakRisk(db, now);
     const riskItems = items.filter((i) => !vacUids.has(i.uid));
 
-    const toSend = [...vac.items, ...riskItems];
+    // Sign nudge (Mondays only, and only for people who have NEVER signed).
+    // Lowest priority of the three: anyone already receiving a vacation prompt
+    // or a streak warning tonight is not also told to sign — one evening, one
+    // push, or the whole set gets muted.
+    const claimed = new Set([...vacUids, ...riskItems.map((i) => i.uid)]);
+    const sign = await evaluateSignNudge(db, now);
+    const signItems = sign.items.filter((i) => !claimed.has(i.uid));
+
+    const toSend = [...vac.items, ...riskItems, ...signItems];
     const result = toSend.length ? await sendExpoPushes(db, toSend) : { sent: 0 };
-    await Promise.all(
-      vac.items.map((i) =>
+    await Promise.all([
+      ...vac.items.map((i) =>
         db.doc(`users/${i.uid}`).set({ vacationPromptWeekId: vac.weekId }, { merge: true }).catch(() => {}),
       ),
+      ...signItems.map((i) =>
+        db.doc(`users/${i.uid}`).set({ signNudgeWeekId: sign.weekId }, { merge: true }).catch(() => {}),
+      ),
+    ]);
+    console.log(
+      `[streakRiskReminder] evaluated ${evaluated} users, sent ${result.sent} (${vac.items.length} vacation, ${signItems.length} sign)`,
     );
-    console.log(`[streakRiskReminder] evaluated ${evaluated} users, sent ${result.sent} (${vac.items.length} vacation prompts)`);
   },
 );
 

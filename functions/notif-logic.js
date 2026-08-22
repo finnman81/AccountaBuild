@@ -84,6 +84,56 @@ async function evaluateStreakRisk(db, now) {
 module.exports = { evaluateStreakRisk };
 
 /**
+ * "You've never signed a week" nudge — Monday evening only.
+ *
+ * The 2026-08-19 poll found ZERO people disliked hold-to-sign, but 3 of 8
+ * members had never signed once and the only one who explained said "I don't
+ * know what that is". So this targets discovery, not compliance: it fires only
+ * for people with NO signature in the group EVER. Regulars who simply skip a
+ * week are never nagged, and it can only fire while the Mon-Tue signing window
+ * is actually open.
+ */
+async function evaluateSignNudge(db, now) {
+  const weekId = core.isoWeekIdInTz(now, TZ);
+  const dow = new Intl.DateTimeFormat('en-US', { timeZone: TZ, weekday: 'short' }).format(now);
+  if (dow !== 'Mon') return { items: [], weekId };
+
+  const items = [];
+  const groups = await db.collection('groups').get();
+  for (const g of groups.docs) {
+    try {
+      const sigs = await db.collection('groups').doc(g.id).collection('signatures').get();
+      const everSigned = new Set(sigs.docs.map((d) => String(d.data().uid || '')).filter(Boolean));
+      const members = await db.collection('groups').doc(g.id).collection('members').get();
+      if (members.size < 2) continue; // a solo group has nobody to commit to
+
+      for (const m of members.docs) {
+        if (everSigned.has(m.id)) continue; // has signed before — leave them alone
+        const uSnap = await db.doc(`users/${m.id}`).get();
+        const u = uSnap.exists ? uSnap.data() : null;
+        if (!u || !isExpoToken(u.expoPushToken)) continue;
+        if (!prefEnabled(u, 'streakReminder')) continue;
+        if (isHibernating(u, weekId)) continue;
+        if (u.signNudgeWeekId === weekId) continue; // once per week, ever-idempotent
+
+        items.push({
+          uid: m.id,
+          token: u.expoPushToken,
+          title: '✍️ Sign your week',
+          body: `Open ${g.data().name || 'your group'} and hold the button. It tells everyone you're in.`,
+          data: { type: 'signNudge', screen: 'Today' },
+        });
+      }
+    } catch (e) {
+      console.warn('[signNudge] eval failed for group', g.id, e);
+    }
+  }
+  return { items, weekId };
+}
+
+module.exports.evaluateSignNudge = evaluateSignNudge;
+
+/**
  * "Yesterday's Champion" — per group, who logged the most yesterday?
  * Primary ranking: ACTUAL FP earned yesterday (day-over-day delta from the
  * users/{uid}/fpDaily ledger written by updateMmrScheduled), when every
