@@ -207,9 +207,9 @@ export default function ProgressScreen({ navigation }: Props) {
       totalMembers: memberUids.length,
       hasAny: wGoal + cGoal + oGoal > 0,
       bars: [
-        { label: 'Weight', pct: pct(wDone, wGoal), ratio: ratio(wDone, wGoal) },
-        { label: 'Calories', pct: pct(cDone, cGoal), ratio: ratio(cDone, cGoal) },
-        { label: 'Workouts', pct: pct(oDone, oGoal), ratio: ratio(oDone, oGoal) },
+        { label: 'Workouts', pct: pct(oDone, oGoal), ratio: ratio(oDone, oGoal), missed: Math.max(0, oGoal - oDone) },
+        { label: 'Weigh-ins', pct: pct(wDone, wGoal), ratio: ratio(wDone, wGoal), missed: Math.max(0, wGoal - wDone) },
+        { label: 'Calories', pct: pct(cDone, cGoal), ratio: ratio(cDone, cGoal), missed: Math.max(0, cGoal - cDone) },
       ],
     };
   }, [groupLogs, memberUids, publicUsers]);
@@ -628,15 +628,20 @@ export default function ProgressScreen({ navigation }: Props) {
 
       {/* Group compliance (merged from the old Charts screen) */}
       <Card>
-        <AppText variant="rowTitle" color="primary">Group compliance</AppText>
+        <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' }}>
+          <AppText variant="rowTitle" color="primary">Goals hit</AppText>
+          {complianceBars.totalMembers ? (
+            <AppText variant="rowSubtitle" color="muted">
+              {`${complianceBars.membersWithGoals} of ${complianceBars.totalMembers} set goals`}
+            </AppText>
+          ) : null}
+        </View>
         <AppText variant="rowSubtitle" color="secondary" style={{ marginTop: 2 }}>
-          {complianceBars.totalMembers
-            ? `${complianceBars.membersWithGoals}/${complianceBars.totalMembers} members set goals · this week`
-            : 'No members yet'}
+          {complianceBars.totalMembers ? 'Across the group, this week' : 'No members yet'}
         </AppText>
         {complianceBars.hasAny ? (
           <View style={{ marginTop: spacing.md }}>
-            <ComplianceBars bars={complianceBars.bars} />
+            <ComplianceBars bars={complianceBars.bars} elapsedDays={dayNum} />
           </View>
         ) : (
           <AppText variant="body" color="muted" style={{ marginTop: spacing.md }}>
