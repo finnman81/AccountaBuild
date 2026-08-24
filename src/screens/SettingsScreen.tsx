@@ -10,6 +10,7 @@ import { getAppNotificationSettings, setAppNotificationSetting, type AppNotifica
 import { deleteMyAccount } from '../services/accountDeletion';
 import { SUPPORT_EMAIL } from './LegalScreen';
 import AppText from '../components/ui/AppText';
+import VacationRow from '../components/settings/VacationRow';
 import { colors, radius, spacing } from '../theme';
 
 function ToggleRow({ title, subtitle, value, onValueChange, divider = true }: { title: string; subtitle?: string; value: boolean; onValueChange: (v: boolean) => void; divider?: boolean }) {
@@ -144,7 +145,8 @@ export default function SettingsScreen() {
         <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>Account</AppText>
         <View style={styles.group}>
           <NavRow title="Edit profile" onPress={() => nav.navigate('EditProfile')} />
-          <NavRow title="Hibernation" value="Away a while?" onPress={() => nav.navigate('Hibernation')} />
+          {user?.uid ? <VacationRow uid={user.uid} /> : null}
+          <NavRow title="Hibernation" value="Away a month or more" onPress={() => nav.navigate('Hibernation')} />
           <NavRow title="Blocked users" onPress={() => nav.navigate('BlockedUsers')} />
           <NavRow title="Email" value={user?.email ?? '—'} divider={false} />
         </View>
