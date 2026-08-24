@@ -87,7 +87,13 @@ export function buildLeaderboard(params: {
         atRisk: !loggedToday.has(uid) && pastCutoff,
         isMe: uid === myUid,
         movement,
-        onVacation: !!params.currentWeekId && p?.vacationWeekId === params.currentWeekId,
+        onVacation:
+          !!params.currentWeekId &&
+          (p?.vacationWeekId === params.currentWeekId ||
+            (!!p?.vacationFromWeekId &&
+              !!p?.vacationUntilWeekId &&
+              params.currentWeekId >= p.vacationFromWeekId &&
+              params.currentWeekId <= p.vacationUntilWeekId)),
         hibernating: !!params.currentWeekId && isHibernating(p as any, params.currentWeekId),
       };
     });

@@ -41,6 +41,7 @@ import NotificationsScreen from '../screens/NotificationsScreen';
 import HealthSettingsScreen from '../screens/HealthSettingsScreen';
 import BlockedUsersScreen from '../screens/BlockedUsersScreen';
 import HibernationScreen from '../screens/HibernationScreen';
+import VacationScreen from '../screens/VacationScreen';
 import LegalScreen from '../screens/LegalScreen';
 import ProgressScreen from '../screens/ProgressScreen';
 import HistoryScreen from '../screens/HistoryScreen';
@@ -109,6 +110,7 @@ function ProfileStackNavigator() {
       <ProfileStack.Screen name="HealthSettings" component={HealthSettingsScreen} options={{ title: 'Health & Fitness' }} />
       <ProfileStack.Screen name="BlockedUsers" component={BlockedUsersScreen} options={{ headerShown: false }} />
       <ProfileStack.Screen name="Hibernation" component={HibernationScreen} options={{ title: 'Hibernation' }} />
+      <ProfileStack.Screen name="Vacation" component={VacationScreen} options={{ title: 'Vacation' }} />
       <ProfileStack.Screen name="Legal" component={LegalScreen} options={{ headerShown: false }} />
     </ProfileStack.Navigator>
   );

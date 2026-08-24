@@ -42,6 +42,9 @@ export type PublicUser = {
   streakDaysUpdatedAtMs?: number | null;
   /** ISO week the user has declared as a vacation week (null when none). */
   vacationWeekId?: string | null;
+  /** Booked vacation RANGE (advance booking, 2026-08-21). */
+  vacationFromWeekId?: string | null;
+  vacationUntilWeekId?: string | null;
   /** Hibernation range mirror (server-written) — drives the pod + 😴 badge. */
   hibernatingFromWeekId?: string | null;
   hibernatingUntilWeekId?: string | null;
@@ -173,6 +176,8 @@ export function subscribePublicUsers(uids: string[], onChange: (map: Record<stri
           // so the 🏖️ badge had been dead since it shipped; hibernation hit the
           // identical trap on day one (2026-08-17).
           vacationWeekId: typeof data?.vacationWeekId === 'string' ? data.vacationWeekId : null,
+          vacationFromWeekId: typeof data?.vacationFromWeekId === 'string' ? data.vacationFromWeekId : null,
+          vacationUntilWeekId: typeof data?.vacationUntilWeekId === 'string' ? data.vacationUntilWeekId : null,
           hibernatingFromWeekId: typeof data?.hibernatingFromWeekId === 'string' ? data.hibernatingFromWeekId : null,
           hibernatingUntilWeekId: typeof data?.hibernatingUntilWeekId === 'string' ? data.hibernatingUntilWeekId : null,
           badgesPublic: Array.isArray(data?.badgesPublic) ? data.badgesPublic : undefined,

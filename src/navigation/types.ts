@@ -81,6 +81,7 @@ export type ProfileStackParamList = {
   HealthSettings: undefined;
   BlockedUsers: undefined;
   Hibernation: undefined;
+  Vacation: undefined;
   Legal: undefined;
 };
 
