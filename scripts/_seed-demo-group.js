@@ -61,6 +61,28 @@ function datesBack(nDays) {
   }
   if (!APPLY) { console.log('\npass --apply to build'); process.exit(0); }
 
+  // ---- wipe first: seeding is a REPLACE, not an append ----
+  // Logs/messages/weights are written with .add(), so a second run stacked a
+  // fresh 21 days on top of the old ones: 366 logs where 183 belonged, with 24
+  // duplicated member/day/type combos in the overlap (2026-08-25). A demo group
+  // has to look deliberate, so every run starts from empty.
+  if (GROUP_ID === 'demo-review-crew') { // paranoia: never point this at a real group
+    const wipe = async (ref) => {
+      const snap = await ref.get();
+      await Promise.all(snap.docs.map((d) => d.ref.delete()));
+      return snap.size;
+    };
+    let n = 0;
+    for (const c of ['logs', 'messages', 'signatures', 'announcements']) {
+      n += await wipe(db.collection(`groups/${GROUP_ID}/${c}`));
+    }
+    for (const m of MEMBERS) {
+      if (String(uids[m.key]).startsWith('dry-')) continue;
+      n += await wipe(db.collection(`users/${uids[m.key]}/weights`));
+    }
+    console.log(`wiped ${n} docs from the previous seed`);
+  }
+
   // ---- group + membership (NO real users, ever) ----
   await db.doc(`groups/${GROUP_ID}`).set({
     name: 'Morning Grind', createdBy: uids.reviewer, memberCount: MEMBERS.length,
