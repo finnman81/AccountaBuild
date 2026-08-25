@@ -25,6 +25,15 @@ export type HealthKitWorkout = {
   startDate: Date;
   endDate: Date;
   uuid?: string;
+  /**
+   * What HealthKit actually called it, and who wrote it. Kept because the
+   * mapped type alone is a dead end: four sessions synced as 'other' on
+   * 2026-08-23 and there was no way afterwards to tell what Apple had sent, or
+   * whether our table was missing a type versus HealthKit genuinely not having
+   * one (WHOOP's "Manual Labor" is the latter — it arrives as Other/3000).
+   */
+  rawActivityType?: string;
+  sourceName?: string;
 };
 
 export type HealthKitCalories = {
@@ -323,6 +332,8 @@ export function mapWorkoutSample(w: any): HealthKitWorkout | null {
     startDate,
     endDate,
     uuid: w.uuid ? String(w.uuid) : undefined,
+    rawActivityType: w.workoutActivityType != null ? String(w.workoutActivityType) : undefined,
+    sourceName: String(w.source?.name || w.sourceRevision?.source?.name || w.sourceName || '') || undefined,
   };
 }
 

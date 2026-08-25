@@ -40,6 +40,7 @@ const workoutTypes: { label: string; value: WorkoutType }[] = [
   { label: 'Tai Chi', value: 'taiChi' },
   { label: 'Tennis', value: 'tennis' },
   { label: 'Walking', value: 'walking' },
+  { label: 'Manual Labor', value: 'manualLabor' },
 ];
 
 export default function AddWorkoutScreen({ route, navigation }: Props) {

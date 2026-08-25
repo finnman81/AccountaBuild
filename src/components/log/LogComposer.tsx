@@ -50,6 +50,7 @@ const WORKOUTS: Array<{ value: WorkoutType; label: string }> = [
   { value: 'elliptical', label: 'Elliptical' },
   { value: 'stairMaster', label: 'Stairs' },
   { value: 'tennis', label: 'Tennis' },
+  { value: 'manualLabor', label: 'Manual labor' },
 ];
 
 const MEALS: Array<{ value: MealType; label: string }> = [

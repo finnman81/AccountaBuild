@@ -38,6 +38,7 @@ export type WorkoutType =
   | 'pilates'
   | 'taiChi'
   | 'tennis'
+  | 'manualLabor'
   | 'walking'
   /** Anything the app can't classify — incl. Apple Health 'Other'/custom-named
    * workouts (e.g. manual labor). Better an honest 'Other' than a wrong guess. */

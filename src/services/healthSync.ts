@@ -174,7 +174,16 @@ export async function syncHealthData(uid: string, groupId: string, settings: Hea
                 source,
                 // Real event time -> stable ts across re-syncs + correct chat ordering.
                 eventAt: w.startDate,
-                payload: { workoutType: w.workoutType as WorkoutType, durationMinutes: w.durationMinutes, note: `Synced from ${sourceLabel}` },
+                payload: {
+                  workoutType: w.workoutType as WorkoutType,
+                  durationMinutes: w.durationMinutes,
+                  note: `Synced from ${sourceLabel}`,
+                  // Only on the unclassified ones, so an 'other' is always
+                  // diagnosable instead of a shrug.
+                  ...(w.workoutType === 'other'
+                    ? { hkActivityType: (w as any).rawActivityType ?? null, hkSource: (w as any).sourceName ?? null }
+                    : {}),
+                },
               });
               synced += 1;
               result.workoutsSynced += 1;

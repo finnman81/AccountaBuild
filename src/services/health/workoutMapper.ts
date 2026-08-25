@@ -277,6 +277,17 @@ export function mapHealthKitWorkoutType(healthKitType: string | number | unknown
     return 'tennis';
   }
   
+  // Manual labor. HealthKit has no activity type for it, so WHOOP (and
+  // anything else) writes it as "Other" (3000) — the numeric branch cannot
+  // help. Matched by name only, and only when a source bothers to pass one.
+  if (
+    (normalized.includes('manual') && normalized.includes('labor')) ||
+    normalized.includes('manuallabour') ||
+    normalized.includes('manuallabor')
+  ) {
+    return 'manualLabor';
+  }
+
   // Incline walk
   if (
     normalized.includes('incline') && normalized.includes('walk') ||
