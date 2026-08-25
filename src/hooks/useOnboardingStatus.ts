@@ -34,8 +34,27 @@ export function useOnboardingStatus(uid: string | null): { isCompleted: boolean;
       return;
     }
 
+    // BACK INTO LOADING. The previous run of this effect (uid === null, before
+    // auth restored) left isLoading FALSE, and isCompleted defaults to false.
+    // So the instant auth resolved, AppNavigator saw ready && !completed and
+    // mounted the ONBOARDING stack for everyone, until the Firestore snapshot
+    // landed a beat later and flipped it to MainTabs.
+    //
+    // That flash was invisible in the error feed but plain in the traces:
+    // "Today initial display" was being recorded as a child of the Welcome
+    // transaction on 48 launches in 7 days, i.e. returning users met the
+    // onboarding welcome screen for ~0.9s on cold start (2026-08-25).
+    setIsLoading(true);
+
     let cancelled = false;
     const localKey = onboardingLocalKey(uid);
+
+    // Never hang on the gate. If neither the local flag nor a server snapshot
+    // answers (offline cold start), fall back to the old behaviour rather than
+    // holding a blank screen behind the splash forever.
+    const bail = setTimeout(() => {
+      if (!cancelled) setIsLoading(false);
+    }, 2500);
 
     // Optimistically trust a persisted local completion. Once a user finishes
     // onboarding on this device we never want a cold-start cache miss (a cached
@@ -44,6 +63,7 @@ export function useOnboardingStatus(uid: string | null): { isCompleted: boolean;
     AsyncStorage.getItem(localKey)
       .then((v) => {
         if (!cancelled && v === 'true') {
+          clearTimeout(bail);
           setIsCompleted(true);
           setIsLoading(false);
         }
@@ -76,16 +96,19 @@ export function useOnboardingStatus(uid: string | null): { isCompleted: boolean;
           setIsCompleted(false);
           AsyncStorage.removeItem(localKey).catch(() => {});
         }
+        clearTimeout(bail);
         setIsLoading(false);
       },
       (error) => {
         console.error('[Onboarding] Error checking status:', error);
+        clearTimeout(bail);
         setIsLoading(false);
       }
     );
 
     return () => {
       cancelled = true;
+      clearTimeout(bail);
       unsubscribe();
     };
   }, [uid]);
