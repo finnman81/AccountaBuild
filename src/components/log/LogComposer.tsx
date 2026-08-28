@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useRef, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Alert, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, TouchableWithoutFeedback, View } from 'react-native';
 import { Text } from 'react-native-paper';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -279,6 +279,12 @@ export default function LogComposer({ initialType = 'weight', onClose, onSaved, 
 
       <SegmentedControl variant="primary" value={mode} onChange={(m) => setMode(m as LogType)} options={MODE_OPTIONS} style={{ marginTop: 8 }} />
 
+      {/* Tap anywhere to dismiss. The value fields use a NUMERIC keypad, which
+          has no return key, so without this there was no way to close the
+          keyboard once it was up (reported 2026-08-25: "the keyboard doesn't go
+          away when plugging in weight"). AddWeightScreen already did this; the
+          composer, which is the main + flow, did not. */}
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
       <ScrollView contentContainerStyle={{ paddingVertical: 28 }} keyboardShouldPersistTaps="handled">
         {mode === 'weight' && (
           <View style={styles.body}>
@@ -340,6 +346,7 @@ export default function LogComposer({ initialType = 'weight', onClose, onSaved, 
           </View>
         )}
       </ScrollView>
+      </TouchableWithoutFeedback>
 
       <View style={styles.footer}>
         {mode !== 'photo' && (

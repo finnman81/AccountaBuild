@@ -17,6 +17,7 @@ import { useMyUnits } from '../hooks/useMyUnits';
 import { useYesterdayFp } from '../hooks/useYesterdayFp';
 import { buildLeaderboardPreview, buildTeamToday, buildTodayChecklist, type ChecklistType } from '../viewmodels/today';
 import TodayHeader from '../components/today/TodayHeader';
+import FpExplainerSheet from '../components/mmr/FpExplainerSheet';
 import TodaysLogCard from '../components/today/TodaysLogCard';
 import TodayEntriesSheet from '../components/today/TodayEntriesSheet';
 import TeamTodayRail from '../components/today/TeamTodayRail';
@@ -72,6 +73,7 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
   const { user, group, memberUids, canSee, publicUsers, logs, myProfile } = useTodayData();
   const { activeGroupId, isReady: activeGroupReady, groupsLoaded } = useActiveGroup();
   const [entriesItem, setEntriesItem] = useState<ChecklistItem | null>(null);
+  const [fpExplainer, setFpExplainer] = useState(false);
   const [cheerSnack, setCheerSnack] = useState<string | null>(null);
   const [hypeTarget, setHypeTarget] = useState<{ uid: string; name: string } | null>(null);
   const [cheeredToday, setCheeredToday] = useState<Set<string>>(new Set());
@@ -332,7 +334,9 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
         onSwitchGroup={onSwitchGroup ?? (() => {})}
         onChat={onChat ?? (() => {})}
         onBell={onBell ?? (() => {})}
+        onExplainFp={() => setFpExplainer(true)}
       />
+      <FpExplainerSheet visible={fpExplainer} onClose={() => setFpExplainer(false)} />
       <WeeklyRecapBanner onOpen={onOpenWeeklyRecap ?? (() => {})} />
       <UpdateBanner />
       <SetupChecklistCard />

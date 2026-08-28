@@ -26,6 +26,8 @@ type Props = {
   onSwitchGroup: () => void;
   onChat: () => void;
   onBell: () => void;
+  /** Tap the rank chip to open the FP explainer. */
+  onExplainFp?: () => void;
 };
 
 function GroupTile({ name, logoURL }: { name: string; logoURL?: string | null }) {
@@ -52,14 +54,24 @@ function StreakChip({ days, atRisk }: { days: number; atRisk: boolean }) {
   );
 }
 
-function RankChip({ tier, division }: { tier: Tier; division?: number | null }) {
+function RankChip({ tier, division, onPress }: { tier: Tier; division?: number | null; onPress?: () => void }) {
   return (
-    <View style={styles.rankChip}>
+    <Pressable
+      onPress={onPress}
+      disabled={!onPress}
+      style={styles.rankChip}
+      accessibilityRole={onPress ? 'button' : undefined}
+      accessibilityLabel={onPress ? 'How Fitness Points work' : undefined}
+    >
       <RankEmblem tier={tier} inline size={16} />
       <Text style={styles.rankChipText}>
         {tier}{division ? ` ${ROMAN[division]}` : ''}
       </Text>
-    </View>
+      {/* The survey found 4 of 5 could not explain FP while naming it as the
+          reason they open the app. The rank chip is where they look, so it is
+          where the explanation lives. */}
+      {onPress ? <Text style={styles.rankChipHint}>?</Text> : null}
+    </Pressable>
   );
 }
 
@@ -78,6 +90,7 @@ export default function TodayHeader({
   onSwitchGroup,
   onChat,
   onBell,
+  onExplainFp,
 }: Props) {
   return (
     <View>
@@ -92,7 +105,7 @@ export default function TodayHeader({
 
         <View style={styles.actions}>
           {streakDays > 0 ? <StreakChip days={streakDays} atRisk={streakAtRisk} /> : null}
-          {rankTier ? <RankChip tier={rankTier} division={rankDivision} /> : null}
+          {rankTier ? <RankChip tier={rankTier} division={rankDivision} onPress={onExplainFp} /> : null}
           <Pressable
             onPress={onChat}
             style={[styles.iconBtn, unreadChat > 0 && styles.iconBtnHighlight]}
@@ -137,6 +150,12 @@ const styles = StyleSheet.create({
     paddingRight: 9,
     paddingVertical: 4,
     marginRight: 4,
+  },
+  rankChipHint: {
+    color: colors.textMuted,
+    fontSize: 11,
+    fontWeight: '700',
+    marginLeft: 1,
   },
   rankChipText: { fontSize: 12, fontWeight: '700', color: colors.textSecondary },
   streakChip: {
