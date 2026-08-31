@@ -86,6 +86,9 @@ async function countCalorieDaysHit(db, uid, weekDates) {
 async function getWeekTotals(db, uid, groupIds, weekStart, weekEnd) {
   let workoutsDone = 0;
   let minutesDone = 0;
+  // Distinct dates with at least one workout — what the goal counts from
+  // WORKOUT_DAYS_FROM_WEEK on (see mmr-core).
+  const workoutDates = new Set();
   const calorieTotalsByDate = {};
   await Promise.all(
     groupIds.map(async (groupId) => {
@@ -106,6 +109,7 @@ async function getWeekTotals(db, uid, groupIds, weekStart, weekEnd) {
         const type = String(data?.type ?? '');
         if (type === 'workout') {
           workoutsDone += 1;
+          workoutDates.add(date);
           const mins = Number(data?.payload?.durationMinutes);
           if (Number.isFinite(mins) && mins > 0) minutesDone += mins;
         }
@@ -116,7 +120,7 @@ async function getWeekTotals(db, uid, groupIds, weekStart, weekEnd) {
       });
     }),
   );
-  return { workoutsDone, minutesDone, calorieTotalsByDate };
+  return { workoutsDone, workoutDaysDone: workoutDates.size, minutesDone, calorieTotalsByDate };
 }
 
 function pickWeeklyWeights(weights, start, end) {
@@ -253,7 +257,10 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
 
   const groupIds = await getGroupIds(db, uid);
   const weights = await getWeights(db, uid);
-  const { workoutsDone, minutesDone, calorieTotalsByDate } = await getWeekTotals(db, uid, groupIds, start, end);
+  const { workoutsDone, workoutDaysDone, minutesDone, calorieTotalsByDate } = await getWeekTotals(db, uid, groupIds, start, end);
+  // From W37 the workouts goal is scored on DAYS TRAINED. Closed weeks keep
+  // sessions, so nothing already banked can move.
+  const workoutsCounted = core.workoutDaysActiveForWeek(weekId) ? workoutDaysDone : workoutsDone;
   let calorieDaysHit = await countCalorieDaysHit(db, uid, dates);
   const calorieDaysFromLogs = core.calorieDaysHitFromTotals(calorieTotalsByDate, dailyCalorieGoal, goalMode, core.calorieBandActiveForWeek(weekId));
   if (calorieDaysFromLogs > calorieDaysHit) calorieDaysHit = calorieDaysFromLogs;
@@ -274,7 +281,7 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
   const active = [];
   if ((goals.workouts?.status ?? 'active') === 'active' && Number.isFinite(goals.workouts?.targetWorkoutsPerWeek)) {
     const t = Number(goals.workouts.targetWorkoutsPerWeek);
-    const A = core.clamp(0, 1, workoutsDone / (t || 1));
+    const A = core.clamp(0, 1, workoutsCounted / (t || 1));
     const D = core.D_workouts(t);
     active.push({ id: 'workouts', type: 'workouts', D, A, O: A, score: core.goalScore(D, A, A) });
   }
@@ -647,6 +654,7 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
         dataSource: 'self_reported',
         ...(Object.keys(goals).length === 0 || (weeklyData?.goalsSnapshot && Object.keys(weeklyData?.goalsSnapshot).length >= Object.keys(goals).length) ? {} : { goalsSnapshot: goals }),
         workoutsDone,
+        workoutDaysDone,
         minutesDone: Math.round(minutesDone),
         calorieDaysHit,
         weighInsDone,
@@ -674,7 +682,7 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
           D: Math.round(g.D * 100) / 100,
           score: Math.round(g.score * 10) / 10,
           done:
-            g.id === 'workouts' ? workoutsDone
+            g.id === 'workouts' ? workoutsCounted
             : g.id === 'minutes' ? minutesDone
             : g.id === 'calorieDays' ? Math.round(calorieDaysHit * 10) / 10
             : weighInsDone,
@@ -755,6 +763,7 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
         division: band.division ?? null,
         completedWeek,
         workoutsDone,
+        workoutDaysDone,
         updatedAt: FieldValue.serverTimestamp(),
       },
       { merge: true },

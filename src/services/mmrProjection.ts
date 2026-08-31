@@ -6,7 +6,7 @@ import { D_calDays, D_minutes, D_workouts, D_weightGain, D_weightLoss, weightV2A
 import { applyRankWithDemotionRules, bandForMMR } from '../mmr/ranks';
 import { lowerTierProgressBonus } from '../mmr/progression';
 import { breadthFactor, combineWeekScore, coreCategoryCount, goalScore } from '../mmr/scoring';
-import { calorieBandActiveForWeek, calorieDaysHitFromTotals } from '../mmr/adherence';
+import { calorieBandActiveForWeek, calorieDaysHitFromTotals, workoutDaysActiveForWeek } from '../mmr/adherence';
 import { DEFAULT_TZ, isoWeekIdInTz, isoWeekRangeInTz, yyyyMmDdInTz } from '../mmr/time';
 import type { Tier } from '../mmr/types';
 
@@ -182,13 +182,18 @@ export function computeProjection(
   const elapsedFrac = opts?.frame === 'weekEnd' ? 1 : daysElapsed / 7;
   const paceA = (actual: number, target: number) => clamp(0, 1, actual / Math.max(0.0001, (target || 1) * elapsedFrac));
 
-  let workoutsDone = 0;
+  let workoutSessions = 0;
   let minutesDone = 0;
+  const workoutDates = new Set<string>();
   for (const w of params.workouts) {
     if (!w.date || w.date < start || w.date > end) continue;
-    workoutsDone += 1;
+    workoutSessions += 1;
+    workoutDates.add(w.date);
     minutesDone += w.durationMinutes;
   }
+  // From W37 the goal is DAYS TRAINED, not sessions (see adherence.ts). Closed
+  // weeks keep sessions so nothing already scored can shift under them.
+  const workoutsDone = workoutDaysActiveForWeek(params.weekId) ? workoutDates.size : workoutSessions;
 
   // Mirror the scorers exactly: manual-toggle days are full credit; log-derived
   // days use the band rule (habit 0.5 / in-band 1.0); take the larger count.
@@ -343,7 +348,7 @@ export function computeProjection(
 
   // Self-audit rows: what each goal is contributing and why.
   const GOAL_LABELS: Record<string, string> = {
-    workouts: 'Workouts',
+    workouts: 'Workout days',
     minutes: 'Active minutes',
     calorieDays: 'Calorie days',
     weightLoss: 'Weight loss',

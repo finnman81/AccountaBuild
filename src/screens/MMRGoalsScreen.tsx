@@ -363,7 +363,7 @@ export default function MMRGoalsScreen() {
             <View style={styles.group}>
               <CategoryHeader
                 title="Workouts"
-                subtitle="Your weekly workout target"
+                subtitle="Days per week you plan to train"
                 value={workoutsEnabled}
                 onValueChange={setWorkoutsEnabled}
                 disabled={!canSave}
@@ -372,7 +372,7 @@ export default function MMRGoalsScreen() {
                 <>
                   <View style={styles.divider} />
                   <View style={styles.rowBlock}>
-                    <AppText variant="rowTitle" color="primary">Workouts / week</AppText>
+                    <AppText variant="rowTitle" color="primary">Workout days / week</AppText>
                     <AppText variant="rowSubtitle" color="muted" style={styles.subline}>Miss it and you lose MP</AppText>
                     <View style={styles.workoutChips}>
                       {[1, 2, 3, 4, 5, 6, 7].map((n) => {

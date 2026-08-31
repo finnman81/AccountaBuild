@@ -117,6 +117,24 @@ function checkpointsActiveForWeek(weekId) {
   return typeof weekId === 'string' && weekId >= WEIGHT_CHECKPOINTS_FROM_WEEK;
 }
 
+/**
+ * The workouts goal counts DISTINCT DAYS TRAINED, not sessions.
+ *
+ * It was the only goal counting sessions: calorieDays and the weigh-in cadence
+ * both count days, which is why workouts was the only one that fragmented. A
+ * source splitting one evening into three samples produced "11 of 6" (reported
+ * 2026-08-31); ~9% of the group's logs were segments of an activity already
+ * counted. Counting days dissolves that instead of patching it with dedup
+ * heuristics, and matches what "6 a week" means out loud.
+ *
+ * Stricter: across W32-W35, 7 of 32 member-weeks would flip from met to missed.
+ * Gated so closed weeks keep the math they were scored under, forever.
+ */
+const WORKOUT_DAYS_FROM_WEEK = '2026-W37';
+function workoutDaysActiveForWeek(weekId) {
+  return typeof weekId === 'string' && weekId >= WORKOUT_DAYS_FROM_WEEK;
+}
+
 function D_weightLoss({ W0, Wg, Wt, Tweeks: TweeksIn, hIn, bmiBase, WtPhase }) {
   const L = W0 - Wg;
   const Tweeks = Math.max(4, TweeksIn);
@@ -417,6 +435,8 @@ module.exports = {
   weightCompletionBonus,
   WEIGHT_CHECKPOINTS,
   WEIGHT_CHECKPOINTS_FROM_WEEK,
+  WORKOUT_DAYS_FROM_WEEK,
+  workoutDaysActiveForWeek,
   checkpointsActiveForWeek,
   checkpointAward,
   checkpointLadder,

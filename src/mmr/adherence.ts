@@ -20,6 +20,17 @@ export const CAL_HABIT_CREDIT = 0.5;
  * new rule switches itself on at Monday 00:00 with no deploy required.
  * (Week ids are zero-padded, so string comparison is ordering-safe.)
  */
+/**
+ * The workouts goal counts DISTINCT DAYS TRAINED, not sessions, from this week
+ * on. Mirrors WORKOUT_DAYS_FROM_WEEK in functions/mmr-core.js — the two must
+ * move together or the app and the scorer disagree on screen.
+ */
+export const WORKOUT_DAYS_FROM_WEEK = '2026-W37';
+
+export function workoutDaysActiveForWeek(weekId: string | null | undefined): boolean {
+  return typeof weekId === 'string' && weekId >= WORKOUT_DAYS_FROM_WEEK;
+}
+
 export const CAL_BAND_FROM_WEEK = '2026-W30';
 
 export function calorieBandActiveForWeek(weekId: string | null | undefined): boolean {

@@ -224,7 +224,7 @@ export default function OnboardingRecommendedScreen({ navigation }: Props) {
             <>
               <CategoryToggle
                 title="Workouts"
-                subtitle="Sessions per week"
+                subtitle="Days per week you train"
                 value={workoutsOn}
                 onValueChange={setWorkoutsOn}
               />
