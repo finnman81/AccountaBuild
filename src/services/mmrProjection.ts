@@ -349,11 +349,23 @@ export function computeProjection(
     weightLoss: 'Weight loss',
     weightGain: 'Weight gain',
   };
+  /**
+   * "11 of 6 this week" reads like a bug (reported 2026-08-31). Adherence is
+   * capped at the target when scoring, so the honest rendering is target-met
+   * plus whatever was done beyond it, rather than a numerator larger than its
+   * denominator.
+   */
+  const ofTarget = (done: number, target: number, unit: string) => {
+    if (target <= 0) return `${done}${unit} this week`;
+    if (done <= target) return `${done} of ${target}${unit} this week`;
+    return `${target} of ${target}${unit} this week, plus ${done - target} more`;
+  };
+
   const perGoal = active.map((g) => {
     let detail = '';
-    if (g.id === 'workouts') detail = `${workoutsDone} of ${Number(params.goals.workouts?.targetWorkoutsPerWeek) || 0} this week`;
-    else if (g.id === 'minutes') detail = `${minutesDone} of ${Number(params.goals.minutes?.targetMinutesPerWeek) || 0} min this week`;
-    else if (g.id === 'calorieDays') detail = `${calorieDaysHit} of ${Number(params.goals.calorieDays?.targetDaysPerWeek) || 0} days hit`;
+    if (g.id === 'workouts') detail = ofTarget(workoutsDone, Number(params.goals.workouts?.targetWorkoutsPerWeek) || 0, '');
+    else if (g.id === 'minutes') detail = ofTarget(minutesDone, Number(params.goals.minutes?.targetMinutesPerWeek) || 0, ' min');
+    else if (g.id === 'calorieDays') detail = ofTarget(calorieDaysHit, Number(params.goals.calorieDays?.targetDaysPerWeek) || 0, ' days');
     else detail = weighInsDone > 0 ? 'weighed in this week' : 'no weigh-in yet this week';
     return { id: g.id, label: GOAL_LABELS[g.id] ?? g.id, detail, paceA: Math.round(g.A * 100) / 100 };
   });
