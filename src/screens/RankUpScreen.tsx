@@ -75,7 +75,11 @@ export default function RankUpScreen({ route, navigation }: Props) {
           </AppText>
 
           <View style={styles.recap}>
-            <AppText variant="eyebrow" color="muted">This week's result</AppText>
+            {/* This is the CUMULATIVE career total (RankChangeWatcher passes
+                state.mmr), not the week's earnings. Labelled "this week's
+                result" it read as a single week worth 3,517 FP when the real
+                week was +26 (reported 2026-08-31). */}
+            <AppText variant="eyebrow" color="muted">Total Fitness Points</AppText>
             <AppText variant="statBig" style={{ color: accent, marginTop: 4 }}>
               {mmr != null ? `${Math.round(mmr).toLocaleString()} FP` : `${tier}${division ? ` ${ROMAN[division]}` : ''}`}
             </AppText>
