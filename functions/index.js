@@ -100,6 +100,15 @@ exports.sendSocialPush = onDocumentCreated('pushQueue/{id}', async (event) => {
       await cleanup();
       return;
     }
+    // Booked vacation gets the same courtesy as hibernation.
+    if (type === 'nudge') {
+      const wkNow = core.isoWeekIdInTz(new Date(), TZ);
+      const vac = await db.doc(`users/${toUid}/weekly/${wkNow}`).get().then((s) => s.exists && s.data().vacation === true).catch(() => false);
+      if (vac) {
+        await cleanup();
+        return;
+      }
+    }
     if (type === 'nudge' && !(user && user.allowNudges === true)) {
       await cleanup();
       return;

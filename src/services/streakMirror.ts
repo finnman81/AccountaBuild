@@ -4,6 +4,7 @@ import { db } from '../firebase/firebase';
 import { computeGoalStreak } from '../viewmodels/today';
 import type { GroupLog } from './logs';
 import { DEFAULT_TZ, yyyyMmDdInTz } from '../mmr/time';
+import { shieldedWeekIds } from './hibernation';
 
 /**
  * Accurate self-streak, mirrored to publicUsers.
@@ -51,6 +52,7 @@ export async function computeAndMirrorMyStreak(uid: string, groupId: string): Pr
         calories: Number(p?.logCaloriesDaysPerWeek ?? 0),
         weight: Number(p?.logWeightDaysPerWeek ?? 0),
       },
+      shieldedWeeks: shieldedWeekIds(p),
     });
 
     await setDoc(

@@ -3,7 +3,7 @@ import type { PublicUser } from '../services/publicUsers';
 import type { Tier } from '../mmr/types';
 import { computeStreakDays } from './today';
 import { friendlyNameFromDisplayName } from '../utils/formatters';
-import { isHibernating } from '../services/hibernation';
+import { isHibernating, shieldedWeekIds } from '../services/hibernation';
 
 export type Division = 1 | 2 | 3 | 4;
 
@@ -67,7 +67,9 @@ export function buildLeaderboard(params: {
   for (const l of logs) {
     if (l.date === today && allowedTypes.has(l.type)) loggedToday.add(l.uid);
   }
-  const streaks = computeStreakDays(logs, allowedTypes, today);
+  const shieldedByUid: Record<string, Set<string>> = {};
+  for (const uid of allowed) shieldedByUid[uid] = shieldedWeekIds(publicUsers[uid] as any);
+  const streaks = computeStreakDays(logs, allowedTypes, today, shieldedByUid);
 
   const rows = allowed
     .filter((uid) => publicUsers[uid])

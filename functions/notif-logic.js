@@ -20,6 +20,22 @@ function isHibernating(userData, weekId) {
 }
 
 /**
+ * Shielded this week = hibernating OR a booked vacation week. Vacation lives
+ * on users/{uid}/weekly/{weekId}.vacation (the scorer's source of truth), so
+ * it is one extra read. Reminders checked hibernation only: a member on a
+ * booked vacation was still told their streak was at risk (prod 2026-09-04).
+ */
+async function isShielded(db, uid, userData, weekId) {
+  if (isHibernating(userData, weekId)) return true;
+  try {
+    const w = await db.doc(`users/${uid}/weekly/${weekId}`).get();
+    return w.exists && w.data().vacation === true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Who should get a streak-at-risk push right now?
  * "At risk" = has not logged today AND a weekly target now needs EVERY
  * remaining day (including today) — skipping today makes the week unreachable.
@@ -40,7 +56,7 @@ async function evaluateStreakRisk(db, now) {
     const data = u.data() || {};
     if (!isExpoToken(data.expoPushToken)) continue;
     if (!prefEnabled(data, 'streakReminder')) continue;
-    if (isHibernating(data, weekId)) continue; // asleep — their streak is held
+    if (await isShielded(db, u.id, data, weekId)) continue; // vacation or hibernation — the week can't hurt them
 
     try {
       const [goals, groupIds] = await Promise.all([getGoals(db, u.id), getGroupIds(db, u.id)]);
@@ -81,7 +97,7 @@ async function evaluateStreakRisk(db, now) {
   return { items, evaluated: usersSnap.size };
 }
 
-module.exports = { evaluateStreakRisk };
+module.exports = { evaluateStreakRisk, isShielded };
 
 /**
  * "You've never signed a week" nudge — Monday evening only.
@@ -113,7 +129,7 @@ async function evaluateSignNudge(db, now) {
         const u = uSnap.exists ? uSnap.data() : null;
         if (!u || !isExpoToken(u.expoPushToken)) continue;
         if (!prefEnabled(u, 'streakReminder')) continue;
-        if (isHibernating(u, weekId)) continue;
+        if (await isShielded(db, m.id, u, weekId)) continue;
         if (u.signNudgeWeekId === weekId) continue; // once per week, ever-idempotent
 
         items.push({

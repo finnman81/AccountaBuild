@@ -2,7 +2,8 @@ import type { GroupLog, LogType } from '../services/logs';
 import type { PublicUser } from '../services/publicUsers';
 import type { Tier } from '../mmr/types';
 import { formatMinutesHM, formatWeightForUnits, friendlyNameFromDisplayName, type Units } from '../utils/formatters';
-import { isHibernating } from '../services/hibernation';
+import { isHibernating, shieldedWeekIds } from '../services/hibernation';
+import { DEFAULT_TZ, isoWeekIdInTz } from '../mmr/time';
 
 export type ChecklistType = 'calories' | 'workout' | 'weight';
 export type Division = 1 | 2 | 3 | 4;
@@ -152,7 +153,13 @@ export function buildTodayChecklist(params: {
 }
 
 /** Continuous day-streak per uid, walking backward from `today`. */
-export function computeStreakDays(logs: GroupLog[], allowedTypes: Set<LogType>, today: string): Record<string, number> {
+export function computeStreakDays(
+  logs: GroupLog[],
+  allowedTypes: Set<LogType>,
+  today: string,
+  /** Per-uid shielded weeks (vacation/hibernation); those days are skipped, not broken on. */
+  shieldedByUid?: Record<string, Set<string>>,
+): Record<string, number> {
   const datesByUid: Record<string, Set<string>> = {};
   for (const l of logs) {
     if (!l?.uid || !l?.date || !allowedTypes.has(l.type)) continue;
@@ -164,9 +171,14 @@ export function computeStreakDays(logs: GroupLog[], allowedTypes: Set<LogType>, 
   for (const [uid, set] of Object.entries(datesByUid)) {
     let streak = 0;
     const cur = new Date(todayDate);
+    const shielded = shieldedByUid?.[uid];
     let guard = 366;
-    while (guard-- > 0 && set.has(fmtLocal(cur))) {
-      streak += 1;
+    while (guard-- > 0) {
+      if (set.has(fmtLocal(cur))) {
+        streak += 1;
+      } else if (!(shielded && shielded.has(isoWeekIdInTz(cur, DEFAULT_TZ)))) {
+        break; // an unlogged day outside a shield ends the chain
+      }
       cur.setDate(cur.getDate() - 1);
     }
     out[uid] = streak;
@@ -215,8 +227,11 @@ export function computeGoalStreak(params: {
   today: string;
   streakRule: 'workout' | 'any';
   targets: { workout: number; calories: number; weight: number };
+  /** Weeks where an unlogged day must not break the chain (vacation/hibernation). */
+  shieldedWeeks?: Set<string>;
 }): number {
   const { uid, today, streakRule, targets } = params;
+  const shielded = params.shieldedWeeks ?? new Set<string>();
   const w = new Set<string>();
   const c = new Set<string>();
   const g = new Set<string>();
@@ -245,7 +260,11 @@ export function computeGoalStreak(params: {
     let streak = 0;
     const cur = new Date(todayDate);
     let guard = 366;
-    while (guard-- > 0 && anyLog.has(fmtLocal(cur))) { streak += 1; cur.setDate(cur.getDate() - 1); }
+    while (guard-- > 0) {
+      if (anyLog.has(fmtLocal(cur))) streak += 1;
+      else if (!shielded.has(isoWeekIdInTz(cur, DEFAULT_TZ))) break;
+      cur.setDate(cur.getDate() - 1);
+    }
     return streak;
   }
 
@@ -270,6 +289,13 @@ export function computeGoalStreak(params: {
     if (loggedDates.has(dstr)) {
       // Actually logged that day → counts.
       streak += 1;
+      cur.setDate(cur.getDate() - 1);
+      continue;
+    }
+
+    // A shielded week (vacation/hibernation): the day is simply skipped. The
+    // server holds the WEEK streak through these; the day streak must too.
+    if (shielded.has(isoWeekIdInTz(cur, DEFAULT_TZ))) {
       cur.setDate(cur.getDate() - 1);
       continue;
     }
@@ -338,6 +364,7 @@ export function buildTeamToday(params: {
         calories: Number(p?.logCaloriesDaysPerWeek ?? 0),
         weight: Number(p?.logWeightDaysPerWeek ?? 0),
       },
+      shieldedWeeks: shieldedWeekIds(p as any),
     });
     streaks[uid] = bestStreak(windowStreak, p?.streakDaysPublic, p?.streakDaysUpdatedAtMs);
   }
