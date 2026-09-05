@@ -9,7 +9,7 @@ import { todayYYYYMMDD } from '../utils/dates';
 import { friendlyNameFromDisplayName } from '../utils/formatters';
 import { useTodayData } from '../hooks/useTodayData';
 import { useActiveGroup } from '../store/ActiveGroupContext';
-import { subscribeGroupChallenge, challengeProgress, type GroupChallenge } from '../services/challenges';
+import { subscribeGroupChallenge, challengeProgress, isChallengeVisible, type GroupChallenge } from '../services/challenges';
 import { subscribeLatestGroupMessage, type GroupMessage } from '../services/chat';
 import { subscribeMyGroupMeta } from '../services/groups';
 import { subscribeUnreadActivityCount } from '../services/activity';
@@ -83,7 +83,12 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
     if (!activeGroupId) { setChallenge(null); return; }
     return subscribeGroupChallenge(activeGroupId, setChallenge);
   }, [activeGroupId]);
-  const challengeInfo = useMemo(() => (challenge ? challengeProgress(challenge) : null), [challenge]);
+  // Ended challenges linger a week for the victory lap, then the card goes
+  // quiet until the next one starts.
+  const challengeInfo = useMemo(
+    () => (challenge && isChallengeVisible(challenge) ? challengeProgress(challenge) : null),
+    [challenge],
+  );
 
   // Unread-chat signal: latest message newer than my last-seen, and not mine.
   const [latestMsg, setLatestMsg] = useState<GroupMessage | null>(null);

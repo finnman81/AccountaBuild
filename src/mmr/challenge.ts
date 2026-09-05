@@ -65,3 +65,23 @@ export function challengeProgress(challenge: GroupChallenge, now: Date = new Dat
   if (idx === -1) return { phase: 'ended', week: total, total, weekIds, startDate, endDate };
   return { phase: 'active', week: idx + 1, total, weekIds, startDate, endDate };
 }
+
+/** Days an ended challenge stays on the Today card before it goes quiet. */
+export const CHALLENGE_LINGER_DAYS = 7;
+
+/**
+ * Should the Today card still show this challenge? Upcoming and active: yes.
+ * Ended: only for CHALLENGE_LINGER_DAYS after the finish, so the standings
+ * get their victory lap and then clear the deck until the next one starts.
+ * (The Group info row still opens the old standings any time.)
+ */
+export function isChallengeVisible(challenge: GroupChallenge, now: Date = new Date(), tz: string = DEFAULT_TZ): boolean {
+  const p = challengeProgress(challenge, now, tz);
+  if (p.phase !== 'ended') return true;
+  // Ended early by the owner: linger from the moment they ended it, not
+  // from the scheduled last Sunday.
+  const endedAt = challenge.status === 'ended' ? (challenge.updatedAt as any)?.toDate?.() : null;
+  const finish = endedAt instanceof Date ? endedAt : zonedNoonUtcFromYmd(p.endDate, tz);
+  const hideAfter = finish.getTime() + CHALLENGE_LINGER_DAYS * 24 * 60 * 60 * 1000;
+  return now.getTime() <= hideAfter;
+}

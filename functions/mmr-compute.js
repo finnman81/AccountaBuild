@@ -179,9 +179,13 @@ function pickWeeklyWeights(weights, start, end) {
  * skipped as implausible — that is the fat-fingered-entry guard (prod has seen
  * a 212 lb user log the dial default of 180).
  */
-function bestWeeklyAvgProgress(weights, W0, Wg, isGain) {
+function bestWeeklyAvgProgress(weights, W0, Wg, isGain, throughDate = null) {
   const byDate = {};
   for (const e of weights) {
+    // Never let a CLOSED week see weigh-ins logged after it ended. Without
+    // this, W35's recompute watched Watto cross the line in W36 and fired
+    // the group "hit their goal weight" pop-up every run (prod 2026-09-01..05).
+    if (throughDate && e.date > throughDate) continue;
     const prev = byDate[e.date];
     const prevMs = prev?.tsMs ?? -1;
     const nextMs = e.tsMs ?? Number.MAX_SAFE_INTEGER;
@@ -333,7 +337,7 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
         if (cpOn) {
           // Paid across the journey: every rung newly unlocked this run.
           const cp = checkpointDelta({
-            pBest: bestWeeklyAvgProgress(weights, W0, Wg, false),
+            pBest: bestWeeklyAvgProgress(weights, W0, Wg, false, end),
             pot,
             alreadyAwarded: weightGoal.checkpointsAwarded,
           });
@@ -374,7 +378,7 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
         const pot = core.weightCompletionBonus({ lbs: Wg - W0, D_base, v3: weightV3, uncapped: cpOn });
         if (cpOn) {
           const cp = checkpointDelta({
-            pBest: bestWeeklyAvgProgress(weights, W0, Wg, true),
+            pBest: bestWeeklyAvgProgress(weights, W0, Wg, true, end),
             pot,
             alreadyAwarded: weightGoal.checkpointsAwarded,
           });
@@ -448,6 +452,22 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
       const alreadyAwarded = goalSnap.exists && goalSnap.data()?.completionBonusAwarded === true;
       if (!alreadyAwarded) weightBonus = weightBonusRaw;
     }
+
+    // The ONE exactly-once signal: FP left the pot on this run. Every
+    // celebration/push keys on this, never on "rungs look fresh" — a run
+    // that computes fresh rungs but pays nothing (goal already flagged
+    // awarded) must stay silent.
+    const awardedNow = apply && weightBonus > 0 && priorWeightBonus === 0;
+    // The live goal doc is only the SCORED goal when they still describe the
+    // same target. A member who replaces their goal mid-week (effective next
+    // week) keeps scoring the snapshot; patching the new doc as "completed"
+    // from the old goal's math is wrong.
+    const liveGoal = goalSnap && goalSnap.exists ? goalSnap.data() || {} : null;
+    const liveMatchesScored =
+      !!liveGoal && !!weightGoal &&
+      String(liveGoal.startDate ?? '') === String(weightGoal.startDate ?? '') &&
+      Number(liveGoal.goalWeight) === Number(weightGoal.goalWeight) &&
+      Number(liveGoal.startWeight) === Number(weightGoal.startWeight);
 
     const rawMmrBefore =
       weeklyData && typeof weeklyData?.mmrBefore === 'number'
@@ -578,13 +598,13 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
       // True only on the run that FIRST awards the completion bonus (anchored
       // re-runs re-apply priorWeightBonus and stay false) — the exactly-once
       // signal the auto-celebration keys on.
-      bonusAwardedNow: apply && weightGoalUpdate != null && weightBonus > 0 && priorWeightBonus === 0,
-      goalCompletedNow: apply && goalCompletedNow && priorWeightBonus === 0,
+      bonusAwardedNow: awardedNow && weightGoalUpdate != null,
+      goalCompletedNow: awardedNow && goalCompletedNow,
       bonusGoalId: weightGoalUpdate ? weightGoalUpdate.docId : null,
       // Rungs unlocked on THIS run (anchored re-runs re-apply priorWeightBonus
       // and report none) — drives the personal milestone push.
-      checkpointsHitNow: apply && priorWeightBonus === 0 ? checkpointsHit : [],
-      checkpointFp: apply && priorWeightBonus === 0 ? weightBonusRaw : 0,
+      checkpointsHitNow: awardedNow ? checkpointsHit : [],
+      checkpointFp: awardedNow ? weightBonusRaw : 0,
       // TIER jumps only (Silver -> Gold), never division ticks: divisions move
       // most weeks for an active user, and a pop-up that common trains everyone
       // to dismiss celebrations unread. Division changes stay a private
@@ -769,7 +789,7 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
       { merge: true },
     );
 
-    if (weightGoalUpdate && weightBonus > 0 && goalRef) {
+    if (weightGoalUpdate && awardedNow && goalRef && liveMatchesScored) {
       tx.set(goalRef, weightGoalUpdate.patch, { merge: true });
     }
 

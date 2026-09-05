@@ -4,7 +4,7 @@ import { db } from '../firebase/firebase';
 import { weekIdForDate, type GroupChallenge } from '../mmr/challenge';
 
 // Re-export the pure math + types so callers have a single import site.
-export { weekIdForDate, challengeWeekIds, challengeProgress } from '../mmr/challenge';
+export { weekIdForDate, challengeWeekIds, challengeProgress, isChallengeVisible } from '../mmr/challenge';
 export type { GroupChallenge, ChallengePhase, ChallengeProgress } from '../mmr/challenge';
 
 /** Create or replace a group's challenge (owner/admin only, enforced by rules). */
