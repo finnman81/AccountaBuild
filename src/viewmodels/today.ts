@@ -176,6 +176,8 @@ export function computeStreakDays(
     while (guard-- > 0) {
       if (set.has(fmtLocal(cur))) {
         streak += 1;
+      } else if (guard === 365) {
+        // Today, not logged yet: the day isn't over, so it can't break anything.
       } else if (!(shielded && shielded.has(isoWeekIdInTz(cur, DEFAULT_TZ)))) {
         break; // an unlogged day outside a shield ends the chain
       }
@@ -262,7 +264,9 @@ export function computeGoalStreak(params: {
     let guard = 366;
     while (guard-- > 0) {
       if (anyLog.has(fmtLocal(cur))) streak += 1;
-      else if (!shielded.has(isoWeekIdInTz(cur, DEFAULT_TZ))) break;
+      else if (guard === 365) {
+        /* today, not logged yet: the day isn't over */
+      } else if (!shielded.has(isoWeekIdInTz(cur, DEFAULT_TZ))) break;
       cur.setDate(cur.getDate() - 1);
     }
     return streak;
@@ -295,7 +299,10 @@ export function computeGoalStreak(params: {
 
     // A shielded week (vacation/hibernation): the day is simply skipped. The
     // server holds the WEEK streak through these; the day streak must too.
-    if (shielded.has(isoWeekIdInTz(cur, DEFAULT_TZ))) {
+    // Same for TODAY when nothing is logged yet: the day isn't over. Without
+    // this a 7-day target read 0 every morning until the first log (prod
+    // 2026-09-14: Regmong, 53 -> 0 on his first day back).
+    if (dstr === today || shielded.has(isoWeekIdInTz(cur, DEFAULT_TZ))) {
       cur.setDate(cur.getDate() - 1);
       continue;
     }

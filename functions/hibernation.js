@@ -64,13 +64,28 @@ async function applyHibernation(db, { uid, weeks, reason, setBy }) {
 async function clearHibernation(db, uid, { keepGrace = true } = {}) {
   const snap = await db.doc(`users/${uid}`).get();
   const hib = snap.exists ? snap.data().hibernation : null;
-  const grace = keepGrace && hib ? { graceWeekId: core.isoWeekIdInTz(new Date(), TZ) } : null;
+  if (!hib) return;
+  const weekId = core.isoWeekIdInTz(new Date(), TZ);
+  // Keep the range: past weeks STAY shielded. The old version overwrote it
+  // with 'x', and the wake runs before the Monday close of the final week,
+  // so that week lost its shield (prod 2026-09-14: Nick, -39 FP and a
+  // 3-week streak on W37). An early wake just ends the range last week.
+  const prevWeekId = weekIdPlus(weekId, -1);
+  const legacy = hib.untilWeekId === 'x' || hib.fromWeekId === 'x';
+  const untilWeekId = legacy ? null : hib.untilWeekId < weekId ? hib.untilWeekId : prevWeekId;
+  if (!keepGrace || legacy) {
+    await db.doc(`users/${uid}`).set({ hibernation: admin.firestore.FieldValue.delete() }, { merge: true });
+    await db.doc(`publicUsers/${uid}`).set({ hibernatingUntilWeekId: null, hibernatingFromWeekId: null }, { merge: true });
+    return;
+  }
   await db.doc(`users/${uid}`).set(
-    { hibernation: grace ? { ...hib, ...grace, fromWeekId: 'x', untilWeekId: 'x' } : admin.firestore.FieldValue.delete() },
+    { hibernation: { ...hib, untilWeekId, graceWeekId: weekId, awake: true } },
     { merge: true },
   );
+  // Past-range mirror stays: isHibernating() is range-based so it reads
+  // "awake" now, and the daily streak keeps skipping the slept weeks.
   await db.doc(`publicUsers/${uid}`).set(
-    { hibernatingUntilWeekId: null, hibernatingFromWeekId: null },
+    { hibernatingUntilWeekId: untilWeekId, hibernatingFromWeekId: hib.fromWeekId },
     { merge: true },
   );
 }
@@ -129,7 +144,7 @@ async function wakeExpiredHibernations(db, publishCelebration) {
   for (const u of users.docs) {
     try {
       const data = u.data();
-      if (!data.hibernation || data.hibernation.untilWeekId === 'x') continue;
+      if (!data.hibernation || data.hibernation.awake || data.hibernation.untilWeekId === 'x') continue;
       await clearHibernation(db, u.id);
       woke.push(u.id);
       if (publishCelebration) {

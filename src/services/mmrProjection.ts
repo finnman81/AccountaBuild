@@ -456,6 +456,9 @@ export function subscribeMyMmrProjection(uid: string, onChange: (p: MmrProjectio
   let userMmr: number | null = null;
   let userMp: number | null = null;
   let streakWeeks = 0;
+  // The server writes users.streakWeeks = 0 for any unfinished week, so the
+  // week's own anchor is the true streak going in. Prefer it when present.
+  let weekStreakBefore: number | null = null;
   let tierShieldWeeksRemaining = 0;
   let seasonId = '';
   let goals: Record<string, GoalDoc> = {};
@@ -506,7 +509,7 @@ export function subscribeMyMmrProjection(uid: string, onChange: (p: MmrProjectio
         seasonId,
         mmrBefore: userMmr,
         mpBefore: userMp,
-        streakWeeks,
+        streakWeeks: weekStreakBefore ?? streakWeeks,
         tierShieldWeeksRemaining,
         goals,
         workouts: mergedWorkouts,
@@ -529,6 +532,8 @@ export function subscribeMyMmrProjection(uid: string, onChange: (p: MmrProjectio
       doc(db, 'users', uid, 'weekly', weekId),
       (snap) => {
         onVacation = snap.exists() && (snap.data() as any)?.vacation === true;
+        const sb = snap.exists() ? (snap.data() as any)?.streakBefore : null;
+        weekStreakBefore = typeof sb === 'number' ? sb : null;
         emit();
       },
       () => {
