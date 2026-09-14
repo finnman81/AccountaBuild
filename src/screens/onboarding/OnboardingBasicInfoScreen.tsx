@@ -347,7 +347,7 @@ export default function OnboardingBasicInfoScreen({ navigation }: Props) {
                       containerStyle={styles.input}
                     />
                     <AppText variant="rowSubtitle" color="muted" style={styles.unitText}>
-                      {units === 'imperial' ? 'lbs' : 'kg'} • Optional — helps tailor targets
+                      {units === 'imperial' ? 'lbs' : 'kg'} • Optional, helps tailor targets
                     </AppText>
                   </View>
                 </>
@@ -414,7 +414,7 @@ export default function OnboardingBasicInfoScreen({ navigation }: Props) {
                       containerStyle={styles.input}
                     />
                     <AppText variant="rowSubtitle" color="muted" style={styles.unitText}>
-                      {units === 'imperial' ? 'lbs' : 'kg'} • Optional — helps tailor targets
+                      {units === 'imperial' ? 'lbs' : 'kg'} • Optional, helps tailor targets
                     </AppText>
                   </View>
                 </>

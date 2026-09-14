@@ -160,7 +160,7 @@ async function wakeExpiredHibernations(db, publishCelebration) {
             id: `wake-${u.id}-${weekId}`,
             emoji: '☀️',
             title: `${name} is back`,
-            lines: ['Out of hibernation and back on the board. This week is a free landing — then it counts.'],
+            lines: ['Out of hibernation and back on the board. This week is a free landing, then it counts.'],
           },
           pushTitle: `☀️ ${name} is back`,
           pushBody: 'Welcome them back in the chat.',

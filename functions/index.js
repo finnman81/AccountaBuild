@@ -29,7 +29,7 @@ const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestor
 const { computeUserWeek, computeUserUpToCurrentWeek } = require('./mmr-compute');
 const { ensureSeasonRollover } = require('./mmr-season');
 const { deleteAccount } = require('./account-deletion');
-const { evaluateStreakRisk, evaluateDailyChampion, evaluateVacationPrompt, evaluateSignNudge } = require('./notif-logic');
+const { evaluateStreakRisk, evaluateDailyChampion, evaluateVacationPrompt, evaluateSignNudge, isHibernating } = require('./notif-logic');
 const { setHibernation, wakeExpiredHibernations } = require('./hibernation');
 const { publishCelebration } = require('./celebrations');
 
@@ -91,12 +91,8 @@ exports.sendSocialPush = onDocumentCreated('pushQueue/{id}', async (event) => {
     // A hibernating member is never nudged either — "you haven't logged" aimed
     // at someone deployed or injured is the one push guaranteed to land wrong.
     // Cheers still get through: being missed is the point of the feature.
-    const hib = user && user.hibernation;
-    const asleep =
-      !!hib &&
-      typeof hib.fromWeekId === 'string' &&
-      core.isoWeekIdInTz(new Date(), TZ) >= hib.fromWeekId &&
-      core.isoWeekIdInTz(new Date(), TZ) <= hib.untilWeekId;
+    // Shared helper: respects awake:true and legacy 'x' ranges.
+    const asleep = isHibernating(user, core.isoWeekIdInTz(new Date(), TZ));
     if (type === 'nudge' && asleep) {
       await cleanup();
       return;
@@ -479,7 +475,7 @@ exports.updateMmrScheduled = onSchedule(
               title: fz.freezeUsed ? '🧊 Streak freeze saved you' : '🧊 Streak freeze earned',
               body: fz.freezeUsed
                 ? `Last week didn't land, but your ${Number(fz.streakAfter) || 0}-week streak survives. Complete this week to keep it alive.`
-                : `${Number(fz.streakAfter) || 0} straight completed weeks — a freeze is banked for when life happens.`,
+                : `${Number(fz.streakAfter) || 0} straight completed weeks. A freeze is banked for when life happens.`,
               data: { type: 'freeze', screen: 'Activity' },
             });
             await db.doc(`users/${u.id}`).set({ freezePushedWeekId: prevWeekId }, { merge: true }).catch(() => {});
@@ -497,7 +493,7 @@ exports.updateMmrScheduled = onSchedule(
               uid: u.id,
               token: before.expoPushToken,
               title: `📊 Weekly recap: ${delta >= 0 ? '+' : ''}${delta} FP`,
-              body: `You're ${rankLabel(band)}. ${delta >= 0 ? 'New week, keep climbing.' : 'Fresh week, fresh start — log today.'}`,
+              body: `You're ${rankLabel(band)}. ${delta >= 0 ? 'New week, keep climbing.' : 'Fresh week, fresh start. Log today.'}`,
               data: { type: 'weeklyRecap', screen: 'Activity' },
             });
             await db.doc(`users/${u.id}`).set({ recapPushedWeekId: prevWeekId }, { merge: true }).catch(() => {});
@@ -575,7 +571,7 @@ exports.deleteMyAccount = onCall({ timeoutSeconds: 300, memory: '256MiB' }, asyn
     return { ok: true, ...report };
   } catch (e) {
     console.error('[deleteMyAccount] failed for', uid, e);
-    throw new HttpsError('internal', 'Could not delete the account. Nothing was lost — try again.');
+    throw new HttpsError('internal', 'Could not delete the account. Nothing was lost. Try again.');
   }
 });
 
@@ -641,11 +637,11 @@ exports.groupWeeklyRecap = onSchedule(
 
         if (scored === 0) continue; // nothing to recap for this group
 
-        const lines = [`📊 Weekly recap — ${prevWeekId}`];
+        const lines = [`📊 Weekly recap: ${prevWeekId}`];
         if (topGainer) lines.push(`🏆 Top gainer: ${topGainer.name} (+${topGainer.delta} FP)`);
         lines.push(`✅ ${completed}/${memberUids.length} completed their week`);
         if (streakLeader) lines.push(`🔥 Streak leader: ${streakLeader.name} (${streakLeader.weeks} wk${streakLeader.weeks === 1 ? '' : 's'})`);
-        lines.push('New week starts now — first log sets the pace!');
+        lines.push('New week starts now. First log sets the pace!');
 
         await db.collection('groups').doc(g.id).collection('messages').add({
           uid: 'system',
@@ -759,7 +755,7 @@ exports.dailyChampion = onSchedule(
             title: isChamp ? '👑 You were yesterday\'s champion!' : '🌅 Yesterday\'s Champion',
             body: isChamp
               ? `${r.line}. Defend the crown today.`
-              : `${champLabel} owned yesterday — ${r.line}. Your move.`,
+              : `${champLabel} owned yesterday: ${r.line}. Your move.`,
             data: { type: 'dailyChampion', screen: 'Today' },
           });
         }
@@ -811,8 +807,14 @@ exports.enforceHealthLogHygiene = onDocumentCreated('groups/{groupId}/logs/{logI
   // workout means one lift recorded twice. Manual wins (app-wide priority) —
   // the synced copy is deleted + tombstoned.
   const MANUAL_DUP_BUFFER_MS = 30 * 60 * 1000;
+  // WHOOP syncs manual labor as 'other', so for twin detection ONLY the two
+  // types match each other. Nothing else about the types changes.
+  const twinType = (l) => {
+    const t = l.payload && l.payload.workoutType;
+    return t === 'manualLabor' ? 'other' : t;
+  };
   const isManualTwin = (syncedLog, manualLog) => {
-    if ((syncedLog.payload && syncedLog.payload.workoutType) !== (manualLog.payload && manualLog.payload.workoutType)) return false;
+    if (twinType(syncedLog) !== twinType(manualLog)) return false;
     const start = tsMs(syncedLog.ts);
     const end = start + (Number(syncedLog.payload && syncedLog.payload.durationMinutes) || 0) * 60 * 1000;
     const savedAt = tsMs(manualLog.ts);

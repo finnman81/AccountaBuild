@@ -185,7 +185,7 @@ async function notifyCheckpoint(db, { uid, goalId, goal, pct, fp }) {
     // not a consolation prize.
     const title = pct <= 0.1 ? `🩺 First milestone: ${label} there` : `📍 ${label} of the way`;
     const body = done != null && left != null
-      ? `${done} lb ${isGain ? 'gained' : 'down'}, ${left} to go — +${Math.round(fp)} FP banked. That progress is locked in.`
+      ? `${done} lb ${isGain ? 'gained' : 'down'}, ${left} to go. +${Math.round(fp)} FP banked. That progress is locked in.`
       : `+${Math.round(fp)} FP banked. That progress is locked in.`;
 
     const res = await sendExpoPushes(db, [{

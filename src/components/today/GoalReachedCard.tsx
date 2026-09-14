@@ -69,7 +69,7 @@ export default function GoalReachedCard() {
       <View style={styles.row}>
         <AppText variant="pageTitle" style={styles.emoji}>🏁</AppText>
         <View style={{ flex: 1 }}>
-          <AppText variant="rowTitle" color="primary">Goal reached — what's next?</AppText>
+          <AppText variant="rowTitle" color="primary">Goal reached. What's next?</AppText>
           <AppText variant="rowSubtitle" color="secondary" style={{ marginTop: 2 }}>
             {done.goalWeight ? `You hit ${done.goalWeight} lb. ` : ''}Set a new target so your weigh-ins keep earning FP.
           </AppText>

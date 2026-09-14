@@ -261,7 +261,7 @@ export default function ChallengeScreen({ route, navigation }: Props) {
                   <AppText variant="rowSubtitle" color="danger" style={styles.customDateHint}>Pick a valid date at least a week after the start.</AppText>
                 ) : customWeeks != null ? (
                   <AppText variant="rowSubtitle" color="muted" style={styles.customDateHint}>
-                    That's {customWeeks} week{customWeeks === 1 ? '' : 's'} — ends {prettyDate(isoWeekRangeInTz(challengeWeekIds(weekIdForDate(selectedStartDate()), customWeeks)[customWeeks - 1], DEFAULT_TZ).end)}.
+                    That's {customWeeks} week{customWeeks === 1 ? '' : 's'}, ends {prettyDate(isoWeekRangeInTz(challengeWeekIds(weekIdForDate(selectedStartDate()), customWeeks)[customWeeks - 1], DEFAULT_TZ).end)}.
                   </AppText>
                 ) : (
                   <AppText variant="rowSubtitle" color="muted" style={styles.customDateHint}>Enter the date you want the challenge to end.</AppText>

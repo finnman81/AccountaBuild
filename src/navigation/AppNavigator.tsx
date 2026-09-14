@@ -1,4 +1,4 @@
-import React, { useContext, useEffect } from 'react';
+import React, { useContext, useEffect, useRef } from 'react';
 import { Linking } from 'react-native';
 import { DarkTheme as NavDarkTheme, NavigationContainer } from '@react-navigation/native';
 import * as SplashScreen from 'expo-splash-screen';
@@ -29,9 +29,17 @@ import TabsNavigator from './TabsNavigator';
 import OnboardingNavigator from './OnboardingNavigator';
 import { navigationRef, flushPendingNavigation, navigateToJoinGroup } from './navigationRef';
 import { registerSentryNavigation } from '../services/sentry';
-import { parseJoinCodeFromUrl, setPendingJoinCode } from '../services/inviteLinks';
+import {
+  clearPendingJoinCode,
+  consumePendingJoinCode,
+  parseJoinCodeFromUrl,
+  setPendingJoinCode,
+} from '../services/inviteLinks';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
+
+// Process-wide: the launch URL is handled at most once (see AppNavigator).
+let initialUrlHandled = false;
 
 export default function AppNavigator() {
   const { user, isLoading } = useContext(AuthContext);
@@ -42,22 +50,48 @@ export default function AppNavigator() {
   const ready = configError || (!isLoading && !onboardingLoading);
 
   // Invite links (accountabuild://join/CODE, https://app.munitor.ai/join/CODE).
-  // Always stash the code first: a signed-out or mid-onboarding user can't be
-  // navigated anywhere useful, so the join UIs consume the stash when they
-  // mount. Only a signed-in, onboarded user gets navigated directly.
+  // A signed-in, onboarded user gets navigated straight to JoinGroup. Anyone
+  // else (signed out, mid-onboarding, auth still restoring on cold start) gets
+  // the code stashed, and the next join UI to mount consumes it.
   const canNavigateToJoin = !!user && onboardingCompleted;
+  const canNavigateRef = useRef(canNavigateToJoin);
+  canNavigateRef.current = canNavigateToJoin;
   useEffect(() => {
-    let cancelled = false;
     const handle = (url: string | null) => {
       const code = parseJoinCodeFromUrl(url);
-      if (!code || cancelled) return;
-      setPendingJoinCode(code);
-      if (canNavigateToJoin) navigateToJoinGroup(code);
+      if (!code) return;
+      if (canNavigateRef.current) navigateToJoinGroup(code);
+      else setPendingJoinCode(code);
     };
-    Linking.getInitialURL().then(handle).catch(() => {});
+    // getInitialURL() returns the SAME launch URL for the whole process life,
+    // so read it once. Re-reading it on every auth/onboarding flip re-opened
+    // JoinGroup with the launch code after each sign-out/in.
+    if (!initialUrlHandled) {
+      initialUrlHandled = true;
+      Linking.getInitialURL().then(handle).catch(() => {});
+    }
     const sub = Linking.addEventListener('url', (e) => handle(e.url));
-    return () => { cancelled = true; sub.remove(); };
+    return () => sub.remove();
+  }, []);
+
+  // A code stashed while the user couldn't be navigated (the usual cold start:
+  // the link resolves before auth does) opens JoinGroup once they can be.
+  useEffect(() => {
+    if (!canNavigateToJoin) return;
+    let cancelled = false;
+    consumePendingJoinCode().then((code) => { if (code && !cancelled) navigateToJoinGroup(code); });
+    return () => { cancelled = true; };
   }, [canNavigateToJoin]);
+
+  // Sign-out (or an account switch) drops any stashed code, so the next
+  // account on this device doesn't inherit the last one's invite. A code
+  // stashed while signed OUT survives the sign-in that follows.
+  const uid = user?.uid ?? null;
+  const prevUidRef = useRef<string | null>(uid);
+  useEffect(() => {
+    if (prevUidRef.current && prevUidRef.current !== uid) clearPendingJoinCode();
+    prevUidRef.current = uid;
+  }, [uid]);
 
   // Reveal the app (hide the held native splash) only once we know the first
   // screen. A 6s safety net hides it regardless, so a hung read can't strand

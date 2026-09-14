@@ -1,9 +1,9 @@
 import type { GroupLog, LogType } from '../services/logs';
 import type { PublicUser } from '../services/publicUsers';
 import type { Tier } from '../mmr/types';
-import { computeStreakDays } from './today';
+import { memberStreakDays } from './today';
 import { friendlyNameFromDisplayName } from '../utils/formatters';
-import { isHibernating, shieldedWeekIds } from '../services/hibernation';
+import { isHibernating } from '../services/hibernation';
 
 export type Division = 1 | 2 | 3 | 4;
 
@@ -67,9 +67,13 @@ export function buildLeaderboard(params: {
   for (const l of logs) {
     if (l.date === today && allowedTypes.has(l.type)) loggedToday.add(l.uid);
   }
-  const shieldedByUid: Record<string, Set<string>> = {};
-  for (const uid of allowed) shieldedByUid[uid] = shieldedWeekIds(publicUsers[uid] as any);
-  const streaks = computeStreakDays(logs, allowedTypes, today, shieldedByUid);
+  // Same streak as the Today rail: pace-aware, shield-aware, and blended with
+  // each member's fresh mirror. The plain consecutive-day count over the 14-day
+  // feed capped a 40-day streak at 15 here while Today showed 40.
+  const streaks: Record<string, number> = {};
+  for (const uid of allowed) {
+    streaks[uid] = memberStreakDays({ logs, uid, today, streakRule, pub: publicUsers[uid] });
+  }
 
   const rows = allowed
     .filter((uid) => publicUsers[uid])

@@ -226,7 +226,7 @@ export default function LogComposer({ initialType = 'weight', onClose, onSaved, 
         const nowDisp = metric ? `${lbToKg(weightLb)} kg` : `${Math.round(weightLb * 10) / 10} lb`;
         const confirmed = await new Promise<boolean>((resolve) => {
           Alert.alert(
-            'Big change — sure?',
+            'Big change. Sure?',
             `Your last weigh-in was ${prevDisp}; this one is ${nowDisp}. Save anyway?`,
             [
               { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },

@@ -64,8 +64,8 @@ export default function LoginScreen({ navigation }: Props) {
             <AuthHeader title="Welcome back" subline="Log in to pick up where your group left off." />
 
             <SocialAuthButtons
-              onApple={() => Alert.alert('Coming soon', 'Apple sign-in is on the way — use email for now.')}
-              onGoogle={() => Alert.alert('Coming soon', 'Google sign-in is on the way — use email for now.')}
+              onApple={() => Alert.alert('Coming soon', 'Apple sign-in is on the way. Use email for now.')}
+              onGoogle={() => Alert.alert('Coming soon', 'Google sign-in is on the way. Use email for now.')}
             />
 
             <View style={styles.divider}>

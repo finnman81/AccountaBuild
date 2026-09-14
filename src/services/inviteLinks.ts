@@ -25,19 +25,42 @@ export function parseJoinCodeFromUrl(url: string | null | undefined): string | n
   return m ? m[1].toUpperCase() : null;
 }
 
-let pendingInMemory: string | null = null;
+// A stashed code is only good for a day. Past that, the tap is old news and
+// pre-filling it weeks later ("Join a group" showing a stranger's code) is a bug.
+const PENDING_TTL_MS = 24 * 60 * 60 * 1000;
+
+type Pending = { code: string; at: number };
+
+let pendingInMemory: Pending | null = null;
 
 export async function setPendingJoinCode(code: string): Promise<void> {
-  pendingInMemory = code;
-  await AsyncStorage.setItem(STORAGE_KEY, code).catch(() => {});
+  pendingInMemory = { code, at: Date.now() };
+  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(pendingInMemory)).catch(() => {});
+}
+
+/** Drop any stashed code (sign-out, or a code that already reached a join UI). */
+export async function clearPendingJoinCode(): Promise<void> {
+  pendingInMemory = null;
+  await AsyncStorage.removeItem(STORAGE_KEY).catch(() => {});
+}
+
+function parseStored(raw: string | null): Pending | null {
+  if (!raw) return null;
+  try {
+    const p = JSON.parse(raw) as Partial<Pending>;
+    return typeof p.code === 'string' && typeof p.at === 'number' ? { code: p.code, at: p.at } : null;
+  } catch {
+    return null; // pre-expiry builds stored a bare code with no timestamp: treat as stale
+  }
 }
 
 /** Read-and-clear. Disk fallback covers a cold start that killed the JS heap. */
 export async function consumePendingJoinCode(): Promise<string | null> {
-  const code = pendingInMemory ?? (await AsyncStorage.getItem(STORAGE_KEY).catch(() => null));
+  const pending = pendingInMemory ?? parseStored(await AsyncStorage.getItem(STORAGE_KEY).catch(() => null));
   pendingInMemory = null;
   AsyncStorage.removeItem(STORAGE_KEY).catch(() => {});
-  return code || null;
+  if (!pending || Date.now() - pending.at > PENDING_TTL_MS) return null;
+  return pending.code || null;
 }
 
 export type JoinPreview = { groupId: string; name: string };

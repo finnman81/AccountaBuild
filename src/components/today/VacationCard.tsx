@@ -90,7 +90,7 @@ export default function VacationCard({ uid, myLogDates }: Props) {
           hitSlop={8}
           style={{ marginTop: spacing.sm }}
         >
-          <AppText variant="rowSubtitle" style={{ color: colors.primary }}>I'm back — end vacation</AppText>
+          <AppText variant="rowSubtitle" style={{ color: colors.primary }}>I'm back. End vacation</AppText>
         </TouchableOpacity>
       </View>
     );
@@ -115,7 +115,7 @@ export default function VacationCard({ uid, myLogDates }: Props) {
         </TouchableOpacity>
       </View>
       <AppText variant="rowSubtitle" color="secondary" style={{ marginTop: 2 }}>
-        Quiet few days — pause this week's scoring so it can't cost you FP or your streak. Anything you do log still
+        Quiet few days? Pause this week's scoring so it can't cost you FP or your streak. Anything you do log still
         counts. {state.remaining} of {2} vacation weeks left this season.
       </AppText>
       <TouchableOpacity onPress={() => void toggle(true)} style={styles.cta} activeOpacity={0.85} disabled={busy}>

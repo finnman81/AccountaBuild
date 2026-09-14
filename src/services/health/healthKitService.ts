@@ -242,36 +242,11 @@ export async function checkHealthKitPermissions(): Promise<{
  * read and the anchored (delta) read so both classify workouts identically.
  */
 export function mapWorkoutSample(w: any): HealthKitWorkout | null {
-  // Enhanced workout type detection using multiple signals
+  // The numeric activity type decides, via the mapper's table. 52 is Apple's
+  // Walking and maps to 'walking', full stop. An old "52 is walking OR
+  // strength" override turned walks into weightLifting whenever the source
+  // app's name held gym/weight/strong; real strength training arrives as 50.
   let workoutType = mapHealthKitWorkoutType(w.workoutActivityType);
-
-  // Special handling for ambiguous type 52 (can be Walking OR TraditionalStrengthTraining)
-  const rawType = w.workoutActivityType;
-  if (rawType === 52 || rawType === '52') {
-    // Check for distance - strength training typically doesn't have distance
-    const distance = w.totalDistance || w.distance || w.totalDistanceValue;
-    const hasDistance = distance && typeof distance === 'number' && distance > 0;
-
-    // Check source app
-    const sourceName = (w.source?.name || w.sourceRevision?.source?.name || w.sourceName || '').toLowerCase();
-    const isStrengthApp = sourceName.includes('strong') || sourceName.includes('jefit') ||
-                         sourceName.includes('gym') || sourceName.includes('weight');
-
-    // Check metadata
-    const metadata = w.metadata || {};
-    const metadataType = String(metadata.HKWorkoutActivityType || metadata.workoutType || '').toLowerCase();
-
-    if (hasDistance || metadataType.includes('walk') || metadataType.includes('run')) {
-      // Has distance or metadata suggests walking/running
-      workoutType = 'jogging';
-      console.log('[HealthKit] Resolved ambiguous type 52 to jogging (has distance or walk/run metadata)');
-    } else if (isStrengthApp || metadataType.includes('strength') || metadataType.includes('weight')) {
-      // Source or metadata suggests strength training
-      workoutType = 'weightLifting';
-      console.log('[HealthKit] Resolved ambiguous type 52 to weightLifting (strength app/metadata)');
-    }
-    // Otherwise keep as jogging (default for 52)
-  }
 
   // Distance-based inference for UNCLASSIFIED workouts. This used to key on
   // 'weightLifting' because that was the mapper's default for unknowns — a bad

@@ -3,7 +3,7 @@ import type { PublicUser } from '../services/publicUsers';
 import type { Tier } from '../mmr/types';
 import { formatMinutesHM, formatWeightForUnits, friendlyNameFromDisplayName, type Units } from '../utils/formatters';
 import { isHibernating, shieldedWeekIds } from '../services/hibernation';
-import { DEFAULT_TZ, isoWeekIdInTz } from '../mmr/time';
+import { DEFAULT_TZ, isoWeekIdInTz, zonedNoonUtcFromYmd } from '../mmr/time';
 
 export type ChecklistType = 'calories' | 'workout' | 'weight';
 export type Division = 1 | 2 | 3 | 4;
@@ -98,6 +98,16 @@ function fmtLocal(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+/**
+ * ISO week of a YYYY-MM-DD log date, judged in the scoring timezone. Must go
+ * through the DATE STRING: the walkers step local midnights, and local
+ * midnight Monday east of New York is still Sunday evening there, so reading
+ * the week off the Date put every Monday in the previous week.
+ */
+function weekIdOfYmd(ymd: string): string {
+  return isoWeekIdInTz(zonedNoonUtcFromYmd(ymd, DEFAULT_TZ), DEFAULT_TZ);
+}
+
 /** The current user's Calories/Workout/Weight checklist for today. */
 export function buildTodayChecklist(params: {
   logs: GroupLog[];
@@ -178,7 +188,7 @@ export function computeStreakDays(
         streak += 1;
       } else if (guard === 365) {
         // Today, not logged yet: the day isn't over, so it can't break anything.
-      } else if (!(shielded && shielded.has(isoWeekIdInTz(cur, DEFAULT_TZ)))) {
+      } else if (!(shielded && shielded.has(weekIdOfYmd(fmtLocal(cur))))) {
         break; // an unlogged day outside a shield ends the chain
       }
       cur.setDate(cur.getDate() - 1);
@@ -266,7 +276,7 @@ export function computeGoalStreak(params: {
       if (anyLog.has(fmtLocal(cur))) streak += 1;
       else if (guard === 365) {
         /* today, not logged yet: the day isn't over */
-      } else if (!shielded.has(isoWeekIdInTz(cur, DEFAULT_TZ))) break;
+      } else if (!shielded.has(weekIdOfYmd(fmtLocal(cur)))) break;
       cur.setDate(cur.getDate() - 1);
     }
     return streak;
@@ -302,7 +312,7 @@ export function computeGoalStreak(params: {
     // Same for TODAY when nothing is logged yet: the day isn't over. Without
     // this a 7-day target read 0 every morning until the first log (prod
     // 2026-09-14: Regmong, 53 -> 0 on his first day back).
-    if (dstr === today || shielded.has(isoWeekIdInTz(cur, DEFAULT_TZ))) {
+    if (dstr === today || shielded.has(weekIdOfYmd(dstr))) {
       cur.setDate(cur.getDate() - 1);
       continue;
     }
@@ -324,6 +334,36 @@ export function computeGoalStreak(params: {
     cur.setDate(cur.getDate() - 1);
   }
   return streak;
+}
+
+/**
+ * The streak every screen should DISPLAY for a member: the pace-aware streak
+ * over whatever feed the screen holds, scored against the member's own weekly
+ * goals and shielded weeks, then blended with their fresh self-reported mirror
+ * (bestStreak) so a short feed can't truncate it. One helper so the Today
+ * rail, Leaderboard, Groups card and member sheets can't drift apart again.
+ */
+export function memberStreakDays(params: {
+  logs: GroupLog[];
+  uid: string;
+  today: string;
+  streakRule: 'workout' | 'any';
+  pub: PublicUser | null | undefined;
+}): number {
+  const p = params.pub;
+  const windowStreak = computeGoalStreak({
+    logs: params.logs,
+    uid: params.uid,
+    today: params.today,
+    streakRule: params.streakRule,
+    targets: {
+      workout: Number(p?.workoutsPerWeek ?? 0),
+      calories: Number(p?.logCaloriesDaysPerWeek ?? 0),
+      weight: Number(p?.logWeightDaysPerWeek ?? 0),
+    },
+    shieldedWeeks: shieldedWeekIds(p as any),
+  });
+  return bestStreak(windowStreak, p?.streakDaysPublic, p?.streakDaysUpdatedAtMs);
 }
 
 /** Team Today rail: per-visible-member logged status, streak leader, and at-risk. */
@@ -360,20 +400,13 @@ export function buildTeamToday(params: {
   // max() is safe because the window can only ever undercount (streakMirror.ts).
   const streaks: Record<string, number> = {};
   for (const uid of allowed) {
-    const p = params.publicUsers[uid];
-    const windowStreak = computeGoalStreak({
+    streaks[uid] = memberStreakDays({
       logs: params.logs,
       uid,
       today: params.today,
       streakRule: params.streakRule,
-      targets: {
-        workout: Number(p?.workoutsPerWeek ?? 0),
-        calories: Number(p?.logCaloriesDaysPerWeek ?? 0),
-        weight: Number(p?.logWeightDaysPerWeek ?? 0),
-      },
-      shieldedWeeks: shieldedWeekIds(p as any),
+      pub: params.publicUsers[uid],
     });
-    streaks[uid] = bestStreak(windowStreak, p?.streakDaysPublic, p?.streakDaysUpdatedAtMs);
   }
   let leaderUid: string | null = null;
   let leaderStreak = 0;

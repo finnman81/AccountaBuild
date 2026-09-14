@@ -68,7 +68,7 @@ export type MmrProjection = {
    * mmrProjected drip-feeds by design and undersells on-pace logs.
    */
   mmrWeekEndProjected: number;
-  /** This week is a declared vacation week (penalty shield active). */
+  /** This week is shielded (vacation, hibernation or grace week): no penalty. */
   onVacation: boolean;
 };
 
@@ -157,7 +157,10 @@ type ProjectionParams = {
   goalMode?: 'cut' | 'bulk' | 'maintenance' | null;
   /** Profile height (inches) — powers weight-v2 BMI-spare difficulty. */
   heightIn?: number | null;
-  /** Current week declared a vacation week — no penalty projected. */
+  /**
+   * Current week is shielded: a declared vacation week, a hibernation range or
+   * its grace week (the server's `onVacation`). No penalty, streak held.
+   */
   vacation?: boolean;
 };
 
@@ -297,7 +300,9 @@ export function computeProjection(
 
   const breadth = breadthFactor(coreCategoryCount(active.map((g) => g.id)));
   const weekScore = combineWeekScore(active.map((g) => g.score)) * breadth;
-  const streakIfEndedNow = completedIfEndedNow ? params.streakWeeks + 1 : 0;
+  // A shielded week HOLDS the streak on the server (streakAfter = streakBefore)
+  // rather than resetting it, so an unfinished shielded week keeps its multiplier.
+  const streakIfEndedNow = completedIfEndedNow ? params.streakWeeks + 1 : params.vacation ? params.streakWeeks : 0;
   const S = streakMultiplier(streakIfEndedNow);
 
   // Scale the projected penalty by how much of the week has elapsed: the real
@@ -335,8 +340,10 @@ export function computeProjection(
 
   // Worst case still reachable this week: earn nothing more, take the full
   // missed-week penalty. If even that holds the band, demotion is off the
-  // table and the UI must not claim otherwise.
-  const worstCaseMMR = Math.max(0, Math.round(params.mmrBefore - missedWeekPenalty(params.mmrBefore)));
+  // table and the UI must not claim otherwise. A shielded week has no penalty
+  // at all, so its worst case is standing still.
+  const worstPenalty = params.vacation ? 0 : missedWeekPenalty(params.mmrBefore);
+  const worstCaseMMR = Math.max(0, Math.round(params.mmrBefore - worstPenalty));
   const worstBand = applyRankWithDemotionRules({
     oldBand,
     newMMR: worstCaseMMR,
@@ -381,6 +388,9 @@ export function computeProjection(
   // the now frame, where the pace cap makes an on-pace user's next log look
   // worthless (+2 for someone who then banks +99 by staying on pace all day).
   // Recursion is guarded by skipWhatIf so hypothetical runs don't recurse.
+  // The hypothetical runs spread `params`, so the shield (`vacation`) carries
+  // into both sides of the diff: on a shielded week there is no penalty for a
+  // log to rescue, only the score it earns.
   let whatIf = { workout: 0, calorieDay: 0, weighIn: 0 };
   // In a weekEnd-frame run, mmrProjected IS the end-of-week value; in a
   // now-frame run it's replaced by the dedicated weekEnd re-run below.
@@ -471,7 +481,13 @@ export function subscribeMyMmrProjection(uid: string, onChange: (p: MmrProjectio
   let dailyCalorieGoal: number | null = null;
   let heightIn: number | null = null;
   let goalMode: 'cut' | 'bulk' | 'maintenance' | null = null;
-  let onVacation = false;
+  // Shield inputs, merged in emit() exactly as the server scorer does
+  // (functions/mmr-compute.js): weekly.vacation, the anchored
+  // weekly.hibernationShield, a hibernation range containing the week, or the
+  // hibernation grace week.
+  let weeklyVacation = false;
+  let weeklyHibernationShield = false;
+  let hibernation: { fromWeekId?: unknown; untilWeekId?: unknown; graceWeekId?: unknown } | null = null;
 
   const emit = () => {
     if (userMmr == null || userMp == null) {
@@ -502,6 +518,19 @@ export function subscribeMyMmrProjection(uid: string, onChange: (p: MmrProjectio
     for (const d of calorieDaysMet) {
       if (d >= start && d <= end) mergedCalorieDays.add(d);
     }
+
+    // Same test as the scorer: the range alone decides (no `awake` check). A
+    // wake ends the range at the previous week and makes THIS week the grace
+    // week, so the current week reads the same either way.
+    const hib = hibernation;
+    const inHibernation =
+      !!hib &&
+      typeof hib.fromWeekId === 'string' &&
+      typeof hib.untilWeekId === 'string' &&
+      weekId >= hib.fromWeekId &&
+      weekId <= hib.untilWeekId;
+    const inGraceWeek = !!hib && typeof hib.graceWeekId === 'string' && hib.graceWeekId === weekId;
+    const shielded = weeklyVacation || weeklyHibernationShield || inHibernation || inGraceWeek;
     
     onChange(
       computeProjection({
@@ -519,25 +548,29 @@ export function subscribeMyMmrProjection(uid: string, onChange: (p: MmrProjectio
         dailyCalorieGoal,
         goalMode,
         heightIn,
-        vacation: onVacation,
+        vacation: shielded,
       }),
     );
   };
 
   const unsubs: Array<() => void> = [];
 
-  // Vacation flag lives on this week's weekly doc (set by services/vacation.ts).
+  // Vacation flag lives on this week's weekly doc (set by services/vacation.ts);
+  // hibernationShield is the scorer's anchor once a week scored as shielded.
   unsubs.push(
     onSnapshot(
       doc(db, 'users', uid, 'weekly', weekId),
       (snap) => {
-        onVacation = snap.exists() && (snap.data() as any)?.vacation === true;
-        const sb = snap.exists() ? (snap.data() as any)?.streakBefore : null;
+        const w = snap.exists() ? ((snap.data() as any) ?? {}) : {};
+        weeklyVacation = w?.vacation === true;
+        weeklyHibernationShield = w?.hibernationShield === true;
+        const sb = w?.streakBefore;
         weekStreakBefore = typeof sb === 'number' ? sb : null;
         emit();
       },
       () => {
-        onVacation = false;
+        weeklyVacation = false;
+        weeklyHibernationShield = false;
         emit();
       },
     ),
@@ -556,6 +589,7 @@ export function subscribeMyMmrProjection(uid: string, onChange: (p: MmrProjectio
         dailyCalorieGoal = typeof d?.dailyCalorieGoal === 'number' ? Number(d.dailyCalorieGoal) : null;
         heightIn = Number.isFinite(Number(d?.height)) && Number(d?.height) > 0 ? Number(d.height) : null;
         goalMode = ['cut', 'bulk', 'maintenance'].includes(d?.goalMode) ? d.goalMode : null;
+        hibernation = d?.hibernation && typeof d.hibernation === 'object' ? d.hibernation : null;
         emit();
       },
       () => onChange(null),

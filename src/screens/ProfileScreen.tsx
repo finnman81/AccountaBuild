@@ -18,7 +18,9 @@ import { useActiveGroup } from '../store/ActiveGroupContext';
 import { subscribeGroupLogsSince, daysAgoYYYYMMDD, type GroupLog } from '../services/logs';
 import type { RootStackParamList, ProfileStackParamList } from '../navigation/types';
 import { DEFAULT_TZ, isoWeekIdInTz, yyyyMmDdInTz } from '../mmr/time';
-import { computeGoalStreak } from '../viewmodels/today';
+import { bestStreak, computeGoalStreak } from '../viewmodels/today';
+import { shieldedWeekIds } from '../services/hibernation';
+import { subscribePublicUsers, type PublicUser } from '../services/publicUsers';
 import { formatYYYYMMDDLocal } from '../utils/dates';
 import { subscribeMyMmrState, type MmrState } from '../services/mmrState';
 import { getHydrated, setHydrated } from '../services/hydrationCache';
@@ -74,6 +76,11 @@ export default function ProfileScreen() {
   const [weekMinutes, setWeekMinutes] = useState(0);
   const [group, setGroup] = useState<{ streakRule?: 'workout' | 'any'; name?: string } | null>(null);
   const [groupLogs, setGroupLogs] = useState<GroupLog[]>([]);
+  // My public mirror: carries the shielded weeks (vacation/hibernation) and
+  // the accurate self-streak (streakMirror.ts) the 14-day feed can't see.
+  const [myPub, setMyPub] = useState<PublicUser | null>(
+    () => (user?.uid && activeGroupId ? getHydrated<Record<string, PublicUser>>(`publicUsers:${activeGroupId}`)?.[user.uid] ?? null : null),
+  );
   const [rankDetailsVisible, setRankDetailsVisible] = useState(false);
   const [projectionDetailsVisible, setProjectionDetailsVisible] = useState(false);
   const [mmrGoals, setMmrGoals] = useState<Record<string, any>>({});
@@ -82,6 +89,12 @@ export default function ProfileScreen() {
     if (!user) return;
     return subscribeMyProfile(user.uid, (p) => setProfile(p));
   }, [user]);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    const uid = user.uid;
+    return subscribePublicUsers([uid], (m) => setMyPub(m[uid] ?? null));
+  }, [user?.uid]);
 
   const [mmrStateLoaded, setMmrStateLoaded] = useState(false);
   useEffect(() => {
@@ -248,7 +261,7 @@ export default function ProfileScreen() {
   const streakRule = (group?.streakRule ?? 'workout') as 'workout' | 'any';
   const dailyStreak = useMemo(() => {
     if (!user?.uid) return 0;
-    return computeGoalStreak({
+    const windowStreak = computeGoalStreak({
       logs: groupLogs,
       uid: user.uid,
       today: yyyyMmDdInTz(new Date(), DEFAULT_TZ),
@@ -258,8 +271,12 @@ export default function ProfileScreen() {
         calories: Number(profile?.logCaloriesDaysPerWeek ?? 0),
         weight: Number(profile?.logWeightDaysPerWeek ?? 0),
       },
+      shieldedWeeks: shieldedWeekIds(myPub),
     });
-  }, [groupLogs, user?.uid, streakRule, profile?.workoutsPerWeek, profile?.logCaloriesDaysPerWeek, profile?.logWeightDaysPerWeek]);
+    // Same blend as the Today rail: the 14-day feed caps a long streak at ~15,
+    // the fresh self-reported mirror corrects it.
+    return bestStreak(windowStreak, myPub?.streakDaysPublic, myPub?.streakDaysUpdatedAtMs);
+  }, [groupLogs, user?.uid, streakRule, profile?.workoutsPerWeek, profile?.logCaloriesDaysPerWeek, profile?.logWeightDaysPerWeek, myPub]);
 
   const weekStreak = useMemo(() => {
     if (!user) return Array(7).fill(0);

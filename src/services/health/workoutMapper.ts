@@ -93,20 +93,22 @@ export function mapHealthKitWorkoutType(healthKitType: string | number | unknown
                   typeof healthKitType === 'string' && /^\d+$/.test(healthKitType) ? parseInt(healthKitType, 10) : null;
   
   if (typeNum !== null && Number.isFinite(typeNum)) {
-    const mapped = HK_TO_WORKOUT[typeNum];
-    if (mapped) return mapped;
-    // Known-but-unmappable (a sport we have no bucket for) and genuinely
-    // unknown both fall through to the string branch, then to 'other'.
+    // Numbers are decided by the table ONLY. Known-but-unmappable (a sport we
+    // have no bucket for) and genuinely unknown both become 'other', so sync
+    // records hkActivityType. They must NOT fall through to the name matching
+    // below: it used to test the old wrong enum numbers, which turned
+    // equestrian (17) into rowing and skiing (60/61) into tai chi/stretching.
+    return HK_TO_WORKOUT[typeNum] ?? 'other';
   }
-  
-  // Fallback to string matching (for string representations or metadata)
+
+  // Fallback to NAME matching (string representations or metadata). No
+  // numeric tests here: every number already returned above.
   const normalized = String(healthKitType ?? '').toLowerCase().replace(/[_\s-]/g, '');
-  
+
   // Running variations - comprehensive matching
   if (
-    normalized.includes('running') || 
+    normalized.includes('running') ||
     normalized === 'run' ||
-    normalized === '37' || // Running enum value
     normalized.includes('runna') || // Runna app
     normalized.includes('treadmill') ||
     normalized.includes('trackrunning') ||
@@ -136,7 +138,7 @@ export function mapHealthKitWorkoutType(healthKitType: string | number | unknown
   }
   
   // Hiking - could be running or jogging depending on intensity
-  if (normalized.includes('hiking') || normalized === '24') {
+  if (normalized.includes('hiking')) {
     return 'jogging'; // Default to jogging, but could be running for intense hikes
   }
   
@@ -145,7 +147,6 @@ export function mapHealthKitWorkoutType(healthKitType: string | number | unknown
     normalized.includes('cycling') || 
     normalized.includes('bike') || 
     normalized === 'bicycle' ||
-    normalized === '13' || // Cycling enum value
     normalized.includes('indoorcycling') ||
     normalized.includes('outdoorcycling')
   ) {
@@ -156,7 +157,6 @@ export function mapHealthKitWorkoutType(healthKitType: string | number | unknown
   if (
     normalized.includes('swimming') || 
     normalized === 'swim' ||
-    normalized === '46' || // Swimming enum value
     normalized.includes('poolswimming') ||
     normalized.includes('openwaterswimming')
   ) {
@@ -167,54 +167,40 @@ export function mapHealthKitWorkoutType(healthKitType: string | number | unknown
   if (
     normalized.includes('rowing') || 
     normalized === 'row' ||
-    normalized === '17' || // Rowing enum value
     normalized.includes('indoorrowing')
   ) {
     return 'rowing';
   }
-  
+
   // Elliptical
-  if (
-    normalized.includes('elliptical') ||
-    normalized === '16' // Elliptical enum value
-  ) {
+  if (normalized.includes('elliptical')) {
     return 'elliptical';
   }
-  
+
   // Yoga and mind-body activities
-  if (
-    normalized.includes('yoga') ||
-    normalized === '57' // Yoga enum value
-  ) {
+  if (normalized.includes('yoga')) {
     return 'yoga';
   }
-  
+
   // Pilates
-  if (
-    normalized.includes('pilates') ||
-    normalized === '59' // Pilates enum value
-  ) {
+  if (normalized.includes('pilates')) {
     return 'pilates';
   }
-  
+
   // Tai Chi
   if (
     normalized.includes('taichi') ||
-    normalized.includes('tai chi') ||
-    normalized === '60' // Tai Chi enum value
+    normalized.includes('tai chi')
   ) {
     return 'taiChi';
   }
-  
+
   // Stretching and flexibility
   if (
     normalized.includes('stretching') ||
     normalized.includes('flexibility') ||
-    normalized === '61' || // Flexibility enum value
     normalized.includes('preparationandrecovery') ||
-    normalized === '62' || // PreparationAndRecovery enum value
     normalized.includes('cooldown') ||
-    normalized === '63' || // Cooldown enum value
     normalized.includes('warmup') ||
     normalized.includes('warm-up') ||
     normalized.includes('recovery')
@@ -228,32 +214,28 @@ export function mapHealthKitWorkoutType(healthKitType: string | number | unknown
     normalized.includes('mindfulness') ||
     normalized.includes('breathing') ||
     normalized.includes('mindandbody') ||
-    normalized === '64' || // MindAndBody enum value
     normalized.includes('mindful')
   ) {
     return 'meditation';
   }
-  
+
   // HIIT
   if (
-    normalized.includes('hiit') || 
-    normalized.includes('highintensity') ||
-    normalized === '58' // HIIT enum value
+    normalized.includes('hiit') ||
+    normalized.includes('highintensity')
   ) {
     return 'hiit';
   }
-  
+
   // Stairs
   if (
     normalized.includes('stair') ||
-    normalized.includes('stairclimbing') ||
-    normalized === '53' // Stairs enum value
+    normalized.includes('stairclimbing')
   ) {
     return 'stairMaster';
   }
 
-  // Tennis (matched by name only — the numeric HK raw value collides with other
-  // types in this hand-maintained enum, and the native libs pass a name string).
+  // Tennis (numeric 48 is handled by the table above).
   if (normalized.includes('tennis')) {
     return 'tennis';
   }
@@ -277,7 +259,7 @@ export function mapHealthKitWorkoutType(healthKitType: string | number | unknown
     return 'inclineWalk';
   }
   
-  // Strength training variations - check AFTER walking (since 52 can be either)
+  // Strength training variations (by name; numeric 50/20 hit the table)
   if (
     normalized.includes('strength') ||
     normalized.includes('traditionalstrengthtraining') ||

@@ -184,7 +184,7 @@ export default function SetupChecklistCard() {
           <View style={styles.rowText}>
             <Text style={styles.rowTitle}>Connect {healthLabel}</Text>
             <Text style={styles.rowSub}>
-              {healthError ? 'Couldn’t connect — try Settings → Health & Fitness.' : 'Auto-log workouts, calories, and weigh-ins.'}
+              {healthError ? 'Couldn’t connect. Try Settings → Health & Fitness.' : 'Auto-log workouts, calories, and weigh-ins.'}
             </Text>
           </View>
           <TouchableOpacity style={[styles.btn, styles.btnHealth]} onPress={enableHealth} activeOpacity={0.85} disabled={healthBusy}>

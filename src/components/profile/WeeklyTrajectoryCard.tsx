@@ -43,7 +43,7 @@ export default function WeeklyTrajectoryCard({ projection, dailyStreak = 0, onVi
     if (projection.weekJustStarted) {
       status = 'holding';
       statusColor = colors.textSecondary;
-      statusText = 'Week just started — first log sets your pace';
+      statusText = 'Week just started. First log sets your pace';
     } else if (projection.missedIfEndedNow && projection.demotionPossible) {
       // Only when a demotion is genuinely reachable this week (worst case run
       // through the real rules, shield included).
@@ -109,8 +109,8 @@ export default function WeeklyTrajectoryCard({ projection, dailyStreak = 0, onVi
       } else if (!winnable) {
         hintLine =
           dailyStreak > 0
-            ? `This week's out of reach — your ${dailyStreak}-day streak isn't. Keep logging.`
-            : 'This week got away — keep logging daily and Monday is a fresh start.';
+            ? `This week's out of reach, but your ${dailyStreak}-day streak isn't. Keep logging.`
+            : 'This week got away. Keep logging daily and Monday is a fresh start.';
       }
     }
 

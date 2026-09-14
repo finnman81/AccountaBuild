@@ -171,7 +171,7 @@ export default function WeekReviewScreen({ route, navigation }: Props) {
   const takeaway = summary.completedWeek
     ? 'Full week banked. Do it again and the streak multiplier starts paying.'
     : best && worst && (worst.A ?? 0) < 0.7
-      ? `${GOAL_LABEL[best.id] ?? best.id} carried the week — ${GOAL_LABEL[worst.id] ?? worst.id} is where the FP is hiding.`
+      ? `${GOAL_LABEL[best.id] ?? best.id} carried the week. ${GOAL_LABEL[worst.id] ?? worst.id} is where the FP is hiding.`
       : 'Close one. A little more consistency turns this into a completed week.';
 
   return (
@@ -283,7 +283,7 @@ export default function WeekReviewScreen({ route, navigation }: Props) {
           <Text style={styles.streakLine}>
             {summary.streakAfter > 0
               ? `🔥 ${summary.streakAfter}-week streak alive`
-              : '🌱 Streak reset — a completed week starts a new one'}
+              : '🌱 Streak reset. A completed week starts a new one'}
           </Text>
         </Section>
 

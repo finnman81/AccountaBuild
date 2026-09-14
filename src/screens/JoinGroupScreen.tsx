@@ -11,7 +11,12 @@ import type { RootStackParamList } from '../navigation/types';
 import { AuthContext } from '../store/AuthContext';
 import { useActiveGroup } from '../store/ActiveGroupContext';
 import { joinGroupByCode } from '../services/groups';
-import { consumePendingJoinCode, fetchJoinPreview, type JoinPreview } from '../services/inviteLinks';
+import {
+  clearPendingJoinCode,
+  consumePendingJoinCode,
+  fetchJoinPreview,
+  type JoinPreview,
+} from '../services/inviteLinks';
 import { friendlyNameFromDisplayName } from '../utils/formatters';
 import AppText from '../components/ui/AppText';
 import Card from '../components/ui/Card';
@@ -33,11 +38,20 @@ export default function JoinGroupScreen({ navigation, route }: Props) {
 
   // Invite-link arrivals: a code can ride in as a nav param (warm app) or sit
   // in the pending stash (cold start). Either way it prefills; the user still
-  // confirms by pressing Join — links never join anyone to anything.
+  // confirms by pressing Join — links never join anyone to anything. The stash
+  // is cleared either way, and a second link while this screen is open
+  // replaces the field (useState only reads its initial value once).
+  const paramCode = route.params?.joinCode;
   useEffect(() => {
-    if (route.params?.joinCode) return;
-    consumePendingJoinCode().then((code) => { if (code) setJoinCode(code); });
-  }, [route.params?.joinCode]);
+    if (paramCode) {
+      setJoinCode(paramCode);
+      clearPendingJoinCode();
+      return;
+    }
+    let cancelled = false;
+    consumePendingJoinCode().then((code) => { if (code && !cancelled) setJoinCode(code); });
+    return () => { cancelled = true; };
+  }, [paramCode]);
 
   // The confirm step: name the group before the user commits.
   useEffect(() => {

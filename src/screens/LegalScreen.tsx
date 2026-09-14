@@ -46,7 +46,7 @@ export default function LegalScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Section title="Community rules — zero tolerance">
+        <Section title="Community rules: zero tolerance">
           <P>
             AccountaBuild is a fitness accountability app used with people you know. There is zero
             tolerance for objectionable content or abusive behaviour, including harassment, hate
@@ -54,7 +54,7 @@ export default function LegalScreen() {
           </P>
           <P>
             You can report any message, log, or photo by pressing and holding it. Reports are
-            reviewed and accounts that break these rules are removed. You can also block any member —
+            reviewed and accounts that break these rules are removed. You can also block any member:
             they disappear from your feed and can no longer send you anything.
           </P>
         </Section>
@@ -67,7 +67,7 @@ export default function LegalScreen() {
           </P>
           <P>
             Health data is never sold, never used for advertising, and never shared with third
-            parties. Your body weight is private — teammates can see your workouts, streaks and
+            parties. Your body weight is private. Teammates can see your workouts, streaks and
             points, but never your weight.
           </P>
         </Section>

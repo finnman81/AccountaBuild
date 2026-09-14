@@ -140,7 +140,7 @@ export default function GroupChatScreen({ route }: Props) {
             contentId,
             contentText: text ?? null,
           }).catch(() => {});
-          Alert.alert('Reported', 'Thanks — this has been sent for review.');
+          Alert.alert('Reported', 'Thanks. This has been sent for review.');
         },
       },
       {
@@ -367,7 +367,7 @@ export default function GroupChatScreen({ route }: Props) {
         {sendFailed && (
           <TouchableOpacity onPress={send} style={styles.sendFailedRow} activeOpacity={0.85}>
             <Icon source="alert-circle-outline" size={16} color={colors.danger} />
-            <AppText variant="rowSubtitle" style={{ color: colors.danger }}>Message failed to send — tap to retry</AppText>
+            <AppText variant="rowSubtitle" style={{ color: colors.danger }}>Message failed to send. Tap to retry</AppText>
           </TouchableOpacity>
         )}
         <View onLayout={(e) => setComposerH(e.nativeEvent.layout.height)} style={[styles.composer, { paddingBottom: insets.bottom || spacing.sm }]}>

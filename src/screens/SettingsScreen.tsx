@@ -106,7 +106,7 @@ export default function SettingsScreen() {
           text: 'Continue',
           style: 'destructive',
           onPress: () =>
-            Alert.alert('Are you sure?', 'Last chance — this is permanent.', [
+            Alert.alert('Are you sure?', 'Last chance. This is permanent.', [
               { text: 'Keep my account', style: 'cancel' },
               { text: 'Delete forever', style: 'destructive', onPress: () => void runDelete() },
             ]),
@@ -128,7 +128,7 @@ export default function SettingsScreen() {
         <View style={styles.group}>
           <ToggleRow title="Streak reminder" subtitle="Daily at 6:00 PM if you haven't logged" value={!!prefs?.streakReminder} onValueChange={toggle('streakReminder')} />
           <ToggleRow title="Team activity" subtitle="Each day, when your group logs" value={!!prefs?.teamActivity} onValueChange={toggle('teamActivity')} />
-          <ToggleRow title="Milestones" subtitle="Goals reached, rank-ups, challenges — rare" value={!!prefs?.milestones} onValueChange={toggle('milestones')} />
+          <ToggleRow title="Milestones" subtitle="Goals reached, rank-ups, challenges (rare)" value={!!prefs?.milestones} onValueChange={toggle('milestones')} />
           <ToggleRow title="Nudges" subtitle="Let teammates nudge you when at risk" value={!!prefs?.nudgesAllowed} onValueChange={toggle('nudgesAllowed')} />
           <ToggleRow title="Chat messages" value={!!prefs?.chatMessages} onValueChange={toggle('chatMessages')} />
           <ToggleRow title="Weekly recap" subtitle="Monday summary + rank changes" value={!!prefs?.weeklyRecap} onValueChange={toggle('weeklyRecap')} />

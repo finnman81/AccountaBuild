@@ -312,7 +312,7 @@ export default function MMRGoalsScreen() {
         await setDoc(doc(db, 'users', user.uid), { goalsEffectiveWeekId: nextWeek, updatedAt: serverTimestamp() }, { merge: true });
       }
 
-      setSaved('Saved — changes apply from next week.');
+      setSaved('Saved. Changes apply from next week.');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Save failed.');
     } finally {
@@ -348,14 +348,14 @@ export default function MMRGoalsScreen() {
               <View style={styles.lockCard}>
                 <AppText variant="rowTitle" color="primary">🔒 Goals change on Mondays</AppText>
                 <AppText variant="rowSubtitle" color="secondary" style={{ marginTop: 4 }}>
-                  Targets are locked for the rest of the week so a rough week can't be edited away — and so everyone's
+                  Targets are locked for the rest of the week so a rough week can't be edited away, and so everyone's
                   weeks stay comparable. Come back Monday to adjust them.
                 </AppText>
               </View>
             ) : null}
             <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>What you track</AppText>
             <AppText variant="rowSubtitle" color="muted" style={styles.intro}>
-              Toggle a category off if you're not tracking it — you won't be penalized for it, but you'll level up
+              Toggle a category off if you're not tracking it. You won't be penalized for it, but you'll level up
               slower. Tracking all three ranks up fastest. ({trackedCount}/3 on)
             </AppText>
 
@@ -456,7 +456,7 @@ export default function MMRGoalsScreen() {
                     />
                   </View>
                   <EditRow label="Start weight" value={weightStart} onChangeText={setWeightStart} subline="Where your timeline starts" placeholder="190" suffix="lb" keyboardType="decimal-pad" editable={canSave} />
-                  <EditRow label="Goal weight" value={weightGoal} onChangeText={setWeightGoal} subline="Your target — drives weight progress" placeholder="175" suffix="lb" keyboardType="decimal-pad" editable={canSave} />
+                  <EditRow label="Goal weight" value={weightGoal} onChangeText={setWeightGoal} subline="Your target. Drives weight progress" placeholder="175" suffix="lb" keyboardType="decimal-pad" editable={canSave} />
                   <EditRow label="Start date" value={weightStartDate} onChangeText={setWeightStartDate} subline="When your timeline began" placeholder="YYYY-MM-DD" editable={canSave} />
                   <View style={styles.rowBlock}>
                     <AppText variant="rowTitle" color="primary">Target end date</AppText>
@@ -497,7 +497,7 @@ export default function MMRGoalsScreen() {
             <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>Reset &amp; recalculate</AppText>
             <View style={[styles.group, styles.resetCard]}>
               <AppText variant="rowSubtitle" color="muted" style={styles.resetCopy}>
-                Start fresh — targets are recalculated from your training intent.
+                Start fresh. Targets are recalculated from your training intent.
               </AppText>
               <PrimaryButton secondary onPress={confirmRestart} disabled={!canSave}>
                 Restart goals

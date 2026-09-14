@@ -16,23 +16,44 @@ const TZ = core.DEFAULT_TZ;
  */
 function isHibernating(userData, weekId) {
   const h = userData && userData.hibernation;
-  return !!h && typeof h.fromWeekId === 'string' && weekId >= h.fromWeekId && weekId <= h.untilWeekId;
+  // Records persist after waking (awake: true, real past range), and legacy
+  // ones may carry 'x' for the range. Only a live range counts as asleep.
+  return (
+    !!h &&
+    !h.awake &&
+    typeof h.fromWeekId === 'string' &&
+    typeof h.untilWeekId === 'string' &&
+    h.fromWeekId !== 'x' &&
+    h.untilWeekId !== 'x' &&
+    weekId >= h.fromWeekId &&
+    weekId <= h.untilWeekId
+  );
+}
+
+async function readWeekly(db, uid, weekId) {
+  try {
+    const w = await db.doc(`users/${uid}/weekly/${weekId}`).get();
+    return w.exists ? w.data() || {} : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
- * Shielded this week = hibernating OR a booked vacation week. Vacation lives
- * on users/{uid}/weekly/{weekId}.vacation (the scorer's source of truth), so
- * it is one extra read. Reminders checked hibernation only: a member on a
- * booked vacation was still told their streak was at risk (prod 2026-09-04).
+ * Shielded this week = anything the scorer treats as vacation: a booked
+ * vacation week, the anchored hibernationShield flag, a live hibernation
+ * range, or the post-wake grace week (see inGraceWeek in mmr-compute.js).
+ * Both flags live on users/{uid}/weekly/{weekId}, so it is one extra read;
+ * pass `weekly` (null = no doc) when the caller already has it. Reminders
+ * checked hibernation only: a member on a booked vacation was still told
+ * their streak was at risk (prod 2026-09-04).
  */
-async function isShielded(db, uid, userData, weekId) {
+async function isShielded(db, uid, userData, weekId, weekly) {
   if (isHibernating(userData, weekId)) return true;
-  try {
-    const w = await db.doc(`users/${uid}/weekly/${weekId}`).get();
-    return w.exists && w.data().vacation === true;
-  } catch {
-    return false;
-  }
+  const h = userData && userData.hibernation;
+  if (h && typeof h.graceWeekId === 'string' && weekId === h.graceWeekId) return true;
+  const w = weekly === undefined ? await readWeekly(db, uid, weekId) : weekly;
+  return !!w && (w.vacation === true || w.hibernationShield === true);
 }
 
 /**
@@ -56,7 +77,8 @@ async function evaluateStreakRisk(db, now) {
     const data = u.data() || {};
     if (!isExpoToken(data.expoPushToken)) continue;
     if (!prefEnabled(data, 'streakReminder')) continue;
-    if (await isShielded(db, u.id, data, weekId)) continue; // vacation or hibernation — the week can't hurt them
+    const weekly = await readWeekly(db, u.id, weekId);
+    if (await isShielded(db, u.id, data, weekId, weekly)) continue; // vacation or hibernation — the week can't hurt them
 
     try {
       const [goals, groupIds] = await Promise.all([getGoals(db, u.id), getGroupIds(db, u.id)]);
@@ -69,7 +91,10 @@ async function evaluateStreakRisk(db, now) {
       const atRisk = [];
       const workoutTarget = Number(goals.workouts && goals.workouts.targetWorkoutsPerWeek);
       if ((goals.workouts?.status ?? 'active') === 'active' && Number.isFinite(workoutTarget)) {
-        const need = workoutTarget - totals.workoutsDone;
+        // From W37 the goal counts distinct days trained, not sessions (same
+        // switch as the scorer), so two sessions today don't cut `need` by 2.
+        const done = core.workoutDaysActiveForWeek(weekId) ? totals.workoutDaysDone : totals.workoutsDone;
+        const need = workoutTarget - done;
         if (need > 0 && need >= daysLeft) atRisk.push('workout');
       }
       const calTarget = Number(goals.calorieDays && goals.calorieDays.targetDaysPerWeek);
@@ -80,13 +105,16 @@ async function evaluateStreakRisk(db, now) {
       }
       if (!atRisk.length) continue;
 
-      const streakWeeks = Number(data.streakWeeks) || 0;
+      // users.streakWeeks reads 0 for any unfinished current week, so use the
+      // week's anchored streakBefore (the streak this week is protecting).
+      const streakWeeks =
+        weekly && typeof weekly.streakBefore === 'number' ? Number(weekly.streakBefore) : Number(data.streakWeeks) || 0;
       const what = atRisk.join(' + ');
       items.push({
         uid: u.id,
         token: data.expoPushToken,
         title: streakWeeks > 0 ? `🔥 ${streakWeeks}-week streak at risk` : '⏰ Your week is on the line',
-        body: `Log ${what} today — skipping today puts your weekly goal out of reach.`,
+        body: `Log ${what} today. Skip it and your weekly goal is out of reach.`,
         data: { type: 'streakRisk', screen: 'Activity' },
       });
     } catch (e) {
@@ -97,7 +125,7 @@ async function evaluateStreakRisk(db, now) {
   return { items, evaluated: usersSnap.size };
 }
 
-module.exports = { evaluateStreakRisk, isShielded };
+module.exports = { evaluateStreakRisk, isShielded, isHibernating };
 
 /**
  * "You've never signed a week" nudge — Monday evening only.
@@ -115,6 +143,9 @@ async function evaluateSignNudge(db, now) {
   if (dow !== 'Mon') return { items: [], weekId };
 
   const items = [];
+  // One nudge per person per run: a member of 3 groups used to get 3 pushes.
+  // The first group that qualifies names the push.
+  const nudged = new Set();
   const groups = await db.collection('groups').get();
   for (const g of groups.docs) {
     try {
@@ -124,6 +155,7 @@ async function evaluateSignNudge(db, now) {
       if (members.size < 2) continue; // a solo group has nobody to commit to
 
       for (const m of members.docs) {
+        if (nudged.has(m.id)) continue; // already queued from another group
         if (everSigned.has(m.id)) continue; // has signed before — leave them alone
         const uSnap = await db.doc(`users/${m.id}`).get();
         const u = uSnap.exists ? uSnap.data() : null;
@@ -132,6 +164,7 @@ async function evaluateSignNudge(db, now) {
         if (await isShielded(db, m.id, u, weekId)) continue;
         if (u.signNudgeWeekId === weekId) continue; // once per week, ever-idempotent
 
+        nudged.add(m.id);
         items.push({
           uid: m.id,
           token: u.expoPushToken,
@@ -283,8 +316,9 @@ async function evaluateVacationPrompt(db, now) {
       const used = Number(data.vacationUsed && data.vacationUsed[seasonId]) || 0;
       if (used >= VACATION_WEEKS_PER_SEASON) continue;
 
-      const wk = await db.doc(`users/${u.id}/weekly/${weekId}`).get();
-      if (wk.exists && wk.data().vacation === true) continue; // already on vacation
+      // Already shielded (vacation, grace week, anchored hibernation): offering
+      // vacation would only burn allowance on a week that can't hurt them.
+      if (await isShielded(db, u.id, data, weekId)) continue;
 
       // Silent = zero logs in ANY group over the last N days (incl. today).
       const groupsSnap = await db.collection('users').doc(u.id).collection('groups').get();
@@ -304,7 +338,7 @@ async function evaluateVacationPrompt(db, now) {
         uid: u.id,
         token: data.expoPushToken,
         title: '🏖️ On vacation?',
-        body: "Quiet few days — pause this week's scoring so it can't cost you FP or your streak. Anything you log still counts.",
+        body: "Quiet few days. Pause this week's scoring so it can't cost you FP or your streak. Anything you log still counts.",
         data: { type: 'vacationPrompt', screen: 'Today' },
       });
     } catch (e) {

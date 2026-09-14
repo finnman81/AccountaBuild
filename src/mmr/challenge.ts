@@ -81,6 +81,13 @@ export function isChallengeVisible(challenge: GroupChallenge, now: Date = new Da
   // Ended early by the owner: linger from the moment they ended it, not
   // from the scheduled last Sunday.
   const endedAt = challenge.status === 'ended' ? (challenge.updatedAt as any)?.toDate?.() : null;
+  // Cancelled before it ever started: nothing to take a lap for, so hide it
+  // now rather than showing an "ended" card for a week. A still-pending
+  // serverTimestamp has no date yet, but the end can't postdate `now`.
+  if (challenge.status === 'ended') {
+    const endMoment = endedAt instanceof Date ? endedAt : now;
+    if (isoWeekIdInTz(endMoment, tz) < p.weekIds[0]!) return false;
+  }
   const finish = endedAt instanceof Date ? endedAt : zonedNoonUtcFromYmd(p.endDate, tz);
   const hideAfter = finish.getTime() + CHALLENGE_LINGER_DAYS * 24 * 60 * 60 * 1000;
   return now.getTime() <= hideAfter;

@@ -110,7 +110,7 @@ export default function ProjectionDetailsModal({ visible, projection, onDismiss 
                       ))}
                       <Text variant="bodySmall" style={{ color: colors.textMuted }}>
                         What each log adds to this week's FINAL score (banked as the week plays out, not instantly). +0
-                        means that log can't raise it further (target already met, or no matching goal) — it still
+                        means that log can't raise it further (target already met, or no matching goal). It still
                         protects streaks and reminders.
                       </Text>
                     </View>
@@ -256,7 +256,7 @@ export default function ProjectionDetailsModal({ visible, projection, onDismiss 
                       Your weekly score is calculated from your active goals (workouts, minutes, weight, calories). The score is then multiplied by your streak bonus and reduced by any penalties for missed or partial weeks.
                     </Text>
                     <Text variant="bodySmall" style={{ color: colors.textSecondary }}>
-                      A log is worth the most when it puts you back on pace toward YOUR targets — the same workout earns
+                      A log is worth the most when it puts you back on pace toward YOUR targets, so the same workout earns
                       more when you're behind than after your target is already met. Hitting a modest target beats
                       missing an ambitious one.
                     </Text>

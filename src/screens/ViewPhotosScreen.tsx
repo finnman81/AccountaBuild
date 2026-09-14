@@ -83,7 +83,7 @@ export default function ViewPhotosScreen({ route, navigation }: Props) {
             contentId,
             contentText: caption ?? null,
           }).catch(() => {});
-          Alert.alert('Reported', 'Thanks — this has been sent for review.');
+          Alert.alert('Reported', 'Thanks. This has been sent for review.');
         },
       },
       {

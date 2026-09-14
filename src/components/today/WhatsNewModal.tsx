@@ -247,7 +247,7 @@ export default function WhatsNewModal() {
               );
             })}
             <AppText variant="label" color="muted" style={{ textAlign: 'center', marginTop: spacing.xs }}>
-              {pickedOption ? 'Thanks — answer saved. Tap another to change it.' : 'Tap one. Only Jake sees the results.'}
+              {pickedOption ? 'Thanks, answer saved. Tap another to change it.' : 'Tap one. Only Jake sees the results.'}
             </AppText>
           </View>
         ) : null}

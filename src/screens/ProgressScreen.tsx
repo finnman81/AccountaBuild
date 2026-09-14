@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Image, ScrollView, TouchableOpacity, View } from 'react-native';
+import { AppState, Image, ScrollView, TouchableOpacity, View } from 'react-native';
 import { Icon, Modal, Portal } from 'react-native-paper';
 import { collection, doc, onSnapshot } from 'firebase/firestore';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -87,6 +87,32 @@ export default function ProgressScreen({ navigation }: Props) {
   const [groupMeta, setGroupMeta] = useState<{ name?: string | null; memberCount?: number | null } | null>(null);
   const [canSee, setCanSee] = useState<Set<string>>(new Set());
   const [publicUsers, setPublicUsers] = useState<Record<string, any>>({});
+
+  // "Now", refreshed on resume and just after midnight. This tab stays mounted,
+  // so every memo keyed to "this week" or "now" depends on it; without it a
+  // Monday resume (no cold start) kept last week's columns.
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const todayKey = formatYYYYMMDD(new Date(nowMs));
+  useEffect(() => {
+    const refresh = () => setNowMs(Date.now());
+    const sub = AppState.addEventListener('change', (s) => {
+      if (s === 'active') refresh();
+    });
+    let timer: ReturnType<typeof setTimeout>;
+    const armMidnight = () => {
+      const next = new Date();
+      next.setHours(24, 0, 1, 0);
+      timer = setTimeout(() => {
+        refresh();
+        armMidnight();
+      }, next.getTime() - Date.now());
+    };
+    armMidnight();
+    return () => {
+      sub.remove();
+      clearTimeout(timer);
+    };
+  }, []);
 
   const activeGroupName = useMemo(() => {
     if (!activeGroupId) return null;
@@ -212,7 +238,7 @@ export default function ProgressScreen({ navigation }: Props) {
         { label: 'Calories', pct: pct(cDone, cGoal), ratio: ratio(cDone, cGoal), missed: Math.max(0, cGoal - cDone) },
       ],
     };
-  }, [groupLogs, memberUids, publicUsers]);
+  }, [groupLogs, memberUids, publicUsers, todayKey]);
 
   const weekDates = useMemo(() => {
     const start = weekStartMondayLocal();
@@ -223,7 +249,9 @@ export default function ProgressScreen({ navigation }: Props) {
       out.push(formatYYYYMMDD(d));
     }
     return out;
-  }, []);
+    // todayKey: a new day gives a new array, so the matrix/trend/chart memos
+    // (which key on weekDates) roll over too, including a new Monday.
+  }, [todayKey]);
 
   /**
    * Crew totals + records. TOTALS, not averages: totals scale with effort and
@@ -239,7 +267,7 @@ export default function ProgressScreen({ navigation }: Props) {
     // ▼ all week and ▲ means nothing (Jake, 2026-08-12). Logs without a
     // usable ts count as end-of-day — erring toward including them keeps the
     // baseline honest rather than flattering.
-    const prevCutoffMs = Date.now() - 7 * 24 * 3600 * 1000;
+    const prevCutoffMs = nowMs - 7 * 24 * 3600 * 1000;
 
     let workouts = 0, minutes = 0, prevWorkouts = 0, prevMinutes = 0;
     let longest: { name: string; minutes: number } | null = null;
@@ -303,7 +331,8 @@ export default function ProgressScreen({ navigation }: Props) {
         minutes: prevMinutes > 0 ? Math.round(prevMinutes) : null,
       },
     };
-  }, [groupLogs, publicUsers]);
+    // nowMs: re-cut the week and the same-point cutoff on every resume.
+  }, [groupLogs, publicUsers, nowMs]);
 
   /** 7xN dot grid: who logged which day (visible members only). */
   const matrix = useMemo(() => {
@@ -645,7 +674,7 @@ export default function ProgressScreen({ navigation }: Props) {
           </View>
         ) : (
           <AppText variant="body" color="muted" style={{ marginTop: spacing.md }}>
-            No goals set yet — members can set weekly targets in Goals.
+            No goals set yet. Members can set weekly targets in Goals.
           </AppText>
         )}
       </Card>
@@ -701,7 +730,7 @@ export default function ProgressScreen({ navigation }: Props) {
               <View style={{ height: 160, alignItems: 'center', justifyContent: 'center' }}>
                 <Icon source="chart-line-variant" size={28} color={colors.textMuted} />
                 <AppText variant="rowSubtitle" color="muted" style={{ textAlign: 'center', marginTop: spacing.sm }}>
-                  Not enough data yet — log a few days to see the trend.
+                  Not enough data yet. Log a few days to see the trend.
                 </AppText>
               </View>
             ) : (

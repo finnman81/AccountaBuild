@@ -192,6 +192,18 @@ export default function OnboardingRecommendedScreen({ navigation }: Props) {
         status: caloriesOn ? 'active' : 'paused',
         targetDaysPerWeek: CALORIE_DAYS_PER_WEEK,
       });
+      // Weight has no goal doc to create here (that needs a goal weight, set
+      // later in Goals), but switching it off must still pause an existing
+      // one, or a re-onboarding user keeps being scored on weight. Same call
+      // MMRGoalsScreen makes when its weight switch is off.
+      if (!weightOn && db) {
+        for (const id of ['weightLoss', 'weightGain'] as const) {
+          const g = await getDoc(doc(db, 'users', user.uid, 'goals', id));
+          if (g.exists() && g.data()?.status === 'active') {
+            await upsertGoal(user.uid, id, { type: id, status: 'paused' });
+          }
+        }
+      }
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       await updateOnboardingStep(user.uid, 4);
       onboardingAnalytics.goalsSaved();

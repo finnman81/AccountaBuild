@@ -24,37 +24,39 @@ export type OnboardingData = {
 export const CURRENT_ONBOARDING_VERSION = 2;
 
 export function useOnboardingStatus(uid: string | null): { isCompleted: boolean; isLoading: boolean } {
-  const [isCompleted, setIsCompleted] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  // The status is stamped with the uid it was resolved FOR, and loading is
+  // derived from that stamp during render.
+  //
+  // Why not an isLoading flag: the old code set isLoading back to true inside
+  // this effect, but passive effects run AFTER the render where the uid
+  // arrives. That one render saw ready && !completed, so AppNavigator mounted
+  // the ONBOARDING stack (and hid the splash) before snapping to MainTabs,
+  // and a cold-start push tap queued for onReady could be lost with it.
+  // "Today initial display" was recorded as a child of the Welcome
+  // transaction on 48 launches in 7 days (2026-08-25). With the stamp, a new
+  // uid reads as loading on its very first render.
+  const [status, setStatus] = useState<{ uid: string; completed: boolean } | null>(null);
 
   useEffect(() => {
-    if (!uid || !db) {
-      setIsCompleted(false);
-      setIsLoading(false);
-      return;
-    }
-
-    // BACK INTO LOADING. The previous run of this effect (uid === null, before
-    // auth restored) left isLoading FALSE, and isCompleted defaults to false.
-    // So the instant auth resolved, AppNavigator saw ready && !completed and
-    // mounted the ONBOARDING stack for everyone, until the Firestore snapshot
-    // landed a beat later and flipped it to MainTabs.
-    //
-    // That flash was invisible in the error feed but plain in the traces:
-    // "Today initial display" was being recorded as a child of the Welcome
-    // transaction on 48 launches in 7 days, i.e. returning users met the
-    // onboarding welcome screen for ~0.9s on cold start (2026-08-25).
-    setIsLoading(true);
+    if (!uid || !db) return;
 
     let cancelled = false;
     const localKey = onboardingLocalKey(uid);
 
+    // Mark this uid resolved. With no verdict, keep what we already knew for
+    // this uid (a stale cache snapshot must never downgrade a completed user).
+    const resolve = (completed?: boolean) => {
+      if (cancelled) return;
+      setStatus((prev) => ({
+        uid,
+        completed: completed ?? (prev?.uid === uid ? prev.completed : false),
+      }));
+    };
+
     // Never hang on the gate. If neither the local flag nor a server snapshot
     // answers (offline cold start), fall back to the old behaviour rather than
     // holding a blank screen behind the splash forever.
-    const bail = setTimeout(() => {
-      if (!cancelled) setIsLoading(false);
-    }, 2500);
+    const bail = setTimeout(() => resolve(), 2500);
 
     // Optimistically trust a persisted local completion. Once a user finishes
     // onboarding on this device we never want a cold-start cache miss (a cached
@@ -64,8 +66,7 @@ export function useOnboardingStatus(uid: string | null): { isCompleted: boolean;
       .then((v) => {
         if (!cancelled && v === 'true') {
           clearTimeout(bail);
-          setIsCompleted(true);
-          setIsLoading(false);
+          resolve(true);
         }
       })
       .catch(() => {});
@@ -87,22 +88,23 @@ export function useOnboardingStatus(uid: string | null): { isCompleted: boolean;
           completed = onboarding.completed === true && seenCurrentVersion;
         }
 
+        clearTimeout(bail);
         if (completed) {
-          setIsCompleted(true);
+          resolve(true);
           AsyncStorage.setItem(localKey, 'true').catch(() => {});
         } else if (!snap.metadata.fromCache) {
           // Only a confirmed SERVER read may send a user (back) into onboarding —
           // a stale cache snapshot must never downgrade a completed user.
-          setIsCompleted(false);
+          resolve(false);
           AsyncStorage.removeItem(localKey).catch(() => {});
+        } else {
+          resolve();
         }
-        clearTimeout(bail);
-        setIsLoading(false);
       },
       (error) => {
         console.error('[Onboarding] Error checking status:', error);
         clearTimeout(bail);
-        setIsLoading(false);
+        resolve();
       }
     );
 
@@ -113,5 +115,8 @@ export function useOnboardingStatus(uid: string | null): { isCompleted: boolean;
     };
   }, [uid]);
 
-  return { isCompleted, isLoading };
+  // Signed out (or no Firestore): nothing to wait for, never "completed".
+  if (!uid || !db) return { isCompleted: false, isLoading: false };
+  const resolved = !!status && status.uid === uid;
+  return { isCompleted: resolved && status.completed, isLoading: !resolved };
 }

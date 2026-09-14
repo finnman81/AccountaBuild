@@ -36,6 +36,8 @@ export default function OnboardingFinishScreen({ navigation }: Props) {
     weightGoal?: number;
     weightTargetDate?: string;
     units?: 'imperial' | 'metric';
+    caloriesOn?: boolean;
+    weightOn?: boolean;
   }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -55,6 +57,10 @@ export default function OnboardingFinishScreen({ navigation }: Props) {
           workoutsPerWeek: profile.workoutsPerWeek ?? undefined,
           weightGoal: profile.weightGoal ?? undefined,
           weightTargetDate: profile.weightTargetDate ?? undefined,
+          // A 0 cadence is the off switch (Recommended writes it for a
+          // category the user turned off); those rows stay out of the summary.
+          caloriesOn: profile.logCaloriesDaysPerWeek !== 0,
+          weightOn: profile.logWeightDaysPerWeek !== 0,
         }));
       }
     });
@@ -169,7 +175,7 @@ export default function OnboardingFinishScreen({ navigation }: Props) {
               {formatGoalMode(summary.goalMode)}
             </AppText>
           </View>
-          {summary.dailyCalorieGoal != null && (
+          {summary.caloriesOn !== false && summary.dailyCalorieGoal != null && (
             <View style={styles.summaryRow}>
               <AppText variant="body" color="muted">
                 Calories/day:
@@ -179,7 +185,7 @@ export default function OnboardingFinishScreen({ navigation }: Props) {
               </AppText>
             </View>
           )}
-          {summary.workoutsPerWeek != null && (
+          {!!summary.workoutsPerWeek && (
             <View style={styles.summaryRow}>
               <AppText variant="body" color="muted">
                 Workouts/week:
@@ -189,7 +195,7 @@ export default function OnboardingFinishScreen({ navigation }: Props) {
               </AppText>
             </View>
           )}
-          {summary.weightGoal != null && (
+          {summary.weightOn !== false && summary.weightGoal != null && (
             <View style={styles.summaryRow}>
               <AppText variant="body" color="muted">
                 Weight goal:
@@ -199,7 +205,7 @@ export default function OnboardingFinishScreen({ navigation }: Props) {
               </AppText>
             </View>
           )}
-          {summary.weightTargetDate && (
+          {summary.weightOn !== false && !!summary.weightTargetDate && (
             <View style={styles.summaryRow}>
               <AppText variant="body" color="muted">
                 Target date:
@@ -214,7 +220,7 @@ export default function OnboardingFinishScreen({ navigation }: Props) {
 
       <View style={styles.footer}>
         <AppText variant="rowSubtitle" color="muted" style={styles.permsNote}>
-          Next, we'll ask to connect your health app and turn on reminders — you can change these anytime in Settings.
+          Next, we'll ask to connect your health app and turn on reminders. You can change these anytime in Settings.
         </AppText>
         <PrimaryButton
           onPress={handleFinish}

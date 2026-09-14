@@ -10,7 +10,7 @@ import { AuthContext } from '../store/AuthContext';
 import { RootStackParamList } from '../navigation/types';
 import { subscribePublicUsers, subscribeWeeklyPublic, type PublicUser, type WeeklyPublic } from '../services/publicUsers';
 import { subscribeMemberLogsSince, daysAgoYYYYMMDD, type GroupLog } from '../services/logs';
-import { computeGoalStreak } from '../viewmodels/today';
+import { memberStreakDays } from '../viewmodels/today';
 import { friendlyNameFromDisplayName } from '../utils/formatters';
 import { DEFAULT_TZ, isoWeekDatesInTz, isoWeekIdInTz, yyyyMmDdInTz } from '../mmr/time';
 import TrendLineChart from '../components/charts/TrendLineChart';
@@ -67,7 +67,7 @@ export default function MemberProfileScreen({ route, navigation }: Props) {
   const [group, setGroup] = useState<{ streakRule?: 'workout' | 'any' } | null>(null);
 
   useEffect(() => subscribePublicUsers([uid], (m) => setPub(m[uid] ?? null)), [uid]);
-  useEffect(() => subscribeMemberLogsSince(groupId, uid, daysAgoYYYYMMDD(35), setLogs), [groupId]);
+  useEffect(() => subscribeMemberLogsSince(groupId, uid, daysAgoYYYYMMDD(35), setLogs), [groupId, uid]);
   useEffect(() => subscribeWeeklyPublic(uid, 26, setWeeks, () => setWeeks([])), [uid]);
   useEffect(() => onSnapshot(doc(db, 'groups', groupId), (s) => setGroup(s.exists() ? ((s.data() as any) ?? null) : null)), [groupId]);
 
@@ -99,17 +99,9 @@ export default function MemberProfileScreen({ route, navigation }: Props) {
 
     // ---- Consistency & compliance ----
     const rule = (group?.streakRule ?? 'any') as 'workout' | 'any';
-    const streak = computeGoalStreak({
-      logs: mine,
-      uid,
-      today,
-      streakRule: rule,
-      targets: {
-        workout: Number(pub?.workoutsPerWeek ?? 0),
-        calories: Number(pub?.logCaloriesDaysPerWeek ?? 0),
-        weight: Number(pub?.logWeightDaysPerWeek ?? 0),
-      },
-    });
+    // Shield-aware, and blended with the self-reported mirror: the 35-day
+    // feed would otherwise cap the tile at 35 (same number as the Today rail).
+    const streak = memberStreakDays({ logs: mine, uid, today, streakRule: rule, pub });
     const logDays28 = new Set(last28.map((l) => l.date)).size;
     const calorieDaysWeek = new Set(mine.filter((l) => l.type === 'calories' && weekDates.includes(l.date)).map((l) => l.date)).size;
     const loggedDaysThisWeek = new Set(mine.filter((l) => weekDates.includes(l.date)).map((l) => l.date)).size;
@@ -130,7 +122,7 @@ export default function MemberProfileScreen({ route, navigation }: Props) {
       weekCompliance,
       calorieDaysWeek,
     };
-  }, [logs, uid, group?.streakRule, pub?.workoutsPerWeek, pub?.logCaloriesDaysPerWeek, pub?.logWeightDaysPerWeek]);
+  }, [logs, uid, group?.streakRule, pub]);
 
   const fpSeries = useMemo(() => weeks.map((w) => w.mmrAfter), [weeks]);
   const fpLabels = useMemo(() => weeks.map((w) => weekLabel(w.weekId)), [weeks]);
@@ -220,7 +212,7 @@ export default function MemberProfileScreen({ route, navigation }: Props) {
           <AppText variant="cardLabel" color="primary">FP history</AppText>
           {fpSeries.length < 2 ? (
             <AppText variant="rowSubtitle" color="muted" style={{ marginTop: spacing.md }}>
-              Not enough scored weeks yet — history appears after a couple of completed weeks.
+              Not enough scored weeks yet. History appears after a couple of completed weeks.
             </AppText>
           ) : (
             <>

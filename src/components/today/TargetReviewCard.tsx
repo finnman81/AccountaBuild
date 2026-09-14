@@ -103,7 +103,7 @@ export default function TargetReviewCard() {
       // Fairness stamp (same as the Goals screen): changes count from next week.
       const nextWeek = nextIsoWeekId(isoWeekIdInTz(new Date(), DEFAULT_TZ), DEFAULT_TZ);
       await setDoc(doc(db, 'users', user.uid), { goalsEffectiveWeekId: nextWeek, updatedAt: serverTimestamp() }, { merge: true });
-      setAccepted(`Locked in: ${suggestion.next} ${suggestion.label} — starts next week 💪`);
+      setAccepted(`Locked in: ${suggestion.next} ${suggestion.label}, starting next week 💪`);
     } catch {
       /* non-fatal; card stays for retry */
     } finally {

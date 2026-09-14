@@ -1,7 +1,7 @@
 import type { GroupLog, LogType } from '../services/logs';
 import type { PublicUser } from '../services/publicUsers';
 import type { Tier } from '../mmr/types';
-import { computeStreakDays } from './today';
+import { memberStreakDays } from './today';
 import { friendlyNameFromDisplayName } from '../utils/formatters';
 
 export type Division = 1 | 2 | 3 | 4;
@@ -70,8 +70,10 @@ export function buildGroupOverview(params: {
     if (l.date === today && allowedTypes.has(l.type)) loggedTodayByUid.add(l.uid);
   }
 
-  const streaks = computeStreakDays(logs, allowedTypes, today);
   const me = publicUsers[myUid];
+  // Same number as my Today chip: shield-aware and blended with my mirror, so
+  // the card's short feed can't truncate a long streak.
+  const myStreak = memberStreakDays({ logs, uid: myUid, today, streakRule, pub: me });
 
   const avatars: GroupAvatar[] = memberUids
     .map((uid) => ({
@@ -92,7 +94,7 @@ export function buildGroupOverview(params: {
     compliancePct: buildGroupCompliancePct(logs, memberUids, elapsedDates),
     loggedToday: loggedTodayByUid.size,
     memberTotal: memberUids.length,
-    streakDays: streaks[myUid] ?? 0,
+    streakDays: myStreak,
     myTier: asTier(me?.rankTierPublic),
     myDivision: (typeof me?.rankDivisionPublic === 'number' ? me.rankDivisionPublic : null) as Division | null,
     avatars,

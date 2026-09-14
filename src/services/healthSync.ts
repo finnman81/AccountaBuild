@@ -32,32 +32,46 @@ const BACKFILL_DAYS = 7;
 /**
  * Delete the group logs for samples that were removed in Apple Health.
  *
- * Two guards against HealthKit misreporting deletions (watch/phone merges can
+ * Three guards against HealthKit misreporting deletions (watch/phone merges can
  * flag LIVE samples as deleted — prod 2026-08-12 ate a workout + dinner):
  *  - a uuid we just imported this run is alive by definition; never delete it
  *  - sync deletes never tombstone, so a false report costs one sync cycle,
  *    not the sample forever (the direct-window read re-imports it)
+ *  - only delete a log dated INSIDE the window this same pass re-imports
+ *    (`inReimportWindow`). Outside it nothing ever re-imports the sample, so a
+ *    false report there would be permanent. Those are skipped and counted; a
+ *    real deletion of an old sample leaves the log for the user to delete.
  */
 async function deleteSyncedLogs(
   groupId: string,
   deletedUuids: string[],
   result: SyncResult,
   label: string,
+  inReimportWindow: (date: string) => boolean,
   justImportedIds?: Set<string>,
-): Promise<number> {
+): Promise<{ removed: number; skippedOutsideWindow: number }> {
   let removed = 0;
+  let skippedOutsideWindow = 0;
   for (const uuid of deletedUuids) {
     const id = healthLogDocId(uuid);
     if (!id) continue;
     if (justImportedIds?.has(id)) continue;
     try {
+      const snap = await getDoc(doc(db, 'groups', groupId, 'logs', id));
+      if (!snap.exists()) continue; // never synced into this group: nothing to do
+      const date = (snap.data() as any)?.date;
+      if (typeof date !== 'string' || !inReimportWindow(date)) {
+        skippedOutsideWindow += 1;
+        console.log(`[HealthSync] ${label}: skipped deletion outside re-import window`, { id, date });
+        continue;
+      }
       await deleteGroupLogById(groupId, id, { tombstone: false });
       removed += 1;
     } catch (e) {
       result.errors.push(`${label} delete: ${e}`);
     }
   }
-  return removed;
+  return { removed, skippedOutsideWindow };
 }
 
 /**
@@ -192,12 +206,15 @@ export async function syncHealthData(uid: string, groupId: string, settings: Hea
             }
           }
           // Deletions via the anchored delta (skip first run to avoid no-op churn).
+          // Window = importOk: exactly the dates the direct read above re-imports.
           const anchor = await getAnchor(uid, 'workouts');
           const { deletedUuids, newAnchor } = await HealthService.readWorkoutsSinceAnchor(anchor);
-          const removed = anchor ? await deleteSyncedLogs(groupId, deletedUuids, result, 'workout', importedIds) : 0;
+          const { removed, skippedOutsideWindow } = anchor
+            ? await deleteSyncedLogs(groupId, deletedUuids, result, 'workout', importOk, importedIds)
+            : { removed: 0, skippedOutsideWindow: 0 };
           if (newAnchor) await setAnchor(uid, 'workouts', newAnchor);
-          result.diagnostics!.workouts = { dataFromHealth: { source, totalCount: items.length, dedupedCount: items.length - kept.length, deletedCount: removed }, syncedCount: synced };
-          console.log('[HealthSync] Workouts: synced', synced, 'deleted', removed, 'of', items.length);
+          result.diagnostics!.workouts = { dataFromHealth: { source, totalCount: items.length, dedupedCount: items.length - kept.length, deletedCount: removed, deleteSkippedOutsideWindow: skippedOutsideWindow }, syncedCount: synced };
+          console.log('[HealthSync] Workouts: synced', synced, 'deleted', removed, 'skipped', skippedOutsideWindow, 'of', items.length);
         } catch (e) {
           result.errors.push(`read workouts: ${e}`);
           result.diagnostics!.workouts = { dataFromHealth: null, reason: `Error: ${e}` };
@@ -254,11 +271,16 @@ export async function syncHealthData(uid: string, groupId: string, settings: Hea
             }
           }
           if (synced > 0) result.caloriesSynced = true;
-          const removed = anchor ? await deleteSyncedLogs(groupId, deletedUuids, result, 'calorie', importedIds) : 0;
+          // Window = today: the only day readTodayCalorieEntries re-imports. The
+          // delta items above can't heal a false delete (a "deleted" sample is
+          // never in them), so older calorie logs are out of reach.
+          const { removed, skippedOutsideWindow } = anchor
+            ? await deleteSyncedLogs(groupId, deletedUuids, result, 'calorie', (date) => date === today, importedIds)
+            : { removed: 0, skippedOutsideWindow: 0 };
           if (newAnchor) await setAnchor(uid, 'calories', newAnchor);
 
-          result.diagnostics!.calories = { dataFromHealth: { source, entriesCount: entries.length, deletedCount: removed, firstRun: !anchor }, syncedCount: synced };
-          console.log('[HealthSync] Calories:', synced, 'entries, deleted', removed);
+          result.diagnostics!.calories = { dataFromHealth: { source, entriesCount: entries.length, deletedCount: removed, deleteSkippedOutsideWindow: skippedOutsideWindow, firstRun: !anchor }, syncedCount: synced };
+          console.log('[HealthSync] Calories:', synced, 'entries, deleted', removed, 'skipped', skippedOutsideWindow);
         } catch (e) {
           result.errors.push(`read calories: ${e}`);
           result.diagnostics!.calories = { dataFromHealth: null, reason: `Error: ${e}` };

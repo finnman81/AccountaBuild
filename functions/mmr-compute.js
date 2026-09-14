@@ -678,12 +678,12 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
 
     if (freezeUsed && weeklyData?.freezeUsed !== true) {
       tx.set(userRef.collection('activity').doc(`${weekId}-freeze`), {
-        type: 'freeze', title: '🧊 Streak freeze used', body: `Your ${streakAfter}-week streak survives — complete this week to keep it alive.`, read: false, createdAt: FieldValue.serverTimestamp(),
+        type: 'freeze', title: '🧊 Streak freeze used', body: `Your ${streakAfter}-week streak survives. Complete this week to keep it alive.`, read: false, createdAt: FieldValue.serverTimestamp(),
       }, { merge: true });
     }
     if (freezeEarned && weeklyData?.freezeEarned !== true) {
       tx.set(userRef.collection('activity').doc(`${weekId}-freezeEarned`), {
-        type: 'freeze', title: '🧊 Streak freeze earned', body: `${streakAfter} straight completed weeks — a freeze is banked (${freezeAfter}/2) for when life happens.`, read: false, createdAt: FieldValue.serverTimestamp(),
+        type: 'freeze', title: '🧊 Streak freeze earned', body: `${streakAfter} straight completed weeks. A freeze is banked (${freezeAfter}/2) for when life happens.`, read: false, createdAt: FieldValue.serverTimestamp(),
       }, { merge: true });
     }
 

@@ -19,7 +19,7 @@ const REMINDER_MESSAGES = [
   "Your group is active. Don’t be the one who didn’t log today.",
   "Still on a streak. Log now to keep it alive.",
   "Progress beats perfection. Log whatever you did today.",
-  "Quick check-in — log and move on.",
+  "Quick check-in. Log and move on.",
   "It takes 10 seconds. Your future self will care.",
 ];
 

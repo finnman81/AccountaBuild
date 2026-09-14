@@ -65,7 +65,7 @@ export default function FirstLogCelebration() {
           You&apos;re on the board! 🎉
         </AppText>
         <AppText variant="body" color="secondary" style={{ textAlign: 'center', marginTop: 8 }}>
-          First log in the books. This is where your streak — and your Fitness Points — start.
+          First log in the books. This is where your streak and your Fitness Points start.
         </AppText>
       </Animated.View>
     </Animated.View>

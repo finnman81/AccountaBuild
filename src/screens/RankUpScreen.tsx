@@ -35,7 +35,7 @@ export default function RankUpScreen({ route, navigation }: Props) {
       await Share.share({
         message: promo
           ? `I just ranked up to ${tier}${division ? ` ${ROMAN[division]}` : ''} on AccountaBuild 💪`
-          : `Slipped to ${tier}${division ? ` ${ROMAN[division]}` : ''} — climbing back this week.`,
+          : `Slipped to ${tier}${division ? ` ${ROMAN[division]}` : ''}. Climbing back this week.`,
       });
     } catch {
       /* cancelled */

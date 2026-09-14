@@ -19,7 +19,7 @@ const HYPES = [
   // ---- Nudges (still gated on the recipient's allowNudges) ----
   { id: 'watching', kind: 'nudge', emoji: '👀', label: 'I see you', title: 'Someone is watching', body: '{name} is watching. Log today 👀' },
   { id: 'clock', kind: 'nudge', emoji: '⏰', label: "Clock's ticking", title: "Clock's ticking", body: '{name} says the clock is ticking ⏰' },
-  { id: 'yourturn', kind: 'nudge', emoji: '🫵', label: 'Your turn', title: 'Your turn', body: '{name} says your turn — log something 🫵' },
+  { id: 'yourturn', kind: 'nudge', emoji: '🫵', label: 'Your turn', title: 'Your turn', body: '{name} says your turn. Log something 🫵' },
 ];
 
 function hypeById(id) {

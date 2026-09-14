@@ -69,8 +69,8 @@ export default function RegisterScreen({ navigation }: Props) {
             <AuthHeader title="Create your account" subline="Start your first week and bring your people." />
 
             <SocialAuthButtons
-              onApple={() => Alert.alert('Coming soon', 'Apple sign-up is on the way — use email for now.')}
-              onGoogle={() => Alert.alert('Coming soon', 'Google sign-up is on the way — use email for now.')}
+              onApple={() => Alert.alert('Coming soon', 'Apple sign-up is on the way. Use email for now.')}
+              onGoogle={() => Alert.alert('Coming soon', 'Google sign-up is on the way. Use email for now.')}
             />
 
             <View style={styles.divider}>
