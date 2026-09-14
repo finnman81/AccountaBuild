@@ -1,0 +1,397 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; background: #0B0C10; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    a { color: #7FB0FF; text-decoration: none; } a:hover { color: #3E8BFF; }
+    .tnum { font-variant-numeric: tabular-nums; }
+  </style>
+</helmet>
+
+<div style="width: 390px; background: #0B0C10; padding: 0 20px 40px; box-sizing: border-box; display: flex; flex-direction: column; gap: 14px;">
+
+  <div style="padding: 18px 0 4px; display: flex; flex-direction: column; gap: 10px;">
+    <div style="display: flex; align-items: baseline; justify-content: space-between;">
+      <div style="font-size: 11px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: #7A8498;">Aug 17 – Aug 23</div>
+      <div style="font-size: 11px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: #7A8498;">BPM</div>
+    </div>
+    <div style="font-size: 26px; font-weight: 700; letter-spacing: -0.4px; color: #F2F4F8;">Progress</div>
+    <div style="display: flex; gap: 5px; margin-top: 2px;">
+      <div style="flex: 1; height: 5px; border-radius: 3px; background: rgba(62,139,255,0.55);"></div>
+      <div style="flex: 1; height: 5px; border-radius: 3px; background: rgba(62,139,255,0.55);"></div>
+      <div style="flex: 1; height: 5px; border-radius: 3px; background: rgba(62,139,255,0.55);"></div>
+      <div style="flex: 1; height: 5px; border-radius: 3px; background: rgba(62,139,255,0.55);"></div>
+      <div style="flex: 1; height: 5px; border-radius: 3px; background: rgba(62,139,255,0.55);"></div>
+      <div style="flex: 1; height: 5px; border-radius: 3px; background: #3E8BFF;"></div>
+      <div style="flex: 1; height: 5px; border-radius: 3px; background: #242936;"></div>
+    </div>
+    <div class="tnum" style="font-size: 12px; color: #7A8498;">Day 6 of 7 · 1 day left to earn it</div>
+  </div>
+
+  <div style="background: rgba(62,139,255,0.14); border: 1px solid rgba(62,139,255,0.32); border-radius: 20px; padding: 16px; display: flex; flex-direction: column; gap: 8px;">
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7FB0FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path>
+      </svg>
+      <div style="font-size: 11px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: #7FB0FF;">One day left</div>
+    </div>
+    <div style="font-size: 20px; font-weight: 700; letter-spacing: -0.2px; color: #F2F4F8; line-height: 1.25; text-wrap: pretty;">You are 6 for 6. Log today and the week closes clean.</div>
+    <div style="font-size: 13px; color: #A0AABC; line-height: 1.45; text-wrap: pretty;">Matt and Watto are 6 for 6 too. Nobody in BPM has gone 7 for 7 since July.</div>
+  </div>
+
+  <div style="background: #15181F; border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; padding: 16px;">
+    <div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 2px;">
+      <div style="font-size: 15px; font-weight: 600; color: #F2F4F8;">Who showed up</div>
+      <div style="font-size: 12px; color: #7A8498;">FP this week</div>
+    </div>
+    <div style="font-size: 12px; color: #A0AABC; margin-bottom: 14px;">A dot for every day logged</div>
+
+    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+      <div style="width: 68px;"></div>
+      <div style="flex: 1; display: flex; justify-content: space-between;">
+        <div style="width: 14px; text-align: center; font-size: 11px; font-weight: 700; color: #7A8498;">M</div>
+        <div style="width: 14px; text-align: center; font-size: 11px; font-weight: 700; color: #7A8498;">T</div>
+        <div style="width: 14px; text-align: center; font-size: 11px; font-weight: 700; color: #7A8498;">W</div>
+        <div style="width: 14px; text-align: center; font-size: 11px; font-weight: 700; color: #7A8498;">T</div>
+        <div style="width: 14px; text-align: center; font-size: 11px; font-weight: 700; color: #7A8498;">F</div>
+        <div style="width: 14px; text-align: center; font-size: 11px; font-weight: 700; color: #3E8BFF;">S</div>
+        <div style="width: 14px; text-align: center; font-size: 11px; font-weight: 700; color: #7A8498;">S</div>
+      </div>
+      <div style="width: 34px;"></div>
+    </div>
+
+    <sc-for list="{{rows}}" as="r" hint-placeholder-count="7">
+      <div style="display: flex; align-items: center; gap: 8px; padding: 5px 0;">
+        <div style="width: 68px; font-size: 13px; font-weight: {{r.weight}}; color: {{r.nameColor}}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{r.name}}</div>
+        <div style="flex: 1; display: flex; justify-content: space-between;">
+          <sc-for list="{{r.days}}" as="d" hint-placeholder-count="7">
+            <div style="width: 14px; display: flex; justify-content: center;">
+              <div style="width: 12px; height: 12px; border-radius: 6px; box-sizing: border-box; background: {{d.bg}}; border: 1px {{d.borderStyle}} {{d.border}};"></div>
+            </div>
+          </sc-for>
+        </div>
+        <div class="tnum" style="width: 34px; text-align: right; font-size: 13px; font-weight: 700; color: {{r.fpColor}};">{{r.fp}}</div>
+      </div>
+    </sc-for>
+
+    <div style="height: 1px; background: rgba(255,255,255,0.09); margin: 10px 0;"></div>
+    <div style="font-size: 12px; color: #7A8498; line-height: 1.45; text-wrap: pretty;">Kevin and Matt Mologne have logged 3 days and scored nothing. A week needs 4.</div>
+  </div>
+
+  <div style="background: #15181F; border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; padding: 16px;">
+    <div style="font-size: 15px; font-weight: 600; color: #F2F4F8;">Your group this week</div>
+    <div style="font-size: 12px; color: #A0AABC; margin-top: 2px; margin-bottom: 14px;">Combined totals vs last week at this point</div>
+
+    <div style="display: flex; gap: 8px;">
+      <div style="flex: 1; background: #242936; border-radius: 14px; padding: 12px; display: flex; flex-direction: column; gap: 4px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#33D573" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M6.5 6.5v11M17.5 6.5v11M3.5 9.5v5M20.5 9.5v5M6.5 12h11"></path>
+        </svg>
+        <div style="display: flex; align-items: center; gap: 4px; margin-top: 2px;">
+          <div class="tnum" style="font-size: 22px; font-weight: 700; color: #F2F4F8;">38</div>
+          <svg width="9" height="9" viewBox="0 0 10 10" aria-hidden="true"><path d="M5 9L0.7 2h8.6z" fill="#FF5D5D"></path></svg>
+        </div>
+        <div class="tnum" style="font-size: 12px; color: #7A8498;">39</div>
+        <div style="font-size: 11px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: #7A8498;">Workouts</div>
+      </div>
+
+      <div style="flex: 1; background: #242936; border-radius: 14px; padding: 12px; display: flex; flex-direction: column; gap: 4px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3E8BFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="13" r="8"></circle><path d="M12 9v4l2.5 1.5M9.5 2h5"></path>
+        </svg>
+        <div style="display: flex; align-items: center; gap: 4px; margin-top: 2px;">
+          <div class="tnum" style="font-size: 20px; font-weight: 700; color: #F2F4F8;">32h29</div>
+          <svg width="9" height="9" viewBox="0 0 10 10" aria-hidden="true"><path d="M5 1l4.3 7H0.7z" fill="#33D573"></path></svg>
+        </div>
+        <div class="tnum" style="font-size: 12px; color: #7A8498;">31h28</div>
+        <div style="font-size: 11px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: #7A8498;">Trained</div>
+      </div>
+
+      <div style="flex: 1; background: #242936; border-radius: 14px; padding: 12px; display: flex; flex-direction: column; gap: 4px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#E9B542" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 4v16M5 8h14M8 8l-3.5 7h7zM16 8l-3.5 7h7z"></path>
+        </svg>
+        <div class="tnum" style="font-size: 22px; font-weight: 700; color: #F2F4F8; margin-top: 2px;">2.5 lb</div>
+        <div style="font-size: 12px; color: #3A4152;">no baseline</div>
+        <div style="font-size: 11px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: #7A8498;">Dropped</div>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 14px;">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#E9B542" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M7 4h10v5a5 5 0 0 1-10 0zM7 5H4v2a3 3 0 0 0 3 3M17 5h3v2a3 3 0 0 1-3 3M10 18h4M9 21h6"></path>
+        </svg>
+        <div style="font-size: 13px; color: #A0AABC;">Longest session <span style="color: #F2F4F8;">Nick Umana, 150m</span></div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#FF5D5D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 3c3 4 5 6 5 9a5 5 0 0 1-10 0c0-1.5.7-2.8 1.7-4C9.5 9.6 11 7 12 3z"></path>
+        </svg>
+        <div style="font-size: 13px; color: #A0AABC;">Biggest day <span style="color: #F2F4F8;">Tuesday</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div style="background: #15181F; border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; padding: 16px;">
+    <div style="display: flex; align-items: baseline; justify-content: space-between;">
+      <div style="font-size: 15px; font-weight: 600; color: #F2F4F8;">Goals hit</div>
+      <div style="font-size: 12px; color: #7A8498;">7 of 8 set goals</div>
+    </div>
+    <div style="font-size: 12px; color: #A0AABC; margin-top: 2px; margin-bottom: 14px;">Across the group, this week</div>
+
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <div style="width: 62px; font-size: 13px; color: #A0AABC;">Workouts</div>
+        <div style="flex: 1; height: 8px; border-radius: 4px; background: #242936; overflow: hidden;">
+          <div style="width: 84%; height: 100%; border-radius: 4px; background: #33D573;"></div>
+        </div>
+        <div class="tnum" style="width: 52px; text-align: right; font-size: 13px; font-weight: 700; color: #F2F4F8;">31/37</div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <div style="width: 62px; font-size: 13px; color: #A0AABC;">Weigh-ins</div>
+        <div style="flex: 1; height: 8px; border-radius: 4px; background: #242936; overflow: hidden;">
+          <div style="width: 84%; height: 100%; border-radius: 4px; background: #33D573;"></div>
+        </div>
+        <div class="tnum" style="width: 52px; text-align: right; font-size: 13px; font-weight: 700; color: #F2F4F8;">21/25</div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <div style="width: 62px; font-size: 13px; color: #A0AABC;">Calories</div>
+        <div style="flex: 1; height: 8px; border-radius: 4px; background: #242936; overflow: hidden;">
+          <div style="width: 75%; height: 100%; border-radius: 4px; background: #F5A623;"></div>
+        </div>
+        <div class="tnum" style="width: 52px; text-align: right; font-size: 13px; font-weight: 700; color: #F2F4F8;">21/28</div>
+      </div>
+    </div>
+
+    <div style="height: 1px; background: rgba(255,255,255,0.09); margin: 14px 0 10px;"></div>
+    <div style="font-size: 12px; color: #7A8498; line-height: 1.45; text-wrap: pretty;">Calories is the gap. 7 logging days missed across the group, more than the other two combined.</div>
+  </div>
+
+  <div style="background: #15181F; border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; padding: 16px;">
+    <div style="font-size: 15px; font-weight: 600; color: #F2F4F8;">Trend</div>
+    <div style="font-size: 12px; color: #A0AABC; margin-top: 2px; margin-bottom: 14px;">You against the group, day by day</div>
+
+    <div style="display: flex; gap: 4px; background: #242936; border-radius: 999px; padding: 4px;">
+      <sc-for list="{{metrics}}" as="m" hint-placeholder-count="3">
+        <div onClick="{{m.pick}}" style="flex: 1; text-align: center; padding: 9px 0; border-radius: 999px; cursor: pointer; font-size: 13px; background: {{m.bg}}; color: {{m.fg}}; font-weight: {{m.weight}};">{{m.label}}</div>
+      </sc-for>
+    </div>
+
+    <div style="margin-top: 14px; background: #242936; border-radius: 14px; padding: 14px;">
+      <div style="font-size: 14px; font-weight: 600; color: #F2F4F8;">{{chartTitle}}</div>
+      <div style="font-size: 12px; color: #A0AABC; margin-top: 2px;">{{chartSub}}</div>
+
+      <div style="display: flex; align-items: center; gap: 14px; margin-top: 10px;">
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <div style="width: 16px; height: 3px; border-radius: 2px; background: #3E8BFF;"></div>
+          <div style="font-size: 12px; color: #A0AABC;">You</div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <div style="width: 16px; height: 2px; border-radius: 2px; background: #7A8498;"></div>
+          <div style="font-size: 12px; color: #7A8498;">Group avg</div>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 8px; margin-top: 10px;">
+        <div style="width: 32px; height: 118px; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-end; padding: 0 0 20px;">
+          <div class="tnum" style="font-size: 11px; color: #7A8498;">{{yTop}}</div>
+          <div class="tnum" style="font-size: 11px; color: #7A8498;">{{yMid}}</div>
+          <div class="tnum" style="font-size: 11px; color: #7A8498;">{{yBot}}</div>
+        </div>
+        <div style="flex: 1;">
+          <svg width="100%" height="112" viewBox="0 0 244 112" preserveAspectRatio="none" aria-hidden="true">
+            <defs>
+              <linearGradient id="fillYou" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#3E8BFF" stop-opacity="0.34"></stop>
+                <stop offset="1" stop-color="#3E8BFF" stop-opacity="0.03"></stop>
+              </linearGradient>
+            </defs>
+            <line x1="0" y1="4" x2="244" y2="4" stroke="rgba(255,255,255,0.06)" stroke-width="1"></line>
+            <line x1="0" y1="56" x2="244" y2="56" stroke="rgba(255,255,255,0.06)" stroke-width="1"></line>
+            <line x1="0" y1="108" x2="244" y2="108" stroke="rgba(255,255,255,0.06)" stroke-width="1"></line>
+            <polygon points="{{areaPts}}" fill="url(#fillYou)"></polygon>
+            <polyline points="{{groupPts}}" fill="none" stroke="#7A8498" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></polyline>
+            <polyline points="{{youPts}}" fill="none" stroke="#3E8BFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></polyline>
+            <circle cx="{{lastX}}" cy="{{lastY}}" r="7" fill="rgba(62,139,255,0.28)"></circle>
+            <circle cx="{{lastX}}" cy="{{lastY}}" r="4" fill="#3E8BFF"></circle>
+          </svg>
+          <div style="display: flex; justify-content: space-between; margin-top: 6px;">
+            <div style="font-size: 11px; color: #7A8498;">M</div>
+            <div style="font-size: 11px; color: #7A8498;">T</div>
+            <div style="font-size: 11px; color: #7A8498;">W</div>
+            <div style="font-size: 11px; color: #7A8498;">T</div>
+            <div style="font-size: 11px; color: #7A8498;">F</div>
+            <div style="font-size: 11px; color: #7A8498;">S</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="height: 1px; background: rgba(255,255,255,0.09); margin: 12px 0 10px;"></div>
+      <div style="font-size: 12px; color: #A0AABC; line-height: 1.45; text-wrap: pretty;">{{chartRead}}</div>
+    </div>
+  </div>
+
+  <div style="background: #15181F; border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; padding: 16px;">
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+      <div style="font-size: 15px; font-weight: 600; color: #F2F4F8;">Progress pictures</div>
+      <div style="font-size: 12px; color: #7FB0FF;">See all</div>
+    </div>
+    <div style="display: flex; gap: 8px;">
+      <div style="width: 74px; height: 74px; border-radius: 14px; background: linear-gradient(150deg, #2E3644, #1B2029);"></div>
+      <div style="width: 74px; height: 74px; border-radius: 14px; background: linear-gradient(150deg, #35404F, #1B2029);"></div>
+      <div style="width: 74px; height: 74px; border-radius: 14px; background: linear-gradient(150deg, #2A3340, #1B2029);"></div>
+      <div style="width: 74px; height: 74px; border-radius: 14px; background: linear-gradient(150deg, #313B4A, #1B2029);"></div>
+    </div>
+  </div>
+
+  <div style="background: #15181F; border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; padding: 16px; display: flex; align-items: center; gap: 12px;">
+    <div style="width: 34px; height: 34px; border-radius: 14px; background: rgba(62,139,255,0.14); display: flex; align-items: center; justify-content: center;">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#3E8BFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="3" y="5" width="18" height="16" rx="3"></rect><path d="M3 10h18M8 3v4M16 3v4"></path>
+      </svg>
+    </div>
+    <div style="flex: 1;">
+      <div style="font-size: 15px; font-weight: 600; color: #F2F4F8;">History</div>
+      <div style="font-size: 12px; color: #7A8498;">Past days and weekly FP results</div>
+    </div>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7A8498" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg>
+  </div>
+
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"metric":{"editor":"enum","options":["workout","calories","weight"],"default":"workout","section":"Trend"}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { metric: null };
+  }
+
+  rows() {
+    var raw = [
+      { name: 'Finnman81', days: 6, fp: 17, me: true },
+      { name: 'Matt', days: 6, fp: 21 },
+      { name: 'Watto', days: 6, fp: 49 },
+      { name: 'Regmong', days: 5, fp: 33 },
+      { name: 'Alex Bahrami', days: 4, fp: 0 },
+      { name: 'Kevin', days: 3, fp: 0 },
+      { name: 'Matt Mologne', days: 3, fp: 0 }
+    ];
+    var pattern = {
+      6: [1, 1, 1, 1, 1, 1, 0],
+      5: [1, 1, 1, 1, 1, 2, 0],
+      4: [1, 1, 1, 0, 1, 2, 0],
+      3: [1, 1, 0, 0, 1, 2, 0]
+    };
+    return raw.map(function (r) {
+      var pat = pattern[r.days] || pattern[3];
+      return {
+        name: r.name,
+        fp: r.fp > 0 ? '+' + r.fp : '0',
+        fpColor: r.fp >= 40 ? '#E9B542' : r.fp > 0 ? '#33D573' : '#3A4152',
+        nameColor: r.me ? '#7FB0FF' : '#F2F4F8',
+        weight: r.me ? '700' : '400',
+        days: pat.map(function (d) {
+          return {
+            bg: d === 1 ? '#33D573' : 'transparent',
+            border: d === 1 ? '#33D573' : d === 2 ? '#3E8BFF' : 'rgba(255,255,255,0.09)',
+            borderStyle: d === 2 ? 'dashed' : 'solid'
+          };
+        })
+      };
+    });
+  }
+
+  charts() {
+    return {
+      workout: {
+        label: 'Workout',
+        title: 'Minutes: you vs group',
+        sub: 'Your sessions against the group average',
+        you: [12, 72, 8, 93, 58, 0],
+        group: [52, 60, 44, 41, 55, 28],
+        max: 102, yTop: '102', yMid: '51', yBot: '0',
+        read: 'Two big days carried your week. Thursday alone was 93 minutes, roughly double the group average.'
+      },
+      calories: {
+        label: 'Calories',
+        title: 'On budget: you vs group',
+        sub: 'Share of logged days inside the calorie target',
+        you: [100, 100, 0, 100, 100, 100],
+        group: [86, 71, 57, 71, 86, 60],
+        max: 100, yTop: '100', yMid: '50', yBot: '0',
+        read: 'You have been inside budget every day you logged. Wednesday is the only gap.'
+      },
+      weight: {
+        label: 'Weight',
+        title: 'Percent lost: you vs group',
+        sub: 'Change against your first weigh-in of the week',
+        you: [0, 0.4, 0.9, 1.3, 1.6, 1.6],
+        group: [0, 0.2, 0.5, 0.7, 0.9, 1.0],
+        max: 2, yTop: '2.0%', yMid: '1.0%', yBot: '0%',
+        read: 'You are dropping at roughly twice the group rate this week.'
+      }
+    };
+  }
+
+  pts(series, max) {
+    var w = 244, top = 4, bot = 108;
+    var step = w / (series.length - 1);
+    return series.map(function (v, i) {
+      return {
+        x: Math.round(i * step * 10) / 10,
+        y: Math.round((bot - (v / max) * (bot - top)) * 10) / 10
+      };
+    });
+  }
+
+  renderVals() {
+    var key = this.state.metric || this.props.metric || 'workout';
+    var charts = this.charts();
+    var c = charts[key] || charts.workout;
+    var self = this;
+
+    var metrics = ['workout', 'calories', 'weight'].map(function (k) {
+      return {
+        label: charts[k].label,
+        bg: k === key ? '#15181F' : 'transparent',
+        fg: k === key ? '#F2F4F8' : '#A0AABC',
+        weight: k === key ? '700' : '400',
+        pick: function () { self.setState({ metric: k }); }
+      };
+    });
+
+    var you = this.pts(c.you, c.max);
+    var group = this.pts(c.group, c.max);
+    var last = you[you.length - 1];
+    var line = function (ps) {
+      return ps.map(function (p) { return p.x + ',' + p.y; }).join(' ');
+    };
+
+    return {
+      rows: this.rows(),
+      metrics: metrics,
+      chartTitle: c.title,
+      chartSub: c.sub,
+      chartRead: c.read,
+      yTop: c.yTop,
+      yMid: c.yMid,
+      yBot: c.yBot,
+      youPts: line(you),
+      groupPts: line(group),
+      areaPts: line(you) + ' 244,108 0,108',
+      lastX: last.x,
+      lastY: last.y
+    };
+  }
+}
+</script>
+</body>
+</html>
