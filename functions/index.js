@@ -709,11 +709,11 @@ exports.challengeLifecycle = onSchedule(
         };
 
         if (over && !c.endNotifiedAt) {
-          await notify(`🏆 ${name} is complete!`, 'Check the final standings — and start the next one.', true);
+          await notify(`🏆 ${name} is complete!`, 'Check the final standings, then start the next one.', true);
           await g.ref.update({ 'challenge.endNotifiedAt': Timestamp.now() });
           announced += 1;
         } else if (started && !over && !c.startNotifiedAt) {
-          await notify(`🏁 ${name} is live!`, `${c.durationWeeks} weeks on the clock. Every log counts — go.`, true);
+          await notify(`🏁 ${name} is live!`, `${c.durationWeeks} weeks on the clock. Every log counts. Go.`, true);
           await g.ref.update({ 'challenge.startNotifiedAt': Timestamp.now() });
           announced += 1;
         }
