@@ -34,6 +34,7 @@ const { setHibernation, wakeExpiredHibernations } = require('./hibernation');
 const { publishCelebration } = require('./celebrations');
 
 exports.setHibernation = setHibernation;
+exports.vacation = require('./vacation').vacation;
 const core = require('./mmr-core');
 const { sendExpoPushes, isExpoToken, prefEnabled, inQuietHours } = require('./push-helper');
 const { renderHype } = require('./hype-catalog');

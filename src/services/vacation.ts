@@ -1,7 +1,8 @@
-import { doc, getDoc, serverTimestamp, setDoc, writeBatch } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 
-import { db } from '../firebase/firebase';
-import { DEFAULT_TZ, isoWeekIdInTz, nextIsoWeekId, seasonIdFromDate } from '../mmr/time';
+import { db, firebaseApp } from '../firebase/firebase';
+import { DEFAULT_TZ, isoWeekDatesInTz, isoWeekIdInTz, nextIsoWeekId, seasonIdFromDate, zonedNoonUtcFromYmd } from '../mmr/time';
 
 /**
  * Vacation mode: user-declared weeks that can't hurt you.
@@ -14,7 +15,11 @@ import { DEFAULT_TZ, isoWeekIdInTz, nextIsoWeekId, seasonIdFromDate } from '../m
  * BOOKABLE IN ADVANCE (2026-08-21). It used to cover only the current week,
  * which meant you could never set it before leaving — you had to remember to
  * open the app mid-trip. The flag is written per-week onto users/{uid}/weekly,
- * so the scorer needed no change and closed weeks are still untouchable.
+ * so the scorer needed no change.
+ *
+ * SERVER-OWNED (2026-09-14): booking and cancelling go through the `vacation`
+ * callable. Rules deny client writes to weekly docs and vacationUsed, so a
+ * closed week can't be shielded after the fact and the cap can't be reset.
  */
 export const VACATION_WEEKS_PER_SEASON = 2;
 
@@ -42,7 +47,9 @@ export function weekIdsFrom(startWeekId: string, count: number): string[] {
 export async function getVacationState(uid: string): Promise<VacationState> {
   const now = new Date();
   const weekId = isoWeekIdInTz(now, DEFAULT_TZ);
-  const seasonId = seasonIdFromDate(now, DEFAULT_TZ);
+  // A week is charged to the season of its MONDAY (matches the server), so
+  // Oct 1-4 still reads the week's Q3 allowance.
+  const seasonId = seasonIdFromDate(zonedNoonUtcFromYmd(isoWeekDatesInTz(weekId, DEFAULT_TZ)[0], DEFAULT_TZ), DEFAULT_TZ);
   const userSnap = await getDoc(doc(db, 'users', uid));
   const used = Number((userSnap.data() as any)?.vacationUsed?.[seasonId]) || 0;
 
@@ -80,13 +87,7 @@ export async function bookVacation(uid: string, startWeekId: string, weeks: numb
     );
   }
 
-  const batch = writeBatch(db);
-  for (const w of wanted) {
-    batch.set(doc(db, 'users', uid, 'weekly', w), { vacation: true, vacationSetAt: serverTimestamp() }, { merge: true });
-  }
-  await batch.commit();
-  await setDoc(doc(db, 'users', uid), { vacationUsed: { [state.seasonId]: state.usedThisSeason + wanted.length } }, { merge: true });
-  await mirrorPublic(uid, [...state.bookedWeekIds, ...wanted]);
+  await callVacation({ action: 'book', startWeekId, weeks });
   return getVacationState(uid);
 }
 
@@ -97,37 +98,18 @@ export async function cancelVacation(uid: string, fromWeekId?: string): Promise<
   const toClear = state.bookedWeekIds.filter((w) => w >= from);
   if (!toClear.length) return state;
 
-  const batch = writeBatch(db);
-  for (const w of toClear) {
-    batch.set(doc(db, 'users', uid, 'weekly', w), { vacation: false, vacationSetAt: serverTimestamp() }, { merge: true });
-  }
-  await batch.commit();
-  await setDoc(
-    doc(db, 'users', uid),
-    { vacationUsed: { [state.seasonId]: Math.max(0, state.usedThisSeason - toClear.length) } },
-    { merge: true },
-  );
-  await mirrorPublic(uid, state.bookedWeekIds.filter((w) => w < from));
+  await callVacation({ action: 'cancel', fromWeekId: from });
   return getVacationState(uid);
 }
 
-/**
- * Public mirror so teammates see 🏖️ instead of wondering why a row is frozen.
- * Range fields match the hibernation mirror's shape; vacationWeekId is kept for
- * bundles that predate the range.
- */
-async function mirrorPublic(uid: string, booked: string[]): Promise<void> {
-  const sorted = [...new Set(booked)].sort();
-  const nowWeek = isoWeekIdInTz(new Date(), DEFAULT_TZ);
-  await setDoc(
-    doc(db, 'publicUsers', uid),
-    {
-      vacationFromWeekId: sorted[0] ?? null,
-      vacationUntilWeekId: sorted[sorted.length - 1] ?? null,
-      vacationWeekId: sorted.includes(nowWeek) ? nowWeek : null,
-    },
-    { merge: true },
-  ).catch(() => {});
+async function callVacation(data: Record<string, unknown>): Promise<void> {
+  const fn = httpsCallable(getFunctions(firebaseApp as any), 'vacation');
+  try {
+    await fn(data);
+  } catch (e: any) {
+    // Surface the server's plain-English reason ("No vacation weeks left...").
+    throw new Error(String(e?.message || 'Could not update vacation.'));
+  }
 }
 
 /** Back-compat for the Today prompt: toggle just the current week. */

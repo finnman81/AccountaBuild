@@ -32,7 +32,10 @@ service cloud.firestore {
               // Hibernation is a multi-week penalty shield, so it is scoring
               // state: writable ONLY by the setHibernation callable. A client
               // that could set its own range would be permanently immune.
-              'hibernation'];
+              'hibernation',
+              // Vacation allowance: charged by the vacation callable only. A
+              // client that could write it could reset its own 2-per-season cap.
+              'vacationUsed'];
     }
 
     // User profile documents: users/{uid}
@@ -79,15 +82,13 @@ service cloud.firestore {
         allow read, write: if signedIn() && request.auth.uid == uid;
       }
       // Weekly scoring docs are the scorer's ANCHOR CHAIN (mmrBefore /
-      // streakBefore / ... baselines) — server-written only. The single client
-      // write that remains is the vacation flag (services/vacation.ts).
+      // streakBefore / ... baselines): server-written only, vacation flag
+      // included. The flag used to be client-writable on ANY week, so a
+      // member could shield a week they had already missed and the next run
+      // would erase the penalty. Booking now goes through the vacation callable.
       match /weekly/{weekId} {
         allow read: if signedIn() && request.auth.uid == uid;
-        allow create: if signedIn() && request.auth.uid == uid
-          && request.resource.data.keys().hasOnly(['vacation', 'vacationSetAt']);
-        allow update: if signedIn() && request.auth.uid == uid
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['vacation', 'vacationSetAt']);
-        allow delete: if false;
+        allow create, update, delete: if false;
       }
       // Daily calorie adherence toggle: users/{uid}/calorieDays/{YYYY-MM-DD}
       match /calorieDays/{dateId} {
@@ -145,7 +146,11 @@ service cloud.firestore {
       allow update: if signedIn() && request.auth.uid == uid
         && !request.resource.data.diff(resource.data).affectedKeys().hasAny(
              ['mmrPublic', 'rankTierPublic', 'rankDivisionPublic', 'mpPublic',
-              'prevMmrPublic', 'seasonIdPublic']);
+              'prevMmrPublic', 'seasonIdPublic',
+              // Shield mirrors: server-written (vacation + setHibernation
+              // callables). They feed every client's streak math.
+              'vacationWeekIds', 'vacationWeekId', 'vacationFromWeekId', 'vacationUntilWeekId',
+              'hibernatingFromWeekId', 'hibernatingUntilWeekId']);
       allow delete: if false;
 
       // Shareable FP history subset — mirrored ONLY by the server compute
@@ -254,7 +259,20 @@ service cloud.firestore {
     match /joinCodes/{code} {
       allow get: if signedIn();
       allow list: if false;
-      allow create, update: if signedIn() && request.auth.uid == request.resource.data.createdBy;
+      // A code may only point at a group its author runs (creator or admin),
+      // and an existing code can't be re-pointed. The old rule only checked
+      // the NEW createdBy, so anyone holding a code could overwrite it with
+      // their own groupId and a copied name, hijacking every invite link.
+      // (rules get() is not subject to read rules, so this works for a group
+      // the author can't otherwise read.)
+      allow create: if signedIn()
+        && request.auth.uid == request.resource.data.createdBy
+        && (get(/databases/$(database)/documents/groups/$(request.resource.data.groupId)).data.createdBy == request.auth.uid
+            || isGroupAdmin(request.resource.data.groupId));
+      allow update: if signedIn()
+        && request.auth.uid == resource.data.createdBy
+        && request.resource.data.createdBy == resource.data.createdBy
+        && request.resource.data.groupId == resource.data.groupId;
       allow delete: if signedIn() && request.auth.uid == resource.data.createdBy;
     }
 
@@ -293,10 +311,26 @@ service cloud.firestore {
         // Allow creating membership when joining (group existence validated via join code)
         // Note: We don't check groupExists() because exists() requires read permission.
         // If the join code exists, the group exists (join codes are cleaned up on delete).
-        allow create: if signedIn() && request.auth.uid == uid;
-        // A user manages their own membership; a group admin may also update
-        // (promote/demote) or delete (remove) any member EXCEPT the creator.
-        allow update, delete: if signedIn() && (
+        //
+        // Two ways in, and only two: the group's creator seats themselves as
+        // admin, or a joiner arrives as a plain member carrying a join code
+        // that really maps to THIS group. Before, any signed-in user could
+        // write {role:'admin'} here with no code at all.
+        allow create: if signedIn() && request.auth.uid == uid && (
+          (request.resource.data.role == 'admin'
+            && get(/databases/$(database)/documents/groups/$(groupId)).data.createdBy == request.auth.uid)
+          || (request.resource.data.role == 'member'
+            && request.resource.data.joinCode is string
+            && get(/databases/$(database)/documents/joinCodes/$(request.resource.data.joinCode)).data.groupId == groupId)
+        );
+        // A user manages their own membership but can never change their own
+        // role; a group admin may update (promote/demote) or delete (remove)
+        // any member EXCEPT the creator. Leaving = deleting your own doc.
+        allow update: if signedIn() && (
+          (request.auth.uid == uid && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']))
+          || (isGroupAdmin(groupId) && get(/databases/$(database)/documents/groups/$(groupId)).data.createdBy != uid)
+        );
+        allow delete: if signedIn() && (
           request.auth.uid == uid ||
           (isGroupAdmin(groupId) && get(/databases/$(database)/documents/groups/$(groupId)).data.createdBy != uid)
         );

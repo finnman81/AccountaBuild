@@ -227,7 +227,9 @@ export async function joinGroupByCode(params: {
     await Promise.all([
       setDoc(
         doc(db, 'groups', groupId, 'members', params.uid),
-        { uid: params.uid, role: 'member', joinedAt: serverTimestamp() },
+        // joinCode is required by the rules: it proves this join came through
+        // a real code for THIS group, not a raw write to a known groupId.
+        { uid: params.uid, role: 'member', joinCode: code, joinedAt: serverTimestamp() },
         { merge: true },
       ),
       updateDoc(doc(db, 'groups', groupId), { memberCount: increment(1), lastActivityAt: serverTimestamp(), updatedAt: serverTimestamp() }),

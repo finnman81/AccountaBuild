@@ -92,6 +92,7 @@ export function buildLeaderboard(params: {
         onVacation:
           !!params.currentWeekId &&
           (p?.vacationWeekId === params.currentWeekId ||
+            (p?.vacationWeekIds ?? []).includes(params.currentWeekId) ||
             (!!p?.vacationFromWeekId &&
               !!p?.vacationUntilWeekId &&
               params.currentWeekId >= p.vacationFromWeekId &&

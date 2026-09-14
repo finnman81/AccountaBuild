@@ -51,7 +51,9 @@ async function applyHibernation(db, { uid, weeks, reason, setBy }) {
     setBy: setBy || uid,
     setAt: admin.firestore.FieldValue.serverTimestamp(),
   };
-  await db.doc(`users/${uid}`).set({ hibernation }, { merge: true });
+  // update(), not set(merge): a merge deep-merges the map, so a stale
+  // awake:true from the last wake survived and the auto-wake skipped them.
+  await db.doc(`users/${uid}`).update({ hibernation });
   // Public mirror drives the 😴 badge, the pod avatar, and every denominator
   // that should skip a sleeping member.
   await db.doc(`publicUsers/${uid}`).set(
@@ -64,7 +66,9 @@ async function applyHibernation(db, { uid, weeks, reason, setBy }) {
 async function clearHibernation(db, uid, { keepGrace = true } = {}) {
   const snap = await db.doc(`users/${uid}`).get();
   const hib = snap.exists ? snap.data().hibernation : null;
-  if (!hib) return;
+  // Already awake: nothing to do. Without this, every "Wake up now" tap
+  // re-stamped graceWeekId = this week, a free no-penalty week on demand.
+  if (!hib || hib.awake) return;
   const weekId = core.isoWeekIdInTz(new Date(), TZ);
   // Keep the range: past weeks STAY shielded. The old version overwrote it
   // with 'x', and the wake runs before the Monday close of the final week,

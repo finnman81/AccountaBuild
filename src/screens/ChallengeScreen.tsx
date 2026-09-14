@@ -73,9 +73,15 @@ export default function ChallengeScreen({ route, navigation }: Props) {
     [groupId],
   );
   useEffect(() => subscribeGroupMembers(groupId, setMembers), [groupId]);
-  // A challenge runs up to 7 weeks; standings need every week of it. 70 days
-  // covers the longest challenge with room for a late-finishing week.
-  useEffect(() => subscribeGroupLogsSince(groupId, daysAgoYYYYMMDD(70), setLogs), [groupId]);
+  // Standings need every week of the challenge, so the feed starts at the
+  // challenge's own first Monday. A fixed 70-day window dropped week 1 of
+  // anything longer (the editor allows up to 52) and emptied the final
+  // standings a couple of weeks after an 8-week challenge ended.
+  const feedFrom = challenge?.startWeekId ? isoWeekRangeInTz(challenge.startWeekId, DEFAULT_TZ).start : null;
+  useEffect(
+    () => subscribeGroupLogsSince(groupId, feedFrom ?? daysAgoYYYYMMDD(70), setLogs),
+    [groupId, feedFrom],
+  );
   useEffect(() => {
     if (!myUid) return;
     return subscribeMyCanSeeUids(myUid, (uids) => setCanSee(new Set(uids)));

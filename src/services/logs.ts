@@ -191,6 +191,8 @@ export async function upsertGroupLogById(
   // and is the only way to distinguish first write from re-touch.
   const existing = await getDoc(ref).catch(() => null);
   const isNew = !existing?.exists();
+  // The user edited this log by hand: their version wins over HealthKit.
+  if ((existing?.data() as any)?.userEdited === true) return logId;
   await setDoc(
     ref,
     {

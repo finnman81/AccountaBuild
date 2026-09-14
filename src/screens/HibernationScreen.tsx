@@ -9,6 +9,7 @@ import PrimaryButton from '../components/ui/PrimaryButton';
 import HibernationPod from '../components/ui/HibernationPod';
 import { AuthContext } from '../store/AuthContext';
 import { db } from '../firebase/firebase';
+import { DEFAULT_TZ, isoWeekIdInTz } from '../mmr/time';
 import { clearHibernation, setHibernation, HIBERNATION_MAX_WEEKS, HIBERNATION_MIN_WEEKS } from '../services/hibernation';
 import { colors, radius, spacing } from '../theme';
 
@@ -29,7 +30,11 @@ export default function HibernationScreen() {
     if (!user?.uid) return;
     return onSnapshot(doc(db, 'users', user.uid), (snap) => {
       const h = snap.exists() ? (snap.data() as any)?.hibernation : null;
-      setActive(h && h.untilWeekId && h.untilWeekId !== 'x' ? h : null);
+      // Awake records keep their past range (the scorer needs it), so
+      // "active" means not awake AND the range still reaches this week.
+      const nowWeek = isoWeekIdInTz(new Date(), DEFAULT_TZ);
+      const live = h && !h.awake && h.untilWeekId && h.untilWeekId !== 'x' && h.untilWeekId >= nowWeek;
+      setActive(live ? h : null);
     });
   }, [user?.uid]);
 

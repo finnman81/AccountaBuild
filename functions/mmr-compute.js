@@ -305,6 +305,9 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
   let weightBonusRaw = 0;
   let weightGoalUpdate = null;
   let checkpointsHit = []; // rungs unlocked THIS run (drives the notification)
+  // Pot + rungs behind checkpointsHit, so the transaction can re-check them
+  // against the LIVE ledger (the snapshot ledger can be a week stale).
+  let cpCtx = null;
   // TRUE only when the goal actually FINISHED this run. bonusAwardedNow means
   // "some pot FP was paid", which since checkpoints includes partial rungs —
   // gating the group "hit their goal weight" celebration on it would announce
@@ -345,6 +348,7 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
             weightBonusRaw = cp.fp;
             checkpointsHit = cp.fresh;
             goalCompletedNow = cp.hitFinal;
+            cpCtx = { pot, fresh: cp.fresh, reached: cp.reached };
             weightGoalUpdate = {
               docId: 'weightLoss',
               patch: {
@@ -386,6 +390,7 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
             weightBonusRaw = cp.fp;
             checkpointsHit = cp.fresh;
             goalCompletedNow = cp.hitFinal;
+            cpCtx = { pot, fresh: cp.fresh, reached: cp.reached };
             weightGoalUpdate = {
               docId: 'weightGain',
               patch: {
@@ -447,17 +452,7 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
     // silently took it back. Re-reading the week's own stored bonus makes the
     // award idempotent instead of self-erasing.
     const priorWeightBonus = weeklyData && typeof weeklyData.weightBonus === 'number' ? Number(weeklyData.weightBonus) : 0;
-    let weightBonus = priorWeightBonus > 0 ? priorWeightBonus : 0;
-    if (weightBonus === 0 && weightGoalUpdate && goalSnap) {
-      const alreadyAwarded = goalSnap.exists && goalSnap.data()?.completionBonusAwarded === true;
-      if (!alreadyAwarded) weightBonus = weightBonusRaw;
-    }
 
-    // The ONE exactly-once signal: FP left the pot on this run. Every
-    // celebration/push keys on this, never on "rungs look fresh" — a run
-    // that computes fresh rungs but pays nothing (goal already flagged
-    // awarded) must stay silent.
-    const awardedNow = apply && weightBonus > 0 && priorWeightBonus === 0;
     // The live goal doc is only the SCORED goal when they still describe the
     // same target. A member who replaces their goal mid-week (effective next
     // week) keeps scoring the snapshot; patching the new doc as "completed"
@@ -468,6 +463,46 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
       String(liveGoal.startDate ?? '') === String(weightGoal.startDate ?? '') &&
       Number(liveGoal.goalWeight) === Number(weightGoal.goalWeight) &&
       Number(liveGoal.startWeight) === Number(weightGoal.startWeight);
+
+    let weightBonus = priorWeightBonus > 0 ? priorWeightBonus : 0;
+    let paidRungs = [];
+    let paidFinal = false;
+    let goalPatch = weightGoalUpdate ? weightGoalUpdate.patch : null;
+    if (weightBonus === 0 && weightGoalUpdate && goalSnap) {
+      const alreadyAwarded = goalSnap.exists && goalSnap.data()?.completionBonusAwarded === true;
+      if (!alreadyAwarded && cpCtx && liveMatchesScored) {
+        // Checkpoints: pay only rungs the LIVE ledger hasn't paid. The week's
+        // snapshot ledger can be stale (next week's snapshot is taken before
+        // this week closes), so checking it alone paid a rung in two weeks.
+        const live = (Array.isArray(liveGoal.checkpointsAwarded) ? liveGoal.checkpointsAwarded : []).map(Number);
+        const has = (arr, t) => arr.some((a) => Math.abs(a - t) < 1e-6);
+        paidRungs = cpCtx.fresh.filter((t) => !has(live, t));
+        paidFinal = paidRungs.some((t) => t >= 1);
+        weightBonus = paidRungs.reduce((sum, t) => sum + core.checkpointAward(cpCtx.pot, t), 0);
+        // Union, never overwrite: a closing week's bounded view must not
+        // shrink a ledger a later week already advanced.
+        const ledger = [...live];
+        for (const t of cpCtx.reached) if (!has(ledger, t)) ledger.push(t);
+        ledger.sort((a, b) => a - b);
+        goalPatch = {
+          checkpointsAwarded: ledger,
+          ...(paidFinal ? { completionBonusAwarded: true, status: 'completed', completionDate: FieldValue.serverTimestamp() } : {}),
+        };
+      } else if (!alreadyAwarded) {
+        // Pre-W32 lump sum, or the goal was replaced mid-week (the live doc is
+        // a different goal, so it has no ledger for this one): pay what the
+        // snapshot computed, as before.
+        weightBonus = weightBonusRaw;
+        paidRungs = checkpointsHit;
+        paidFinal = goalCompletedNow;
+      }
+    }
+
+    // The ONE exactly-once signal: FP left the pot on this run. Every
+    // celebration/push keys on this, never on "rungs look fresh" — a run
+    // that computes fresh rungs but pays nothing (goal already flagged
+    // awarded) must stay silent.
+    const awardedNow = apply && weightBonus > 0 && priorWeightBonus === 0;
 
     const rawMmrBefore =
       weeklyData && typeof weeklyData?.mmrBefore === 'number'
@@ -534,7 +569,12 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
     // Grace week: the first week AFTER waking can't penalize either. Nobody
     // returns from a month away and hits five workouts in week one.
     const inGraceWeek = !!hib && typeof hib.graceWeekId === 'string' && weekId === hib.graceWeekId;
-    const onVacation = weeklyData?.vacation === true || hibernating || inGraceWeek;
+    // ANCHORED like mmrBefore: once a week is scored under a hibernation or
+    // grace shield, it keeps it. The range is read live from the user doc,
+    // and the previous week is recomputed every run, so any later rewrite of
+    // the range (a re-apply, an early wake) used to un-shield a closed week.
+    const hibShield = hibernating || inGraceWeek || weeklyData?.hibernationShield === true;
+    const onVacation = weeklyData?.vacation === true || hibShield;
 
     // Freeze mechanics only at week CLOSE — mid-week state never consumes/earns.
     const freezeUsed = !isCurrentWeek && !completedWeek && !onVacation && streakBefore > 0 && freezeBefore > 0;
@@ -599,12 +639,12 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
       // re-runs re-apply priorWeightBonus and stay false) — the exactly-once
       // signal the auto-celebration keys on.
       bonusAwardedNow: awardedNow && weightGoalUpdate != null,
-      goalCompletedNow: awardedNow && goalCompletedNow,
+      goalCompletedNow: awardedNow && paidFinal,
       bonusGoalId: weightGoalUpdate ? weightGoalUpdate.docId : null,
       // Rungs unlocked on THIS run (anchored re-runs re-apply priorWeightBonus
       // and report none) — drives the personal milestone push.
-      checkpointsHitNow: awardedNow ? checkpointsHit : [],
-      checkpointFp: awardedNow ? weightBonusRaw : 0,
+      checkpointsHitNow: awardedNow ? paidRungs : [],
+      checkpointFp: awardedNow ? weightBonus : 0,
       // TIER jumps only (Silver -> Gold), never division ticks: divisions move
       // most weeks for an active user, and a pop-up that common trains everyone
       // to dismiss celebrations unread. Division changes stay a private
@@ -672,6 +712,7 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
         rulesVersion: core.RULES_VERSION,
         updatedAt: FieldValue.serverTimestamp(),
         dataSource: 'self_reported',
+        ...(hibShield ? { hibernationShield: true } : {}),
         ...(Object.keys(goals).length === 0 || (weeklyData?.goalsSnapshot && Object.keys(weeklyData?.goalsSnapshot).length >= Object.keys(goals).length) ? {} : { goalsSnapshot: goals }),
         workoutsDone,
         workoutDaysDone,
@@ -789,8 +830,8 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
       { merge: true },
     );
 
-    if (weightGoalUpdate && awardedNow && goalRef && liveMatchesScored) {
-      tx.set(goalRef, weightGoalUpdate.patch, { merge: true });
+    if (goalPatch && awardedNow && goalRef && liveMatchesScored) {
+      tx.set(goalRef, goalPatch, { merge: true });
     }
 
     return result;

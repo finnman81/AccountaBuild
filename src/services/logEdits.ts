@@ -29,6 +29,10 @@ export async function updateGroupLog(params: {
   await updateDoc(doc(db, 'groups', params.groupId, 'logs', params.logId), {
     date: normalizeLogDate(params.date),
     payload: params.payload,
+    // Health sync treats a hand-edited log as the user's version and stops
+    // merging HealthKit values over it (upsertGroupLogById). Without this, a
+    // WHOOP "other" re-labelled as Manual labor reverted on the next sync.
+    userEdited: true,
     updatedAt: serverTimestamp(),
   });
 }

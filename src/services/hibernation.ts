@@ -37,6 +37,7 @@ export function isHibernating(pub: PublicHibernation | null | undefined, weekId:
  * day three of a booked vacation (prod 2026-09-04) while streakWeeks held.
  */
 export function shieldedWeekIds(pub: {
+  vacationWeekIds?: string[] | null;
   vacationFromWeekId?: string | null;
   vacationUntilWeekId?: string | null;
   hibernatingFromWeekId?: string | null;
@@ -51,6 +52,9 @@ export function shieldedWeekIds(pub: {
       w = nextIsoWeekId(w, DEFAULT_TZ);
     }
   };
+  // The full booked list survives later bookings/cancels; the range alone
+  // only ever described the latest booking.
+  for (const w of pub?.vacationWeekIds ?? []) out.add(w);
   walk(pub?.vacationFromWeekId, pub?.vacationUntilWeekId);
   walk(pub?.hibernatingFromWeekId, pub?.hibernatingUntilWeekId);
   return out;
