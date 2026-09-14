@@ -1,7 +1,7 @@
 // Repair: the auto-wake overwrote Nick's range with 'x' before W37 closed, so
 // W37 lost its shield (-39 FP, 3-week streak -> 0). Restore the range, then
 // re-close W37 and recompute W38. Dry run by default.
-const admin = require('firebase-admin');
+const admin = require('../functions/node_modules/firebase-admin');
 admin.initializeApp({ credential: admin.credential.cert(require('../accountabuild-firebase-adminsdk-fbsvc-9310efcafb.json')) });
 const db = admin.firestore();
 const { computeUserWeek } = require('../functions/mmr-compute');
