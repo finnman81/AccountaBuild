@@ -26,6 +26,7 @@ import WeeklyRecapBanner from '../components/today/WeeklyRecapBanner';
 import SetupChecklistCard from '../components/today/SetupChecklistCard';
 import TargetReviewCard from '../components/today/TargetReviewCard';
 import GoalReachedCard from '../components/today/GoalReachedCard';
+import GoalDeadlineCard from '../components/today/GoalDeadlineCard';
 import SignWeekCard from '../components/today/SignWeekCard';
 import UpdateBanner from '../components/today/UpdateBanner';
 import VacationCard from '../components/today/VacationCard';
@@ -347,6 +348,7 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
       <SetupChecklistCard />
       <SignWeekCard memberUids={memberUids} publicUsers={publicUsers} canSee={canSee} />
       <GoalReachedCard />
+      <GoalDeadlineCard />
       <TargetReviewCard />
       {challenge && challengeInfo ? (
         <Pressable

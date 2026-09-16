@@ -6,7 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AuthContext } from '../../store/AuthContext';
 import { useActiveGroup } from '../../store/ActiveGroupContext';
 import { useNotificationBadge } from '../../hooks/useNotificationBadge';
-import { navigateToActivity, navigateToGroupChat } from '../../navigation/navigationRef';
+import { navigateToActivity, navigateToGroupChat, navigateToGoals } from '../../navigation/navigationRef';
 import { scheduleNotifications } from '../../services/notifications';
 import { subscribeLogSaved } from '../../services/fpEvents';
 import { fetchMyLogsInRange } from '../../services/logs';
@@ -19,6 +19,7 @@ function handleNotificationTap(response: Notifications.NotificationResponse) {
   const data = response.notification.request.content.data as { screen?: string; groupId?: string } | undefined;
   if (data?.screen === 'GroupChat' && data.groupId) navigateToGroupChat(data.groupId);
   else if (data?.screen === 'Activity') navigateToActivity();
+  else if (data?.screen === 'MMRGoals') navigateToGoals();
 }
 
 export function NotificationProvider({ children }: { children: React.ReactNode }) {

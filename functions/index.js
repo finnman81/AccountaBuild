@@ -29,7 +29,7 @@ const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestor
 const { computeUserWeek, computeUserUpToCurrentWeek } = require('./mmr-compute');
 const { ensureSeasonRollover } = require('./mmr-season');
 const { deleteAccount } = require('./account-deletion');
-const { evaluateStreakRisk, evaluateDailyChampion, evaluateVacationPrompt, evaluateSignNudge, isHibernating } = require('./notif-logic');
+const { evaluateStreakRisk, evaluateDailyChampion, evaluateVacationPrompt, evaluateSignNudge, isHibernating, evaluateGoalDeadline } = require('./notif-logic');
 const { setHibernation, wakeExpiredHibernations } = require('./hibernation');
 const { publishCelebration } = require('./celebrations');
 
@@ -340,9 +340,18 @@ exports.streakRiskReminder = onSchedule(
     const sign = await evaluateSignNudge(db, now);
     const signItems = sign.items.filter((i) => !claimed.has(i.uid));
 
-    const toSend = [...vac.items, ...riskItems, ...signItems];
+    // Goal-deadline nudge, same one-push-per-evening rule.
+    const claimed2 = new Set([...claimed, ...signItems.map((i) => i.uid)]);
+    const deadline = await evaluateGoalDeadline(db, now);
+    const deadlineItems = deadline.items.filter((i) => !claimed2.has(i.uid));
+    const deadlineUids = new Set(deadlineItems.map((i) => i.uid));
+
+    const toSend = [...vac.items, ...riskItems, ...signItems, ...deadlineItems];
     const result = toSend.length ? await sendExpoPushes(db, toSend) : { sent: 0 };
     await Promise.all([
+      ...deadline.stamps
+        .filter((ref) => deadlineUids.has(ref.parent.parent.id))
+        .map((ref) => ref.set({ deadlineNudgedAt: FieldValue.serverTimestamp() }, { merge: true }).catch(() => {})),
       ...vac.items.map((i) =>
         db.doc(`users/${i.uid}`).set({ vacationPromptWeekId: vac.weekId }, { merge: true }).catch(() => {}),
       ),
@@ -351,7 +360,7 @@ exports.streakRiskReminder = onSchedule(
       ),
     ]);
     console.log(
-      `[streakRiskReminder] evaluated ${evaluated} users, sent ${result.sent} (${vac.items.length} vacation, ${signItems.length} sign)`,
+      `[streakRiskReminder] evaluated ${evaluated} users, sent ${result.sent} (${vac.items.length} vacation, ${signItems.length} sign, ${deadlineItems.length} deadline)`,
     );
   },
 );

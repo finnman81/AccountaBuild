@@ -349,3 +349,51 @@ async function evaluateVacationPrompt(db, now) {
 }
 
 module.exports.evaluateVacationPrompt = evaluateVacationPrompt;
+
+/**
+ * Goal-deadline nudge: an active weight goal whose target date is behind us
+ * and isn't completed. The date only ever set the goal's PACE; nothing fired
+ * when it passed, and the goal kept scoring at the original lbs-per-week.
+ * One push, then once a week until the goal is re-planned (deadlineNudgedAt
+ * on the goal doc). Lands on the Goals editor.
+ */
+async function evaluateGoalDeadline(db, now) {
+  const today = core.yyyyMmDdInTz(now, TZ);
+  const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+  const items = [];
+  const stamps = [];
+  const users = await db.collection('users').get();
+  for (const u of users.docs) {
+    const data = u.data() || {};
+    if (!isExpoToken(data.expoPushToken)) continue;
+    if (!prefEnabled(data, 'streakReminder')) continue;
+    for (const id of ['weightLoss', 'weightGain']) {
+      try {
+        const gSnap = await db.doc(`users/${u.id}/goals/${id}`).get();
+        const g = gSnap.exists ? gSnap.data() : null;
+        if (!g || g.status !== 'active') continue;
+        const end = String(g.targetEndDate || '');
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(end) || end >= today) continue;
+        const last = g.deadlineNudgedAt && g.deadlineNudgedAt.toMillis ? g.deadlineNudgedAt.toMillis() : 0;
+        if (now.getTime() - last < WEEK_MS) continue;
+        const from = Number(g.startWeight);
+        const to = Number(g.goalWeight);
+        const target = Number.isFinite(from) && Number.isFinite(to) ? `${from} → ${to} lb was due ${end.slice(5).replace('-', '/')}. ` : '';
+        items.push({
+          uid: u.id,
+          token: data.expoPushToken,
+          title: '📅 Your goal date passed',
+          body: `${target}Set a new date or a new target.`,
+          data: { type: 'goalDeadline', screen: 'MMRGoals' },
+        });
+        stamps.push(gSnap.ref);
+        break; // one weight goal is active at a time; one push either way
+      } catch (e) {
+        console.warn('[goalDeadline] eval failed for', u.id, id, e);
+      }
+    }
+  }
+  return { items, stamps };
+}
+
+module.exports.evaluateGoalDeadline = evaluateGoalDeadline;
