@@ -90,7 +90,7 @@ export default function GoalDeadlineCard() {
         <TouchableOpacity
           style={styles.primary}
           activeOpacity={0.85}
-          onPress={() => nav.navigate('MMRGoals')}
+          onPress={() => nav.navigate('MMRGoals', { focus: 'weight' })}
           accessibilityRole="button"
         >
           <AppText variant="rowTitle" style={{ color: '#FFFFFF' }}>Update goal</AppText>

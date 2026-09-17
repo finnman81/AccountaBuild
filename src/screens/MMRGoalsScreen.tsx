@@ -1,4 +1,6 @@
-import React, { useContext, useEffect, useMemo, useState } from 'react';
+import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { useRoute } from '@react-navigation/native';
+import { carryCheckpoints } from '../mmr/difficulty';
 import { Alert, Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Switch, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
@@ -62,6 +64,10 @@ function CategoryHeader({ title, subtitle, value, onValueChange, disabled }: { t
 export default function MMRGoalsScreen() {
   const { user } = useContext(AuthContext);
   const insets = useSafeAreaInsets();
+  const route = useRoute<any>();
+  const focusWeight = route?.params?.focus === 'weight';
+  const scrollRef = useRef<ScrollView>(null);
+  const didFocusRef = useRef(false);
 
   const [raw, setRaw] = useState<Record<string, any>>({});
   const [saving, setSaving] = useState(false);
@@ -146,6 +152,8 @@ export default function MMRGoalsScreen() {
   }, []);
   const goalsLocked = hasExistingGoals && !isMondayEt;
   const canSave = useMemo(() => Boolean(user?.uid) && !saving && !goalsLocked, [saving, user?.uid, goalsLocked]);
+  // Weight goal fields only (not the toggle, not weigh-in days: those feed the streak).
+  const canEditWeight = Boolean(user?.uid) && !saving;
   const trackedCount = (workoutsEnabled ? 1 : 0) + (caloriesEnabled ? 1 : 0) + (weightEnabled ? 1 : 0);
 
   // Quick target-date chips: relative offsets plus end of the current season (quarter).
@@ -210,6 +218,74 @@ export default function MMRGoalsScreen() {
     );
   };
 
+  /** Validate + write the active weight goal (shared by both save paths). */
+  const writeWeightGoal = async (uid: string) => {
+    const ws = toNumberOrNull(weightStart);
+    const wg = toNumberOrNull(weightGoal);
+    const sd = weightStartDate.trim();
+    const ed = weightTargetEndDate.trim();
+    if (ws == null || ws <= 0) throw new Error('Weight start must be a positive number.');
+    if (wg == null || wg <= 0) throw new Error('Weight goal must be a positive number.');
+    if (!isValidYYYYMMDD(sd)) throw new Error('Weight start date must be YYYY-MM-DD.');
+    if (!isValidYYYYMMDD(ed)) throw new Error('Weight target end date must be YYYY-MM-DD.');
+    if (weightMode === 'loss' && wg >= ws) throw new Error('For weight loss, goal must be less than start.');
+    if (weightMode === 'gain' && wg <= ws) throw new Error('For weight gain, goal must be greater than start.');
+    if (ed <= todayYYYYMMDD()) throw new Error('Pick a target date in the future.');
+
+    const activeId = weightMode === 'loss' ? 'weightLoss' : 'weightGain';
+    const inactiveId = weightMode === 'loss' ? 'weightGain' : 'weightLoss';
+    // Setting genuinely different targets = a NEW goal, so re-arm the
+    // one-time completion bonus. Without this, anyone who finished a goal
+    // could never earn a completion bonus again — the flag is permanent
+    // and gates the award. Unchanged targets keep the flag, so re-saving
+    // the same goal can't re-farm it.
+    const prev = (raw as any)[activeId] ?? null;
+    const isNewTarget =
+      !prev ||
+      Number(prev.startWeight) !== ws ||
+      Number(prev.goalWeight) !== wg ||
+      String(prev.startDate ?? '') !== sd ||
+      String(prev.targetEndDate ?? '') !== ed;
+    await upsertGoal(uid, activeId, {
+      type: activeId,
+      status: 'active',
+      startWeight: ws,
+      goalWeight: wg,
+      startDate: sd,
+      targetEndDate: ed,
+      // New numbers = new rungs. Carry forward only what was already paid for
+      // (see carryCheckpoints), so a fresh goal can pay and an edit can't re-farm.
+      ...(isNewTarget
+        ? { completionBonusAwarded: false, completionDate: null, checkpointsAwarded: carryCheckpoints(prev, { startWeight: ws, goalWeight: wg }) }
+        : {}),
+    });
+    await upsertGoal(uid, inactiveId, { type: inactiveId, status: 'paused' });
+  };
+
+  // The weight goal (start, target, dates) can be re-planned ANY day: it never
+  // feeds the daily streak, and like every edit it only applies from next
+  // week (the scorer's goalsSnapshot holds this week's math). Without this
+  // the goal-deadline nudge sent people to a screen that refused the fix six
+  // days out of seven. Everything else stays Monday-only.
+  const saveWeightOnly = async () => {
+    if (!user) return;
+    setError(null);
+    setSaved(null);
+    setSaving(true);
+    try {
+      await writeWeightGoal(user.uid);
+      if (db) {
+        const nextWeek = nextIsoWeekId(isoWeekIdInTz(new Date(), DEFAULT_TZ), DEFAULT_TZ);
+        await setDoc(doc(db, 'users', user.uid), { goalsEffectiveWeekId: nextWeek, updatedAt: serverTimestamp() }, { merge: true });
+      }
+      setSaved('Weight goal saved. Applies from next week.');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not save your weight goal.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const save = async () => {
     if (!user) return;
     setError(null);
@@ -254,42 +330,8 @@ export default function MMRGoalsScreen() {
 
       // Weight category.
       if (weightEnabled) {
-        const ws = toNumberOrNull(weightStart);
-        const wg = toNumberOrNull(weightGoal);
-        const sd = weightStartDate.trim();
-        const ed = weightTargetEndDate.trim();
-        if (ws == null || ws <= 0) throw new Error('Weight start must be a positive number.');
-        if (wg == null || wg <= 0) throw new Error('Weight goal must be a positive number.');
-        if (!isValidYYYYMMDD(sd)) throw new Error('Weight start date must be YYYY-MM-DD.');
-        if (!isValidYYYYMMDD(ed)) throw new Error('Weight target end date must be YYYY-MM-DD.');
-        if (weightMode === 'loss' && wg >= ws) throw new Error('For weight loss, goal must be less than start.');
-        if (weightMode === 'gain' && wg <= ws) throw new Error('For weight gain, goal must be greater than start.');
         if (wDaysNum == null || wDaysNum < 0 || wDaysNum > 7) throw new Error('Weigh-in days/week must be 0–7.');
-
-        const activeId = weightMode === 'loss' ? 'weightLoss' : 'weightGain';
-        const inactiveId = weightMode === 'loss' ? 'weightGain' : 'weightLoss';
-        // Setting genuinely different targets = a NEW goal, so re-arm the
-        // one-time completion bonus. Without this, anyone who finished a goal
-        // could never earn a completion bonus again — the flag is permanent
-        // and gates the award. Unchanged targets keep the flag, so re-saving
-        // the same goal can't re-farm it.
-        const prev = (raw as any)[activeId] ?? null;
-        const isNewTarget =
-          !prev ||
-          Number(prev.startWeight) !== ws ||
-          Number(prev.goalWeight) !== wg ||
-          String(prev.startDate ?? '') !== sd ||
-          String(prev.targetEndDate ?? '') !== ed;
-        await upsertGoal(user.uid, activeId, {
-          type: activeId,
-          status: 'active',
-          startWeight: ws,
-          goalWeight: wg,
-          startDate: sd,
-          targetEndDate: ed,
-          ...(isNewTarget ? { completionBonusAwarded: false, completionDate: null } : {}),
-        });
-        await upsertGoal(user.uid, inactiveId, { type: inactiveId, status: 'paused' });
+        await writeWeightGoal(user.uid);
       } else {
         // Pause any existing weight goals so they stop scoring.
         if (raw.weightLoss) await upsertGoal(user.uid, 'weightLoss', { type: 'weightLoss', status: 'paused' });
@@ -339,6 +381,7 @@ export default function MMRGoalsScreen() {
       >
         <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
           <ScrollView
+            ref={scrollRef}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode={Platform.OS === 'ios' ? 'on-drag' : 'none'}
             showsVerticalScrollIndicator={false}
@@ -346,10 +389,10 @@ export default function MMRGoalsScreen() {
           >
             {goalsLocked ? (
               <View style={styles.lockCard}>
-                <AppText variant="rowTitle" color="primary">🔒 Goals change on Mondays</AppText>
+                <AppText variant="rowTitle" color="primary">🔒 Weekly targets change on Mondays</AppText>
                 <AppText variant="rowSubtitle" color="secondary" style={{ marginTop: 4 }}>
-                  Targets are locked for the rest of the week so a rough week can't be edited away, and so everyone's
-                  weeks stay comparable. Come back Monday to adjust them.
+                  Workout, calorie and weigh-in targets are locked for the rest of the week so a rough week can't be
+                  edited away. Your weight goal can be updated any day, and applies from next week.
                 </AppText>
               </View>
             ) : null}
@@ -433,7 +476,17 @@ export default function MMRGoalsScreen() {
             </View>
 
             {/* Weight */}
-            <View style={[styles.group, styles.groupGap]}>
+            <View
+              style={[styles.group, styles.groupGap]}
+              onLayout={(e) => {
+                // Arrived from the goal-deadline push/card: land on the section to fix.
+                if (focusWeight && !didFocusRef.current) {
+                  didFocusRef.current = true;
+                  const y = e.nativeEvent.layout.y;
+                  setTimeout(() => scrollRef.current?.scrollTo({ y: Math.max(0, y - 12), animated: true }), 250);
+                }
+              }}
+            >
               <CategoryHeader
                 title="Weight"
                 subtitle="Weight loss / gain timeline scoring"
@@ -455,9 +508,9 @@ export default function MMRGoalsScreen() {
                       style={styles.segmented}
                     />
                   </View>
-                  <EditRow label="Start weight" value={weightStart} onChangeText={setWeightStart} subline="Where your timeline starts" placeholder="190" suffix="lb" keyboardType="decimal-pad" editable={canSave} />
-                  <EditRow label="Goal weight" value={weightGoal} onChangeText={setWeightGoal} subline="Your target. Drives weight progress" placeholder="175" suffix="lb" keyboardType="decimal-pad" editable={canSave} />
-                  <EditRow label="Start date" value={weightStartDate} onChangeText={setWeightStartDate} subline="When your timeline began" placeholder="YYYY-MM-DD" editable={canSave} />
+                  <EditRow label="Start weight" value={weightStart} onChangeText={setWeightStart} subline="Where your timeline starts" placeholder="190" suffix="lb" keyboardType="decimal-pad" editable={canEditWeight} />
+                  <EditRow label="Goal weight" value={weightGoal} onChangeText={setWeightGoal} subline="Your target. Drives weight progress" placeholder="175" suffix="lb" keyboardType="decimal-pad" editable={canEditWeight} />
+                  <EditRow label="Start date" value={weightStartDate} onChangeText={setWeightStartDate} subline="When your timeline began" placeholder="YYYY-MM-DD" editable={canEditWeight} />
                   <View style={styles.rowBlock}>
                     <AppText variant="rowTitle" color="primary">Target end date</AppText>
                     <AppText variant="rowSubtitle" color="muted" style={styles.subline}>When you want to hit your goal weight</AppText>
@@ -468,7 +521,7 @@ export default function MMRGoalsScreen() {
                           <TouchableOpacity
                             key={chip.label}
                             onPress={() => pickTargetDate(chip.date)}
-                            disabled={!canSave}
+                            disabled={!canEditWeight}
                             style={[styles.dateChip, active && styles.chipActive]}
                             accessibilityRole="button"
                             accessibilityState={{ selected: active }}
@@ -478,7 +531,7 @@ export default function MMRGoalsScreen() {
                         );
                       })}
                     </View>
-                    <TextField value={weightTargetEndDate} onChangeText={setWeightTargetEndDate} placeholder="YYYY-MM-DD" editable={canSave} autoCapitalize="none" autoCorrect={false} containerStyle={styles.dateField} />
+                    <TextField value={weightTargetEndDate} onChangeText={setWeightTargetEndDate} placeholder="YYYY-MM-DD" editable={canEditWeight} autoCapitalize="none" autoCorrect={false} containerStyle={styles.dateField} />
                   </View>
                   <EditRow
                     label="Weigh-in days / week"
@@ -510,9 +563,15 @@ export default function MMRGoalsScreen() {
             {error ? <AppText variant="rowSubtitle" color="danger" style={styles.message}>{error}</AppText> : null}
             {saved ? <AppText variant="rowSubtitle" color="success" style={styles.message}>{saved}</AppText> : null}
 
-            <PrimaryButton onPress={save} disabled={!canSave} loading={saving} style={styles.saveButton}>
-              Save goals
-            </PrimaryButton>
+            {goalsLocked ? (
+              <PrimaryButton onPress={saveWeightOnly} disabled={!canEditWeight || !weightEnabled} loading={saving} style={styles.saveButton}>
+                Save weight goal
+              </PrimaryButton>
+            ) : (
+              <PrimaryButton onPress={save} disabled={!canSave} loading={saving} style={styles.saveButton}>
+                Save goals
+              </PrimaryButton>
+            )}
           </ScrollView>
         </TouchableWithoutFeedback>
       </KeyboardAvoidingView>

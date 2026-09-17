@@ -23,7 +23,7 @@ export type RootStackParamList = {
   EditProfile:
     | { focusField?: 'displayName' | 'height' | 'age' | 'weightCurrent' | 'weightGoal' | 'weightTargetDate' | 'units' }
     | undefined;
-  MMRGoals: undefined;
+  MMRGoals: { focus?: 'weight' } | undefined;
   LogComposer: { initialType?: import('../services/logs').LogType } | undefined;
   MemberDetail: { groupId: string; uid: string };
   MemberProfile: { groupId: string; uid: string };

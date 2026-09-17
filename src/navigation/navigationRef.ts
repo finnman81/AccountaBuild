@@ -55,6 +55,6 @@ export function navigateToWeekReview(weekId?: string) {
 /** Open the Goals editor (goal-deadline push tap). Root-level modal. */
 export function navigateToGoals() {
   runOrQueue(() => {
-    navigationRef.navigate('MMRGoals' as any);
+    navigationRef.navigate('MMRGoals', { focus: 'weight' } as any);
   });
 }

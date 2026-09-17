@@ -231,3 +231,40 @@ export function D_weightGain(params: {
   return { D, D_base, gainTarget, progress: p };
 }
 
+
+/**
+ * Milestone ledger for a RE-PLANNED weight goal.
+ *
+ * checkpointsAwarded lists the rungs already paid. It was never touched when
+ * a goal's numbers changed, so (a) a new goal set after a finished one kept
+ * the full ledger and could never pay or complete, and (b) simply clearing it
+ * would let someone nudge their start weight by 0.1 lb and get paid again for
+ * pounds already rewarded.
+ *
+ * Rule: pounds are paid for once. Work out the weight the old ledger had paid
+ * down (or up) to, then pre-mark every rung of the NEW goal whose threshold
+ * weight doesn't go beyond it. A date-only change keeps the same thresholds,
+ * so it keeps the same ledger.
+ */
+export function carryCheckpoints(
+  prev: { startWeight?: number; goalWeight?: number; checkpointsAwarded?: number[] } | null | undefined,
+  next: { startWeight: number; goalWeight: number },
+): number[] {
+  const paid = Array.isArray(prev?.checkpointsAwarded) ? prev!.checkpointsAwarded!.map(Number).filter(Number.isFinite) : [];
+  const p0 = Number(prev?.startWeight);
+  const pg = Number(prev?.goalWeight);
+  if (!paid.length || !Number.isFinite(p0) || !Number.isFinite(pg) || p0 === pg) return [];
+  const isGain = next.goalWeight > next.startWeight;
+  if (isGain !== pg > p0) return []; // direction flipped: nothing carries
+  const paidTo = p0 + Math.max(...paid) * (pg - p0); // weight already paid to
+  const span = next.goalWeight - next.startWeight;
+  // A sliver of tolerance (5% of the new goal, 1 lb at most): shaving 0.1 lb
+  // off the start weight moves a paid rung a hair past the line, and that
+  // hair must not re-arm it. Small enough that a genuinely new goal starting
+  // where the last one ended still keeps its first rung.
+  const tol = Math.min(1, Math.abs(span) * 0.05);
+  return WEIGHT_CHECKPOINTS.map((c) => c.at).filter((at) => {
+    const threshold = next.startWeight + at * span;
+    return isGain ? threshold <= paidTo + tol : threshold >= paidTo - tol;
+  });
+}
