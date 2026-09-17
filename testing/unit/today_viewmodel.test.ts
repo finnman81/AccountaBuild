@@ -51,11 +51,13 @@ describe('today viewmodel · computeStreakDays', () => {
       log('a', workouts, TODAY),
       log('a', workouts, YDAY),
       log('a', workouts, D2),
-      log('b', workouts, YDAY), // b did not log today -> streak 0
+      log('b', workouts, YDAY), // b has not logged TODAY yet: the day isn't over, streak holds at 1
+      log('c', workouts, D2), // c skipped all of yesterday: that gap breaks it
     ];
     const streaks = computeStreakDays(logs, new Set<LogType>(['workout']), TODAY);
     expect(streaks.a).toBe(3);
-    expect(streaks.b).toBe(0);
+    expect(streaks.b).toBe(1);
+    expect(streaks.c).toBe(0);
   });
 
   it('respects the allowed-types filter', () => {

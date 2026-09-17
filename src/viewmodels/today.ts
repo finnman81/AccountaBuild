@@ -2,7 +2,7 @@ import type { GroupLog, LogType } from '../services/logs';
 import type { PublicUser } from '../services/publicUsers';
 import type { Tier } from '../mmr/types';
 import { formatMinutesHM, formatWeightForUnits, friendlyNameFromDisplayName, type Units } from '../utils/formatters';
-import { isHibernating, shieldedWeekIds } from '../services/hibernation';
+import { isHibernating, shieldedWeekIds } from '../mmr/shields';
 import { DEFAULT_TZ, isoWeekIdInTz, zonedNoonUtcFromYmd } from '../mmr/time';
 
 export type ChecklistType = 'calories' | 'workout' | 'weight';
@@ -490,4 +490,86 @@ export function buildLeaderboardPreview(params: {
     isTied: (i > 0 && ranks[i] === ranks[i - 1]) || (i < ranks.length - 1 && ranks[i] === ranks[i + 1]),
     ...r,
   }));
+}
+
+/** One dot in the streak celebration's week row. */
+export type StreakDayState = 'logged' | 'rest' | 'missed' | 'today' | 'ahead';
+
+/**
+ * Mon..Sun of the current week for the streak celebration.
+ *
+ *  logged  you logged in a tracked category
+ *  rest    no log, and the streak survived it: the weekly target was still
+ *          reachable that day, or the week is shielded. This is the state
+ *          other streak apps don't have, and the one people need to SEE:
+ *          a day off is part of the plan here, not a broken chain.
+ *  missed  no log and the target was out of reach
+ *  today   today, nothing logged yet
+ *  ahead   still to come
+ *
+ * Same reachability rule as computeGoalStreak, so the row can never disagree
+ * with the number above it.
+ */
+export function streakWeekStates(params: {
+  logs: GroupLog[];
+  uid: string;
+  today: string;
+  streakRule: 'workout' | 'any';
+  targets: { workout: number; calories: number; weight: number };
+  shieldedWeeks?: Set<string>;
+}): Array<{ date: string; label: string; state: StreakDayState }> {
+  const { uid, today, streakRule, targets } = params;
+  const shielded = params.shieldedWeeks ?? new Set<string>();
+  const by: Record<string, Set<string>> = { workout: new Set(), calories: new Set(), weight: new Set(), any: new Set() };
+  const anyTypes = streakRule === 'any' ? ['calories', 'workout', 'weight', 'photo'] : ['workout'];
+  for (const l of params.logs) {
+    if (l?.uid !== uid || !l?.date) continue;
+    if (by[l.type]) by[l.type]!.add(l.date);
+    if (anyTypes.includes(l.type)) by.any!.add(l.date);
+  }
+  const cats: Array<{ dates: Set<string>; target: number }> = [];
+  if (targets.workout > 0) cats.push({ dates: by.workout!, target: Math.round(targets.workout) });
+  if (streakRule === 'any') {
+    if (targets.calories > 0) cats.push({ dates: by.calories!, target: Math.round(targets.calories) });
+    if (targets.weight > 0) cats.push({ dates: by.weight!, target: Math.round(targets.weight) });
+  }
+  const counted = new Set<string>();
+  if (cats.length) for (const c of cats) for (const d of c.dates) counted.add(d);
+  else for (const d of by.any!) counted.add(d);
+
+  const t = new Date(`${today}T12:00:00`);
+  const mon = new Date(t);
+  mon.setDate(t.getDate() - ((t.getDay() + 6) % 7));
+  const monStr = fmtLocal(mon);
+  const isShielded = shielded.has(weekIdOfYmd(today));
+  const LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+  return LABELS.map((label, i) => {
+    const d = new Date(mon);
+    d.setDate(mon.getDate() + i);
+    const date = fmtLocal(d);
+    if (counted.has(date)) return { date, label, state: 'logged' as const };
+    if (date > today) return { date, label, state: 'ahead' as const };
+    if (date === today) return { date, label, state: 'today' as const };
+    if (isShielded) return { date, label, state: 'rest' as const };
+    if (!cats.length) return { date, label, state: 'missed' as const }; // legacy rule: every day counts
+    const left = 6 - i;
+    const onPace = (c: { dates: Set<string>; target: number }) => {
+      let done = 0;
+      for (const x of c.dates) if (x >= monStr && x <= date) done += 1;
+      return done + left >= c.target;
+    };
+    const ok = streakRule === 'any' ? cats.some(onPace) : cats.every(onPace);
+    return { date, label, state: ok ? ('rest' as const) : ('missed' as const) };
+  });
+}
+
+/** Streak lengths that get the big moment. */
+export const STREAK_MILESTONES = [7, 14, 30, 50, 100, 150, 200, 365] as const;
+
+/** The next milestone above `streak`, and how far the current leg has come (0..1). */
+export function nextStreakMilestone(streak: number): { next: number; prev: number; progress: number } {
+  const next = STREAK_MILESTONES.find((m) => m > streak) ?? Math.ceil((streak + 1) / 100) * 100;
+  const prev = [...STREAK_MILESTONES].reverse().find((m) => m <= streak) ?? 0;
+  return { next, prev, progress: Math.max(0, Math.min(1, (streak - prev) / (next - prev))) };
 }

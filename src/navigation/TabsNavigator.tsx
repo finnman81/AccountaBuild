@@ -29,6 +29,7 @@ import SettingsScreen from '../screens/SettingsScreen';
 import RankChangeWatcher from '../components/mmr/RankChangeWatcher';
 import FpGainOverlay from '../components/mmr/FpGainOverlay';
 import FirstLogCelebration from '../components/mmr/FirstLogCelebration';
+import StreakCelebration from '../components/mmr/StreakCelebration';
 import MmrLiveSettler from '../components/mmr/MmrLiveSettler';
 import StreakMirror from '../components/state/StreakMirror';
 import WhatsNewModal from '../components/today/WhatsNewModal';
@@ -217,6 +218,7 @@ export default function TabsNavigator() {
       <RankChangeWatcher />
       <FpGainOverlay />
       <FirstLogCelebration />
+      <StreakCelebration />
       <MmrLiveSettler />
       <StreakMirror />
       <WhatsNewModal />

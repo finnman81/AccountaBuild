@@ -1,7 +1,7 @@
 import { collection, doc, getDoc, getDocs, query, serverTimestamp, setDoc, where } from 'firebase/firestore';
 
 import { db } from '../firebase/firebase';
-import { computeGoalStreak } from '../viewmodels/today';
+import { computeGoalStreak, streakWeekStates } from '../viewmodels/today';
 import type { GroupLog } from './logs';
 import { DEFAULT_TZ, yyyyMmDdInTz } from '../mmr/time';
 import { shieldedWeekIds } from './hibernation';
@@ -26,35 +26,36 @@ import { shieldedWeekIds } from './hibernation';
  */
 const LOOKBACK_DAYS = 120;
 
+/** Everything the streak math needs, from one complete uid-scoped read. */
+async function loadMyStreakInputs(uid: string, groupId: string) {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - LOOKBACK_DAYS);
+  const minDate = yyyyMmDdInTz(cutoff, DEFAULT_TZ);
+
+  const [groupSnap, pubSnap, logsSnap] = await Promise.all([
+    getDoc(doc(db, 'groups', groupId)),
+    getDoc(doc(db, 'publicUsers', uid)),
+    getDocs(query(collection(db, 'groups', groupId, 'logs'), where('uid', '==', uid), where('date', '>=', minDate))),
+  ]);
+
+  const p = (pubSnap.data() as any) ?? {};
+  return {
+    logs: logsSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<GroupLog, 'id'>) })) as GroupLog[],
+    uid,
+    today: yyyyMmDdInTz(new Date(), DEFAULT_TZ),
+    streakRule: ((groupSnap.data() as any)?.streakRule ?? 'any') as 'workout' | 'any',
+    targets: {
+      workout: Number(p?.workoutsPerWeek ?? 0),
+      calories: Number(p?.logCaloriesDaysPerWeek ?? 0),
+      weight: Number(p?.logWeightDaysPerWeek ?? 0),
+    },
+    shieldedWeeks: shieldedWeekIds(p),
+  };
+}
+
 export async function computeAndMirrorMyStreak(uid: string, groupId: string): Promise<number | null> {
   try {
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - LOOKBACK_DAYS);
-    const minDate = yyyyMmDdInTz(cutoff, DEFAULT_TZ);
-
-    const [groupSnap, pubSnap, logsSnap] = await Promise.all([
-      getDoc(doc(db, 'groups', groupId)),
-      getDoc(doc(db, 'publicUsers', uid)),
-      getDocs(query(collection(db, 'groups', groupId, 'logs'), where('uid', '==', uid), where('date', '>=', minDate))),
-    ]);
-
-    const streakRule = ((groupSnap.data() as any)?.streakRule ?? 'any') as 'workout' | 'any';
-    const p = (pubSnap.data() as any) ?? {};
-    const logs = logsSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<GroupLog, 'id'>) })) as GroupLog[];
-
-    const streak = computeGoalStreak({
-      logs,
-      uid,
-      today: yyyyMmDdInTz(new Date(), DEFAULT_TZ),
-      streakRule,
-      targets: {
-        workout: Number(p?.workoutsPerWeek ?? 0),
-        calories: Number(p?.logCaloriesDaysPerWeek ?? 0),
-        weight: Number(p?.logWeightDaysPerWeek ?? 0),
-      },
-      shieldedWeeks: shieldedWeekIds(p),
-    });
-
+    const streak = computeGoalStreak(await loadMyStreakInputs(uid, groupId));
     await setDoc(
       doc(db, 'publicUsers', uid),
       { streakDaysPublic: streak, streakDaysUpdatedAtMs: Date.now(), updatedAt: serverTimestamp() },
@@ -63,6 +64,27 @@ export async function computeAndMirrorMyStreak(uid: string, groupId: string): Pr
     return streak;
   } catch {
     return null; // display-only mirror; the windowed value still renders
+  }
+}
+
+export type MyStreakMoment = {
+  streak: number;
+  loggedToday: boolean;
+  week: ReturnType<typeof streakWeekStates>;
+};
+
+/** Streak + this week's row for the daily celebration. Null on any failure. */
+export async function loadMyStreakMoment(uid: string, groupId: string): Promise<MyStreakMoment | null> {
+  try {
+    const inputs = await loadMyStreakInputs(uid, groupId);
+    const week = streakWeekStates(inputs);
+    return {
+      streak: computeGoalStreak(inputs),
+      loggedToday: week.some((d) => d.date === inputs.today && d.state === 'logged'),
+      week,
+    };
+  } catch {
+    return null;
   }
 }
 

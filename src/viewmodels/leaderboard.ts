@@ -3,7 +3,7 @@ import type { PublicUser } from '../services/publicUsers';
 import type { Tier } from '../mmr/types';
 import { memberStreakDays } from './today';
 import { friendlyNameFromDisplayName } from '../utils/formatters';
-import { isHibernating } from '../services/hibernation';
+import { isHibernating } from '../mmr/shields';
 
 export type Division = 1 | 2 | 3 | 4;
 
