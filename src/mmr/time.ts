@@ -32,8 +32,15 @@ export function isoWeekIdInTz(date: Date, timeZone: string = DEFAULT_TZ) {
   return isoWeekIdFromUtcNoon(noonUtc);
 }
 
+/**
+ * Seasons are quarters, but they start on a MONDAY: a week belongs to the
+ * quarter its Thursday falls in (the same rule ISO uses to give a week its
+ * year). Weeks are the scoring unit, so a season that flipped on a Thursday
+ * split a scored week in two. Q4 2026 starts Mon Sep 28; Q1 2027 Mon Jan 4.
+ * Mirror of functions/mmr-core.js.
+ */
 export function seasonIdFromDate(date: Date, timeZone: string = DEFAULT_TZ) {
-  const yyyyMmDd = yyyyMmDdInTz(date, timeZone);
+  const yyyyMmDd = isoWeekDatesInTz(isoWeekIdInTz(date, timeZone), timeZone)[3]!;
   const m = Number(yyyyMmDd.slice(5, 7));
   const y = yyyyMmDd.slice(0, 4);
   const q = m <= 3 ? 'Q1' : m <= 6 ? 'Q2' : m <= 9 ? 'Q3' : 'Q4';

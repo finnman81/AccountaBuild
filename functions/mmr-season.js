@@ -112,22 +112,35 @@ async function ensureSeasonRollover(db, uid, now = new Date()) {
       badgesEarned: [seasonRankBadgeId, seasonPeakBadgeId],
     }, { merge: true });
 
-    // Soft reset.
+    // Soft reset: YEARLY only (2026-09-17). Rank here measures accumulated
+    // consistency, not skill against others, so knocking it down every
+    // quarter punished exactly what the app rewards, and a new member's
+    // first drop landed at month three. Quarter changes still close the
+    // season (badges, results, fresh peak) but leave FP, streak and shields
+    // alone. The drop runs only when the YEAR changes (Q4 -> Q1).
+    const yearChanged = prevSeasonId.slice(0, 4) !== currentSeasonId.slice(0, 4);
     const srcTier = bandBefore.tier;
     const srcDiv = bandBefore.division ?? null;
     const targetBand = findBandForRank(resetTargetTierFromSpec(srcTier), resetTargetDivisionFromSpec(srcTier, srcDiv));
-    const mmrAfterReset = bandMidpointMMR(targetBand);
-    const bandAfterReset = core.bandForMMR(mmrAfterReset);
-    const mpAfterReset = core.mpForMMR(mmrAfterReset, bandAfterReset);
+    const mmrAfterReset = yearChanged ? bandMidpointMMR(targetBand) : mmrBefore;
+    // No drop: carry the HELD rank forward, not the raw band. A member under
+    // demotion protection holds a rank above their FP band, and re-deriving
+    // it here would demote them as a side effect of the calendar.
+    const bandAfterReset = yearChanged ? core.bandForMMR(mmrAfterReset) : { tier: finalTier, division: finalDivision };
+    const mpAfterReset = yearChanged ? core.mpForMMR(mmrAfterReset, bandAfterReset) : mpBefore;
 
     tx.set(userRef, {
-      mmr: mmrAfterReset,
-      rankTier: bandAfterReset.tier,
-      rankDivision: bandAfterReset.division ?? null,
-      mp: mpAfterReset,
-      streakWeeks: 0,
-      tierShieldWeeksRemaining: 0,
-      consecutiveMissedWeeks: 0,
+      ...(yearChanged
+        ? {
+            mmr: mmrAfterReset,
+            rankTier: bandAfterReset.tier,
+            rankDivision: bandAfterReset.division ?? null,
+            mp: mpAfterReset,
+            streakWeeks: 0,
+            tierShieldWeeksRemaining: 0,
+            consecutiveMissedWeeks: 0,
+          }
+        : {}),
       seasonPeak: { seasonId: currentSeasonId, tier: bandAfterReset.tier, division: bandAfterReset.division ?? null, mmr: mmrAfterReset },
       currentSeasonId,
       lastSeasonRolledFrom: prevSeasonId,
@@ -144,10 +157,14 @@ async function ensureSeasonRollover(db, uid, now = new Date()) {
     }, { merge: true });
 
     tx.set(publicRef, {
-      mmrPublic: mmrAfterReset,
-      rankTierPublic: bandAfterReset.tier,
-      rankDivisionPublic: bandAfterReset.division ?? null,
-      mpPublic: mpAfterReset,
+      ...(yearChanged
+        ? {
+            mmrPublic: mmrAfterReset,
+            rankTierPublic: bandAfterReset.tier,
+            rankDivisionPublic: bandAfterReset.division ?? null,
+            mpPublic: mpAfterReset,
+          }
+        : {}),
       seasonIdPublic: currentSeasonId,
       updatedAtPublic: FieldValue.serverTimestamp(),
     }, { merge: true });
