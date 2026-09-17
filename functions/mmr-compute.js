@@ -586,7 +586,10 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
     const penalty = isCurrentWeek || onVacation ? 0 : missedWeek ? core.missedWeekPenalty(mmrBefore) : partialWeek ? core.partialWeekPenalty(mmrBefore) : 0;
     const lowerTierBonus = core.lowerTierProgressBonus(oldBand.tier, completedWeek);
     const bonus = weightBonus + lowerTierBonus;
-    const deltaMMR = weekScore * S - penalty + bonus;
+    // Tier taper keys on the band the week STARTED in (anchored via
+    // mmrBefore), so a recompute can't change it mid-week.
+    const tierFactor = core.tierGainFactor(oldBand.tier, weekId);
+    const deltaMMR = weekScore * S * tierFactor - penalty + bonus;
     const newMMR = Math.max(0, Math.round(mmrBefore + deltaMMR));
 
     const ranked = core.applyRankWithDemotionRules({ oldBand, newMMR, tierShieldWeeksRemaining: shieldBefore });
@@ -728,6 +731,7 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
         breadthFactor: breadth,
         coreCategories,
         streakMultiplier: S,
+        tierFactor,
         penalty,
         bonus,
         weightBonus,

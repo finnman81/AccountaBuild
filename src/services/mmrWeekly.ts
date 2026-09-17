@@ -17,6 +17,8 @@ export type MmrWeeklySummary = {
   bonus: number;
   weekScore: number;
   streakMultiplier: number;
+  /** Share of the week's score that converted to FP at this rank (1 = all of it). */
+  tierFactor: number;
   mmrBefore: number;
   mmrAfter: number;
 
@@ -61,6 +63,7 @@ function mapWeeklyDoc(id: string, d: any): MmrWeeklySummary {
     bonus: typeof d?.bonus === 'number' ? Number(d.bonus) : 0,
     weekScore: typeof d?.weekScore === 'number' ? Number(d.weekScore) : 0,
     streakMultiplier: typeof d?.streakMultiplier === 'number' ? Number(d.streakMultiplier) : 1,
+    tierFactor: typeof d?.tierFactor === 'number' ? Number(d.tierFactor) : 1,
     mmrBefore: typeof d?.mmrBefore === 'number' ? Number(d.mmrBefore) : 0,
     mmrAfter: typeof d?.mmrAfter === 'number' ? Number(d.mmrAfter) : 0,
 

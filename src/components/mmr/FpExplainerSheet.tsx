@@ -37,7 +37,7 @@ const RULES: Array<{ title: string; body: string }> = [
   },
   {
     title: 'Rank follows the points',
-    body: 'Iron up to Challenger, four divisions each. Climb by earning, slip by missing. A shield protects you from dropping a whole tier straight after promotion.',
+    body: 'Iron up to Challenger, four divisions each. Climb by earning, slip by missing. A shield protects you from dropping a whole tier straight after promotion. The climb gets steeper at the top: from Platinum up, the same week earns fewer points.',
   },
 ];
 

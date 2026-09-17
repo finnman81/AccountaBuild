@@ -130,6 +130,20 @@ function checkpointsActiveForWeek(weekId) {
  * Stricter: across W32-W35, 7 of 32 member-weeks would flip from met to missed.
  * Gated so closed weeks keep the math they were scored under, forever.
  */
+// TIER TAPER (from W40, the first week of Q4 2026): the higher your rank, the
+// less of the week's score converts to FP. Without it a locked-in member
+// went Silver -> Challenger in about seven months and the ladder was over
+// (simulated on BPM's real W27-W37 history, 2026-09-17). Chosen over
+// stretching the bands: the top stays reachable in about a year of good
+// (not perfect) work. Penalties and bonuses are NOT tapered. Closed weeks
+// keep their old math. Mirrored in src/mmr/adherence.ts.
+const TIER_TAPER_FROM_WEEK = '2026-W40';
+const TIER_GAIN_FACTOR = { Platinum: 0.6, Diamond: 0.4, Master: 0.3, Challenger: 0.3 };
+function tierGainFactor(tier, weekId) {
+  if (!(typeof weekId === 'string' && weekId >= TIER_TAPER_FROM_WEEK)) return 1;
+  return TIER_GAIN_FACTOR[tier] ?? 1;
+}
+
 const WORKOUT_DAYS_FROM_WEEK = '2026-W37';
 function workoutDaysActiveForWeek(weekId) {
   return typeof weekId === 'string' && weekId >= WORKOUT_DAYS_FROM_WEEK;
@@ -443,6 +457,9 @@ module.exports = {
   WEIGHT_CHECKPOINTS,
   WEIGHT_CHECKPOINTS_FROM_WEEK,
   WORKOUT_DAYS_FROM_WEEK,
+  TIER_TAPER_FROM_WEEK,
+  TIER_GAIN_FACTOR,
+  tierGainFactor,
   workoutDaysActiveForWeek,
   checkpointsActiveForWeek,
   checkpointAward,

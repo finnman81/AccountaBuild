@@ -31,6 +31,18 @@ export function workoutDaysActiveForWeek(weekId: string | null | undefined): boo
   return typeof weekId === 'string' && weekId >= WORKOUT_DAYS_FROM_WEEK;
 }
 
+/**
+ * Tier taper: from W40 the higher your rank, the less of the week's score
+ * converts to FP. Mirrors TIER_TAPER_FROM_WEEK / TIER_GAIN_FACTOR in
+ * functions/mmr-core.js. Penalties and bonuses are not tapered.
+ */
+export const TIER_TAPER_FROM_WEEK = '2026-W40';
+const TIER_GAIN_FACTOR: Record<string, number> = { Platinum: 0.6, Diamond: 0.4, Master: 0.3, Challenger: 0.3 };
+export function tierGainFactor(tier: string | null | undefined, weekId: string | null | undefined): number {
+  if (!(typeof weekId === 'string' && weekId >= TIER_TAPER_FROM_WEEK)) return 1;
+  return TIER_GAIN_FACTOR[String(tier)] ?? 1;
+}
+
 export const CAL_BAND_FROM_WEEK = '2026-W30';
 
 export function calorieBandActiveForWeek(weekId: string | null | undefined): boolean {

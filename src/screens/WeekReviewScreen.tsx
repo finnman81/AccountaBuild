@@ -261,6 +261,12 @@ export default function WeekReviewScreen({ route, navigation }: Props) {
               <Text style={styles.mathValue}>×{summary.streakMultiplier.toFixed(2)}</Text>
             </View>
           ) : null}
+          {summary.tierFactor < 1 ? (
+            <View style={styles.mathRow}>
+              <Text style={styles.mathLabel}>Rank factor</Text>
+              <Text style={styles.mathValue}>×{summary.tierFactor.toFixed(2)}</Text>
+            </View>
+          ) : null}
           {summary.bonus > 0 ? (
             <View style={styles.mathRow}>
               <Text style={styles.mathLabel}>Bonus</Text>

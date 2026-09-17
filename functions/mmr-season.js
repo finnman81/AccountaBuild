@@ -7,9 +7,10 @@
  * server-side (2026-07-22), this runs in updateMmrScheduled for every user and
  * in the recomputeMyMmr callable, and the client no longer writes mmr at all.
  *
- * Soft-reset mapping (mmr.txt 9.3/9.4):
+ * Soft-reset mapping: ONE tier down, same division, YEARLY (2026-09-17; was
+ * up to two tiers every quarter per mmr.txt 9.3/9.4):
  *   Iron→Iron, Bronze→Bronze, Silver→Bronze, Gold→Silver,
- *   Platinum→Silver, Diamond→Gold, Master→Platinum, Challenger→Diamond
+ *   Platinum→Gold, Diamond→Platinum, Master→Diamond, Challenger→Master
  */
 const { FieldValue } = require('firebase-admin/firestore');
 const core = require('./mmr-core');
@@ -32,18 +33,18 @@ function resetTargetTierFromSpec(srcTier) {
     case 'Bronze': return 'Bronze';
     case 'Silver': return 'Bronze';
     case 'Gold': return 'Silver';
-    case 'Platinum': return 'Silver';
-    case 'Diamond': return 'Gold';
-    case 'Master': return 'Platinum';
-    case 'Challenger': return 'Diamond';
+    case 'Platinum': return 'Gold';
+    case 'Diamond': return 'Platinum';
+    case 'Master': return 'Diamond';
+    case 'Challenger': return 'Master';
     default: return srcTier;
   }
 }
 
 function resetTargetDivisionFromSpec(srcTier, srcDivision) {
   if (srcDivision) return srcDivision;
-  if (srcTier === 'Master') return 2; // Master → Platinum II (default)
-  if (srcTier === 'Challenger') return 1; // Challenger → Diamond I (default)
+  if (srcTier === 'Master') return 1; // Master → Diamond I
+  if (srcTier === 'Challenger') return 1; // Challenger → Master (undivided)
   return 1;
 }
 

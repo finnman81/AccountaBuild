@@ -6,7 +6,7 @@ import { D_calDays, D_minutes, D_workouts, D_weightGain, D_weightLoss, weightV2A
 import { applyRankWithDemotionRules, bandForMMR } from '../mmr/ranks';
 import { lowerTierProgressBonus } from '../mmr/progression';
 import { breadthFactor, combineWeekScore, coreCategoryCount, goalScore } from '../mmr/scoring';
-import { calorieBandActiveForWeek, calorieDaysHitFromTotals, workoutDaysActiveForWeek } from '../mmr/adherence';
+import { calorieBandActiveForWeek, calorieDaysHitFromTotals, tierGainFactor, workoutDaysActiveForWeek } from '../mmr/adherence';
 import { DEFAULT_TZ, isoWeekIdInTz, isoWeekRangeInTz, yyyyMmDdInTz } from '../mmr/time';
 import type { Tier } from '../mmr/types';
 
@@ -327,7 +327,8 @@ export function computeProjection(
   // score (+178 FP next to a 1/7-workouts card). Scaling the gain by
   // elapsedFrac keeps it honest — it grows day by day and converges to the
   // real close-out math as the week ends.
-  const deltaMMRProjected = (weekScore * S + lowerTierBonus) * elapsedFrac - penalty;
+  const tierFactor = tierGainFactor(oldBand.tier, params.weekId);
+  const deltaMMRProjected = (weekScore * S * tierFactor + lowerTierBonus) * elapsedFrac - penalty;
   const mmrProjected = Math.max(0, Math.round(params.mmrBefore + deltaMMRProjected));
   const ranked = applyRankWithDemotionRules({
     oldBand,
