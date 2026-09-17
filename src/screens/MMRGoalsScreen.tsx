@@ -1,5 +1,6 @@
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useRoute } from '@react-navigation/native';
+import { endDateForPace, impliedPace, isAggressivePace, paceOptions, paceReadout } from '../mmr/goalPace';
 import { carryCheckpoints } from '../mmr/difficulty';
 import { Alert, Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Switch, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -64,6 +65,19 @@ function CategoryHeader({ title, subtitle, value, onValueChange, disabled }: { t
 export default function MMRGoalsScreen() {
   const { user } = useContext(AuthContext);
   const insets = useSafeAreaInsets();
+  // Latest weigh-in, for "start fresh from today" (nobody should type it).
+  const [latestWeight, setLatestWeight] = useState<number | null>(null);
+  useEffect(() => {
+    if (!user?.uid || !db) return;
+    let alive = true;
+    getDoc(doc(db, 'users', user.uid))
+      .then((snap) => {
+        const w = Number((snap.data() as any)?.weightCurrent);
+        if (alive && Number.isFinite(w) && w > 0) setLatestWeight(Math.round(w * 10) / 10);
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [user?.uid]);
   const route = useRoute<any>();
   const focusWeight = route?.params?.focus === 'weight';
   const scrollRef = useRef<ScrollView>(null);
@@ -156,23 +170,24 @@ export default function MMRGoalsScreen() {
   const canEditWeight = Boolean(user?.uid) && !saving;
   const trackedCount = (workoutsEnabled ? 1 : 0) + (caloriesEnabled ? 1 : 0) + (weightEnabled ? 1 : 0);
 
-  // Quick target-date chips: relative offsets plus end of the current season (quarter).
-  const targetDateChips = useMemo(() => {
-    const inWeeks = (w: number) => {
-      const d = new Date();
-      d.setDate(d.getDate() + w * 7);
-      return formatYYYYMMDDLocal(d);
-    };
-    const now = new Date();
-    const quarter = Math.floor(now.getMonth() / 3);
-    const seasonEnd = formatYYYYMMDDLocal(new Date(now.getFullYear(), quarter * 3 + 3, 0));
-    return [
-      { label: '4 weeks', date: inWeeks(4) },
-      { label: '8 weeks', date: inWeeks(8) },
-      { label: '12 weeks', date: inWeeks(12) },
-      { label: 'Season end', date: seasonEnd },
-    ];
-  }, []);
+  // Pace chips: pick how fast, the end date follows (see mmr/goalPace.ts).
+  const isGainMode = weightMode === 'gain';
+  const wsNum = toNumberOrNull(weightStart);
+  const wgNum = toNumberOrNull(weightGoal);
+  const goalLbs = wsNum != null && wgNum != null ? Math.abs(wsNum - wgNum) : 0;
+  const paceStart = isValidYYYYMMDD(weightStartDate.trim()) ? weightStartDate.trim() : todayYYYYMMDD();
+  const targetDateChips = useMemo(
+    () =>
+      goalLbs > 0
+        ? paceOptions(wsNum ?? 0, isGainMode).map((o) => ({
+            label: `${o.label} · ${o.lbPerWeek} lb/wk`,
+            date: endDateForPace(paceStart, goalLbs, o.lbPerWeek),
+          }))
+        : [],
+    [goalLbs, wsNum, isGainMode, paceStart],
+  );
+  // What the chosen (or typed) date actually asks for, in plain words.
+  const pace = goalLbs > 0 ? impliedPace(paceStart, weightTargetEndDate.trim(), goalLbs) : null;
 
   const pickTargetDate = (date: string) => {
     setWeightTargetEndDate(date);
@@ -508,6 +523,22 @@ export default function MMRGoalsScreen() {
                       style={styles.segmented}
                     />
                   </View>
+                  {latestWeight != null ? (
+                    <TouchableOpacity
+                      onPress={() => {
+                        setWeightStart(String(latestWeight));
+                        setWeightStartDate(todayYYYYMMDD());
+                        setWeightTargetEndDate('');
+                      }}
+                      disabled={!canEditWeight}
+                      style={styles.rowBlock}
+                      accessibilityRole="button"
+                    >
+                      <AppText variant="rowSubtitle" style={{ color: colors.primary }}>
+                        Start fresh from today ({latestWeight} lb)
+                      </AppText>
+                    </TouchableOpacity>
+                  ) : null}
                   <EditRow label="Start weight" value={weightStart} onChangeText={setWeightStart} subline="Where your timeline starts" placeholder="190" suffix="lb" keyboardType="decimal-pad" editable={canEditWeight} />
                   <EditRow label="Goal weight" value={weightGoal} onChangeText={setWeightGoal} subline="Your target. Drives weight progress" placeholder="175" suffix="lb" keyboardType="decimal-pad" editable={canEditWeight} />
                   <EditRow label="Start date" value={weightStartDate} onChangeText={setWeightStartDate} subline="When your timeline began" placeholder="YYYY-MM-DD" editable={canEditWeight} />
@@ -532,6 +563,19 @@ export default function MMRGoalsScreen() {
                       })}
                     </View>
                     <TextField value={weightTargetEndDate} onChangeText={setWeightTargetEndDate} placeholder="YYYY-MM-DD" editable={canEditWeight} autoCapitalize="none" autoCorrect={false} containerStyle={styles.dateField} />
+                    {pace != null ? (
+                      <AppText
+                        variant="rowSubtitle"
+                        style={[styles.subline, { color: isAggressivePace(pace, isGainMode) ? colors.warning : colors.textMuted }]}
+                      >
+                        {paceReadout(goalLbs, pace, weightTargetEndDate.trim())}
+                        {isAggressivePace(pace, isGainMode) ? ' That is a hard pace to hold. Most goals this fast expire.' : ''}
+                      </AppText>
+                    ) : goalLbs > 0 ? null : (
+                      <AppText variant="rowSubtitle" color="muted" style={styles.subline}>
+                        Enter a start and goal weight to see suggested paces.
+                      </AppText>
+                    )}
                   </View>
                   <EditRow
                     label="Weigh-in days / week"

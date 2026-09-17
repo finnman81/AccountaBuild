@@ -19,6 +19,12 @@ import { onboardingCopy } from '../../constants/onboardingCopy';
 import { db } from '../../firebase/firebase';
 import { recommendTargets, suggestTargetDate, WORKOUTS_BY_INTENT, type GoalMode } from '../../utils/recommendedTargets';
 import { colors, spacing, radius } from '../../theme';
+import { endDateForPace, impliedPace, isAggressivePace } from '../../mmr/goalPace';
+
+const todayYmdLocal = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
 
 /** Calorie-logging cadence onboarding assumes; tunable later in Goals. */
 const CALORIE_DAYS_PER_WEEK = 5;
@@ -90,6 +96,8 @@ export default function OnboardingRecommendedScreen({ navigation }: Props) {
   const [weightOn, setWeightOn] = useState(true);
   const [weighDays, setWeighDays] = useState(3);
   const [targetDate, setTargetDate] = useState<string | null>(null);
+  const [goalLbs, setGoalLbs] = useState(0);
+  const [isGainGoal, setIsGainGoal] = useState(false);
   const [targetPace, setTargetPace] = useState<number | null>(null);
   const [personalized, setPersonalized] = useState(false);
   const [hadExisting, setHadExisting] = useState(false);
@@ -142,7 +150,13 @@ export default function OnboardingRecommendedScreen({ navigation }: Props) {
         // Suggest a realistic goal target date (existing value wins on re-onboard).
         const sug = suggestTargetDate({ weightLb: d?.weightCurrent, goalLb: d?.weightGoal, goalMode });
         const existingDate = typeof d?.weightTargetDate === 'string' ? d.weightTargetDate : null;
-        setTargetDate(existingDate ?? sug?.iso ?? null);
+        // Derived from pace and snapped to a Sunday (mmr/goalPace.ts), so the
+        // goal ends when a scored week does.
+        const lbs = Math.abs(Number(d?.weightCurrent) - Number(d?.weightGoal));
+        const snapped = sug && Number.isFinite(lbs) && lbs > 0 ? endDateForPace(todayYmdLocal(), lbs, sug.rateLbPerWeek) : sug?.iso ?? null;
+        setTargetDate(existingDate ?? snapped);
+        setGoalLbs(Number.isFinite(lbs) ? lbs : 0);
+        setIsGainGoal(Number(d?.weightGoal) > Number(d?.weightCurrent));
         setTargetPace(sug?.rateLbPerWeek ?? null);
       } catch (e) {
         console.error('[Onboarding] recommendation failed:', e);
@@ -327,9 +341,17 @@ export default function OnboardingRecommendedScreen({ navigation }: Props) {
                           </TouchableOpacity>
                           <View style={styles.dateCenter}>
                             <AppText variant="rowTitle" color="primary">{formatTargetDate(targetDate)}</AppText>
-                            {targetPace ? (
-                              <AppText variant="rowSubtitle" color="muted">~{targetPace} lb/week</AppText>
-                            ) : null}
+                            {(() => {
+                              // Live: nudging the date changes what it asks of you.
+                              const live = goalLbs > 0 ? impliedPace(todayYmdLocal(), targetDate, goalLbs) : targetPace;
+                              if (!live) return null;
+                              const hard = isAggressivePace(live, isGainGoal);
+                              return (
+                                <AppText variant="rowSubtitle" style={{ color: hard ? colors.warning : colors.textMuted }}>
+                                  ~{Math.round(live * 10) / 10} lb/week{hard ? ' · hard to hold' : ''}
+                                </AppText>
+                              );
+                            })()}
                           </View>
                           <TouchableOpacity
                             onPress={() => { setTargetDate(shiftISO(targetDate, 7)); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
