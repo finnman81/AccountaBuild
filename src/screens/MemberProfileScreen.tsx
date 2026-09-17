@@ -172,7 +172,14 @@ export default function MemberProfileScreen({ route, navigation }: Props) {
 
         <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>Consistency & compliance</AppText>
         <View style={styles.tiles}>
-          <StatTile label="Streak" value={kpis.streak} unit="d" style={styles.tile} />
+          <StatTile
+            label="Streak"
+            value={kpis.streak}
+            unit="d"
+            delta={Number(pub?.bestStreakDaysPublic) > kpis.streak ? `Best ${pub?.bestStreakDaysPublic}d` : undefined}
+            deltaColor={colors.textMuted}
+            style={styles.tile}
+          />
           <StatTile label="This week" value={kpis.weekCompliance} unit="% days" style={styles.tile} />
           <StatTile label="Active days" value={kpis.logDays28} unit="of 28" style={styles.tile} />
         </View>

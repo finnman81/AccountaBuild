@@ -573,3 +573,34 @@ export function nextStreakMilestone(streak: number): { next: number; prev: numbe
   const prev = [...STREAK_MILESTONES].reverse().find((m) => m <= streak) ?? 0;
   return { next, prev, progress: Math.max(0, Math.min(1, (streak - prev) / (next - prev))) };
 }
+
+/** Highest milestone at or below `streak` (0 when none). */
+export function highestMilestoneAtOrBelow(streak: number): number {
+  return [...STREAK_MILESTONES].reverse().find((m) => m <= streak) ?? 0;
+}
+
+/**
+ * Which milestone (if any) to celebrate now. `seen` is the highest one this
+ * streak has already celebrated. Uses >= rather than ==: a member whose logs
+ * arrive by health sync may not open the app on the exact day, and the 30
+ * they earned shouldn't vanish because they opened on day 31.
+ */
+export function milestoneToCelebrate(streak: number, seen: number): number | null {
+  const m = highestMilestoneAtOrBelow(streak);
+  return m > seen ? m : null;
+}
+
+const MILESTONE_COPY: Record<number, { title: string; line: string }> = {
+  7: { title: 'One week.', line: 'Most people quit before this.' },
+  14: { title: 'Two weeks.', line: 'The hard part is behind you. Keep the chain.' },
+  30: { title: '30 days.', line: 'This is a habit now.' },
+  50: { title: '50 days.', line: 'You stopped needing motivation a while ago.' },
+  100: { title: '100 days.', line: 'Almost nobody gets here.' },
+  150: { title: '150 days.', line: 'Five months of showing up.' },
+  200: { title: '200 days.', line: 'This is who you are now.' },
+  365: { title: 'One year.', line: 'Every week of it. Nobody left behind, least of all you.' },
+};
+
+export function streakMilestoneCopy(m: number): { title: string; line: string } {
+  return MILESTONE_COPY[m] ?? { title: `${m} days.`, line: 'Still going.' };
+}

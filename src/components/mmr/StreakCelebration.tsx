@@ -8,8 +8,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AuthContext } from '../../store/AuthContext';
 import { useActiveGroup } from '../../store/ActiveGroupContext';
 import { subscribeFirstLog, subscribeLogSaved } from '../../services/fpEvents';
-import { loadMyStreakMoment, type MyStreakMoment } from '../../services/streakMirror';
-import { nextStreakMilestone, type StreakDayState } from '../../viewmodels/today';
+import { announceStreakMilestone, loadMyStreakMoment, type MyStreakMoment } from '../../services/streakMirror';
+import {
+  highestMilestoneAtOrBelow,
+  milestoneToCelebrate,
+  nextStreakMilestone,
+  streakMilestoneCopy,
+  type StreakDayState,
+} from '../../viewmodels/today';
 import { DEFAULT_TZ, yyyyMmDdInTz } from '../../mmr/time';
 import { colors, radius, spacing } from '../../theme';
 import AppText from '../ui/AppText';
@@ -34,6 +40,22 @@ const CIRC = 2 * Math.PI * R;
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 const seenKey = (uid: string) => `streakCelebrated:${uid}`;
+// Highest milestone THIS streak has celebrated. Seeded silently the first time
+// (no retroactive parties for streaks that predate the feature); reset when a
+// streak ends so the next run earns its 7 again.
+const milestoneKey = (uid: string) => `streakMilestoneSeen:${uid}`;
+// Last streak we showed, to notice the day it ends.
+const lastKey = (uid: string) => `streakLast:${uid}`;
+/** A lost streak shorter than this isn't worth a screen. */
+const ENDED_MIN = 3;
+
+/**
+ * Three modes on one screen:
+ *  daily      calm: ring breathes, count ticks up from yesterday
+ *  milestone  7/14/30/50/100...: full ring, gold burst, the group is told
+ *  ended      the streak broke: no red, no guilt, best streak on record
+ */
+type Mode = { kind: 'daily' } | { kind: 'milestone'; m: number } | { kind: 'ended'; was: number };
 
 function lines(m: MyStreakMoment): { title: string; sub: string } {
   const n = m.streak;
@@ -65,6 +87,11 @@ export default function StreakCelebration() {
   const { activeGroupId } = useActiveGroup();
   const insets = useSafeAreaInsets();
   const [moment, setMoment] = useState<MyStreakMoment | null>(null);
+  const [mode, setMode] = useState<Mode>({ kind: 'daily' });
+  const [shown, setShown] = useState(0); // the number on screen (counts up)
+  const pulse = useRef(new Animated.Value(0)).current;
+  const burst = useRef(new Animated.Value(0)).current;
+  const queued = useRef<MyStreakMoment | null>(null); // a Day 1 waiting behind an "ended" screen
   const fade = useRef(new Animated.Value(0)).current;
   const pop = useRef(new Animated.Value(0.8)).current;
   const ring = useRef(new Animated.Value(0)).current;
@@ -77,10 +104,40 @@ export default function StreakCelebration() {
     busy.current = true;
     try {
       const today = yyyyMmDdInTz(new Date(), DEFAULT_TZ);
-      if ((await AsyncStorage.getItem(seenKey(uid)).catch(() => null)) === today) return;
+      const [seenDay, seenMsRaw, lastRaw] = await Promise.all([
+        AsyncStorage.getItem(seenKey(uid)).catch(() => null),
+        AsyncStorage.getItem(milestoneKey(uid)).catch(() => null),
+        AsyncStorage.getItem(lastKey(uid)).catch(() => null),
+      ]);
+      if (seenDay === today) return;
       const m = await loadMyStreakMoment(uid, activeGroupId);
-      if (!m || !m.loggedToday || m.streak < 1) return;
-      await AsyncStorage.setItem(seenKey(uid), today).catch(() => {});
+      if (!m) return;
+
+      // The streak ended since we last looked (today can't break it, so a
+      // count below the last one means a real gap).
+      const last = Number(lastRaw) || 0;
+      if (last >= ENDED_MIN && m.streak < last && m.streak <= 1) {
+        await Promise.all([
+          AsyncStorage.setItem(lastKey(uid), String(m.streak)).catch(() => {}),
+          AsyncStorage.setItem(milestoneKey(uid), '0').catch(() => {}),
+        ]);
+        queued.current = m.loggedToday && m.streak >= 1 ? m : null;
+        if (queued.current) await AsyncStorage.setItem(seenKey(uid), today).catch(() => {});
+        setMode({ kind: 'ended', was: last });
+        setMoment({ ...m, best: Math.max(m.best, last) });
+        return;
+      }
+
+      if (!m.loggedToday || m.streak < 1) return;
+      const seenMs = seenMsRaw == null ? highestMilestoneAtOrBelow(m.streak - 1) : Number(seenMsRaw) || 0;
+      const hit = milestoneToCelebrate(m.streak, seenMs);
+      await Promise.all([
+        AsyncStorage.setItem(seenKey(uid), today).catch(() => {}),
+        AsyncStorage.setItem(lastKey(uid), String(m.streak)).catch(() => {}),
+        AsyncStorage.setItem(milestoneKey(uid), String(hit ?? seenMs)).catch(() => {}),
+      ]);
+      if (hit) void announceStreakMilestone(hit);
+      setMode(hit ? { kind: 'milestone', m: hit } : { kind: 'daily' });
       setMoment(m);
     } finally {
       busy.current = false;
@@ -103,66 +160,131 @@ export default function StreakCelebration() {
 
   useEffect(() => {
     if (!moment) return;
-    fade.setValue(0); pop.setValue(0.8); ring.setValue(0);
-    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    fade.setValue(0); pop.setValue(0.8); ring.setValue(0); pulse.setValue(0); burst.setValue(0);
+    const big = mode.kind === 'milestone';
+    if (mode.kind !== 'ended') {
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      if (big) setTimeout(() => void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {}), 900);
+    }
+    // The count ticks up from yesterday's number: you watch today get added.
+    const target = mode.kind === 'ended' ? mode.was : moment.streak;
+    const from = mode.kind === 'ended' ? target : Math.max(0, target - (big ? Math.min(target, 12) : 1));
+    setShown(from);
+    const steps = target - from;
+    const timers: Array<ReturnType<typeof setTimeout>> = [];
+    for (let i = 1; i <= steps; i += 1) timers.push(setTimeout(() => setShown(from + i), 450 + (i * (big ? 700 : 350)) / steps));
+    // The ring breathes for as long as the screen is up (bigger on milestones).
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: 1400, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0, duration: 1400, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+      ]),
+    );
+    if (mode.kind !== 'ended') loop.start();
+    if (big) Animated.timing(burst, { toValue: 1, duration: 1100, delay: 700, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+    const cleanup = () => { loop.stop(); timers.forEach(clearTimeout); };
     Animated.parallel([
       Animated.timing(fade, { toValue: 1, duration: 240, useNativeDriver: true }),
       Animated.spring(pop, { toValue: 1, friction: 6, tension: 80, useNativeDriver: true }),
       Animated.timing(ring, { toValue: 1, duration: 900, delay: 200, easing: Easing.out(Easing.cubic), useNativeDriver: false }),
     ]).start();
-  }, [moment, fade, pop, ring]);
+    return cleanup;
+  }, [moment, mode, fade, pop, ring, pulse, burst]);
 
   if (!moment) return null;
 
-  const close = () => Animated.timing(fade, { toValue: 0, duration: 200, useNativeDriver: true }).start(() => setMoment(null));
+  const close = () =>
+    Animated.timing(fade, { toValue: 0, duration: 200, useNativeDriver: true }).start(() => {
+      const next = queued.current;
+      queued.current = null;
+      if (next) {
+        // The streak ended AND they logged today: Day 1 follows the goodbye.
+        setMode({ kind: 'daily' });
+        setMoment({ ...next });
+      } else setMoment(null);
+    });
+
+  const ended = mode.kind === 'ended';
+  const big = mode.kind === 'milestone';
   const { progress } = nextStreakMilestone(moment.streak);
-  const dash = ring.interpolate({ inputRange: [0, 1], outputRange: [CIRC, CIRC * (1 - Math.max(0.04, progress))] });
-  const copy = lines(moment);
-  const hasRest = moment.week.some((d) => d.state === 'rest');
+  const fill = ended ? 0 : big ? 1 : Math.max(0.04, progress);
+  const dash = ring.interpolate({ inputRange: [0, 1], outputRange: [CIRC, CIRC * (1 - fill)] });
+  const breathe = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, big ? 1.06 : 1.025] });
+  const glow = pulse.interpolate({ inputRange: [0, 1], outputRange: [big ? 0.55 : 0.25, 1] });
+  const copy =
+    mode.kind === 'ended'
+      ? { title: `Streak ended at ${mode.was}.`, sub: `Your best: ${Math.max(moment.best, mode.was)}. Day 1 starts with your next log.` }
+      : mode.kind === 'milestone'
+        ? { title: streakMilestoneCopy(mode.m).title, sub: streakMilestoneCopy(mode.m).line }
+        : lines(moment);
+  const hasRest = !ended && moment.week.some((d) => d.state === 'rest');
+  const ringColor = ended ? colors.textMuted : colors.ringStreakLeader;
 
   return (
     <Animated.View style={[styles.backdrop, { opacity: fade, paddingTop: insets.top, paddingBottom: insets.bottom + spacing.base }]}>
       <View style={styles.body}>
-        <Animated.View style={{ transform: [{ scale: pop }] }}>
-          <View style={styles.ringWrap}>
-            <Svg width={RING} height={RING}>
-              <Circle cx={RING / 2} cy={RING / 2} r={R} stroke={colors.surface2} strokeWidth={STROKE} fill="none" />
-              <AnimatedCircle
-                cx={RING / 2} cy={RING / 2} r={R}
-                stroke={colors.ringStreakLeader} strokeWidth={STROKE} strokeLinecap="round" fill="none"
-                strokeDasharray={`${CIRC} ${CIRC}`} strokeDashoffset={dash}
-                transform={`rotate(-90 ${RING / 2} ${RING / 2})`}
-              />
-            </Svg>
-            <View style={styles.ringCenter}>
-              <AppText variant="pageTitle" style={styles.count}>{moment.streak}</AppText>
-              <AppText variant="eyebrow" color="muted">DAY STREAK</AppText>
-            </View>
+        {big ? (
+          <View style={styles.burstLayer} pointerEvents="none">
+            {Array.from({ length: 14 }).map((_, i) => {
+              const angle = (i / 14) * Math.PI * 2;
+              const dist = 150 + (i % 3) * 28;
+              const tx = burst.interpolate({ inputRange: [0, 1], outputRange: [0, Math.cos(angle) * dist] });
+              const ty = burst.interpolate({ inputRange: [0, 1], outputRange: [0, Math.sin(angle) * dist] });
+              const op = burst.interpolate({ inputRange: [0, 0.15, 0.75, 1], outputRange: [0, 1, 0.9, 0] });
+              return <Animated.View key={i} style={[styles.spark, i % 2 ? styles.sparkSmall : null, { opacity: op, transform: [{ translateX: tx }, { translateY: ty }] }]} />;
+            })}
           </View>
+        ) : null}
+
+        <Animated.View style={{ transform: [{ scale: pop }] }}>
+          <Animated.View style={[styles.ringWrap, { transform: [{ scale: breathe }] }]}>
+            <Animated.View style={{ opacity: ended ? 1 : glow }}>
+              <Svg width={RING} height={RING}>
+                <Circle cx={RING / 2} cy={RING / 2} r={R} stroke={colors.surface2} strokeWidth={STROKE} fill="none" />
+                <AnimatedCircle
+                  cx={RING / 2} cy={RING / 2} r={R}
+                  stroke={ringColor} strokeWidth={STROKE} strokeLinecap="round" fill="none"
+                  strokeDasharray={`${CIRC} ${CIRC}`} strokeDashoffset={dash}
+                  transform={`rotate(-90 ${RING / 2} ${RING / 2})`}
+                />
+              </Svg>
+            </Animated.View>
+            <View style={styles.ringCenter}>
+              <AppText variant="pageTitle" style={[styles.count, big && styles.countBig, ended && { color: colors.textMuted }]}>{shown}</AppText>
+              <AppText variant="eyebrow" color="muted">{ended ? 'DAYS' : 'DAY STREAK'}</AppText>
+            </View>
+          </Animated.View>
         </Animated.View>
 
-        <AppText variant="pageTitle" color="primary" style={styles.title}>{copy.title}</AppText>
+        <AppText variant="pageTitle" color="primary" style={[styles.title, big && { color: colors.ringStreakLeader }]}>{copy.title}</AppText>
         <AppText variant="rowSubtitle" color="secondary" style={styles.sub}>{copy.sub}</AppText>
+        {mode.kind === 'milestone' ? (
+          <AppText variant="cardLabel" color="muted" style={{ marginTop: spacing.md }}>
+            {mode.m >= 30 ? 'Badge earned. Your group has been told.' : 'Your group has been told.'}
+          </AppText>
+        ) : null}
 
-        <View style={styles.weekCard}>
-          <View style={styles.weekRow}>
-            {moment.week.map((d) => (
-              <View key={d.date} style={styles.dayCol}>
-                <Dot state={d.state} />
-                <AppText variant="cardLabel" style={{ color: d.state === 'logged' ? colors.textPrimary : colors.textMuted, marginTop: 6 }}>
-                  {d.label}
-                </AppText>
-              </View>
-            ))}
+        {ended ? null : (
+          <View style={styles.weekCard}>
+            <View style={styles.weekRow}>
+              {moment.week.map((d) => (
+                <View key={d.date} style={styles.dayCol}>
+                  <Dot state={d.state} />
+                  <AppText variant="cardLabel" style={{ color: d.state === 'logged' ? colors.textPrimary : colors.textMuted, marginTop: 6 }}>
+                    {d.label}
+                  </AppText>
+                </View>
+              ))}
+            </View>
+            {hasRest ? (
+              <AppText variant="cardLabel" color="muted" style={styles.legend}>Hollow ring: rest day, streak safe.</AppText>
+            ) : null}
           </View>
-          {hasRest ? (
-            <AppText variant="cardLabel" color="muted" style={styles.legend}>Hollow ring: rest day, streak safe.</AppText>
-          ) : null}
-        </View>
+        )}
       </View>
 
       <TouchableOpacity onPress={close} activeOpacity={0.85} style={styles.button} accessibilityRole="button">
-        <AppText variant="rowTitle" style={{ color: '#FFFFFF' }}>Continue</AppText>
+        <AppText variant="rowTitle" style={{ color: '#FFFFFF' }}>{ended ? 'Start again' : 'Continue'}</AppText>
       </TouchableOpacity>
     </Animated.View>
   );
@@ -174,6 +296,10 @@ const styles = StyleSheet.create({
   ringWrap: { width: RING, height: RING, alignItems: 'center', justifyContent: 'center' },
   ringCenter: { position: 'absolute', alignItems: 'center' },
   count: { fontSize: 64, lineHeight: 70, fontWeight: '800', color: colors.textPrimary },
+  countBig: { fontSize: 76, lineHeight: 82, color: colors.ringStreakLeader },
+  burstLayer: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
+  spark: { position: 'absolute', width: 10, height: 10, borderRadius: 5, backgroundColor: colors.ringStreakLeader },
+  sparkSmall: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#F5D98A' },
   title: { marginTop: spacing.xl, textAlign: 'center' },
   sub: { marginTop: 6, textAlign: 'center', paddingHorizontal: spacing.base },
   weekCard: {

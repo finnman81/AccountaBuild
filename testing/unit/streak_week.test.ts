@@ -38,3 +38,31 @@ describe('nextStreakMilestone', () => {
     expect(nextStreakMilestone(400).next).toBe(500);
   });
 });
+
+import { highestMilestoneAtOrBelow, milestoneToCelebrate, streakMilestoneCopy } from '../../src/viewmodels/today';
+
+describe('streak milestones', () => {
+  it('celebrates a milestone once, on or after the day it lands', () => {
+    expect(milestoneToCelebrate(7, 0)).toBe(7);
+    expect(milestoneToCelebrate(7, 7)).toBeNull();
+    expect(milestoneToCelebrate(31, 14)).toBe(30); // synced user opened a day late
+    expect(milestoneToCelebrate(6, 0)).toBeNull();
+  });
+  it('an existing long streak is seeded, not celebrated retroactively', () => {
+    // first run at day 65: seed = highest at or below 64 = 50, so nothing fires until 100
+    const seed = highestMilestoneAtOrBelow(65 - 1);
+    expect(seed).toBe(50);
+    expect(milestoneToCelebrate(65, seed)).toBeNull();
+    expect(milestoneToCelebrate(100, seed)).toBe(100);
+  });
+  it('first run ON a milestone day still celebrates it', () => {
+    expect(milestoneToCelebrate(30, highestMilestoneAtOrBelow(29))).toBe(30);
+  });
+  it('has house-voice copy for every milestone, no em dashes', () => {
+    for (const m of [7, 14, 30, 50, 100, 150, 200, 365]) {
+      const c = streakMilestoneCopy(m);
+      expect(c.title.length).toBeGreaterThan(3);
+      expect(`${c.title}${c.line}`).not.toMatch(/—/);
+    }
+  });
+});

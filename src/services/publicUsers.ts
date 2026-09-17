@@ -38,6 +38,8 @@ export type PublicUser = {
   allowNudges?: boolean;
   /** Self-computed accurate goal streak (see services/streakMirror.ts). */
   streakDaysPublic?: number | null;
+  /** Longest daily streak on record (owner-mirrored alongside streakDaysPublic). */
+  bestStreakDaysPublic?: number | null;
   /** Plain ms number, NOT a Timestamp — must survive the hydration cache's JSON. */
   streakDaysUpdatedAtMs?: number | null;
   /** ISO week the user has declared as a vacation week (null when none). */
@@ -171,6 +173,7 @@ export function subscribePublicUsers(uids: string[], onChange: (map: Record<stri
           prevMmrPublic: typeof data?.prevMmrPublic === 'number' ? data.prevMmrPublic : null,
           allowNudges: data?.allowNudges === true,
           streakDaysPublic: typeof data?.streakDaysPublic === 'number' ? data.streakDaysPublic : null,
+          bestStreakDaysPublic: typeof data?.bestStreakDaysPublic === 'number' ? data.bestStreakDaysPublic : null,
           streakDaysUpdatedAtMs: typeof data?.streakDaysUpdatedAtMs === 'number' ? data.streakDaysUpdatedAtMs : null,
           // NOTE: this mapper is a whitelist — a field absent here never
           // reaches the UI no matter what the doc says. vacationWeekId was

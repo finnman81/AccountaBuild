@@ -20,6 +20,13 @@ const LOOKS: Record<string, BadgeLook> = {
   goalCrusher: { emoji: '🎯', tint: '#4ADE80', flavor: 'Finished a weight goal' },
   marathonWeek: { emoji: '🏃', tint: '#38BDF8', flavor: '600+ training minutes in one week' },
   comeback: { emoji: '🦅', tint: '#F472B6', flavor: 'Full week right after a missed one' },
+  // ---- daily-streak milestones (id = streakDays<N>), career badges ----
+  streakDays30: { emoji: '🔥', tint: GOLD, flavor: '30 days without breaking the chain' },
+  streakDays50: { emoji: '🔥', tint: GOLD, flavor: '50-day streak' },
+  streakDays100: { emoji: '💯', tint: GOLD, flavor: '100-day streak' },
+  streakDays150: { emoji: '🌋', tint: '#E86A4A', flavor: '150-day streak' },
+  streakDays200: { emoji: '☄️', tint: '#E86A4A', flavor: '200-day streak' },
+  streakDays365: { emoji: '🗓️', tint: '#C084FC', flavor: 'A full year' },
   // ---- tier badges (id = reached-<Tier>) ----
   'reached-Bronze': { emoji: '🥉', tint: '#CD7F32' },
   'reached-Silver': { emoji: '🥈', tint: '#B8C4D0' },

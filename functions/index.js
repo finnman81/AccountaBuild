@@ -35,6 +35,7 @@ const { publishCelebration } = require('./celebrations');
 
 exports.setHibernation = setHibernation;
 exports.vacation = require('./vacation').vacation;
+exports.streakMilestone = require('./streak-milestone').streakMilestone;
 const core = require('./mmr-core');
 const { sendExpoPushes, isExpoToken, prefEnabled, inQuietHours } = require('./push-helper');
 const { renderHype } = require('./hype-catalog');

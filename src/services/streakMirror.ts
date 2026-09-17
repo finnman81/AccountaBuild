@@ -1,10 +1,12 @@
 import { collection, doc, getDoc, getDocs, query, serverTimestamp, setDoc, where } from 'firebase/firestore';
 
-import { db } from '../firebase/firebase';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+
+import { db, firebaseApp } from '../firebase/firebase';
 import { computeGoalStreak, streakWeekStates } from '../viewmodels/today';
 import type { GroupLog } from './logs';
 import { DEFAULT_TZ, yyyyMmDdInTz } from '../mmr/time';
-import { shieldedWeekIds } from './hibernation';
+import { shieldedWeekIds } from '../mmr/shields';
 
 /**
  * Accurate self-streak, mirrored to publicUsers.
@@ -50,15 +52,20 @@ async function loadMyStreakInputs(uid: string, groupId: string) {
       weight: Number(p?.logWeightDaysPerWeek ?? 0),
     },
     shieldedWeeks: shieldedWeekIds(p),
+    // Seeded from the current mirror so the first write can't record a best of 0.
+    bestSoFar: Math.max(Number(p?.bestStreakDaysPublic) || 0, Number(p?.streakDaysPublic) || 0),
   };
 }
 
 export async function computeAndMirrorMyStreak(uid: string, groupId: string): Promise<number | null> {
   try {
-    const streak = computeGoalStreak(await loadMyStreakInputs(uid, groupId));
+    const inputs = await loadMyStreakInputs(uid, groupId);
+    const streak = computeGoalStreak(inputs);
+    // Best-ever rides along: a broken streak should still leave a record.
+    const best = Math.max(streak, inputs.bestSoFar);
     await setDoc(
       doc(db, 'publicUsers', uid),
-      { streakDaysPublic: streak, streakDaysUpdatedAtMs: Date.now(), updatedAt: serverTimestamp() },
+      { streakDaysPublic: streak, bestStreakDaysPublic: best, streakDaysUpdatedAtMs: Date.now(), updatedAt: serverTimestamp() },
       { merge: true },
     );
     return streak;
@@ -69,6 +76,8 @@ export async function computeAndMirrorMyStreak(uid: string, groupId: string): Pr
 
 export type MyStreakMoment = {
   streak: number;
+  /** Longest streak on record (includes the current one). */
+  best: number;
   loggedToday: boolean;
   week: ReturnType<typeof streakWeekStates>;
 };
@@ -78,8 +87,10 @@ export async function loadMyStreakMoment(uid: string, groupId: string): Promise<
   try {
     const inputs = await loadMyStreakInputs(uid, groupId);
     const week = streakWeekStates(inputs);
+    const streak = computeGoalStreak(inputs);
     return {
-      streak: computeGoalStreak(inputs),
+      streak,
+      best: Math.max(streak, inputs.bestSoFar),
       loggedToday: week.some((d) => d.date === inputs.today && d.state === 'logged'),
       week,
     };
@@ -91,3 +102,12 @@ export async function loadMyStreakMoment(uid: string, groupId: string): Promise<
 // NOTE: the read-side blend (bestStreak) lives in viewmodels/today.ts — this
 // module imports computeGoalStreak from there, so the dependency must stay
 // one-directional.
+
+/** Tell the server a milestone landed (chat line; 30+ also pop-up, push, badge). Fire and forget. */
+export async function announceStreakMilestone(milestone: number): Promise<void> {
+  try {
+    await httpsCallable(getFunctions(firebaseApp as any), 'streakMilestone')({ milestone });
+  } catch {
+    /* the moment on screen already happened; the group line is best-effort */
+  }
+}
