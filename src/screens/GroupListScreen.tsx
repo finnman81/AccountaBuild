@@ -157,7 +157,7 @@ export default function GroupListScreen({ navigation }: Props) {
           <View style={styles.inviteCard}>
             <AppText variant="rowTitle" color="primary" style={{ textAlign: 'center' }}>Accountability works better together</AppText>
             <AppText variant="rowSubtitle" color="muted" style={styles.inviteSub}>
-              Invite a friend with your join code. Groups with 4+ members keep streaks 2× longer.
+              Invite a friend with your join code. Streaks last longer when someone's watching.
             </AppText>
             <TouchableOpacity onPress={copyCode} activeOpacity={0.8} style={styles.codePill}>
               <AppText variant="rowTitle" color="primary" style={styles.codeText}>{inviteGroup.joinCode}</AppText>
