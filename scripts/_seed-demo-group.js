@@ -99,6 +99,10 @@ function datesBack(nDays) {
       mmr: core.STARTING_MMR, rankTier: 'Silver', rankDivision: 4, mp: 0,
       prevMmr: core.STARTING_MMR, prevRankTier: 'Silver', prevRankDivision: 4,
       dailyCalorieGoal: m.budget, goalMode: 'cut',
+      // Onboarding done at the CURRENT version (src/hooks/useOnboardingStatus.ts),
+      // or the reviewer lands in setup instead of the group.
+      onboarding: { completed: true, version: 2, completedAt: FieldValue.serverTimestamp() },
+      currentSeasonId: core.seasonIdFromDate(new Date(), core.DEFAULT_TZ),
       // No expoPushToken — this is the isolation guarantee for every trigger.
       createdAt: FieldValue.serverTimestamp(),
     }, { merge: true });
