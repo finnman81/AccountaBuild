@@ -3,7 +3,7 @@ import { Animated, Easing, ScrollView, StyleSheet, TouchableOpacity, View } from
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Icon, Text } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { initialWindowMetrics, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SHOWN_KEY_PREFIX } from '../components/mmr/WeekReviewLauncher';
 
@@ -92,6 +92,15 @@ function StatTile({ value, label }: { value: string; label: string }) {
 export default function WeekReviewScreen({ route, navigation }: Props) {
   const { user } = useContext(AuthContext);
   const { activeGroupId } = useActiveGroup();
+  // Explicit insets, not SafeAreaView: inside a fade-in fullScreenModal the
+  // view's first layout can report a 0 top inset on iOS, which slid the
+  // header up under the clock (prod 2026-09-21). The launch-time metrics are
+  // the floor, so the header clears the status bar from the first frame.
+  const insets = useSafeAreaInsets();
+  const safePad = {
+    paddingTop: Math.max(insets.top, initialWindowMetrics?.insets.top ?? 0),
+    paddingBottom: Math.max(insets.bottom, initialWindowMetrics?.insets.bottom ?? 0),
+  };
 
   const [weeks, setWeeks] = useState<MmrWeeklySummary[] | null>(null); // null = still loading
   const [team, setTeam] = useState<Array<{ uid: string; name: string; delta: number }>>([]);
@@ -175,7 +184,7 @@ export default function WeekReviewScreen({ route, navigation }: Props) {
       : 'Close one. A little more consistency turns this into a completed week.';
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+    <View style={[styles.container, safePad]}>
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
           <Text style={styles.eyebrow}>LAST WEEK IN REVIEW</Text>
@@ -336,7 +345,7 @@ export default function WeekReviewScreen({ route, navigation }: Props) {
           </TouchableOpacity>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
