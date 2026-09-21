@@ -66,3 +66,6 @@ logs/
 # Cross-project nightly digest (written by a scheduled task, not part of the app)
 brain.md
 firebase-debug.log
+
+# Local survey export (personal responses): keep out of git and EAS uploads
+Untitled form.csv
