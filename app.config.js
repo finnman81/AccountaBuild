@@ -34,8 +34,11 @@ module.exports = ({ config }) => {
         {
           android: {
             minSdkVersion: 26,
-            compileSdkVersion: 35,
-            targetSdkVersion: 35,
+            // Google Play rejects uploads below its yearly target floor ("Target
+            // SDK of artifact is too low", 2026-09-21 on versionCode 20). 36 is
+            // Expo SDK 54's own default; the old 35 pin dated from Jan 2026.
+            compileSdkVersion: 36,
+            targetSdkVersion: 36,
           },
         },
       ],
