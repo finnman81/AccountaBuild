@@ -22,8 +22,13 @@ import { DEFAULT_TZ, isoWeekIdInTz, isoWeekRangeInTz } from '../../src/mmr/time'
  * next log moves today's projection by ~0 even though it moves the week's
  * final score a lot. Marginals must be measured in the weekEnd frame.
  */
+// Pinned to a Friday. The base workout sits on the week's Monday and the
+// what-if adds one "today"; run on a real Monday those land on the same date,
+// and since W37 (workouts = days trained) a second same-day workout is
+// correctly worth 0, so the suite failed every Monday.
+jest.useFakeTimers({ now: new Date('2026-09-18T16:00:00Z') });
 const weekId = isoWeekIdInTz(new Date(), DEFAULT_TZ);
-const { start } = isoWeekRangeInTz(weekId, DEFAULT_TZ);
+const { start, dates } = isoWeekRangeInTz(weekId, DEFAULT_TZ);
 
 function baseParams(overrides: Partial<Parameters<typeof computeProjection>[0]> = {}) {
   return {
@@ -55,12 +60,9 @@ describe('projection what-if marginals (weekEnd frame)', () => {
   it('a workout beyond the met target is worth 0', () => {
     const p = computeProjection(
       baseParams({
-        workouts: [
-          { date: start, durationMinutes: 45 },
-          { date: start, durationMinutes: 45 },
-          { date: start, durationMinutes: 45 },
-          { date: start, durationMinutes: 45 },
-        ],
+        // Four DIFFERENT days (Mon-Thu): since W37 the goal counts days
+        // trained, so four sessions on one Monday would be one day.
+        workouts: dates.slice(0, 4).map((date) => ({ date, durationMinutes: 45 })),
       }),
     );
     expect(p.whatIf.workout).toBe(0);
