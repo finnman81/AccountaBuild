@@ -86,14 +86,18 @@ function datesBack(nDays) {
   // ---- group + membership (NO real users, ever) ----
   await db.doc(`groups/${GROUP_ID}`).set({
     name: 'Morning Grind', createdBy: uids.reviewer, memberCount: MEMBERS.length,
+    // joinCode on the group doc is what Group Info reads: without it the whole
+    // invite section (code, copy, share link) is hidden from the reviewer.
+    joinCode: JOIN_CODE,
     streakRule: 'any', createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
   }, { merge: true });
-  await db.doc(`joinCodes/${JOIN_CODE}`).set({ groupId: GROUP_ID, createdBy: uids.reviewer });
+  // name + joinCode so the invite link's confirm step can say "Morning Grind".
+  await db.doc(`joinCodes/${JOIN_CODE}`).set({ joinCode: JOIN_CODE, groupId: GROUP_ID, name: 'Morning Grind', description: null, createdBy: uids.reviewer });
 
   for (const m of MEMBERS) {
     const uid = uids[m.key];
     await db.doc(`groups/${GROUP_ID}/members/${uid}`).set({ uid, role: m.key === 'reviewer' ? 'admin' : 'member' });
-    await db.doc(`users/${uid}/groups/${GROUP_ID}`).set({ groupId: GROUP_ID, name: 'Morning Grind' });
+    await db.doc(`users/${uid}/groups/${GROUP_ID}`).set({ groupId: GROUP_ID, name: 'Morning Grind', joinCode: JOIN_CODE, role: m.key === 'reviewer' ? 'admin' : 'member' });
     await db.doc(`users/${uid}`).set({
       email: m.email, displayName: m.name, height: 68 + Math.round(rnd() * 6),
       mmr: core.STARTING_MMR, rankTier: 'Silver', rankDivision: 4, mp: 0,
