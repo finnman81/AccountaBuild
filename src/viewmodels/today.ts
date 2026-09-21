@@ -567,11 +567,19 @@ export function streakWeekStates(params: {
 /** Streak lengths that get the big moment. */
 export const STREAK_MILESTONES = [7, 14, 30, 50, 100, 150, 200, 365] as const;
 
-/** The next milestone above `streak`, and how far the current leg has come (0..1). */
+/**
+ * The next milestone above `streak`, and how full the ring is (0..1).
+ *
+ * Progress is streak / next, NOT the distance along the current leg. The
+ * screen says "28 to 100", so at day 72 the ring has to read 72% full; the
+ * leg version showed 44% (22 of the 50 days since the last milestone) and
+ * looked broken. It also means passing a milestone never empties the ring:
+ * day 101 reads 101/150, two thirds, and climbs from there.
+ */
 export function nextStreakMilestone(streak: number): { next: number; prev: number; progress: number } {
   const next = STREAK_MILESTONES.find((m) => m > streak) ?? Math.ceil((streak + 1) / 100) * 100;
   const prev = [...STREAK_MILESTONES].reverse().find((m) => m <= streak) ?? 0;
-  return { next, prev, progress: Math.max(0, Math.min(1, (streak - prev) / (next - prev))) };
+  return { next, prev, progress: Math.max(0, Math.min(1, streak / next)) };
 }
 
 /** Highest milestone at or below `streak` (0 when none). */

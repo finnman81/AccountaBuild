@@ -33,8 +33,9 @@ describe('streakWeekStates', () => {
 describe('nextStreakMilestone', () => {
   it('finds the next rung and the progress along the leg', () => {
     expect(nextStreakMilestone(1)).toEqual({ next: 7, prev: 0, progress: 1 / 7 });
-    expect(nextStreakMilestone(7)).toMatchObject({ next: 14, prev: 7, progress: 0 });
-    expect(nextStreakMilestone(65)).toMatchObject({ next: 100, prev: 50 });
+    expect(nextStreakMilestone(7)).toMatchObject({ next: 14, prev: 7, progress: 0.5 });
+    expect(nextStreakMilestone(72)).toMatchObject({ next: 100, prev: 50, progress: 0.72 }); // "28 to 100" reads 72% full
+    expect(nextStreakMilestone(101).progress).toBeCloseTo(101 / 150, 5); // passing 100 never empties the ring
     expect(nextStreakMilestone(400).next).toBe(500);
   });
 });
