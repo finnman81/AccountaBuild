@@ -2,6 +2,9 @@ import React, { useContext, useEffect, useRef, useState } from 'react';
 import { Alert, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, TouchableWithoutFeedback, View } from 'react-native';
 import { Text } from 'react-native-paper';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { doc, getDoc } from 'firebase/firestore';
+
+import { db } from '../../firebase/firebase';
 
 import { AuthContext } from '../../store/AuthContext';
 import { useActiveGroup } from '../../store/ActiveGroupContext';
@@ -257,6 +260,16 @@ export default function LogComposer({ initialType = 'weight', onClose, onSaved, 
         const seen = await AsyncStorage.getItem(key).catch(() => 'seen');
         if (seen) return;
         await AsyncStorage.setItem(key, new Date().toISOString()).catch(() => {});
+        // The flag lives on the DEVICE, so a new phone or a reinstall used to
+        // greet a 70-day member with "first log in the books" (and swallow
+        // that day's streak moment). The scorer stamps firstWeekId on the
+        // first week with any activity: if it's there, this isn't a first log.
+        try {
+          const snap = await getDoc(doc(db, 'users', user.uid));
+          if (snap.exists() && typeof (snap.data() as any)?.firstWeekId === 'string') return;
+        } catch {
+          return; // can't tell: stay quiet rather than congratulate a veteran
+        }
         notifyFirstLog();
       })();
       onSaved?.();
