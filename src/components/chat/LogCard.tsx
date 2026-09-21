@@ -12,7 +12,7 @@ const QUICK_EMOJIS = ['💪', '🔥'];
 
 const TYPE_ICON: Record<string, string> = { workout: 'dumbbell', calories: 'fire', weight: 'scale-bathroom', photo: 'image-outline' };
 
-function titleFor(log: GroupLog, units: Units): string {
+function titleFor(log: GroupLog, units: Units, myUid: string): string {
   const p = log.payload as any;
   if (log.type === 'workout') {
     const t = String(p?.workoutType ?? 'Workout');
@@ -23,9 +23,12 @@ function titleFor(log: GroupLog, units: Units): string {
     const kcal = Number(p?.calories) || 0;
     return `${kcal.toLocaleString()} kcal${p?.meal && p.meal !== 'all' ? ` · ${p.meal}` : ''}`;
   }
-  // Weight is always displayed in the VIEWER's own unit preference, not the
-  // logger's — a metric-preferring viewer sees teammates' weights in kg too.
-  if (log.type === 'weight') return formatWeightForUnits(Number(p?.weight), units);
+  // Weigh-ins are PRIVATE: teammates see that you weighed in, never the
+  // number (the store listing and the Legal screen both promise this). Your
+  // own card still shows yours, in your unit preference.
+  if (log.type === 'weight') {
+    return log.uid === myUid ? formatWeightForUnits(Number(p?.weight), units) : 'Weigh-in logged';
+  }
   return 'Progress photo';
 }
 
@@ -56,7 +59,7 @@ export default function LogCard({ log, name, myUid, onToggleReaction }: Props) {
         {/* flexShrink (NOT flex:1): inside an alignSelf:flex-start card, flex:1
             collapses to min-content width and letter-wraps the text. */}
         <View style={{ flexShrink: 1 }}>
-          <AppText variant="rowTitle" color="primary">{titleFor(log, units)}</AppText>
+          <AppText variant="rowTitle" color="primary">{titleFor(log, units, myUid)}</AppText>
           <AppText variant="rowSubtitle" color="muted">{name} logged a {log.type === 'photo' ? 'photo' : log.type}</AppText>
         </View>
       </View>
