@@ -15,6 +15,9 @@ type Props = {
  * (design 03). Real OAuth is not wired yet — the parent decides what the
  * handlers do (currently a "coming soon" prompt).
  */
+/** Off until Apple + Google sign-in actually work (see Login/Register screens). */
+export const SOCIAL_AUTH_ENABLED = false;
+
 export default function SocialAuthButtons({ onApple, onGoogle }: Props) {
   return (
     <View style={styles.container}>

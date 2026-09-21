@@ -10,7 +10,7 @@ import GlowBackground from '../components/ui/GlowBackground';
 import AppText from '../components/ui/AppText';
 import TextField from '../components/ui/TextField';
 import PrimaryButton from '../components/ui/PrimaryButton';
-import SocialAuthButtons from '../components/auth/SocialAuthButtons';
+import SocialAuthButtons, { SOCIAL_AUTH_ENABLED } from '../components/auth/SocialAuthButtons';
 import AuthHeader from '../components/auth/AuthHeader';
 import { colors, spacing } from '../theme';
 
@@ -63,16 +63,20 @@ export default function LoginScreen({ navigation }: Props) {
           <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             <AuthHeader title="Welcome back" subline="Log in to pick up where your group left off." />
 
-            <SocialAuthButtons
-              onApple={() => Alert.alert('Coming soon', 'Apple sign-in is on the way. Use email for now.')}
-              onGoogle={() => Alert.alert('Coming soon', 'Google sign-in is on the way. Use email for now.')}
-            />
-
-            <View style={styles.divider}>
-              <View style={styles.hairline} />
-              <AppText variant="label" color="muted" style={styles.dividerLabel}>or with email</AppText>
-              <View style={styles.hairline} />
-            </View>
+            {/* Apple/Google sign-in: hidden until they're real. Placeholder buttons
+                that only say "Coming soon" get apps rejected (guideline 2.1), and a
+                reviewer lands on this screen first. Flip SOCIAL_AUTH_ENABLED to bring
+                them back; Sign in with Apple must ship with Google (guideline 4.8). */}
+            {SOCIAL_AUTH_ENABLED ? (
+              <>
+                <SocialAuthButtons onApple={() => {}} onGoogle={() => {}} />
+                <View style={styles.divider}>
+                  <View style={styles.hairline} />
+                  <AppText variant="label" color="muted">or with email</AppText>
+                  <View style={styles.hairline} />
+                </View>
+              </>
+            ) : null}
 
             <View style={styles.form}>
               <TextField
