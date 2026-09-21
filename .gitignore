@@ -69,3 +69,8 @@ firebase-debug.log
 
 # Local survey export (personal responses): keep out of git and EAS uploads
 Untitled form.csv
+
+# App Store screenshot exports: keep out of git and EAS uploads
+store-screenshots/
+/*-1320x2868.png
+/*-1284x2778.png
