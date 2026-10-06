@@ -259,6 +259,12 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
     goals = merged;
   }
 
+  // Comeback bonus (functions/check-in.js): create-only docs keyed by
+  // season, so reading them outside the transaction is safe.
+  const comebackSnap = await db.collection('users').doc(uid).collection('comebacks')
+    .where('weekId', '==', weekId).get().catch(() => null);
+  const comebackFound = (comebackSnap?.docs ?? []).reduce((sum, d) => sum + (Number(d.get('fp')) || 0), 0);
+
   const groupIds = await getGroupIds(db, uid);
   const weights = await getWeights(db, uid);
   const { workoutsDone, workoutDaysDone, minutesDone, calorieTotalsByDate } = await getWeekTotals(db, uid, groupIds, start, end);
@@ -585,7 +591,10 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
 
     const penalty = isCurrentWeek || onVacation ? 0 : missedWeek ? core.missedWeekPenalty(mmrBefore) : partialWeek ? core.partialWeekPenalty(mmrBefore) : 0;
     const lowerTierBonus = core.lowerTierProgressBonus(oldBand.tier, completedWeek);
-    const bonus = weightBonus + lowerTierBonus;
+    // Anchored like weightBonus: once paid, a recompute can't take it back.
+    const priorComeback = typeof weeklyData?.comebackBonus === 'number' ? Number(weeklyData.comebackBonus) : 0;
+    const comebackBonus = Math.max(priorComeback, comebackFound);
+    const bonus = weightBonus + lowerTierBonus + comebackBonus;
     // Tier taper keys on the band the week STARTED in (anchored via
     // mmrBefore), so a recompute can't change it mid-week.
     const tierFactor = core.tierGainFactor(oldBand.tier, weekId);
@@ -736,6 +745,7 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
         bonus,
         weightBonus,
         lowerTierBonus,
+        comebackBonus,
         deltaMMR,
         mmrBefore: Math.max(0, mmrBefore),
         mmrAfter: newMMR,

@@ -1,8 +1,10 @@
 import React, { useContext, useEffect, useState } from 'react';
-import { StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Linking, Platform, StyleSheet, TouchableOpacity, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Modal, Portal } from 'react-native-paper';
 import { arrayUnion, collection, doc, getDoc, getDocs, serverTimestamp, setDoc } from 'firebase/firestore';
+import { getApp } from 'firebase/app';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 
 import * as Haptics from 'expo-haptics';
 
@@ -53,6 +55,16 @@ type Announcement = {
    */
   poll?: Poll;
   lines: string[];
+  /**
+   * Check-in (functions/check-in.js): a teammate went quiet. Shows Text and
+   * Nudge buttons instead of hype. Server docs carry `body`, not `lines`, so
+   * older bundles skip them; isValid maps body -> lines here.
+   */
+  checkIn?: { uid: string; name: string };
+  /** Never shown to these uids (the quiet member themselves). */
+  hideFrom?: string[];
+  /** Group the doc came from (set on load, used by check-in actions). */
+  groupId?: string;
   /** ISO timestamp — stays hidden until this moment (scheduled reveal). */
   activeFrom?: string;
 };
@@ -60,6 +72,15 @@ type Announcement = {
 function isValid(a: any): a is Announcement {
   return !!a && typeof a.id === 'string' && typeof a.title === 'string' && Array.isArray(a.lines);
 }
+
+/** Check-in docs carry `body`; normalize to the common shape. */
+function normalize(a: any, groupId: string): any {
+  if (a && a.kind === 'checkIn' && Array.isArray(a.body) && a.checkIn?.uid) return { ...a, lines: a.body, groupId };
+  return a;
+}
+
+const CHECK_IN_TEXT =
+  "Hey, haven't seen you on AccountaBuild in a bit. Everything good? Let's get a workout in this week.";
 
 export default function WhatsNewModal() {
   const { user } = useContext(AuthContext);
@@ -97,8 +118,11 @@ export default function WhatsNewModal() {
         // legacy field normally duplicates the newest queue entry.
         const fromQueue: Announcement[] = Array.isArray(data?.announcements) ? data.announcements.filter(isValid) : [];
         const legacyOne: Announcement[] = isValid(data?.announcement) ? [data.announcement] : [];
-        const fromGroups: Announcement[] = groupSnaps.flatMap((g) =>
-          (g?.docs ?? []).map((d) => d.data() as any).filter(isValid),
+        const fromGroups: Announcement[] = groupSnaps.flatMap((g, i) =>
+          (g?.docs ?? [])
+            .map((d) => normalize(d.data(), groupIds[i]!))
+            .filter(isValid)
+            .filter((a: Announcement) => !(a.hideFrom ?? []).includes(uid)),
         );
 
         const byId = new Map<string, Announcement>();
@@ -158,6 +182,40 @@ export default function WhatsNewModal() {
       await answerPoll({ pollId: poll.id, uid: user.uid, optionId, displayName: user.displayName ?? null });
     } catch {
       /* offline: the local pick still reads as answered; not worth a retry UI */
+    }
+  };
+
+  const checkIn = ann.checkIn && ann.checkIn.uid !== user.uid ? ann.checkIn : null;
+
+  const recordReachOut = () => {
+    if (!checkIn || !ann.groupId) return;
+    void httpsCallable(getFunctions(getApp()), 'checkInReachOut')({ groupId: ann.groupId, uid: checkIn.uid }).catch(() => {});
+  };
+
+  const textThem = async () => {
+    if (!checkIn) return;
+    recordReachOut();
+    const body = encodeURIComponent(CHECK_IN_TEXT);
+    // No phone numbers in the app: open the composer and they pick the contact.
+    const url = Platform.OS === 'ios' ? `sms:&body=${body}` : `sms:?body=${body}`;
+    setSentEmoji('💬');
+    await Linking.openURL(url).catch(() => {});
+  };
+
+  const nudgeThem = async () => {
+    if (!checkIn || !user?.uid) return;
+    recordReachOut();
+    setSentEmoji('👋');
+    try {
+      await enqueueSocialPush({
+        toUid: checkIn.uid,
+        fromUid: user.uid,
+        fromName: friendlyNameFromDisplayName(user.displayName ?? null, user.uid),
+        type: 'nudge',
+      });
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    } catch {
+      /* non-fatal */
     }
   };
 
@@ -272,11 +330,35 @@ export default function WhatsNewModal() {
             </View>
           </>
         ) : null}
-        <TouchableOpacity style={styles.cta} onPress={dismiss} activeOpacity={0.85}>
-          <AppText variant="rowTitle" style={{ color: '#FFFFFF' }}>
-            {sentEmoji || pickedOption ? 'Done' : poll ? 'Skip' : 'Got it'}
-          </AppText>
-        </TouchableOpacity>
+        {checkIn ? (
+          <View style={{ marginTop: spacing.lg, gap: spacing.sm }}>
+            <TouchableOpacity style={[styles.cta, { marginTop: 0 }]} onPress={() => void textThem()} activeOpacity={0.85} accessibilityRole="button">
+              <AppText variant="rowTitle" style={{ color: '#FFFFFF' }}>💬  Text {checkIn.name}</AppText>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.secondary, sentEmoji === '👋' && styles.hypeBtnSent]}
+              onPress={() => void nudgeThem()}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+            >
+              <AppText variant="rowTitle" color={sentEmoji === '👋' ? 'accent' : 'primary'}>
+                {sentEmoji === '👋' ? `Nudge sent to ${checkIn.name}` : '👋  Send a nudge in the app'}
+              </AppText>
+            </TouchableOpacity>
+            <AppText variant="label" color="muted" style={{ textAlign: 'center', marginTop: spacing.xs }}>
+              If they log 3 days this week, they get +30 FP. Anyone who reached out earns a badge.
+            </AppText>
+            <TouchableOpacity style={styles.later} onPress={dismiss} activeOpacity={0.85}>
+              <AppText variant="rowTitle" color="muted">{sentEmoji ? 'Done' : 'Later'}</AppText>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity style={styles.cta} onPress={dismiss} activeOpacity={0.85}>
+            <AppText variant="rowTitle" style={{ color: '#FFFFFF' }}>
+              {sentEmoji || pickedOption ? 'Done' : poll ? 'Skip' : 'Got it'}
+            </AppText>
+          </TouchableOpacity>
+        )}
       </Modal>
     </Portal>
   );
@@ -316,6 +398,15 @@ const styles = StyleSheet.create({
   },
   hypeBtnSent: { borderColor: colors.primary, backgroundColor: colors.primaryTint },
   hypeEmoji: { fontSize: 26, lineHeight: 32 },
+  secondary: {
+    backgroundColor: colors.surface2,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.divider,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  later: { paddingVertical: 8, alignItems: 'center' },
   cta: {
     marginTop: spacing.lg,
     backgroundColor: colors.primary,

@@ -962,3 +962,47 @@ exports.syncVisibility = onDocumentWritten('groups/{groupId}/members/{memberId}'
   await batch.commit();
   console.log(`[visibility] ${uid} left ${groupId}: revoked ${revoked} of ${others.length} pairs`);
 });
+
+// ---------------------------------------------------------------------------
+// Check-ins: quiet member -> teammates reach out -> comeback reward
+// ---------------------------------------------------------------------------
+const checkIn = require('./check-in');
+
+// Noon ET: people read texts at lunch, and it never collides with the 18:00
+// streak push.
+exports.checkInScheduled = onSchedule(
+  { schedule: '0 12 * * *', timeZone: TZ, timeoutSeconds: 540, memory: '256MiB' },
+  async () => {
+    const r = await checkIn.findQuietMembers(db, new Date());
+    console.log(`[checkIn] flagged ${r.report.length}, pushes ${r.sent}`, JSON.stringify(r.report));
+  },
+);
+
+exports.checkInOnLog = onDocumentCreated('groups/{groupId}/logs/{logId}', async (event) => {
+  const log = event.data?.data() || {};
+  const uid = String(log.uid || '');
+  if (!uid) return;
+  const now = new Date();
+  try {
+    await checkIn.trackComeback(db, {
+      gid: event.params.groupId,
+      uid,
+      date: String(log.date || ''),
+      now,
+      computeWeek: (u) => computeUserWeek(db, { uid: u, weekId: core.isoWeekIdInTz(now, TZ), apply: true, now }),
+    });
+  } catch (e) {
+    console.error('[checkInOnLog] failed', e);
+  }
+});
+
+exports.checkInReachOut = onCall(async (request) => {
+  const by = request.auth?.uid;
+  if (!by) throw new HttpsError('unauthenticated', 'Sign in first.');
+  const ok = await checkIn.recordReachOut(db, {
+    gid: String(request.data?.groupId || ''),
+    uid: String(request.data?.uid || ''),
+    by,
+  });
+  return { ok };
+});
