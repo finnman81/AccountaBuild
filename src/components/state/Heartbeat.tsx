@@ -6,6 +6,7 @@ import Constants from 'expo-constants';
 
 import { AuthContext } from '../../store/AuthContext';
 import { authPersistenceMode, db } from '../../firebase/firebase';
+import { noteAlive } from '../../services/sessionDiag';
 import { setErrorReporterUser, flushPendingErrors } from '../../services/errorReporter';
 import { isSentryActive } from '../../services/sentry';
 
@@ -28,6 +29,7 @@ export default function Heartbeat() {
     const uid = user.uid;
 
     const beat = async () => {
+      noteAlive();
       try {
         let updateId: string | null = null;
         try {

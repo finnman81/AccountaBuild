@@ -8,6 +8,7 @@ import { onAuthStateChanged, type User } from 'firebase/auth';
 import { auth, db } from '../../firebase/firebase';
 import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { getHealthSettings } from '../healthSettings';
+import { noteBackgroundWake } from '../sessionDiag';
 
 /**
  * Periodic background health sync. Registers an OS-scheduled task that syncs
@@ -58,6 +59,7 @@ function recordWake(uid: string, trigger: 'bgtask' | 'hk-observer', synced: bool
 /** Shared headless sync: resolve auth/group/settings itself, then sync. */
 async function runHeadlessSync(trigger: 'bgtask' | 'hk-observer'): Promise<boolean> {
   const user = await waitForAuthedUser();
+  noteBackgroundWake(!!user);
   if (!user) return false;
   const groupId = await AsyncStorage.getItem(`activeGroupId:${user.uid}`);
   if (!groupId) { recordWake(user.uid, trigger, false); return false; }

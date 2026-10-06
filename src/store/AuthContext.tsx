@@ -14,6 +14,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { auth, db, firebaseInitError, isFirebaseConfigured } from '../firebase/firebase';
 import { syncMyMemberProfileToAllGroups } from '../services/profile';
 import { STARTING_MMR, STARTING_TIER, STARTING_DIVISION } from '../mmr/constants';
+import { captureBootState, flushSessionLoss, noteAuthState, noteExplicitLogout } from '../services/sessionDiag';
+
+void captureBootState();
 
 // Debug: Check AsyncStorage for Firebase auth data
 async function debugAsyncStorage() {
@@ -77,7 +80,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Debug: Check AsyncStorage on mount
     void debugAsyncStorage();
     
+    let firstState = true;
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firstState || firebaseUser) void noteAuthState(firebaseUser?.uid ?? null);
+      firstState = false;
+      if (firebaseUser) void flushSessionLoss(firebaseUser.uid);
       console.log('[Auth Debug] 🔔 Auth state changed:', {
         hasUser: !!firebaseUser,
         uid: firebaseUser?.uid,
@@ -187,6 +194,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           throw new Error('Firebase is not initialized.');
         }
         console.log('[Auth Debug] 🚪 Logging out user');
+        noteExplicitLogout();
         await signOut(auth);
         console.log('[Auth Debug] ✅ Logout complete');
       },
