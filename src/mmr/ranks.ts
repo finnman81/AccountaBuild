@@ -57,15 +57,18 @@ export function mpForMMR(mmr: number, band: Band): number {
 export const DIV_DEMOTE_BUFFER = 40;
 export const TIER_DEMOTE_BUFFER = 120;
 
-function bandIndex(b: Band) {
-  return BANDS.findIndex((x) => x.tier === b.tier && x.division === b.division && x.min === b.min && x.max === b.max);
+// Tier + division identify a band. Matching min/max too made any {tier,
+// division} literal (e.g. a projected rank) return -1, so the trajectory card
+// read "Slipping to Diamond IV" for a promotion out of Platinum I.
+function bandIndex(b: Pick<Band, 'tier' | 'division'>) {
+  return BANDS.findIndex((x) => x.tier === b.tier && (x.division ?? null) === (b.division ?? null));
 }
 
 function isHigherOrEqual(a: Band, b: Band) {
   return bandIndex(a) >= bandIndex(b);
 }
 
-export function bandOrderIndex(b: Band) {
+export function bandOrderIndex(b: Pick<Band, 'tier' | 'division'>) {
   return bandIndex(b);
 }
 
