@@ -37,6 +37,7 @@ const WORKOUT_LABELS: Record<string, string> = {
   bike: 'Cycling',
   swim: 'Swimming',
   hiit: 'HIIT',
+  boxing: 'Boxing',
   rowing: 'Rowing',
   yoga: 'Yoga',
   elliptical: 'Elliptical',

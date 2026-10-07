@@ -32,6 +32,7 @@ export type WorkoutType =
   | 'rowing'
   | 'elliptical'
   | 'hiit'
+  | 'boxing'
   | 'yoga'
   | 'stretching'
   | 'meditation'

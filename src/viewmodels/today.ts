@@ -72,6 +72,7 @@ const WORKOUT_LABELS: Record<string, string> = {
   rowing: 'Row',
   elliptical: 'Elliptical',
   hiit: 'HIIT',
+  boxing: 'Boxing',
   yoga: 'Yoga',
   stretching: 'Stretch',
   meditation: 'Meditation',

@@ -68,8 +68,8 @@ const HK_TO_WORKOUT: Record<number, WorkoutType> = {
   [HK.HighIntensityIntervalTraining]: 'hiit',
   [HK.JumpRope]: 'hiit',
   [HK.MixedCardio]: 'hiit',
-  [HK.Kickboxing]: 'hiit',
-  [HK.Boxing]: 'hiit',
+  [HK.Kickboxing]: 'boxing',
+  [HK.Boxing]: 'boxing',
   [HK.MartialArts]: 'hiit',
   [HK.CardioDance]: 'hiit',
   [HK.Yoga]: 'yoga',
@@ -217,6 +217,10 @@ export function mapHealthKitWorkoutType(healthKitType: string | number | unknown
     normalized.includes('mindful')
   ) {
     return 'meditation';
+  }
+
+  if (normalized.includes('boxing')) {
+    return 'boxing';
   }
 
   // HIIT

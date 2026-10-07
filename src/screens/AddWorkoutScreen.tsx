@@ -33,6 +33,7 @@ const workoutTypes: { label: string; value: WorkoutType }[] = [
   { label: 'Rowing', value: 'rowing' },
   { label: 'Elliptical', value: 'elliptical' },
   { label: 'HIIT', value: 'hiit' },
+  { label: 'Boxing', value: 'boxing' },
   { label: 'Yoga', value: 'yoga' },
   { label: 'Stretching', value: 'stretching' },
   { label: 'Meditation', value: 'meditation' },
