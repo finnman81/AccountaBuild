@@ -273,6 +273,7 @@ exports.sendTeamActivityPush = onDocumentCreated('groups/{groupId}/logs/{logId}'
   const date = String(log.date || '');
   const verb = LOG_VERBS[type];
   if (!authorUid || !verb) return;
+  if (log.backfilled === true) return; // copied history (scripts/_backfill-logs-all-groups.js), not news
 
   const now = new Date();
   // Health syncs backfill older days — only announce logs for today.
@@ -808,6 +809,9 @@ exports.enforceHealthLogHygiene = onDocumentCreated('groups/{groupId}/logs/{logI
   const log = snap.data() || {};
   const { groupId, logId } = event.params;
   if (!log.uid) return;
+  // Backfilled copies already passed hygiene in their source group; re-judging
+  // them could tombstone a log the member kept.
+  if (log.backfilled === true) return;
   const isSynced = !!log.source && log.source !== 'self_reported';
 
   const tsMs = (t) => (t && typeof t.toMillis === 'function' ? t.toMillis() : 0);
@@ -995,7 +999,7 @@ exports.checkInScheduled = onSchedule(
 exports.checkInOnLog = onDocumentCreated('groups/{groupId}/logs/{logId}', async (event) => {
   const log = event.data?.data() || {};
   const uid = String(log.uid || '');
-  if (!uid) return;
+  if (!uid || log.backfilled === true) return;
   const now = new Date();
   try {
     await checkIn.trackComeback(db, {
