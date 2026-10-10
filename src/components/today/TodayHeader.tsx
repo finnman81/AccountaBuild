@@ -135,11 +135,13 @@ export default function TodayHeader({
 
 const styles = StyleSheet.create({
   topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  groupChip: { flexDirection: 'row', alignItems: 'center', flexShrink: 1 },
+  // The name gives way (ellipsis) before the chips do: a fixed-width name
+  // used to run under the streak chip once streak + rank + icons shared the row.
+  groupChip: { flexDirection: 'row', alignItems: 'center', flexShrink: 1, minWidth: 0, marginRight: 6 },
   tileImg: { width: 34, height: 34, borderRadius: 10, backgroundColor: colors.surface2 },
   tilePlaceholder: { alignItems: 'center', justifyContent: 'center' },
-  groupName: { fontSize: 15, fontWeight: '600', color: colors.textPrimary, marginLeft: 10, maxWidth: 120 },
-  actions: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  groupName: { fontSize: 15, fontWeight: '600', color: colors.textPrimary, marginLeft: 10, flexShrink: 1, maxWidth: 140 },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: 2, flexShrink: 0 },
   rankChip: {
     flexDirection: 'row',
     alignItems: 'center',
