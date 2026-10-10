@@ -10,9 +10,9 @@ import {
   where,
 } from 'firebase/firestore';
 
-import { db } from '../firebase/firebase';
+import { auth, db } from '../firebase/firebase';
 import { isValidYYYYMMDD, todayYYYYMMDD } from '../utils/dates';
-import { addWeightLog } from './logs';
+import { addWeightLog, updateLogEverywhere } from './logs';
 import { updateMyProfile, syncMyMemberProfileToAllGroups } from './profile';
 
 function normalizeLogDate(date?: string) {
@@ -26,7 +26,7 @@ export async function updateGroupLog(params: {
   date: string;
   payload: Record<string, unknown>;
 }) {
-  await updateDoc(doc(db, 'groups', params.groupId, 'logs', params.logId), {
+  const patch = {
     date: normalizeLogDate(params.date),
     payload: params.payload,
     // Health sync treats a hand-edited log as the user's version and stops
@@ -34,7 +34,11 @@ export async function updateGroupLog(params: {
     // WHOOP "other" re-labelled as Manual labor reverted on the next sync.
     userEdited: true,
     updatedAt: serverTimestamp(),
-  });
+  };
+  // Every group holds a copy of my log under the same id; edit them all.
+  const uid = auth?.currentUser?.uid;
+  if (uid) await updateLogEverywhere(params.groupId, params.logId, uid, patch);
+  else await updateDoc(doc(db, 'groups', params.groupId, 'logs', params.logId), patch);
 }
 
 export async function upsertUserWorkoutHistoryFromGroupLog(params: {

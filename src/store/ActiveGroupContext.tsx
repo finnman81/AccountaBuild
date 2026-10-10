@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { AuthContext } from './AuthContext';
+import { resetLogGroupCache } from '../services/logs';
 import { subscribeMyGroups, type UserGroupListItem } from '../services/groups';
 
 type ActiveGroupContextValue = {
@@ -38,6 +39,7 @@ export function ActiveGroupProvider({ children }: { children: React.ReactNode })
   useEffect(() => {
     if (!user?.uid) return;
     return subscribeMyGroups(user.uid, (items) => {
+      resetLogGroupCache(); // logs fan out to every group: keep that list fresh
       setGroups(items);
       setGroupsLoaded(true);
     });

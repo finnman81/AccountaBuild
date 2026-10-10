@@ -305,6 +305,13 @@ exports.sendTeamActivityPush = onDocumentCreated('groups/{groupId}/logs/{logId}'
       const u = users.get(uid);
       if (!u || !isExpoToken(u.expoPushToken)) continue;
       if (!prefEnabled(u, 'teamActivity')) continue;
+      // Logs fan out to every group the author is in (same id). Someone who
+      // shares two groups with them gets ONE push per log, not one per copy.
+      try {
+        await db.doc(`pushDedupe/${snap.id}__${uid}`).create({ at: FieldValue.serverTimestamp() });
+      } catch {
+        continue;
+      }
       items.push({
         uid,
         token: u.expoPushToken,

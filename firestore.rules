@@ -338,7 +338,10 @@ service cloud.firestore {
 
       match /logs/{logId} {
         allow read: if isGroupMember(groupId);
-        allow create: if isGroupMember(groupId);
+        // Only as yourself: logs fan out to all your groups and the scorer
+        // counts them across groups, so a log filed under someone else's uid
+        // would pad their FP.
+        allow create: if isGroupMember(groupId) && request.resource.data.uid == request.auth.uid;
         // The log owner may edit/delete their log. Any group member may update
         // ONLY the `reactions` map (cheers) on another member's log.
         allow update: if signedIn() && (

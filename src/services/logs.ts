@@ -1,5 +1,4 @@
 import {
-  addDoc,
   collection,
   deleteDoc,
   doc,
@@ -13,6 +12,7 @@ import {
   setDoc,
   Timestamp,
   where,
+  updateDoc,
 } from 'firebase/firestore';
 
 import { db } from '../firebase/firebase';
@@ -71,6 +71,49 @@ function normalizeLogDate(date?: string) {
   return isValidYYYYMMDD(d) ? d : todayYYYYMMDD();
 }
 
+/*
+ * ONE LOG, EVERY GROUP. A log belongs to the person, so it's written to every
+ * group they're in under the SAME doc id: each group's feed and Team Today
+ * show it, and the scorer/projection count each id once. Edits and deletes
+ * follow the id to every copy. The group you logged from is written first and
+ * awaited; the rest are best-effort (a failed copy never fails the save).
+ */
+let groupCache: { uid: string; ids: string[]; at: number } | null = null;
+const GROUP_CACHE_MS = 60_000;
+
+/** `primary` first, then my other groups. Falls back to just `primary`. */
+async function myGroupIds(uid: string, primary: string): Promise<string[]> {
+  if (!groupCache || groupCache.uid !== uid || Date.now() - groupCache.at > GROUP_CACHE_MS) {
+    try {
+      const snap = await getDocs(collection(db, 'users', uid, 'groups'));
+      groupCache = { uid, ids: snap.docs.map((d) => String((d.data() as any)?.groupId ?? d.id)).filter(Boolean), at: Date.now() };
+    } catch {
+      return [primary];
+    }
+  }
+  return [primary, ...groupCache.ids.filter((g) => g !== primary)];
+}
+
+/** Forget the cached group list (after joining or leaving a group). */
+export function resetLogGroupCache(): void {
+  groupCache = null;
+}
+
+async function addLogEverywhere(groupId: string, uid: string, data: Record<string, unknown>) {
+  const ref = doc(collection(db, 'groups', groupId, 'logs'));
+  await setDoc(ref, data);
+  await touchGroupActivity(groupId);
+  const others = (await myGroupIds(uid, groupId)).slice(1);
+  await Promise.all(
+    others.map((g) =>
+      setDoc(doc(db, 'groups', g, 'logs', ref.id), data)
+        .then(() => touchGroupActivity(g))
+        .catch(() => {}),
+    ),
+  );
+  return ref;
+}
+
 export async function addCaloriesLog(params: {
   groupId: string;
   uid: string;
@@ -80,7 +123,7 @@ export async function addCaloriesLog(params: {
   date?: string; // YYYY-MM-DD
   source?: 'self_reported' | 'apple_health' | 'google_fit' | 'mixed' | string;
 }) {
-  const res = await addDoc(collection(db, 'groups', params.groupId, 'logs'), {
+  return addLogEverywhere(params.groupId, params.uid, {
     uid: params.uid,
     type: 'calories',
     date: normalizeLogDate(params.date),
@@ -92,8 +135,6 @@ export async function addCaloriesLog(params: {
       note: params.note?.trim() || null,
     },
   });
-  await touchGroupActivity(params.groupId);
-  return res;
 }
 
 export async function addWorkoutLog(params: {
@@ -105,7 +146,7 @@ export async function addWorkoutLog(params: {
   date?: string; // YYYY-MM-DD
   source?: 'self_reported' | 'apple_health' | 'google_fit' | 'mixed' | string;
 }) {
-  const res = await addDoc(collection(db, 'groups', params.groupId, 'logs'), {
+  return addLogEverywhere(params.groupId, params.uid, {
     uid: params.uid,
     type: 'workout',
     date: normalizeLogDate(params.date),
@@ -117,8 +158,6 @@ export async function addWorkoutLog(params: {
       note: params.note?.trim() || null,
     },
   });
-  await touchGroupActivity(params.groupId);
-  return res;
 }
 
 export async function addWeightLog(params: {
@@ -129,7 +168,7 @@ export async function addWeightLog(params: {
   date?: string; // YYYY-MM-DD
   source?: 'self_reported' | 'apple_health' | 'google_fit' | 'mixed' | string;
 }) {
-  const res = await addDoc(collection(db, 'groups', params.groupId, 'logs'), {
+  return addLogEverywhere(params.groupId, params.uid, {
     uid: params.uid,
     type: 'weight',
     date: normalizeLogDate(params.date),
@@ -140,8 +179,6 @@ export async function addWeightLog(params: {
       note: params.note?.trim() || null,
     },
   });
-  await touchGroupActivity(params.groupId);
-  return res;
 }
 
 export async function addPhotoLog(params: {
@@ -151,7 +188,7 @@ export async function addPhotoLog(params: {
   caption?: string;
   date?: string; // YYYY-MM-DD
 }) {
-  const res = await addDoc(collection(db, 'groups', params.groupId, 'logs'), {
+  return addLogEverywhere(params.groupId, params.uid, {
     uid: params.uid,
     type: 'photo',
     date: normalizeLogDate(params.date),
@@ -162,8 +199,6 @@ export async function addPhotoLog(params: {
       caption: params.caption?.trim() || null,
     },
   });
-  await touchGroupActivity(params.groupId);
-  return res;
 }
 
 /**
@@ -177,11 +212,16 @@ export async function addPhotoLog(params: {
  * which made synced logs perpetually jump to the top of the chat feed in a
  * jumbled clump.
  */
-export async function upsertGroupLogById(
-  groupId: string,
-  logId: string,
-  data: { uid: string; type: LogType; date?: string; source?: string; payload: Record<string, unknown>; eventAt?: Date },
-): Promise<string> {
+type UpsertData = { uid: string; type: LogType; date?: string; source?: string; payload: Record<string, unknown>; eventAt?: Date };
+
+export async function upsertGroupLogById(groupId: string, logId: string, data: UpsertData): Promise<string> {
+  const groups = await myGroupIds(data.uid, groupId);
+  await upsertOneGroupLog(groups[0], logId, data);
+  await Promise.all(groups.slice(1).map((g) => upsertOneGroupLog(g, logId, data).catch(() => {})));
+  return logId;
+}
+
+async function upsertOneGroupLog(groupId: string, logId: string, data: UpsertData): Promise<string> {
   const eventAtValid = data.eventAt instanceof Date && !Number.isNaN(data.eventAt.valueOf());
   const ref = doc(db, 'groups', groupId, 'logs', logId);
   // writtenAt must be stamped ONLY on first arrival. It was inside the merge
@@ -229,10 +269,10 @@ export async function upsertGroupLogById(
  *    permanent data loss.
  */
 export async function deleteGroupLogById(groupId: string, logId: string, opts?: { tombstone?: boolean }): Promise<void> {
+  const snap = await getDoc(doc(db, 'groups', groupId, 'logs', logId)).catch(() => null);
+  const d = snap?.exists() ? (snap.data() as any) : null;
   if (opts?.tombstone !== false) {
     try {
-      const snap = await getDoc(doc(db, 'groups', groupId, 'logs', logId));
-      const d = snap.exists() ? (snap.data() as any) : null;
       if (d?.uid && d?.source && d.source !== 'self_reported') {
         await setDoc(doc(db, 'users', d.uid, 'healthTombstones', logId), {
           groupId,
@@ -246,6 +286,18 @@ export async function deleteGroupLogById(groupId: string, logId: string, opts?: 
     }
   }
   await deleteDoc(doc(db, 'groups', groupId, 'logs', logId));
+  // Same id in my other groups: delete every copy.
+  if (d?.uid) {
+    const others = (await myGroupIds(String(d.uid), groupId)).slice(1);
+    await Promise.all(others.map((g) => deleteDoc(doc(db, 'groups', g, 'logs', logId)).catch(() => {})));
+  }
+}
+
+/** Apply the same field update to every copy of my log (other groups best-effort). */
+export async function updateLogEverywhere(groupId: string, logId: string, uid: string, patch: Record<string, unknown>): Promise<void> {
+  await updateDoc(doc(db, 'groups', groupId, 'logs', logId), patch);
+  const others = (await myGroupIds(uid, groupId)).slice(1);
+  await Promise.all(others.map((g) => updateDoc(doc(db, 'groups', g, 'logs', logId), patch).catch(() => {})));
 }
 
 /**
@@ -380,8 +432,7 @@ export async function deleteLog(groupId: string, logId: string): Promise<void> {
   if (!db) {
     throw new Error('Firebase database not initialized');
   }
-  const logRef = doc(db, 'groups', groupId, 'logs', logId);
-  await deleteDoc(logRef);
+  await deleteGroupLogById(groupId, logId, { tombstone: false });
   await touchGroupActivity(groupId);
 }
 
