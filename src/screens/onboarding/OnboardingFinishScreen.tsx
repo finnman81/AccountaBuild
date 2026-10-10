@@ -107,7 +107,7 @@ export default function OnboardingFinishScreen({ navigation }: Props) {
       // enable them later in Settings.
       try {
         // Permission only. NotificationProvider arms the daily reminders once
-        // they're in a group; a group-less finish gets one "start a group" nudge.
+        // they're in a group; until then it's a daily "start a group" reminder.
         await requestNotificationPermissions();
       } catch (e) {
         console.warn('[Onboarding] notification permission request failed', e);

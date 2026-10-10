@@ -40,9 +40,9 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   useEffect(() => {
     if (!user?.uid) return;
     const uid = user.uid;
-    // No group: hold the daily reminders (one "start a group" nudge instead).
+    // No group: the only notification is a daily "start or join a group".
     if (noGroup) {
-      void holdRemindersUntilGroup(uid);
+      void holdRemindersUntilGroup();
       return;
     }
     const clearedKey = `${CLEARED_PREFIX}:${uid}`;
