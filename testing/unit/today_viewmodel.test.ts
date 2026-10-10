@@ -24,6 +24,13 @@ function pub(uid: string, extra: Partial<PublicUser> = {}): PublicUser {
 }
 
 describe('today viewmodel · buildTodayChecklist', () => {
+  it('drops untracked rows, but keeps one logged today anyway', () => {
+    const logs = [log('me', 'weight', TODAY, { weight: 180 }, 1000)];
+    const c = buildTodayChecklist({ logs, myUid: 'me', today: TODAY, hidden: ['calories', 'weight'] });
+    expect(c.items.map((i) => i.type)).toEqual(['workout', 'weight']);
+    expect(c.total).toBe(2);
+  });
+
   it('marks only my logs for today, and reports done count', () => {
     const logs = [
       log('me', 'calories', TODAY, { calories: 1840 }, 1000),

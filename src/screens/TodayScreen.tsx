@@ -40,6 +40,7 @@ import { DEFAULT_TZ, isoWeekIdInTz } from '../mmr/time';
 import { notifyLogsChanged } from '../services/fpEvents';
 import { getCachedDisplayName, getCachedGroupName, rememberDisplayName, rememberGroupName } from '../services/profileCache';
 import { getHydrated, setHydrated } from '../services/hydrationCache';
+import { subscribeMyMmrGoals } from '../services/mmrGoals';
 import type { ChecklistItem, TodayLogEntry } from '../viewmodels/today';
 import type { Tier } from '../mmr/types';
 
@@ -190,9 +191,24 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
     }
   };
 
+  // Hide checklist rows for things the member doesn't track: goal off AND no
+  // recent log of that type (someone weighing in without a weight goal keeps
+  // the row). Nothing hides until goals have loaded.
+  const [myGoals, setMyGoals] = useState<Record<string, any> | null>(null);
+  useEffect(() => (myUid ? subscribeMyMmrGoals(myUid, setMyGoals) : undefined), [myUid]);
+  const hiddenTypes = useMemo<ChecklistType[]>(() => {
+    if (!myGoals) return [];
+    const loggedRecently = (t: string) => logs.some((l) => l.uid === myUid && l.type === t);
+    const out: ChecklistType[] = [];
+    const calories = myGoals.calorieDays?.status;
+    if (calories && calories !== 'active' && !loggedRecently('calories')) out.push('calories');
+    const weightGoal = ['weightLoss', 'weightGain'].some((id) => myGoals[id]?.status === 'active');
+    if (!weightGoal && !loggedRecently('weight')) out.push('weight');
+    return out;
+  }, [myGoals, logs, myUid]);
   const checklist = useMemo(
-    () => buildTodayChecklist({ logs, myUid, today, dailyCalorieGoal, units }),
-    [logs, myUid, today, dailyCalorieGoal, units],
+    () => buildTodayChecklist({ logs, myUid, today, dailyCalorieGoal, units, hidden: hiddenTypes }),
+    [logs, myUid, today, dailyCalorieGoal, units, hiddenTypes],
   );
   const team = useMemo(
     () => buildTeamToday({ memberUids, publicUsers, canSee, myUid, logs, today, streakRule, pastCutoff, currentWeekId: weekId }),

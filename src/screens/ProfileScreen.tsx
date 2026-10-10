@@ -358,6 +358,12 @@ export default function ProfileScreen() {
     { key: 'height', label: 'Height', value: profile?.height == null ? '—' : formatHeightInches(profile.height), focusField: 'height' as const },
     { key: 'age', label: 'Age', value: profile?.age == null ? '—' : String(profile.age), focusField: 'age' as const },
   ];
+  // Weight tiles only for people who track weight: an active weight goal, or
+  // a weight on file. Otherwise they're two permanent dashes.
+  const tracksWeight =
+    ['weightLoss', 'weightGain'].some((id) => mmrGoals[id]?.status === 'active') || profile?.weightCurrent != null;
+  const visibleStats = statItems.filter((s) => tracksWeight || (s.key !== 'weightCurrent' && s.key !== 'weightGoal'));
+  const statRows = [visibleStats.slice(0, 2), visibleStats.slice(2, 4)].filter((r) => r.length);
 
   const prevWeekStreakRef = useRef<number[]>(Array(7).fill(0));
   const circleAnim = useRef(Array.from({ length: 7 }, () => new Animated.Value(1))).current;
@@ -524,43 +530,26 @@ export default function ProfileScreen() {
 
       <Card>
         <AppText variant="rowTitle" color="primary" style={{ marginBottom: spacing.md }}>Stats</AppText>
-        <View style={{ flexDirection: 'row', gap: 12 }}>
-          {statItems.slice(0, 2).map((s) => (
-            <TouchableOpacity
-              key={s.key}
-              style={{ flex: 1 }}
-              onPress={() => nav.navigate('EditProfile', { focusField: s.focusField })}
-            >
-              <View style={{ borderRadius: 16, padding: 14, backgroundColor: colors.surface2, borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.04)' }}>
-                <AppText variant="label" color="secondary">
-                  {s.label}
-                </AppText>
-                <AppText variant="numberMd" color="primary" style={{ marginTop: 4 }}>
-                  {s.value}
-                </AppText>
-              </View>
-            </TouchableOpacity>
-          ))}
-        </View>
-        <View style={{ height: 12 }} />
-        <View style={{ flexDirection: 'row', gap: 12 }}>
-          {statItems.slice(2, 4).map((s) => (
-            <TouchableOpacity
-              key={s.key}
-              style={{ flex: 1 }}
-              onPress={() => nav.navigate('EditProfile', { focusField: s.focusField })}
-            >
-              <View style={{ borderRadius: 16, padding: 14, backgroundColor: colors.surface2, borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.04)' }}>
-                <AppText variant="label" color="secondary">
-                  {s.label}
-                </AppText>
-                <AppText variant="numberMd" color="primary" style={{ marginTop: 4 }}>
-                  {s.value}
-                </AppText>
-              </View>
-            </TouchableOpacity>
-          ))}
-        </View>
+        {statRows.map((row, i) => (
+          <View key={i} style={{ flexDirection: 'row', gap: 12, marginTop: i ? 12 : 0 }}>
+            {row.map((s) => (
+              <TouchableOpacity
+                key={s.key}
+                style={{ flex: 1 }}
+                onPress={() => nav.navigate('EditProfile', { focusField: s.focusField })}
+              >
+                <View style={{ borderRadius: 16, padding: 14, backgroundColor: colors.surface2, borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.04)' }}>
+                  <AppText variant="label" color="secondary">
+                    {s.label}
+                  </AppText>
+                  <AppText variant="numberMd" color="primary" style={{ marginTop: 4 }}>
+                    {s.value}
+                  </AppText>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        ))}
       </Card>
 
       <View style={{ height: 16 }} />

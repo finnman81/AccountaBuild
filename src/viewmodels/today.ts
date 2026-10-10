@@ -117,6 +117,8 @@ export function buildTodayChecklist(params: {
   dailyCalorieGoal?: number | null;
   /** Viewer's display-units preference (weight is always stored in lb). */
   units?: Units;
+  /** Types the member doesn't track; dropped unless logged today anyway. */
+  hidden?: ChecklistType[];
 }): TodayChecklist {
   const mine = params.logs.filter((l) => l.uid === params.myUid && l.date === params.today);
 
@@ -159,7 +161,9 @@ export function buildTodayChecklist(params: {
     return { type, title, logged: true, loggedAtMs, valueLine, entries };
   };
 
-  const items = [build('calories', 'Calories'), build('workout', 'Workout'), build('weight', 'Weight')];
+  const hidden = new Set(params.hidden ?? []);
+  const items = [build('calories', 'Calories'), build('workout', 'Workout'), build('weight', 'Weight')]
+    .filter((i) => i.logged || !hidden.has(i.type));
   return { items, doneCount: items.filter((i) => i.logged).length, total: items.length };
 }
 
