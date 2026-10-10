@@ -56,9 +56,18 @@ export default function GroupListScreen({ navigation }: Props) {
   const groupIds = useMemo(() => groups.map((g) => g.groupId), [groups]);
   const overviews = useGroupsOverview(groupIds, user?.uid);
 
+  // Which group the invite is FOR. Defaults to the open group, but with
+  // several groups the card used to share that code without ever naming the
+  // group, so a BPM code went out meant for the family group.
+  const invitable = useMemo(() => groups.filter((g) => !!g.joinCode), [groups]);
+  const [inviteGroupId, setInviteGroupId] = useState<string | null>(null);
   const inviteGroup = useMemo(
-    () => groups.find((g) => g.groupId === activeGroupId) ?? groups[0] ?? null,
-    [groups, activeGroupId],
+    () =>
+      invitable.find((g) => g.groupId === inviteGroupId) ??
+      invitable.find((g) => g.groupId === activeGroupId) ??
+      invitable[0] ??
+      null,
+    [invitable, inviteGroupId, activeGroupId],
   );
 
   const openGroup = (g: UserGroupListItem) => {
@@ -87,7 +96,7 @@ export default function GroupListScreen({ navigation }: Props) {
     if (!inviteGroup?.joinCode) return;
     await Clipboard.setStringAsync(inviteGroup.joinCode);
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setSnack('Join code copied');
+    setSnack(invitable.length > 1 ? `${inviteGroup.name} code copied` : 'Join code copied');
   };
 
   const shareInvite = async () => {
@@ -157,8 +166,31 @@ export default function GroupListScreen({ navigation }: Props) {
           <View style={styles.inviteCard}>
             <AppText variant="rowTitle" color="primary" style={{ textAlign: 'center' }}>Accountability works better together</AppText>
             <AppText variant="rowSubtitle" color="muted" style={styles.inviteSub}>
-              Invite a friend with your join code. Streaks last longer when someone's watching.
+              {invitable.length > 1
+                ? `Invite a friend to ${inviteGroup.name}. Streaks last longer when someone's watching.`
+                : "Invite a friend with your join code. Streaks last longer when someone's watching."}
             </AppText>
+            {invitable.length > 1 ? (
+              <View style={styles.pickRow}>
+                {invitable.map((g) => {
+                  const on = g.groupId === inviteGroup.groupId;
+                  return (
+                    <TouchableOpacity
+                      key={g.groupId}
+                      onPress={() => setInviteGroupId(g.groupId)}
+                      style={[styles.pick, on && styles.pickOn]}
+                      activeOpacity={0.8}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: on }}
+                    >
+                      <AppText variant="rowSubtitle" color={on ? 'accent' : 'secondary'} numberOfLines={1} style={{ fontWeight: '700' }}>
+                        {g.name}
+                      </AppText>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            ) : null}
             <TouchableOpacity onPress={copyCode} activeOpacity={0.8} style={styles.codePill}>
               <AppText variant="rowTitle" color="primary" style={styles.codeText}>{inviteGroup.joinCode}</AppText>
               <Icon source="content-copy" size={16} color={colors.textSecondary} />
@@ -201,6 +233,17 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   inviteSub: { textAlign: 'center', lineHeight: 18 },
+  pickRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: spacing.sm },
+  pick: {
+    maxWidth: '100%',
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.divider,
+    backgroundColor: colors.surface2,
+  },
+  pickOn: { borderColor: colors.primary, backgroundColor: colors.primaryTint },
   codePill: {
     flexDirection: 'row',
     alignItems: 'center',
