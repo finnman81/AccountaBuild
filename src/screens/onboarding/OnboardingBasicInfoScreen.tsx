@@ -21,6 +21,7 @@ import { onboardingCopy } from '../../constants/onboardingCopy';
 import { subscribeMyProfile } from '../../services/profile';
 import { db } from '../../firebase/firebase';
 import { colors } from '../../theme';
+import { feetInchesError, joinFeetInches, splitInches } from '../../utils/height';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const IS_SMALL_SCREEN = SCREEN_WIDTH < 360;
@@ -34,7 +35,9 @@ export default function OnboardingBasicInfoScreen({ navigation }: Props) {
   const [sex, setSex] = useState<'male' | 'female' | 'other' | ''>('');
   const [age, setAge] = useState('');
   const [units, setUnits] = useState<'imperial' | 'metric'>('imperial');
-  const [height, setHeight] = useState('');
+  const [height, setHeight] = useState(''); // cm (metric only)
+  const [heightFt, setHeightFt] = useState('');
+  const [heightIn, setHeightIn] = useState('');
   const [weightCurrent, setWeightCurrent] = useState('');
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -43,6 +46,7 @@ export default function OnboardingBasicInfoScreen({ navigation }: Props) {
   // Refs for keyboard navigation
   const ageInputRef = useRef<any>(null);
   const heightInputRef = useRef<any>(null);
+  const heightInInputRef = useRef<any>(null);
   const weightInputRef = useRef<any>(null);
 
   // Prefill from existing profile
@@ -53,7 +57,13 @@ export default function OnboardingBasicInfoScreen({ navigation }: Props) {
       if (profile) {
         if (profile.displayName) setDisplayName(profile.displayName);
         if (profile.age != null) setAge(String(profile.age));
-        if (profile.height != null) setHeight(String(profile.height));
+        if (profile.height != null) {
+          // Stored in inches. Fill both forms so a units switch keeps it.
+          const sp = splitInches(profile.height);
+          setHeightFt(sp.ft);
+          setHeightIn(sp.inches);
+          setHeight(String(Math.round(Number(profile.height) * 2.54)));
+        }
         if (profile.weightCurrent != null) setWeightCurrent(String(profile.weightCurrent));
         // @ts-ignore - units might exist
         if (profile.units) setUnits(profile.units);
@@ -83,17 +93,12 @@ export default function OnboardingBasicInfoScreen({ navigation }: Props) {
   };
 
   const validateHeight = (value: string): string | null => {
+    if (units === 'imperial') return feetInchesError(heightFt, heightIn);
     const num = Number(value);
     if (!value.trim()) return 'Height is required';
     if (!Number.isFinite(num)) return 'Height must be a valid number';
 
-    if (units === 'imperial') {
-      // Convert to inches: 4'0" = 48", 7'6" = 90"
-      if (num < 48 || num > 90) return 'Height must be between 4\'0" and 7\'6"';
-    } else {
-      // Metric: 120-230 cm
-      if (num < 120 || num > 230) return 'Height must be between 120 and 230 cm';
-    }
+    if (num < 120 || num > 230) return 'Height must be between 120 and 230 cm';
     return null;
   };
 
@@ -147,7 +152,7 @@ export default function OnboardingBasicInfoScreen({ navigation }: Props) {
 
     try {
       // Convert height to inches if metric
-      let heightInches = Number(height);
+      let heightInches = joinFeetInches(heightFt, heightIn) ?? 0;
       if (units === 'metric') {
         // Convert cm to inches: 1 cm = 0.393701 inches
         heightInches = Number(height) * 0.393701;
@@ -201,6 +206,81 @@ export default function OnboardingBasicInfoScreen({ navigation }: Props) {
   const handleBack = () => {
     navigation.goBack();
   };
+
+  const clearHeightError = () => {
+    if (errors.height) setErrors({ ...errors, height: '' });
+  };
+
+  // Imperial: Feet + Inches side by side. Metric: one cm box.
+  const renderHeight = () =>
+    units === 'imperial' ? (
+      <View>
+        <View style={styles.twoColumnRow}>
+          <View style={styles.column}>
+            <TextField
+              label="Height (feet)"
+              value={heightFt}
+              onChangeText={(text) => {
+                const v = text.replace(/[^0-9]/g, '').slice(0, 1);
+                setHeightFt(v);
+                clearHeightError();
+                if (v) heightInInputRef.current?.focus();
+              }}
+              editable={!isSubmitting}
+              keyboardType="number-pad"
+              returnKeyType="next"
+              placeholder="5"
+              ref={heightInputRef}
+              onSubmitEditing={() => heightInInputRef.current?.focus()}
+              containerStyle={styles.input}
+            />
+          </View>
+          <View style={styles.column}>
+            <TextField
+              label="Inches"
+              value={heightIn}
+              onChangeText={(text) => {
+                setHeightIn(text.replace(/[^0-9]/g, '').slice(0, 2));
+                clearHeightError();
+              }}
+              editable={!isSubmitting}
+              keyboardType="number-pad"
+              returnKeyType="next"
+              placeholder="10"
+              ref={heightInInputRef}
+              onSubmitEditing={() => weightInputRef.current?.focus()}
+              containerStyle={styles.input}
+            />
+          </View>
+        </View>
+        {errors.height ? (
+          <AppText variant="rowSubtitle" color="danger" style={styles.error}>
+            {errors.height}
+          </AppText>
+        ) : null}
+      </View>
+    ) : (
+      <View>
+        <TextField
+          label="Height"
+          value={height}
+          onChangeText={(text) => {
+            setHeight(text.replace(/[^0-9.]/g, ''));
+            clearHeightError();
+          }}
+          error={errors.height || undefined}
+          editable={!isSubmitting}
+          keyboardType="decimal-pad"
+          returnKeyType="next"
+          ref={heightInputRef}
+          onSubmitEditing={() => weightInputRef.current?.focus()}
+          containerStyle={styles.input}
+        />
+        <AppText variant="rowSubtitle" color="muted" style={styles.unitText}>
+          cm
+        </AppText>
+      </View>
+    );
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -309,26 +389,7 @@ export default function OnboardingBasicInfoScreen({ navigation }: Props) {
                     containerStyle={styles.input}
                   />
 
-                  <View>
-                    <TextField
-                      label="Height"
-                      value={height}
-                      onChangeText={(text) => {
-                        setHeight(text.replace(/[^0-9.]/g, ''));
-                        if (errors.height) setErrors({ ...errors, height: '' });
-                      }}
-                      error={errors.height || undefined}
-                      editable={!isSubmitting}
-                      keyboardType="decimal-pad"
-                      returnKeyType="next"
-                      ref={heightInputRef}
-                      onSubmitEditing={() => weightInputRef.current?.focus()}
-                      containerStyle={styles.input}
-                    />
-                    <AppText variant="rowSubtitle" color="muted" style={styles.unitText}>
-                      {units === 'imperial' ? 'in' : 'cm'}
-                    </AppText>
-                  </View>
+                  {renderHeight()}
 
                   <View>
                     <TextField
@@ -373,29 +434,10 @@ export default function OnboardingBasicInfoScreen({ navigation }: Props) {
                       />
                     </View>
 
-                    <View style={styles.column}>
-                      <View>
-                        <TextField
-                          label="Height"
-                          value={height}
-                          onChangeText={(text) => {
-                            setHeight(text.replace(/[^0-9.]/g, ''));
-                            if (errors.height) setErrors({ ...errors, height: '' });
-                          }}
-                          error={errors.height || undefined}
-                          editable={!isSubmitting}
-                          keyboardType="decimal-pad"
-                          returnKeyType="next"
-                          ref={heightInputRef}
-                          onSubmitEditing={() => weightInputRef.current?.focus()}
-                          containerStyle={styles.input}
-                        />
-                        <AppText variant="rowSubtitle" color="muted" style={styles.unitText}>
-                          {units === 'imperial' ? 'in' : 'cm'}
-                        </AppText>
-                      </View>
-                    </View>
+                    {units === 'metric' ? <View style={styles.column}>{renderHeight()}</View> : null}
                   </View>
+
+                  {units === 'imperial' ? renderHeight() : null}
 
                   <View>
                     <TextField

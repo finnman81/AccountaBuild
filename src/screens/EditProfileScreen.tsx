@@ -14,6 +14,7 @@ import type { RootStackParamList } from '../navigation/types';
 import AppText from '../components/ui/AppText';
 import Avatar from '../components/ui/Avatar';
 import EditRow from '../components/ui/EditRow';
+import { feetInchesError, joinFeetInches, splitInches } from '../utils/height';
 import { colors, radius, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'EditProfile'>;
@@ -29,7 +30,8 @@ export default function EditProfileScreen({ navigation }: Props) {
   const { user } = useContext(AuthContext);
 
   const [displayName, setDisplayName] = useState('');
-  const [height, setHeight] = useState('');
+  const [heightFt, setHeightFt] = useState('');
+  const [heightIn, setHeightIn] = useState('');
   const [age, setAge] = useState('');
   const [photoURL, setPhotoURL] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -42,7 +44,9 @@ export default function EditProfileScreen({ navigation }: Props) {
       if (!p) return;
       setDisplayName(p.displayName ?? '');
       setPhotoURL((p as any).photoURL ?? null);
-      setHeight(p.height == null ? '' : String(p.height));
+      const sp = splitInches(p.height);
+      setHeightFt(sp.ft);
+      setHeightIn(sp.inches);
       setAge(p.age == null ? '' : String(p.age));
     });
   }, [user]);
@@ -90,8 +94,13 @@ export default function EditProfileScreen({ navigation }: Props) {
       if (dn) patch.displayName = dn;
       if (photoURL) patch.photoURL = photoURL;
 
+      if (heightFt.trim() || heightIn.trim()) {
+        const err = feetInchesError(heightFt, heightIn);
+        if (err) throw new Error(err);
+        patch.height = joinFeetInches(heightFt, heightIn) as number;
+      }
+
       for (const [text, key] of [
-        [height, 'height'],
         [age, 'age'],
       ] as const) {
         if (text.trim()) {
@@ -151,7 +160,8 @@ export default function EditProfileScreen({ navigation }: Props) {
           <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>Identity</AppText>
           <View style={styles.group}>
             <EditRow label="Display name" value={displayName} onChangeText={setDisplayName} placeholder="Your name" />
-            <EditRow label="Height" value={height} onChangeText={setHeight} placeholder="70" suffix="in" keyboardType="number-pad" />
+            <EditRow label="Height" value={heightFt} onChangeText={(t: string) => setHeightFt(t.replace(/[^0-9]/g, '').slice(0, 1))} placeholder="5" suffix="ft" keyboardType="number-pad" />
+            <EditRow label="Inches" value={heightIn} onChangeText={(t: string) => setHeightIn(t.replace(/[^0-9]/g, '').slice(0, 2))} placeholder="10" suffix="in" keyboardType="number-pad" />
             <EditRow label="Age" value={age} onChangeText={setAge} placeholder="—" keyboardType="number-pad" showDivider={false} />
           </View>
 
