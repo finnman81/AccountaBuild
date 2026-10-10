@@ -80,6 +80,9 @@ export default function JoinGroupScreen({ navigation, route }: Props) {
       // Make the joined group active and drop the user on Today.
       await setActiveGroupId(res.groupId);
       setTimeout(() => {
+        // Clear Join group off the Groups tab first: left in place, the next
+        // tap on Groups landed back here with nowhere to go.
+        if ((navigation as any).canGoBack?.()) (navigation as any).popToTop?.();
         rootNav.navigate('MainTabs', { screen: 'HomeTab' } as any);
       }, 800);
     } catch (e) {

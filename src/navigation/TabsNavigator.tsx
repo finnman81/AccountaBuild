@@ -50,6 +50,7 @@ import HomeScreen from '../screens/HomeScreen';
 import LeaderboardScreen from '../screens/LeaderboardScreen';
 import { colors } from '../theme/colors';
 import HomeTodayScreen from '../screens/HomeTodayScreen';
+import { appHeader } from '../components/ui/AppHeader';
 import ActivityScreen from '../screens/ActivityScreen';
 
 const Tab = createBottomTabNavigator<TabsParamList>();
@@ -60,12 +61,12 @@ const ProfileStack = createNativeStackNavigator<ProfileStackParamList>();
 
 function HomeStackNavigator() {
   return (
-    <HomeStack.Navigator>
+    <HomeStack.Navigator screenOptions={{ header: appHeader }}>
       <HomeStack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
       <HomeStack.Screen name="Today" component={HomeTodayScreen} options={{ headerShown: false }} />
       <HomeStack.Screen name="Activity" component={ActivityScreen} options={{ headerShown: false }} />
       <HomeStack.Screen name="Challenge" component={ChallengeScreen} options={{ headerShown: false }} />
-      <HomeStack.Screen name="Leaderboard" component={LeaderboardScreen} options={{ title: 'Leaderboard' }} />
+      <HomeStack.Screen name="Leaderboard" component={LeaderboardScreen} options={{ headerShown: false }} />
       <HomeStack.Screen name="GroupChat" component={GroupChatScreen} options={{ title: 'Chat' }} />
       <HomeStack.Screen name="ViewPhotos" component={ViewPhotosScreen} options={{ title: 'Photos' }} />
       <HomeStack.Screen name="Issues" component={IssuesScreen} options={{ title: 'Issues / Suggestions' }} />
@@ -76,7 +77,7 @@ function HomeStackNavigator() {
 
 function GroupsStackNavigator() {
   return (
-    <GroupsStack.Navigator>
+    <GroupsStack.Navigator screenOptions={{ header: appHeader }}>
       <GroupsStack.Screen name="GroupList" component={GroupListScreen} options={{ headerShown: false }} />
       <GroupsStack.Screen name="CreateGroup" component={CreateGroupScreen} options={{ title: 'Create group' }} />
       <GroupsStack.Screen name="JoinGroup" component={JoinGroupScreen} options={{ title: 'Join group' }} />
@@ -84,7 +85,7 @@ function GroupsStackNavigator() {
       <GroupsStack.Screen name="Challenge" component={ChallengeScreen} options={{ headerShown: false }} />
       <GroupsStack.Screen name="GroupChat" component={GroupChatScreen} options={{ title: 'Chat' }} />
       <GroupsStack.Screen name="ViewPhotos" component={ViewPhotosScreen} options={{ title: 'Photos' }} />
-      <GroupsStack.Screen name="Leaderboard" component={LeaderboardScreen} options={{ title: 'Leaderboard' }} />
+      <GroupsStack.Screen name="Leaderboard" component={LeaderboardScreen} options={{ headerShown: false }} />
       <GroupsStack.Screen name="Issues" component={IssuesScreen} options={{ title: 'Issues / Suggestions' }} />
       <GroupsStack.Screen name="GroupSettings" component={GroupSettingsScreen} options={{ headerShown: false }} />
     </GroupsStack.Navigator>
@@ -93,7 +94,7 @@ function GroupsStackNavigator() {
 
 function ProgressStackNavigator() {
   return (
-    <ProgressStack.Navigator>
+    <ProgressStack.Navigator screenOptions={{ header: appHeader }}>
       <ProgressStack.Screen name="Progress" component={ProgressScreen} options={{ title: 'Progress' }} />
       <ProgressStack.Screen name="History" component={HistoryScreen} options={{ headerShown: false }} />
     </ProgressStack.Navigator>
@@ -102,7 +103,7 @@ function ProgressStackNavigator() {
 
 function ProfileStackNavigator() {
   return (
-    <ProfileStack.Navigator>
+    <ProfileStack.Navigator screenOptions={{ header: appHeader }}>
       <ProfileStack.Screen name="Profile" component={ProfileScreen} options={{ headerShown: false }} />
       <ProfileStack.Screen name="Settings" component={SettingsScreen} options={{ headerShown: false }} />
       <ProfileStack.Screen name="SeasonHistory" component={SeasonHistoryScreen} options={{ title: 'Season history' }} />

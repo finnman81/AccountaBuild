@@ -29,6 +29,7 @@ import TabsNavigator from './TabsNavigator';
 import OnboardingNavigator from './OnboardingNavigator';
 import { navigationRef, flushPendingNavigation, navigateToJoinGroup } from './navigationRef';
 import { registerSentryNavigation } from '../services/sentry';
+import { appHeader } from '../components/ui/AppHeader';
 import {
   clearPendingJoinCode,
   consumePendingJoinCode,
@@ -150,10 +151,10 @@ export default function AppNavigator() {
           <>
             <Stack.Screen name="MainTabs" component={TabsNavigator} options={{ headerShown: false }} />
 
-            <Stack.Screen name="AddCalories" component={AddCaloriesScreen} options={{ title: 'Log Calories' }} />
-            <Stack.Screen name="AddWorkout" component={AddWorkoutScreen} options={{ title: 'Log Workout' }} />
-            <Stack.Screen name="AddWeight" component={AddWeightScreen} options={{ title: 'Log Weight' }} />
-            <Stack.Screen name="AddPhoto" component={AddPhotoScreen} options={{ title: 'Upload Photo' }} />
+            <Stack.Screen name="AddCalories" component={AddCaloriesScreen} options={{ title: 'Log Calories', header: appHeader }} />
+            <Stack.Screen name="AddWorkout" component={AddWorkoutScreen} options={{ title: 'Log Workout', header: appHeader }} />
+            <Stack.Screen name="AddWeight" component={AddWeightScreen} options={{ title: 'Log Weight', header: appHeader }} />
+            <Stack.Screen name="AddPhoto" component={AddPhotoScreen} options={{ title: 'Upload Photo', header: appHeader }} />
             <Stack.Screen
               name="EditProfile"
               component={EditProfileScreen}
