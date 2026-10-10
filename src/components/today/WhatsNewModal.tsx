@@ -147,9 +147,24 @@ export default function WhatsNewModal() {
         const serverSeen = (userSnap?.data() as any)?.announcementsSeen;
         if (Array.isArray(serverSeen)) for (const id of serverSeen) seen.add(String(id));
 
+        // News from before this account existed isn't news. A new member got
+        // the whole backlog (a July "update via TestFlight" pop-up on day one
+        // of the App Store launch). Undated items still show.
+        const created = (userSnap?.data() as any)?.createdAt;
+        const createdMs = typeof created?.toMillis === 'function' ? created.toMillis() : 0;
+        const postedMs = (a: any): number => {
+          const c = a?.createdAt;
+          if (typeof c?.toMillis === 'function') return c.toMillis();
+          const f = a?.activeFrom ? Date.parse(a.activeFrom) : NaN;
+          return Number.isFinite(f) ? f : 0;
+        };
+
         const now = Date.now();
         const next = queue.find(
-          (a) => !seen.has(a.id) && !(a.activeFrom && now < Date.parse(a.activeFrom)),
+          (a) =>
+            !seen.has(a.id) &&
+            !(a.activeFrom && now < Date.parse(a.activeFrom)) &&
+            !(createdMs && postedMs(a) && postedMs(a) < createdMs),
         );
         if (next) setAnn(next);
       } catch {
