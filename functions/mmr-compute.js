@@ -589,7 +589,8 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
     const freezeAfter = Math.max(0, Math.min(2, freezeBefore + (freezeEarned ? 1 : 0) - (freezeUsed ? 1 : 0)));
     const S = core.streakMultiplier(streakAfter);
 
-    const penalty = isCurrentWeek || onVacation ? 0 : missedWeek ? core.missedWeekPenalty(mmrBefore) : partialWeek ? core.partialWeekPenalty(mmrBefore) : 0;
+    const firstWeek = core.firstWeekGrace(weekId, firstWeekId);
+    const penalty = isCurrentWeek || onVacation || firstWeek ? 0 : missedWeek ? core.missedWeekPenalty(mmrBefore) : partialWeek ? core.partialWeekPenalty(mmrBefore) : 0;
     const lowerTierBonus = core.lowerTierProgressBonus(oldBand.tier, completedWeek);
     // Anchored like weightBonus: once paid, a recompute can't take it back.
     const priorComeback = typeof weeklyData?.comebackBonus === 'number' ? Number(weeklyData.comebackBonus) : 0;

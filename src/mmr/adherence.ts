@@ -25,6 +25,13 @@ export const CAL_HABIT_CREDIT = 0.5;
  * on. Mirrors WORKOUT_DAYS_FROM_WEEK in functions/mmr-core.js — the two must
  * move together or the app and the scorer disagree on screen.
  */
+/** Mirror of firstWeekGrace in functions/mmr-core.js: keep the two in sync. */
+export const FIRST_WEEK_GRACE_FROM_WEEK = '2026-W41';
+export function firstWeekGrace(weekId: string | null | undefined, firstWeekId: string | null | undefined): boolean {
+  if (!(typeof weekId === 'string' && weekId >= FIRST_WEEK_GRACE_FROM_WEEK)) return false;
+  return firstWeekId == null || weekId <= firstWeekId;
+}
+
 export const WORKOUT_DAYS_FROM_WEEK = '2026-W37';
 
 export function workoutDaysActiveForWeek(weekId: string | null | undefined): boolean {

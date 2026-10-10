@@ -6,7 +6,7 @@ import { D_calDays, D_minutes, D_workouts, D_weightGain, D_weightLoss, weightV2A
 import { applyRankWithDemotionRules, bandForMMR } from '../mmr/ranks';
 import { lowerTierProgressBonus } from '../mmr/progression';
 import { breadthFactor, combineWeekScore, coreCategoryCount, goalScore } from '../mmr/scoring';
-import { calorieBandActiveForWeek, calorieDaysHitFromTotals, tierGainFactor, workoutDaysActiveForWeek } from '../mmr/adherence';
+import { calorieBandActiveForWeek, calorieDaysHitFromTotals, firstWeekGrace, tierGainFactor, workoutDaysActiveForWeek } from '../mmr/adherence';
 import { DEFAULT_TZ, isoWeekIdInTz, isoWeekRangeInTz, yyyyMmDdInTz } from '../mmr/time';
 import type { Tier } from '../mmr/types';
 
@@ -70,6 +70,8 @@ export type MmrProjection = {
   mmrWeekEndProjected: number;
   /** This week is shielded (vacation, hibernation or grace week): no penalty. */
   onVacation: boolean;
+  /** Member's first week: can't cost FP (server firstWeekGrace). */
+  firstWeek: boolean;
 };
 
 function parseDateLocal(yyyyMmDd: string) {
@@ -162,6 +164,8 @@ type ProjectionParams = {
    * its grace week (the server's `onVacation`). No penalty, streak held.
    */
   vacation?: boolean;
+  /** First week grace (no penalty), see firstWeekGrace. */
+  firstWeek?: boolean;
 };
 
 export function computeProjection(
@@ -309,7 +313,7 @@ export function computeProjection(
   // scorer only penalizes at week close, so showing the FULL penalty on a
   // Tuesday overstates the risk. As the week ends (elapsedFrac -> 1) the
   // projection converges to the real close-out math.
-  const basePenalty = params.vacation
+  const basePenalty = params.vacation || params.firstWeek
     ? 0
     : missedIfEndedNow
       ? missedWeekPenalty(params.mmrBefore)
@@ -343,7 +347,7 @@ export function computeProjection(
   // missed-week penalty. If even that holds the band, demotion is off the
   // table and the UI must not claim otherwise. A shielded week has no penalty
   // at all, so its worst case is standing still.
-  const worstPenalty = params.vacation ? 0 : missedWeekPenalty(params.mmrBefore);
+  const worstPenalty = params.vacation || params.firstWeek ? 0 : missedWeekPenalty(params.mmrBefore);
   const worstCaseMMR = Math.max(0, Math.round(params.mmrBefore - worstPenalty));
   const worstBand = applyRankWithDemotionRules({
     oldBand,
@@ -456,6 +460,7 @@ export function computeProjection(
     whatIf,
     mmrWeekEndProjected,
     onVacation: params.vacation === true,
+    firstWeek: params.firstWeek === true,
   };
 }
 
@@ -489,6 +494,7 @@ export function subscribeMyMmrProjection(uid: string, onChange: (p: MmrProjectio
   let weeklyVacation = false;
   let weeklyHibernationShield = false;
   let hibernation: { fromWeekId?: unknown; untilWeekId?: unknown; graceWeekId?: unknown } | null = null;
+  let firstWeekId: string | null = null;
 
   const emit = () => {
     if (userMmr == null || userMp == null) {
@@ -550,6 +556,7 @@ export function subscribeMyMmrProjection(uid: string, onChange: (p: MmrProjectio
         goalMode,
         heightIn,
         vacation: shielded,
+        firstWeek: firstWeekGrace(weekId, firstWeekId),
       }),
     );
   };
@@ -591,6 +598,7 @@ export function subscribeMyMmrProjection(uid: string, onChange: (p: MmrProjectio
         heightIn = Number.isFinite(Number(d?.height)) && Number(d?.height) > 0 ? Number(d.height) : null;
         goalMode = ['cut', 'bulk', 'maintenance'].includes(d?.goalMode) ? d.goalMode : null;
         hibernation = d?.hibernation && typeof d.hibernation === 'object' ? d.hibernation : null;
+        firstWeekId = typeof d?.firstWeekId === 'string' ? d.firstWeekId : null;
         emit();
       },
       () => onChange(null),

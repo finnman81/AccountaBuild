@@ -40,7 +40,13 @@ export default function WeeklyTrajectoryCard({ projection, dailyStreak = 0, onVi
     let statusColor: string = colors.warning;
     let statusText = 'Holding';
 
-    if (projection.weekJustStarted) {
+    if (projection.firstWeek && !projection.completedIfEndedNow) {
+      // First week can't cost FP (firstWeekGrace). "On pace to miss" on a
+      // new member's first day read as a penalty they weren't going to pay.
+      status = 'holding';
+      statusColor = colors.success;
+      statusText = 'First week: nothing to lose, every log counts';
+    } else if (projection.weekJustStarted) {
       status = 'holding';
       statusColor = colors.textSecondary;
       statusText = 'Week just started. First log sets your pace';
@@ -96,7 +102,7 @@ export default function WeeklyTrajectoryCard({ projection, dailyStreak = 0, onVi
     // weekly totals) — say so. Behind but completable -> show the exact path.
     // Out of reach -> point at the daily streak, the game that's still alive.
     let hintLine: string | null = null;
-    if (!projection.weekJustStarted && !projection.completedIfEndedNow) {
+    if (!projection.weekJustStarted && !projection.completedIfEndedNow && !projection.firstWeek) {
       const needW = projection.workoutsTarget > 0 ? Math.max(0, projection.workoutsTarget - projection.workoutsDone) : 0;
       const needC = projection.calorieDaysTarget > 0 ? Math.max(0, projection.calorieDaysTarget - projection.calorieDaysDone) : 0;
       const winnable = needW <= projection.daysLeft && needC <= projection.daysLeft;

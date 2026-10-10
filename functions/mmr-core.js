@@ -144,6 +144,15 @@ function tierGainFactor(tier, weekId) {
   return TIER_GAIN_FACTOR[tier] ?? 1;
 }
 
+// First-week grace: a member's first scored week (and every week before they
+// first log) can't cost FP. Signing up on a Friday used to mean a missed-week
+// penalty at Sunday's close. Gains still count. Mirrored in src/mmr/adherence.ts.
+const FIRST_WEEK_GRACE_FROM_WEEK = '2026-W41';
+function firstWeekGrace(weekId, firstWeekId) {
+  if (!(typeof weekId === 'string' && weekId >= FIRST_WEEK_GRACE_FROM_WEEK)) return false;
+  return firstWeekId == null || weekId <= firstWeekId;
+}
+
 const WORKOUT_DAYS_FROM_WEEK = '2026-W37';
 function workoutDaysActiveForWeek(weekId) {
   return typeof weekId === 'string' && weekId >= WORKOUT_DAYS_FROM_WEEK;
@@ -457,6 +466,8 @@ module.exports = {
   WEIGHT_CHECKPOINTS,
   WEIGHT_CHECKPOINTS_FROM_WEEK,
   WORKOUT_DAYS_FROM_WEEK,
+  FIRST_WEEK_GRACE_FROM_WEEK,
+  firstWeekGrace,
   TIER_TAPER_FROM_WEEK,
   TIER_GAIN_FACTOR,
   tierGainFactor,

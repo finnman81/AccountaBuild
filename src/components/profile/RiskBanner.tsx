@@ -19,6 +19,7 @@ type Props = {
 export default function RiskBanner({ mmrState, latestWeekly, projection }: Props) {
   const risk = React.useMemo(() => {
     if (!mmrState) return null;
+    if (projection?.firstWeek) return null; // first week can't cost FP
     
     // Calculate week progress (0-1, where 1 = end of week)
     const weekProgress = getWeekProgress();
