@@ -687,17 +687,23 @@ export function subscribeMyMmrProjection(uid: string, onChange: (p: MmrProjectio
   );
 
   // Track group log data per group
-  const groupLogData = new Map<string, { workouts: Array<{ date: string; durationMinutes: number }>; calorieTotals: Record<string, number> }>();
+  // Per group: log id -> what it contributes. Keyed by id so a log present in
+  // two groups (health sync re-imports into whichever is active) counts once,
+  // matching the scorer's dedupe.
+  const groupLogData = new Map<string, Map<string, { type: 'workout' | 'calories'; date: string; value: number }>>();
   // Track group log subscriptions
   const groupLogUnsubs = new Map<string, () => void>();
 
   const rebuildGroupData = () => {
     groupWorkouts = [];
     groupCalorieTotals = {};
+    const seen = new Set<string>();
     for (const data of groupLogData.values()) {
-      groupWorkouts.push(...data.workouts);
-      for (const [d, v] of Object.entries(data.calorieTotals)) {
-        groupCalorieTotals[d] = (groupCalorieTotals[d] ?? 0) + v;
+      for (const [id, e] of data) {
+        if (seen.has(id)) continue;
+        seen.add(id);
+        if (e.type === 'workout') groupWorkouts.push({ date: e.date, durationMinutes: e.value });
+        else groupCalorieTotals[e.date] = (groupCalorieTotals[e.date] ?? 0) + e.value;
       }
     }
     emit();
@@ -731,8 +737,7 @@ export function subscribeMyMmrProjection(uid: string, onChange: (p: MmrProjectio
             // dropped early-week logs in chatty groups and cost 20x the reads.
             query(collection(db, 'groups', groupId, 'logs'), where('uid', '==', uid), where('date', '>=', start), where('date', '<=', end)),
             (snap) => {
-              const workouts: Array<{ date: string; durationMinutes: number }> = [];
-              const calorieTotals: Record<string, number> = {};
+              const entries = new Map<string, { type: 'workout' | 'calories'; date: string; value: number }>();
               
               for (const d of snap.docs) {
                 const data = d.data() as any;
@@ -744,17 +749,17 @@ export function subscribeMyMmrProjection(uid: string, onChange: (p: MmrProjectio
                 if (type === 'workout') {
                   const mins = Number(data?.payload?.durationMinutes);
                   if (Number.isFinite(mins) && mins > 0) {
-                    workouts.push({ date, durationMinutes: mins });
+                    entries.set(d.id, { type: 'workout', date, value: mins });
                   }
                 } else if (type === 'calories') {
                   const cals = Number(data?.payload?.calories);
                   if (Number.isFinite(cals) && cals > 0) {
-                    calorieTotals[date] = (calorieTotals[date] ?? 0) + cals;
+                    entries.set(d.id, { type: 'calories', date, value: cals });
                   }
                 }
               }
               
-              groupLogData.set(groupId, { workouts, calorieTotals });
+              groupLogData.set(groupId, entries);
               rebuildGroupData();
             },
             () => {

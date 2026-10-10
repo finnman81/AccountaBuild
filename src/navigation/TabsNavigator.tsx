@@ -69,7 +69,7 @@ function HomeStackNavigator() {
       <HomeStack.Screen name="GroupChat" component={GroupChatScreen} options={{ title: 'Chat' }} />
       <HomeStack.Screen name="ViewPhotos" component={ViewPhotosScreen} options={{ title: 'Photos' }} />
       <HomeStack.Screen name="Issues" component={IssuesScreen} options={{ title: 'Issues / Suggestions' }} />
-      <HomeStack.Screen name="GroupSettings" component={GroupSettingsScreen} options={{ title: 'Group settings' }} />
+      <HomeStack.Screen name="GroupSettings" component={GroupSettingsScreen} options={{ headerShown: false }} />
     </HomeStack.Navigator>
   );
 }
@@ -86,7 +86,7 @@ function GroupsStackNavigator() {
       <GroupsStack.Screen name="ViewPhotos" component={ViewPhotosScreen} options={{ title: 'Photos' }} />
       <GroupsStack.Screen name="Leaderboard" component={LeaderboardScreen} options={{ title: 'Leaderboard' }} />
       <GroupsStack.Screen name="Issues" component={IssuesScreen} options={{ title: 'Issues / Suggestions' }} />
-      <GroupsStack.Screen name="GroupSettings" component={GroupSettingsScreen} options={{ title: 'Group settings' }} />
+      <GroupsStack.Screen name="GroupSettings" component={GroupSettingsScreen} options={{ headerShown: false }} />
     </GroupsStack.Navigator>
   );
 }

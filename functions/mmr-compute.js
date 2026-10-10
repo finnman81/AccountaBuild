@@ -90,6 +90,10 @@ async function getWeekTotals(db, uid, groupIds, weekStart, weekEnd) {
   // WORKOUT_DAYS_FROM_WEEK on (see mmr-core).
   const workoutDates = new Set();
   const calorieTotalsByDate = {};
+  // One log, counted once: a health-synced log keeps its id in every group it
+  // lands in (switching groups re-imports the recent window), and summing per
+  // group double-counted its minutes and calories.
+  const seen = new Set();
   await Promise.all(
     groupIds.map(async (groupId) => {
       // Direct uid+date query (composite index exists) — the old newest-1500
@@ -103,6 +107,8 @@ async function getWeekTotals(db, uid, groupIds, weekStart, weekEnd) {
         .where('date', '<=', weekEnd)
         .get();
       snap.docs.forEach((d) => {
+        if (seen.has(d.id)) return;
+        seen.add(d.id);
         const data = d.data();
         const date = String(data?.date ?? '').trim();
         if (!date) return;

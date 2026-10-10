@@ -43,14 +43,15 @@ export default function HomeTodayScreen() {
         onJoinGroup={() => (nav as any).navigate('MainTabs', { screen: 'GroupsTab', params: { screen: 'JoinGroup' } })}
         onCreateGroup={() => (nav as any).navigate('MainTabs', { screen: 'GroupsTab', params: { screen: 'CreateGroup' } })}
         onEditEntry={(entry) => {
-          if (!activeGroupId) return;
+          const groupId = entry.groupId ?? activeGroupId;
+          if (!groupId) return;
           const p = (entry.payload ?? {}) as any;
           if (entry.type === 'calories') {
-            (nav as any).navigate('AddCalories', { groupId: activeGroupId, edit: { logId: entry.logId, date: entry.date, calories: Number(p.calories) || 0, meal: p.meal ?? 'all', note: p.note ?? null } });
+            (nav as any).navigate('AddCalories', { groupId, edit: { logId: entry.logId, date: entry.date, calories: Number(p.calories) || 0, meal: p.meal ?? 'all', note: p.note ?? null } });
           } else if (entry.type === 'workout') {
-            (nav as any).navigate('AddWorkout', { groupId: activeGroupId, edit: { logId: entry.logId, date: entry.date, workoutType: p.workoutType ?? 'weightLifting', durationMinutes: Number(p.durationMinutes) || 0, note: p.note ?? null } });
+            (nav as any).navigate('AddWorkout', { groupId, edit: { logId: entry.logId, date: entry.date, workoutType: p.workoutType ?? 'weightLifting', durationMinutes: Number(p.durationMinutes) || 0, note: p.note ?? null } });
           } else if (entry.type === 'weight') {
-            (nav as any).navigate('AddWeight', { groupId: activeGroupId, edit: { logId: entry.logId, date: entry.date, weight: Number(p.weight) || 0, note: p.note ?? null } });
+            (nav as any).navigate('AddWeight', { groupId, edit: { logId: entry.logId, date: entry.date, weight: Number(p.weight) || 0, note: p.note ?? null } });
           }
         }}
       />

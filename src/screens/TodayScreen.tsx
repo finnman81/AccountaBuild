@@ -41,6 +41,7 @@ import { notifyLogsChanged } from '../services/fpEvents';
 import { getCachedDisplayName, getCachedGroupName, rememberDisplayName, rememberGroupName } from '../services/profileCache';
 import { getHydrated, setHydrated } from '../services/hydrationCache';
 import { subscribeMyMmrGoals } from '../services/mmrGoals';
+import { useMyLogsAllGroups } from '../hooks/useMyLogsAllGroups';
 import type { ChecklistItem, TodayLogEntry } from '../viewmodels/today';
 import type { Tier } from '../mmr/types';
 
@@ -194,21 +195,24 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
   // Hide checklist rows for things the member doesn't track: goal off AND no
   // recent log of that type (someone weighing in without a weight goal keeps
   // the row). Nothing hides until goals have loaded.
+  // My logs from every group: the checklist, "tracks this?" and the vacation
+  // prompt are about me, not this group's feed.
+  const myLogs = useMyLogsAllGroups(myUid);
   const [myGoals, setMyGoals] = useState<Record<string, any> | null>(null);
   useEffect(() => (myUid ? subscribeMyMmrGoals(myUid, setMyGoals) : undefined), [myUid]);
   const hiddenTypes = useMemo<ChecklistType[]>(() => {
     if (!myGoals) return [];
-    const loggedRecently = (t: string) => logs.some((l) => l.uid === myUid && l.type === t);
+    const loggedRecently = (t: string) => myLogs.some((l) => l.type === t);
     const out: ChecklistType[] = [];
     const calories = myGoals.calorieDays?.status;
     if (calories && calories !== 'active' && !loggedRecently('calories')) out.push('calories');
     const weightGoal = ['weightLoss', 'weightGain'].some((id) => myGoals[id]?.status === 'active');
     if (!weightGoal && !loggedRecently('weight')) out.push('weight');
     return out;
-  }, [myGoals, logs, myUid]);
+  }, [myGoals, myLogs]);
   const checklist = useMemo(
-    () => buildTodayChecklist({ logs, myUid, today, dailyCalorieGoal, units, hidden: hiddenTypes }),
-    [logs, myUid, today, dailyCalorieGoal, units, hiddenTypes],
+    () => buildTodayChecklist({ logs: myLogs, myUid, today, dailyCalorieGoal, units, hidden: hiddenTypes }),
+    [myLogs, myUid, today, dailyCalorieGoal, units, hiddenTypes],
   );
   const team = useMemo(
     () => buildTeamToday({ memberUids, publicUsers, canSee, myUid, logs, today, streakRule, pastCutoff, currentWeekId: weekId }),
@@ -398,7 +402,7 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
       ) : null}
 
       <View style={{ height: 20 }} />
-      <VacationCard uid={myUid} myLogDates={logs.filter((l) => l.uid === myUid).map((l) => l.date)} />
+      <VacationCard uid={myUid} myLogDates={myLogs.map((l) => l.date)} />
       {fpTrend ? (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10, paddingHorizontal: 2 }}>
           <Icon source={fpTrend.value > 0 ? 'trending-up' : 'trending-down'} size={16} color={fpTrend.value > 0 ? colors.rankGold : colors.danger} />
@@ -416,9 +420,10 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
         onClose={() => setEntriesItem(null)}
         onEdit={(entry) => { setEntriesItem(null); onEditEntry?.(entry); }}
         onDelete={async (entry) => {
-          if (activeGroupId) {
+          const gid = entry.groupId ?? activeGroupId;
+          if (gid) {
             try {
-              await deleteGroupLogById(activeGroupId, entry.logId);
+              await deleteGroupLogById(gid, entry.logId);
               notifyLogsChanged(); // re-settle banked FP without save-side effects (toast, reminder-clear)
             } catch { /* non-fatal */ }
           }

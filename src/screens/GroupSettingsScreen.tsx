@@ -2,6 +2,7 @@ import React, { useContext, useEffect, useMemo, useState } from 'react';
 import { ScrollView, View, StyleSheet, TouchableOpacity } from 'react-native';
 import { Button, Dialog, Portal, Icon, ActivityIndicator } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { doc, onSnapshot } from 'firebase/firestore';
 
@@ -113,8 +114,17 @@ export default function GroupSettingsScreen({ route, navigation }: Props) {
     }
   };
 
+  // Own header, like Group Info: the native one showed a "GroupInfo" back
+  // pill (the route name) that didn't respond to taps on iOS.
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.back} hitSlop={8} accessibilityLabel="Back">
+          <Icon source="chevron-left" size={24} color={colors.textPrimary} />
+        </TouchableOpacity>
+        <AppText variant="rowTitle" color="primary" numberOfLines={1} style={{ flex: 1 }}>Group settings</AppText>
+        <View style={styles.back} />
+      </View>
       <Portal>
         <Dialog visible={deleteDialogVisible} onDismiss={() => !isDeletingGroup && setDeleteDialogVisible(false)}>
           <Dialog.Title>Delete group?</Dialog.Title>
@@ -182,11 +192,13 @@ export default function GroupSettingsScreen({ route, navigation }: Props) {
           </AppText>
         )}
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  header: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.base, paddingVertical: spacing.sm },
+  back: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   container: { flex: 1, backgroundColor: colors.background },
   content: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.xxl },
   groupName: { marginBottom: spacing.xs, marginLeft: spacing.xs },

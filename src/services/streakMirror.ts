@@ -34,18 +34,37 @@ async function loadMyStreakInputs(uid: string, groupId: string) {
   cutoff.setDate(cutoff.getDate() - LOOKBACK_DAYS);
   const minDate = yyyyMmDdInTz(cutoff, DEFAULT_TZ);
 
-  const [groupSnap, pubSnap, logsSnap] = await Promise.all([
-    getDoc(doc(db, 'groups', groupId)),
+  // The streak is the PERSON's, not the group's: read my logs from every group
+  // I'm in. Reading only the active group made a new second group show "Day 1"
+  // with Wed-Fri missed for someone on an 88-day streak.
+  const myGroups = await getDocs(collection(db, 'users', uid, 'groups')).catch(() => null);
+  const groupIds = Array.from(new Set([
+    groupId,
+    ...(myGroups?.docs ?? []).map((d) => String((d.data() as any)?.groupId ?? d.id)).filter(Boolean),
+  ]));
+  const [pubSnap, groupSnaps, logSnaps] = await Promise.all([
     getDoc(doc(db, 'publicUsers', uid)),
-    getDocs(query(collection(db, 'groups', groupId, 'logs'), where('uid', '==', uid), where('date', '>=', minDate))),
+    Promise.all(groupIds.map((gid) => getDoc(doc(db, 'groups', gid)).catch(() => null))),
+    Promise.all(groupIds.map((gid) =>
+      getDocs(query(collection(db, 'groups', gid, 'logs'), where('uid', '==', uid), where('date', '>=', minDate))).catch(() => null),
+    )),
   ]);
+  const logsById = new Map<string, GroupLog>();
+  for (const snap of logSnaps) {
+    for (const d of snap?.docs ?? []) {
+      if (!logsById.has(d.id)) logsById.set(d.id, { id: d.id, ...(d.data() as Omit<GroupLog, 'id'>) } as GroupLog);
+    }
+  }
+  // Workout-only only if every group asks for it; one 'any' group means any log counts.
+  const rules = groupSnaps.map((g) => ((g?.data() as any)?.streakRule ?? 'any') as string);
+  const streakRule: 'workout' | 'any' = rules.length && rules.every((r) => r === 'workout') ? 'workout' : 'any';
 
   const p = (pubSnap.data() as any) ?? {};
   return {
-    logs: logsSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<GroupLog, 'id'>) })) as GroupLog[],
+    logs: [...logsById.values()],
     uid,
     today: yyyyMmDdInTz(new Date(), DEFAULT_TZ),
-    streakRule: ((groupSnap.data() as any)?.streakRule ?? 'any') as 'workout' | 'any',
+    streakRule,
     targets: {
       workout: Number(p?.workoutsPerWeek ?? 0),
       calories: Number(p?.logCaloriesDaysPerWeek ?? 0),
