@@ -294,7 +294,51 @@ export function subscribeMyGroups(
   onError?: (err: unknown) => void,
 ) {
   const ref = collection(db, 'users', uid, 'groups');
-  return onSnapshot(
+  // Group docs are LIVE: memberCount / logo / activity used to be read once per
+  // change to MY memberships, so a teammate joining never updated the count
+  // ("says 3 members, we have 4") until an app restart.
+  let kept: UserGroupListItem[] = [];
+  const meta = new Map<string, { logoUrl: string | null; memberCount: number | null; lastActivityAt: any }>();
+  const metaUnsubs = new Map<string, () => void>();
+  const emit = () => {
+    onChange(
+      kept
+        .map((g) => ({ ...g, ...(meta.get(g.groupId) ?? {}) }) as UserGroupListItem)
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    );
+  };
+  const syncMetaListeners = () => {
+    const ids = new Set(kept.map((g) => g.groupId));
+    for (const [gid, unsub] of metaUnsubs) {
+      if (!ids.has(gid)) {
+        unsub();
+        metaUnsubs.delete(gid);
+        meta.delete(gid);
+      }
+    }
+    for (const gid of ids) {
+      if (metaUnsubs.has(gid)) continue;
+      metaUnsubs.set(
+        gid,
+        onSnapshot(
+          doc(db, 'groups', gid),
+          (gs) => {
+            const data = gs.data() as any;
+            if (!data) return;
+            meta.set(gid, {
+              logoUrl: data?.logoUrl ?? null,
+              memberCount: typeof data?.memberCount === 'number' ? data.memberCount : meta.get(gid)?.memberCount ?? null,
+              lastActivityAt: data?.lastActivityAt ?? data?.updatedAt ?? null,
+            });
+            emit();
+          },
+          () => {},
+        ),
+      );
+    }
+  };
+
+  const unsubMine = onSnapshot(
     ref,
     (snap) => {
       const items = snap.docs.map((d) => d.data() as UserGroupListItem);
@@ -323,7 +367,7 @@ export function subscribeMyGroups(
               // Ignore (permissions/network); keep showing the group for now.
             }
             const data = groupSnap.data() as any;
-            // Backfill memberCount for older groups (so UI can show “X members”).
+            // Backfill memberCount for older groups (so UI can show "X members").
             let memberCount: number | null =
               typeof data?.memberCount === 'number' ? data.memberCount : null;
             if (memberCount == null) {
@@ -338,17 +382,18 @@ export function subscribeMyGroups(
                 // Ignore (permissions/network); UI will show placeholder until it can be computed.
               }
             }
-            return {
-              ...g,
+            meta.set(g.groupId, {
               logoUrl: data?.logoUrl ?? null,
               memberCount,
               lastActivityAt: data?.lastActivityAt ?? data?.updatedAt ?? null,
-            } as UserGroupListItem;
+            });
+            return g;
           }),
         );
 
-        const kept = checked.filter(Boolean) as UserGroupListItem[];
-        onChange(kept.sort((a, b) => a.name.localeCompare(b.name)));
+        kept = checked.filter(Boolean) as UserGroupListItem[];
+        syncMetaListeners();
+        emit();
       })().catch((err) => {
         // Fallback: show what we have; caller can surface an error if desired.
         onChange(items.sort((a, b) => a.name.localeCompare(b.name)));
@@ -357,6 +402,11 @@ export function subscribeMyGroups(
     },
     onError,
   );
+  return () => {
+    unsubMine();
+    metaUnsubs.forEach((u) => u());
+    metaUnsubs.clear();
+  };
 }
 
 export function subscribeMyGroupMeta(

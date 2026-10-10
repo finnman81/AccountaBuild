@@ -935,7 +935,14 @@ exports.syncVisibility = onDocumentWritten('groups/{groupId}/members/{memberId}'
   if (!created && !removed) return; // member-profile mirror updates churn these docs; membership unchanged
 
   const uid = memberId; // member doc ids are uids (see getGroupMemberUids)
-  const others = (await getGroupMemberUids(groupId)).filter((m) => m !== uid);
+  const memberUids = await getGroupMemberUids(groupId);
+  const others = memberUids.filter((m) => m !== uid);
+
+  // True member count, recounted on every join/leave. The client only ever
+  // incremented it on join, so leaves and removals left it drifting high.
+  if (removed || created) {
+    await db.doc(`groups/${groupId}`).update({ memberCount: memberUids.length }).catch(() => {});
+  }
 
   if (created) {
     const batch = db.batch();
