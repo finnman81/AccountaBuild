@@ -170,6 +170,41 @@ async function scheduleNotificationsInner(options?: { force?: boolean; startFrom
   }
 }
 
+/**
+ * No group yet: the daily "log today" reminders mean nothing (nobody to log
+ * with, no week to protect), so they're cancelled. In their place, ONE
+ * reminder the next day at the first reminder time: start or join a group.
+ * Joining a group re-arms the normal reminders (NotificationProvider).
+ */
+const GROUP_NUDGE_KEY = 'notification_group_nudge_scheduled';
+
+export async function holdRemindersUntilGroup(uid: string): Promise<void> {
+  try {
+    await Notifications.cancelAllScheduledNotificationsAsync();
+    // Force the next scheduleNotifications() to re-arm instead of deduping
+    // against a schedule we just cancelled.
+    await AsyncStorage.multiRemove([LAST_SCHEDULED_PREFS_KEY, LAST_SCHEDULED_DAY_KEY]);
+    const key = `${GROUP_NUDGE_KEY}:${uid}`;
+    if (await AsyncStorage.getItem(key)) return; // once, ever
+    const prefs = await getNotificationPreferences();
+    if (!prefs.enabled) return;
+    const status = await Notifications.getPermissionsAsync();
+    if (status.status !== 'granted') return;
+    const date = nextOccurrenceDate(prefs.times[0] || '18:00', 120, true);
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: 'AccountaBuild',
+        body: 'Streaks last longer with someone watching. Start a group or join one with a code.',
+        sound: true,
+      },
+      trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date },
+    });
+    await AsyncStorage.setItem(key, date.toISOString());
+  } catch (e) {
+    console.warn('holdRemindersUntilGroup failed', e);
+  }
+}
+
 export async function cancelAllNotifications(): Promise<void> {
   try {
     await Notifications.cancelAllScheduledNotificationsAsync();

@@ -7,7 +7,7 @@ import { AuthContext } from '../../store/AuthContext';
 import { useActiveGroup } from '../../store/ActiveGroupContext';
 import { useNotificationBadge } from '../../hooks/useNotificationBadge';
 import { navigateToActivity, navigateToGroupChat, navigateToGoals } from '../../navigation/navigationRef';
-import { scheduleNotifications } from '../../services/notifications';
+import { holdRemindersUntilGroup, scheduleNotifications } from '../../services/notifications';
 import { subscribeLogSaved } from '../../services/fpEvents';
 import { fetchMyLogsInRange } from '../../services/logs';
 import { todayYYYYMMDD } from '../../utils/dates';
@@ -24,7 +24,8 @@ function handleNotificationTap(response: Notifications.NotificationResponse) {
 
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
   const { user } = useContext(AuthContext);
-  const { activeGroupId } = useActiveGroup();
+  const { activeGroupId, groups, groupsLoaded } = useActiveGroup();
+  const noGroup = groupsLoaded && groups.length === 0;
 
   // Use badge hook to manage badge count
   useNotificationBadge();
@@ -39,6 +40,11 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   useEffect(() => {
     if (!user?.uid) return;
     const uid = user.uid;
+    // No group: hold the daily reminders (one "start a group" nudge instead).
+    if (noGroup) {
+      void holdRemindersUntilGroup(uid);
+      return;
+    }
     const clearedKey = `${CLEARED_PREFIX}:${uid}`;
 
     const clearForToday = async () => {
@@ -77,7 +83,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       appStateSub.remove();
       unsubLogSaved();
     };
-  }, [user?.uid, activeGroupId]);
+  }, [user?.uid, activeGroupId, noGroup]);
 
   // Set up notification handlers
   useEffect(() => {

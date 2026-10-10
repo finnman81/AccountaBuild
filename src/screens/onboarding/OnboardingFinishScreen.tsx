@@ -13,7 +13,7 @@ import PrimaryButton from '../../components/ui/PrimaryButton';
 import AppText from '../../components/ui/AppText';
 import Card from '../../components/ui/Card';
 import { completeOnboarding } from '../../services/onboarding';
-import { requestNotificationPermissions, scheduleNotifications } from '../../services/notifications';
+import { requestNotificationPermissions } from '../../services/notifications';
 import { requestHealthPermissions } from '../../services/health/healthService';
 import { updateHealthSettings } from '../../services/healthSettings';
 import { onboardingAnalytics } from '../../services/analytics';
@@ -106,8 +106,9 @@ export default function OnboardingFinishScreen({ navigation }: Props) {
       // non-fatal — a denial/failure never blocks continuing; the user can
       // enable them later in Settings.
       try {
-        const notifGranted = await requestNotificationPermissions();
-        if (notifGranted) await scheduleNotifications({ startFromTomorrow: true });
+        // Permission only. NotificationProvider arms the daily reminders once
+        // they're in a group; a group-less finish gets one "start a group" nudge.
+        await requestNotificationPermissions();
       } catch (e) {
         console.warn('[Onboarding] notification permission request failed', e);
       }
