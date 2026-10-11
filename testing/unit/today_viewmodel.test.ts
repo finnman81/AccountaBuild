@@ -1,4 +1,4 @@
-import { buildTodayChecklist, computeStreakDays, computeGoalStreak, buildTeamToday, buildLeaderboardPreview } from '../../src/viewmodels/today';
+import { milestoneToCelebrate, buildTodayChecklist, computeStreakDays, computeGoalStreak, buildTeamToday, buildLeaderboardPreview } from '../../src/viewmodels/today';
 import type { GroupLog, LogType } from '../../src/services/logs';
 import type { PublicUser } from '../../src/services/publicUsers';
 
@@ -189,5 +189,18 @@ describe('computeGoalStreak (pace-aware, logged days only)', () => {
     const logs = [log('a', 'workout', WED), log('a', 'workout', TUE)];
     const s = computeGoalStreak({ logs, uid: 'a', today: WED, streakRule: 'workout', targets: { workout: 0, calories: 0, weight: 0 } });
     expect(s).toBe(2);
+  });
+});
+
+describe('milestoneToCelebrate', () => {
+  it('celebrates a fresh milestone, even a few days late', () => {
+    expect(milestoneToCelebrate(50, 30)).toBe(50);
+    expect(milestoneToCelebrate(53, 30)).toBe(50);
+  });
+  it('never announces a stale one after a reset (89 does not re-announce 50)', () => {
+    expect(milestoneToCelebrate(89, 0)).toBeNull();
+  });
+  it('does not repeat one already seen', () => {
+    expect(milestoneToCelebrate(51, 50)).toBeNull();
   });
 });

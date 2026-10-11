@@ -35,6 +35,9 @@ const streakMilestone = onCall(async (req) => {
   const streak = Number(pub.streakDaysPublic) || 0;
   const fresh = Date.now() - (Number(pub.streakDaysUpdatedAtMs) || 0) < FRESH_MS;
   if (!fresh || streak < m) throw new HttpsError('failed-precondition', 'Streak does not match.');
+  // Fresh milestones only (mirror of MILESTONE_GRACE_DAYS in the app): an 89-day
+  // streak can't announce its 50 five weeks late.
+  if (streak - m >= 7) throw new HttpsError('failed-precondition', 'Milestone is not recent.');
 
   const month = core.yyyyMmDdInTz(new Date(), TZ).slice(0, 7);
   try {

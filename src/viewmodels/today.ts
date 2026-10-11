@@ -602,8 +602,16 @@ export function highestMilestoneAtOrBelow(streak: number): number {
  */
 export function milestoneToCelebrate(streak: number, seen: number): number | null {
   const m = highestMilestoneAtOrBelow(streak);
+  // Only FRESH milestones. A wrongly computed streak of 1 (since fixed) reset
+  // `seen`, and the next correct read of 89 announced "50-day streak" to the
+  // whole group, five weeks late. A week of slack still covers not opening
+  // the app on the day itself.
+  if (streak - m >= MILESTONE_GRACE_DAYS) return null;
   return m > seen ? m : null;
 }
+
+/** How long after reaching a milestone it can still be celebrated. Mirrored in functions/streak-milestone.js. */
+export const MILESTONE_GRACE_DAYS = 7;
 
 const MILESTONE_COPY: Record<number, { title: string; line: string }> = {
   7: { title: 'One week.', line: 'Most people quit before this.' },

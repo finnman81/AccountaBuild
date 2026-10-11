@@ -255,7 +255,10 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
   // F1: score against the snapshot the week started with, when present.
   const weeklyPre = await db.collection('users').doc(uid).collection('weekly').doc(weekId).get();
   const snapGoals = weeklyPre.exists ? weeklyPre.data()?.goalsSnapshot : null;
-  if (snapGoals && typeof snapGoals === 'object' && Object.keys(snapGoals).length > 0) {
+  // First week: goals are still being set up (and the week can't cost FP), so
+  // edits count right away. Live goals win and the snapshot follows them.
+  const firstWeekLiveGoals = core.firstWeekGrace(weekId, typeof userPre?.firstWeekId === 'string' ? userPre.firstWeekId : null);
+  if (!firstWeekLiveGoals && snapGoals && typeof snapGoals === 'object' && Object.keys(snapGoals).length > 0) {
     // Snapshot wins for ids it knows; goals ADDED mid-week join immediately
     // (mirror of the client rule — see mmrUpdate.ts).
     const merged = { ...snapGoals };
@@ -732,7 +735,13 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
         updatedAt: FieldValue.serverTimestamp(),
         dataSource: 'self_reported',
         ...(hibShield ? { hibernationShield: true } : {}),
-        ...(Object.keys(goals).length === 0 || (weeklyData?.goalsSnapshot && Object.keys(weeklyData?.goalsSnapshot).length >= Object.keys(goals).length) ? {} : { goalsSnapshot: goals }),
+        ...(Object.keys(goals).length === 0
+          ? {}
+          : firstWeekLiveGoals
+            ? { goalsSnapshot: goals }
+            : weeklyData?.goalsSnapshot && Object.keys(weeklyData?.goalsSnapshot).length >= Object.keys(goals).length
+              ? {}
+              : { goalsSnapshot: goals }),
         workoutsDone,
         workoutDaysDone,
         minutesDone: Math.round(minutesDone),

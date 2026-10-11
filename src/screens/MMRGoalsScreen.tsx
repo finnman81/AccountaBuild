@@ -12,6 +12,7 @@ import { subscribeMyMmrGoals, upsertGoal } from '../services/mmrGoals';
 import { subscribeMyProfile, updateMyProfile } from '../services/profile';
 import { formatYYYYMMDDLocal, isValidYYYYMMDD, todayYYYYMMDD } from '../utils/dates';
 import { DEFAULT_TZ, isoWeekIdInTz, nextIsoWeekId } from '../mmr/time';
+import { firstWeekGrace } from '../mmr/adherence';
 import AppText from '../components/ui/AppText';
 import EditRow from '../components/ui/EditRow';
 import TextField from '../components/ui/TextField';
@@ -97,6 +98,7 @@ export default function MMRGoalsScreen() {
   const [workoutsPerWeek, setWorkoutsPerWeek] = useState('3');
   const [calorieDaysPerWeek, setCalorieDaysPerWeek] = useState('5');
   const [dailyCalorieGoal, setDailyCalorieGoal] = useState('2500');
+  const [firstWeekId, setFirstWeekId] = useState<string | null | undefined>(undefined);
   const [logWeightDaysPerWeek, setLogWeightDaysPerWeek] = useState('5');
 
   // Weight goal
@@ -119,6 +121,8 @@ export default function MMRGoalsScreen() {
         if (!p) return;
         if (typeof p.dailyCalorieGoal === 'number') setDailyCalorieGoal(String(p.dailyCalorieGoal));
         if (typeof p.logWeightDaysPerWeek === 'number' && p.logWeightDaysPerWeek > 0) setLogWeightDaysPerWeek(String(p.logWeightDaysPerWeek));
+        const fw = (p as any).firstWeekId;
+        setFirstWeekId(typeof fw === 'string' ? fw : null);
       },
       undefined,
     );
@@ -164,7 +168,16 @@ export default function MMRGoalsScreen() {
       return new Date().getDay() === 1;
     }
   }, []);
-  const goalsLocked = hasExistingGoals && !isMondayEt;
+  // ...except in your FIRST week: goals are still being dialed in, the week
+  // can't cost FP (firstWeekGrace), and edits apply right away. A new member
+  // couldn't flip calories off on day two.
+  const inFirstWeek = firstWeekId !== undefined && firstWeekGrace(isoWeekIdInTz(new Date(), DEFAULT_TZ), firstWeekId); // undefined = profile not loaded yet
+  const goalsLocked = hasExistingGoals && !isMondayEt && !inFirstWeek;
+  // When a save counts: right away in the first week, otherwise next week.
+  const effectiveWeekId = () => {
+    const thisWeek = isoWeekIdInTz(new Date(), DEFAULT_TZ);
+    return inFirstWeek ? thisWeek : nextIsoWeekId(thisWeek, DEFAULT_TZ);
+  };
   const canSave = useMemo(() => Boolean(user?.uid) && !saving && !goalsLocked, [saving, user?.uid, goalsLocked]);
   // Weight goal fields only (not the toggle, not weigh-in days: those feed the streak).
   const canEditWeight = Boolean(user?.uid) && !saving;
@@ -290,10 +303,9 @@ export default function MMRGoalsScreen() {
     try {
       await writeWeightGoal(user.uid);
       if (db) {
-        const nextWeek = nextIsoWeekId(isoWeekIdInTz(new Date(), DEFAULT_TZ), DEFAULT_TZ);
-        await setDoc(doc(db, 'users', user.uid), { goalsEffectiveWeekId: nextWeek, updatedAt: serverTimestamp() }, { merge: true });
+        await setDoc(doc(db, 'users', user.uid), { goalsEffectiveWeekId: effectiveWeekId(), updatedAt: serverTimestamp() }, { merge: true });
       }
-      setSaved('Weight goal saved. Applies from next week.');
+      setSaved(inFirstWeek ? 'Weight goal saved. It counts right away this first week.' : 'Weight goal saved. Applies from next week.');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save your weight goal.');
     } finally {
@@ -365,11 +377,10 @@ export default function MMRGoalsScreen() {
 
       // Stamp when goal changes should count for MMR fairness (next ISO week).
       if (db) {
-        const nextWeek = nextIsoWeekId(isoWeekIdInTz(new Date(), DEFAULT_TZ), DEFAULT_TZ);
-        await setDoc(doc(db, 'users', user.uid), { goalsEffectiveWeekId: nextWeek, updatedAt: serverTimestamp() }, { merge: true });
+        await setDoc(doc(db, 'users', user.uid), { goalsEffectiveWeekId: effectiveWeekId(), updatedAt: serverTimestamp() }, { merge: true });
       }
 
-      setSaved('Saved. Changes apply from next week.');
+      setSaved(inFirstWeek ? 'Saved. It counts right away this first week.' : 'Saved. Changes apply from next week.');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Save failed.');
     } finally {
