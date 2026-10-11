@@ -15,7 +15,6 @@ import { subscribeHealthSettings, updateHealthSettings, type HealthSettings } fr
 import * as HealthService from '../services/health/healthService';
 import { syncHealthData } from '../services/healthSync';
 import { db } from '../firebase/firebase';
-import * as HealthKitService from '../services/health/healthKitService';
 import { todayYYYYMMDD } from '../utils/dates';
 import { colors, radius, spacing } from '../theme';
 
@@ -75,10 +74,6 @@ export default function HealthSettingsScreen() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [diagnostics, setDiagnostics] = useState<string | null>(null);
-  const [runningDiagnostics, setRunningDiagnostics] = useState(false);
-  const [syncLogs, setSyncLogs] = useState<string[]>([]);
-  const [showSyncLogs, setShowSyncLogs] = useState(false);
 
   useEffect(() => {
     if (!user || !db) {
@@ -197,14 +192,14 @@ export default function HealthSettingsScreen() {
     setError(null);
     setSuccess(null);
     setSyncing(true);
-    setSyncLogs([]);
-    setShowSyncLogs(true);
 
     const logs: string[] = [];
     const addLog = (message: string) => {
       const timestamp = new Date().toLocaleTimeString();
+      // Console only: the on-screen "Sync Debug Logs" panel was removed (it
+      // read as broken to regular members). Sentry breadcrumbs keep these.
       logs.push(`[${timestamp}] ${message}`);
-      setSyncLogs([...logs]);
+      console.log('[HealthSync]', message);
     };
 
     try {
@@ -290,30 +285,6 @@ export default function HealthSettingsScreen() {
     }
   };
 
-  const handleRunDiagnostics = async () => {
-    if (Platform.OS !== 'ios') {
-      setDiagnostics('Diagnostics only available on iOS');
-      return;
-    }
-
-    setRunningDiagnostics(true);
-    setDiagnostics(null);
-    setError(null);
-    setSuccess(null);
-
-    try {
-      const report = await HealthKitService.runHealthKitDiagnostics();
-      setDiagnostics(report);
-      console.log('HealthKit Diagnostics:', report);
-    } catch (err) {
-      const errorMsg = `Failed to run diagnostics: ${err}`;
-      setDiagnostics(errorMsg);
-      setError(errorMsg);
-      console.error('Diagnostics error:', err);
-    } finally {
-      setRunningDiagnostics(false);
-    }
-  };
 
   if (loading || !settings) {
     return (
@@ -461,64 +432,6 @@ export default function HealthSettingsScreen() {
             )}
           </Card>
 
-          {/* Sync Debug Logs Panel */}
-          {showSyncLogs && (
-            <Card style={styles.spacedCard}>
-              <View style={styles.cardHeader}>
-                <View style={styles.cardHeaderText}>
-                  <AppText variant="cardLabel" color="primary">Sync Debug Logs</AppText>
-                  <AppText variant="rowSubtitle" color="muted" style={styles.subLine}>Real-time sync information</AppText>
-                </View>
-                <TouchableOpacity onPress={() => setShowSyncLogs(false)} hitSlop={8} style={styles.iconBtn}>
-                  <Icon source="close" size={20} color={colors.textSecondary} />
-                </TouchableOpacity>
-              </View>
-              {syncLogs.length === 0 ? (
-                <AppText variant="rowSubtitle" color="muted" style={styles.blockGap}>
-                  No logs yet. Tap "Sync Now" to see debug information.
-                </AppText>
-              ) : (
-                <ScrollView style={styles.logBox} nestedScrollEnabled>
-                  <AppText selectable style={styles.mono}>
-                    {syncLogs.join('\n')}
-                  </AppText>
-                </ScrollView>
-              )}
-              <AppText variant="rowSubtitle" color="muted" style={styles.blockGap}>
-                These logs show what happens during sync. Copy the text above to share for debugging.
-              </AppText>
-            </Card>
-          )}
-
-          {/* Debug Diagnostics Panel */}
-          {Platform.OS === 'ios' && (
-            <Card style={styles.spacedCard}>
-              <AppText variant="cardLabel" color="primary">HealthKit Diagnostics</AppText>
-              <AppText variant="rowSubtitle" color="muted" style={styles.subLine}>Debug information</AppText>
-
-              <PrimaryButton
-                secondary
-                onPress={handleRunDiagnostics}
-                loading={runningDiagnostics}
-                disabled={runningDiagnostics}
-                style={styles.diagBtn}
-              >
-                Run Diagnostics
-              </PrimaryButton>
-
-              {diagnostics && (
-                <ScrollView style={[styles.logBox, styles.diagBox]} nestedScrollEnabled>
-                  <AppText selectable style={styles.mono}>
-                    {diagnostics}
-                  </AppText>
-                </ScrollView>
-              )}
-
-              <AppText variant="rowSubtitle" color="muted" style={styles.blockGap}>
-                Tap "Run Diagnostics" to test HealthKit API calls. Copy the output above to share for debugging.
-              </AppText>
-            </Card>
-          )}
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
@@ -557,12 +470,4 @@ const styles = StyleSheet.create({
   syncBtn: { marginTop: spacing.base },
   lastSync: { marginTop: spacing.md },
   spacedCard: { marginTop: spacing.md },
-  logBox: { backgroundColor: colors.surface2, padding: spacing.md, borderRadius: radius.tile, maxHeight: 300, marginTop: spacing.base },
-  diagBox: { maxHeight: 400 },
-  mono: {
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-    fontSize: 11,
-    color: colors.textSecondary,
-  },
-  diagBtn: { marginTop: spacing.base },
 });
