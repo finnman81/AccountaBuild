@@ -240,6 +240,13 @@ function checkpointDelta({ pBest, pot, alreadyAwarded }) {
  * apply=false runs the exact computation but skips every write (dry run).
  * Returns a summary for reporting.
  */
+/** YYYY-MM-DD (ET) the account was created, from users.createdAt; null if unknown. */
+function accountCreatedYmd(userData) {
+  const c = userData?.createdAt;
+  const d = c && typeof c.toDate === 'function' ? c.toDate() : null;
+  return d ? core.yyyyMmDdInTz(d, core.DEFAULT_TZ) : null;
+}
+
 async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = true, now = new Date() }) {
   const seasonId = seasonIdIn ?? core.seasonIdFromDate(now, core.DEFAULT_TZ);
   const { start, end, dates } = core.isoWeekRangeInTz(weekId, core.DEFAULT_TZ);
@@ -248,6 +255,15 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
   // ---- Gather inputs (outside the transaction, mirroring the client) ----
   const userSnapPre = await db.collection('users').doc(uid).get();
   const userPre = userSnapPre.exists ? userSnapPre.data() : {};
+
+  // A week that ended before the account existed is not a week they missed.
+  // The 6h run re-settles the PREVIOUS week, and for a brand-new member that
+  // was the week before they signed up: scored as missed, -30 FP (every App
+  // Store signup on 10/9-10/10 started at Bronze I instead of Silver IV).
+  const createdYmd = accountCreatedYmd(userPre);
+  if (createdYmd && end < createdYmd) {
+    return { uid, weekId, skipped: 'before-account', applied: false };
+  }
   const dailyCalorieGoal = typeof userPre?.dailyCalorieGoal === 'number' ? Number(userPre.dailyCalorieGoal) : null;
   const goalMode = ['cut', 'bulk', 'maintenance'].includes(userPre?.goalMode) ? userPre.goalMode : null;
 
@@ -964,6 +980,12 @@ async function computeUserUpToCurrentWeek(db, { uid, apply = true, now = new Dat
 
   let wk = !last ? currentWeekId : last === currentWeekId ? prevWeekId : core.nextIsoWeekId(last, core.DEFAULT_TZ);
   if (firstWeekId != null && wk < firstWeekId) wk = firstWeekId;
+  // Never before the week the account was created (see computeUserWeek).
+  const createdYmd = accountCreatedYmd(userData);
+  if (createdYmd) {
+    const createdWeek = core.isoWeekIdInTz(core.zonedNoonUtcFromYmd(createdYmd, core.DEFAULT_TZ), core.DEFAULT_TZ);
+    if (wk < createdWeek) wk = createdWeek;
+  }
 
   const results = [];
   for (let i = 0; i < 20; i += 1) {
