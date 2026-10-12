@@ -24,6 +24,7 @@ import TeamTodayRail from '../components/today/TeamTodayRail';
 import LeaderboardPreviewCard from '../components/today/LeaderboardPreviewCard';
 import WeeklyRecapBanner from '../components/today/WeeklyRecapBanner';
 import SetupChecklistCard from '../components/today/SetupChecklistCard';
+import NotificationPromptCard from '../components/today/NotificationPromptCard';
 import TargetReviewCard from '../components/today/TargetReviewCard';
 import GoalReachedCard from '../components/today/GoalReachedCard';
 import GoalDeadlineCard from '../components/today/GoalDeadlineCard';
@@ -284,9 +285,14 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
         <Text style={{ fontSize: 26, fontWeight: '700', letterSpacing: -0.4, color: colors.textPrimary, marginTop: 4 }}>
           {greetingLine}
         </Text>
+        {/* No group yet: notifications are how the daily "start a group"
+            reminder reaches them, so ask here too. */}
+        <View style={{ marginTop: 20 }}>
+          <NotificationPromptCard />
+        </View>
         <View
           style={{
-            marginTop: 28,
+            marginTop: 8,
             backgroundColor: colors.surface,
             borderWidth: 1,
             borderColor: colors.borderCard,
@@ -395,6 +401,7 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
       <FpExplainerSheet visible={fpExplainer} onClose={() => setFpExplainer(false)} />
       <WeeklyRecapBanner onOpen={onOpenWeeklyRecap ?? (() => {})} />
       <UpdateBanner />
+      <NotificationPromptCard />
       <SetupChecklistCard />
       <SignWeekCard memberUids={memberUids} publicUsers={publicUsers} canSee={canSee} />
       <GoalReachedCard />

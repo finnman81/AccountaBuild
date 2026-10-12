@@ -145,9 +145,11 @@ export default function SetupChecklistCard() {
   };
 
   // Wait until every signal has loaded to avoid a flash; hide when done/dismissed.
-  if (dismissed !== false || pushGranted === null || healthOn === null) return null;
+  if (dismissed !== false || healthOn === null) return null;
   if (tracksWeight === null || hasWeightGoal === null) return null;
-  const needsPush = !pushGranted;
+  // Notifications have their own card now (NotificationPromptCard): it
+  // snoozes instead of dismissing forever and shows without a group too.
+  const needsPush = false;
   const needsHealth = !healthOn;
   // ONLY for people who opted into weight tracking. Someone tracking just
   // workouts must never be nagged about a goal weight they never wanted.
@@ -164,19 +166,6 @@ export default function SetupChecklistCard() {
           <Icon source="close" size={16} color={colors.textMuted} />
         </TouchableOpacity>
       </View>
-
-      {needsPush ? (
-        <View style={styles.row}>
-          <Icon source="bell-ring-outline" size={20} color={colors.primary} />
-          <View style={styles.rowText}>
-            <Text style={styles.rowTitle}>Turn on notifications</Text>
-            <Text style={styles.rowSub}>Cheers and nudges from your group can't reach you without them.</Text>
-          </View>
-          <TouchableOpacity style={styles.btn} onPress={enablePush} activeOpacity={0.85}>
-            <Text style={styles.btnText}>{pushCanAsk ? 'Enable' : 'Settings'}</Text>
-          </TouchableOpacity>
-        </View>
-      ) : null}
 
       {needsHealth ? (
         <View style={[styles.row, needsPush && styles.rowDivider]}>
