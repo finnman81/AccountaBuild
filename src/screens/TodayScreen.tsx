@@ -179,6 +179,9 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
   const onPullRefresh = async () => {
     if (!activeGroupId || refreshing) return;
     setRefreshing(true);
+    // Keep the spinner up at least ~0.8s: a fast refresh flashed it for a
+    // frame and read as "nothing happened".
+    const minSpin = new Promise((r) => setTimeout(r, 800));
     try {
       await recomputeMyMmr('week').catch(() => {}); // offline-safe; 6h run covers
       const rows = await fetchGroupWeekDeltas(activeGroupId, weekId);
@@ -188,6 +191,7 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
     } catch {
       /* listeners keep the rest of the screen honest */
     } finally {
+      await minSpin;
       setRefreshing(false);
     }
   };
@@ -343,7 +347,15 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.background }}
       contentContainerStyle={{ padding: spacing.lg, paddingTop: 56, paddingBottom: 32 }}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void onPullRefresh()} tintColor={colors.textSecondary} />}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => void onPullRefresh()}
+          tintColor={colors.primary}
+          colors={[colors.primary]}
+          progressBackgroundColor={colors.surface}
+        />
+      }
     >
       <TodayHeader
         groupName={groupName}
