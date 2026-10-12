@@ -182,12 +182,19 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
     // Keep the spinner up at least ~0.8s: a fast refresh flashed it for a
     // frame and read as "nothing happened".
     const minSpin = new Promise((r) => setTimeout(r, 800));
-    try {
-      await recomputeMyMmr('week').catch(() => {}); // offline-safe; 6h run covers
-      const rows = await fetchGroupWeekDeltas(activeGroupId, weekId);
+    // Rescore in the BACKGROUND: the callable took ~16s at p75, and the spinner
+    // used to wait on it. FP listeners update the screen when it lands.
+    const gid = activeGroupId;
+    const loadDeltas = async () => {
+      const rows = await fetchGroupWeekDeltas(gid, weekId);
       const map = Object.fromEntries(rows.map((r) => [r.uid, r.delta]));
       setWeekDeltas(map);
-      setHydrated(`weekDeltas:${activeGroupId}:${weekId}`, map);
+      setHydrated(`weekDeltas:${gid}:${weekId}`, map);
+    };
+    // Race card refetches once more when the rescore lands (my row moves).
+    void recomputeMyMmr('week').then(() => loadDeltas()).catch(() => {}); // offline-safe; 6h run covers
+    try {
+      await loadDeltas();
     } catch {
       /* listeners keep the rest of the screen honest */
     } finally {
@@ -202,8 +209,19 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
   // My logs from every group: the checklist, "tracks this?" and the vacation
   // prompt are about me, not this group's feed.
   const myLogs = useMyLogsAllGroups(myUid);
-  const [myGoals, setMyGoals] = useState<Record<string, any> | null>(null);
-  useEffect(() => (myUid ? subscribeMyMmrGoals(myUid, setMyGoals) : undefined), [myUid]);
+  const [myGoals, setMyGoals] = useState<Record<string, any> | null>(() =>
+    myUid ? getHydrated<Record<string, any>>(`myGoals:${myUid}`) ?? null : null,
+  );
+  useEffect(
+    () =>
+      myUid
+        ? subscribeMyMmrGoals(myUid, (g) => {
+            setMyGoals(g);
+            setHydrated(`myGoals:${myUid}`, g);
+          })
+        : undefined,
+    [myUid],
+  );
   const hiddenTypes = useMemo<ChecklistType[]>(() => {
     if (!myGoals) return [];
     const loggedRecently = (t: string) => myLogs.some((l) => l.type === t);

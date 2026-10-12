@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { AuthContext } from './AuthContext';
 import { resetLogGroupCache } from '../services/logs';
+import { getHydrated, setHydrated } from '../services/hydrationCache';
 import { subscribeMyGroups, type UserGroupListItem } from '../services/groups';
 
 type ActiveGroupContextValue = {
@@ -28,20 +29,30 @@ export function ActiveGroupProvider({ children }: { children: React.ReactNode })
   const [isReady, setIsReady] = useState(false);
   const [groupsLoaded, setGroupsLoaded] = useState(false);
 
+  // Seed from the hydration cache (primed during the splash) so Today can
+  // paint its cached group on the FIRST frame. Before this, the stored id came
+  // from an async AsyncStorage read after mount, so the first frames had no
+  // group and Today's cache couldn't be used (TTID p50 1.3s, Sentry 10/12).
+  // The live subscription and validation below still correct everything.
   useEffect(() => {
-    setGroups([]);
-    setActiveGroupIdState(null);
-    setIsReady(false);
+    const uid = user?.uid;
+    const cachedId = uid ? getHydrated<string | null>(`activeGroup:${uid}`) ?? null : null;
+    const cachedGroups = uid ? getHydrated<UserGroupListItem[]>(`myGroups:${uid}`) ?? [] : [];
+    setGroups(cachedGroups);
+    setActiveGroupIdState(cachedId);
+    setIsReady(!!cachedId);
     setGroupsLoaded(false);
   }, [user?.uid]);
 
   // Subscribe to groups and reconcile activeGroupId.
   useEffect(() => {
     if (!user?.uid) return;
-    return subscribeMyGroups(user.uid, (items) => {
+    const uid = user.uid;
+    return subscribeMyGroups(uid, (items) => {
       resetLogGroupCache(); // logs fan out to every group: keep that list fresh
       setGroups(items);
       setGroupsLoaded(true);
+      setHydrated(`myGroups:${uid}`, items);
     });
   }, [user?.uid]);
 
@@ -51,6 +62,7 @@ export function ActiveGroupProvider({ children }: { children: React.ReactNode })
       try {
         const stored = (await AsyncStorage.getItem(storageKeyFor(user.uid))) ?? null;
         setActiveGroupIdState(stored);
+        setHydrated(`activeGroup:${user.uid}`, stored);
       } finally {
         setIsReady(true);
       }
@@ -70,6 +82,7 @@ export function ActiveGroupProvider({ children }: { children: React.ReactNode })
     if (next === activeGroupId) return;
     void (async () => {
       setActiveGroupIdState(next);
+      setHydrated(`activeGroup:${user.uid}`, next);
       if (next) await AsyncStorage.setItem(storageKeyFor(user.uid), next);
       else await AsyncStorage.removeItem(storageKeyFor(user.uid));
     })();
@@ -79,6 +92,7 @@ export function ActiveGroupProvider({ children }: { children: React.ReactNode })
     async (groupId: string | null) => {
       if (!user?.uid) return;
       setActiveGroupIdState(groupId);
+      setHydrated(`activeGroup:${user.uid}`, groupId);
       if (groupId) await AsyncStorage.setItem(storageKeyFor(user.uid), groupId);
       else await AsyncStorage.removeItem(storageKeyFor(user.uid));
     },

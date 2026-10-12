@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useActiveGroup } from '../store/ActiveGroupContext';
 import { subscribeMemberLogsSince, type GroupLog } from '../services/logs';
 import { DEFAULT_TZ, yyyyMmDdInTz } from '../mmr/time';
+import { getHydrated, setHydrated } from '../services/hydrationCache';
 
 export type MyLog = GroupLog & { groupId: string };
 
@@ -20,6 +21,10 @@ export function useMyLogsAllGroups(uid: string | null | undefined, lookbackDays 
   const groupIds = useMemo(() => groups.map((g) => g.groupId).filter(Boolean).sort(), [groups]);
   const key = groupIds.join(',');
   const [byGroup, setByGroup] = useState<Record<string, GroupLog[]>>({});
+  // Last-known merged list (bounded: my logs, lookback window) so the
+  // checklist paints on the first frame instead of "0 of 3" then filling in.
+  const cacheKey = uid ? `myLogs:${uid}` : '';
+  const [cached] = useState<MyLog[] | undefined>(() => (cacheKey ? getHydrated<MyLog[]>(cacheKey) : undefined));
 
   useEffect(() => {
     if (!uid || !groupIds.length) {
@@ -38,7 +43,7 @@ export function useMyLogsAllGroups(uid: string | null | undefined, lookbackDays 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uid, key, lookbackDays]);
 
-  return useMemo(() => {
+  const live = useMemo(() => {
     const out = new Map<string, MyLog>();
     const order = activeGroupId ? [activeGroupId, ...Object.keys(byGroup).filter((g) => g !== activeGroupId)] : Object.keys(byGroup);
     for (const gid of order) {
@@ -46,4 +51,13 @@ export function useMyLogsAllGroups(uid: string | null | undefined, lookbackDays 
     }
     return [...out.values()];
   }, [byGroup, activeGroupId]);
+  const complete = groupIds.length > 0 && groupIds.every((g) => g in byGroup);
+
+  useEffect(() => {
+    if (!complete || !cacheKey) return;
+    // Timestamps serialize as {seconds, nanoseconds}, which logTsMs reads.
+    setHydrated(cacheKey, live);
+  }, [complete, live, cacheKey]);
+
+  return complete || !cached ? live : cached;
 }

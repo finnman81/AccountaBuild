@@ -542,7 +542,9 @@ exports.updateMmrScheduled = onSchedule(
  * the client used). Concurrency safe: the compute transaction is idempotent
  * and anchored, same as the scheduled run it interleaves with.
  */
-exports.recomputeMyMmr = onCall({ timeoutSeconds: 120, memory: '256MiB' }, async (request) => {
+// 1GiB: memory also buys CPU on v2 functions. At 256MiB this ran ~16s at p75
+// (Sentry, 10/12), mostly cold start + the week compute; it backs pull-to-refresh.
+exports.recomputeMyMmr = onCall({ timeoutSeconds: 120, memory: '1GiB' }, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError('unauthenticated', 'Sign in to recompute your score.');
   const mode = request.data?.mode === 'week' ? 'week' : 'catchup';
