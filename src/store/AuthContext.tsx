@@ -141,13 +141,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         await updateProfile(credential.user, { displayName: displayName.trim() });
 
-        // Create/update a basic user profile doc, seeded at the Silver IV
-        // starting rank (prev* seeded equal so no phantom movement arrow shows).
+        // Starting-rank seed (Silver IV) FIRST: rules allow rank keys only when
+        // CREATING the doc. Best-effort: if something already created the doc,
+        // this is rejected and the scorer's defaults (the same values) apply.
         await setDoc(
           doc(db, 'users', credential.user.uid),
           {
-            email: credential.user.email,
-            displayName: displayName.trim(),
             height: null,
             age: null,
             weightCurrent: null,
@@ -159,6 +158,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             prevMmr: STARTING_MMR,
             prevRankTier: STARTING_TIER,
             prevRankDivision: STARTING_DIVISION,
+          },
+          { merge: true },
+        ).catch(() => {});
+
+        // Then the profile basics, in their own write, which always lands. They used to share one
+        // write with the starting-rank seed; when anything (the heartbeat,
+        // onboarding) created the user doc a moment earlier, that write became
+        // an UPDATE touching rules-locked rank keys and was rejected whole, so
+        // createdAt and email never landed (5 accounts by 2026-10-12; the
+        // scorer then penalized the week before they signed up).
+        await setDoc(
+          doc(db, 'users', credential.user.uid),
+          {
+            email: credential.user.email,
+            displayName: displayName.trim(),
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
           },
@@ -179,7 +193,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             updatedAt: serverTimestamp(),
           },
           { merge: true },
-        );
+        ).catch(() => {});
 
         // If they join groups later, the login-time sync will populate group member profiles.
       },

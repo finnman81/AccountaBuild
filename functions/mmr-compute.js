@@ -19,7 +19,7 @@
  * Admin-SDK note: transactions require ALL reads before ANY writes, so the
  * badge/goal reads that the client interleaves are hoisted to the top.
  */
-const { FieldValue } = require('firebase-admin/firestore');
+const { FieldValue, Timestamp } = require('firebase-admin/firestore');
 const core = require('./mmr-core');
 const { celebrateGoalCompletion, celebrateTierPromotion, notifyCheckpoint } = require('./celebrations');
 const { awardBadges } = require('./badges');
@@ -240,10 +240,24 @@ function checkpointDelta({ pBest, pot, alreadyAwarded }) {
  * apply=false runs the exact computation but skips every write (dry run).
  * Returns a summary for reporting.
  */
-/** YYYY-MM-DD (ET) the account was created, from users.createdAt; null if unknown. */
-function accountCreatedYmd(userData) {
+/**
+ * YYYY-MM-DD (ET) the account was created. users.createdAt first; when the
+ * signup write lost a race and never landed (5 accounts by 10/12), fall back
+ * to the Auth record and backfill the field. Null if neither is available.
+ */
+async function accountCreatedYmd(db, uid, userData) {
   const c = userData?.createdAt;
-  const d = c && typeof c.toDate === 'function' ? c.toDate() : null;
+  let d = c && typeof c.toDate === 'function' ? c.toDate() : null;
+  if (!d) {
+    try {
+      const { getAuth } = require('firebase-admin/auth');
+      const rec = await getAuth().getUser(uid);
+      d = rec?.metadata?.creationTime ? new Date(rec.metadata.creationTime) : null;
+      if (d) await db.collection('users').doc(uid).set({ createdAt: Timestamp.fromDate(d) }, { merge: true }).catch(() => {});
+    } catch {
+      d = null;
+    }
+  }
   return d ? core.yyyyMmDdInTz(d, core.DEFAULT_TZ) : null;
 }
 
@@ -260,7 +274,7 @@ async function computeUserWeek(db, { uid, weekId, seasonId: seasonIdIn, apply = 
   // The 6h run re-settles the PREVIOUS week, and for a brand-new member that
   // was the week before they signed up: scored as missed, -30 FP (every App
   // Store signup on 10/9-10/10 started at Bronze I instead of Silver IV).
-  const createdYmd = accountCreatedYmd(userPre);
+  const createdYmd = await accountCreatedYmd(db, uid, userPre);
   if (createdYmd && end < createdYmd) {
     return { uid, weekId, skipped: 'before-account', applied: false };
   }
@@ -981,7 +995,7 @@ async function computeUserUpToCurrentWeek(db, { uid, apply = true, now = new Dat
   let wk = !last ? currentWeekId : last === currentWeekId ? prevWeekId : core.nextIsoWeekId(last, core.DEFAULT_TZ);
   if (firstWeekId != null && wk < firstWeekId) wk = firstWeekId;
   // Never before the week the account was created (see computeUserWeek).
-  const createdYmd = accountCreatedYmd(userData);
+  const createdYmd = await accountCreatedYmd(db, uid, userData);
   if (createdYmd) {
     const createdWeek = core.isoWeekIdInTz(core.zonedNoonUtcFromYmd(createdYmd, core.DEFAULT_TZ), core.DEFAULT_TZ);
     if (wk < createdWeek) wk = createdWeek;
