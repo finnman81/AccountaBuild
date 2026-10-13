@@ -8,6 +8,8 @@ import { useActiveGroup } from '../../store/ActiveGroupContext';
 import { useNotificationBadge } from '../../hooks/useNotificationBadge';
 import { navigateToActivity, navigateToGroupChat, navigateToGoals } from '../../navigation/navigationRef';
 import { holdRemindersUntilGroup, scheduleNotifications } from '../../services/notifications';
+import { asReminderStyle, getLocalReminderStyle, setLocalReminderStyle } from '../../services/reminderStyle';
+import { subscribeMyProfile } from '../../services/profile';
 import { subscribeLogSaved } from '../../services/fpEvents';
 import { fetchMyLogsInRange } from '../../services/logs';
 import { todayYYYYMMDD } from '../../utils/dates';
@@ -84,6 +86,21 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       unsubLogSaved();
     };
   }, [user?.uid, activeGroupId, noGroup]);
+
+  // Reminder style follows users/{uid}.notifPrefs.reminderStyle (set in
+  // Settings, or server-side). A change re-arms today's reminders in the new
+  // tone. Group-less members keep their single "start a group" reminder.
+  useEffect(() => {
+    if (!user?.uid) return;
+    return subscribeMyProfile(user.uid, (p) => {
+      const serverStyle = asReminderStyle((p as any)?.notifPrefs?.reminderStyle);
+      void (async () => {
+        if ((await getLocalReminderStyle()) === serverStyle) return;
+        await setLocalReminderStyle(serverStyle);
+        if (!noGroup) await scheduleNotifications({ force: true, startFromTomorrow: true });
+      })();
+    });
+  }, [user?.uid, noGroup]);
 
   // Set up notification handlers
   useEffect(() => {

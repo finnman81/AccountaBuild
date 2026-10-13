@@ -1,5 +1,6 @@
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getLocalReminderStyle, REMINDER_MESSAGES, type ReminderStyle } from './reminderStyle';
 import { getNotificationPreferences, type NotificationPreferences } from './notificationPreferences';
 
 // Configure notification behavior
@@ -14,24 +15,17 @@ Notifications.setNotificationHandler({
   }),
 });
 
-const REMINDER_MESSAGES = [
-  "Your rank isn’t locked in yet. Log today to protect your standing.",
-  "Your group is active. Don’t be the one who didn’t log today.",
-  "Still on a streak. Log now to keep it alive.",
-  "Progress beats perfection. Log whatever you did today.",
-  "Quick check-in. Log and move on.",
-  "It takes 10 seconds. Your future self will care.",
-];
+// Copy lives in reminderStyle.ts (three tones, all true whenever they fire).
 
 const LAST_MESSAGE_INDEX_KEY = 'notification_last_message_index';
 const LAST_SCHEDULED_PREFS_KEY = 'notification_last_scheduled_prefs';
 const LAST_SCHEDULED_DAY_KEY = 'notification_last_scheduled_day';
 
-async function getNextMessageIndex(): Promise<number> {
+async function getNextMessageIndex(poolSize: number): Promise<number> {
   try {
     const stored = await AsyncStorage.getItem(LAST_MESSAGE_INDEX_KEY);
     const lastIndex = stored ? parseInt(stored, 10) : -1;
-    const nextIndex = (lastIndex + 1) % REMINDER_MESSAGES.length;
+    const nextIndex = (lastIndex + 1) % Math.max(1, poolSize);
     await AsyncStorage.setItem(LAST_MESSAGE_INDEX_KEY, String(nextIndex));
     return nextIndex;
   } catch (e) {
@@ -95,8 +89,9 @@ function nextOccurrenceDate(timeStr: string, minLeadSeconds: number, startFromTo
   return target;
 }
 
-function prefsSignature(prefs: NotificationPreferences) {
-  return JSON.stringify({ enabled: prefs.enabled, count: prefs.count, times: prefs.times });
+function prefsSignature(prefs: NotificationPreferences, style: ReminderStyle) {
+  // Style is part of the signature: changing it re-arms with the new copy.
+  return JSON.stringify({ enabled: prefs.enabled, count: prefs.count, times: prefs.times, style });
 }
 
 // Serialize ALL scheduling: the flow is cancelAll -> schedule, so two
@@ -118,7 +113,9 @@ async function scheduleNotificationsInner(options?: { force?: boolean; startFrom
       return;
     }
 
-    const signature = prefsSignature(prefs);
+    const style = await getLocalReminderStyle();
+    const pool = REMINDER_MESSAGES[style];
+    const signature = prefsSignature(prefs, style);
     const lastSignature = await AsyncStorage.getItem(LAST_SCHEDULED_PREFS_KEY);
     const todayKey = localDayKey(new Date());
     const lastDayKey = await AsyncStorage.getItem(LAST_SCHEDULED_DAY_KEY);
@@ -144,8 +141,8 @@ async function scheduleNotificationsInner(options?: { force?: boolean; startFrom
       const timeStr = prefs.times[i];
       if (!timeStr) continue;
       const date = nextOccurrenceDate(timeStr, minLeadSeconds, Boolean(options?.startFromTomorrow));
-      const messageIndex = await getNextMessageIndex();
-      const body = REMINDER_MESSAGES[messageIndex];
+      const messageIndex = await getNextMessageIndex(pool.length);
+      const body = pool[messageIndex] ?? pool[0];
       
       // Schedule next occurrence only (no catch-up bursts). No `badge` here:
       // local reminders used to force the home-screen badge to a phantom "1";

@@ -132,7 +132,7 @@ export default function SettingsScreen() {
           <ToggleRow title="Nudges" subtitle="Let teammates nudge you when at risk" value={!!prefs?.nudgesAllowed} onValueChange={toggle('nudgesAllowed')} />
           <ToggleRow title="Chat messages" value={!!prefs?.chatMessages} onValueChange={toggle('chatMessages')} />
           <ToggleRow title="Weekly recap" subtitle="Monday summary + rank changes" value={!!prefs?.weeklyRecap} onValueChange={toggle('weeklyRecap')} />
-          <NavRow title="Reminder schedule" value="Times" onPress={() => nav.navigate('Notifications')} divider={false} />
+          <NavRow title="Reminders" value="Times and style" onPress={() => nav.navigate('Notifications')} divider={false} />
         </View>
 
         <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>Health</AppText>

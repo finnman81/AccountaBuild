@@ -13,6 +13,7 @@ import { AuthContext } from '../store/AuthContext';
 import { getNotificationPreferences, saveNotificationPreferences, type NotificationPreferences } from '../services/notificationPreferences';
 import { scheduleNotifications, cancelAllNotifications, requestNotificationPermissions, getNotificationPermissionsStatus } from '../services/notifications';
 import { colors, radius, spacing } from '../theme';
+import { getLocalReminderStyle, REMINDER_STYLES, saveReminderStyle, type ReminderStyle } from '../services/reminderStyle';
 
 function isValidTime(timeStr: string): boolean {
   const match = /^([0-1]?[0-9]|2[0-3]):([0-5][0-9])$/.exec(timeStr);
@@ -32,6 +33,19 @@ export default function NotificationsScreen() {
   const [saved, setSaved] = useState<string | null>(null);
   const [permissionStatus, setPermissionStatus] = useState<string>('undetermined');
   const [loading, setLoading] = useState(true);
+  const [style, setStyle] = useState<ReminderStyle>('friendly');
+  useEffect(() => {
+    void getLocalReminderStyle().then(setStyle);
+  }, []);
+  const pickStyle = async (next: ReminderStyle) => {
+    if (next === style) return;
+    setStyle(next);
+    void Haptics.selectionAsync().catch(() => {});
+    if (user?.uid) await saveReminderStyle(user.uid, next);
+    // Re-arm in the new tone (from tomorrow: never revives today's reminders
+    // for someone who already logged).
+    await scheduleNotifications({ force: true, startFromTomorrow: true }).catch(() => {});
+  };
   const [countModalVisible, setCountModalVisible] = useState(false);
   const [tempCount, setTempCount] = useState<1 | 2 | 3 | 4 | 5>(3);
   const countScrollRef = useRef<ScrollView>(null);
@@ -256,6 +270,30 @@ export default function NotificationsScreen() {
             </Card>
 
             <Card style={styles.spacedCard}>
+              <AppText variant="cardLabel" color="primary">Reminder style</AppText>
+              <AppText variant="rowSubtitle" color="muted" style={styles.subLine}>How your daily reminders talk to you</AppText>
+              {REMINDER_STYLES.map((o) => {
+                const on = o.value === style;
+                return (
+                  <TouchableOpacity
+                    key={o.value}
+                    onPress={() => void pickStyle(o.value)}
+                    activeOpacity={0.8}
+                    style={[styles.styleRow, on && styles.styleRowOn]}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: on }}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <AppText variant="rowTitle" color={on ? 'accent' : 'primary'}>{o.label}</AppText>
+                      <AppText variant="rowSubtitle" color="secondary" style={{ marginTop: 2 }}>"{o.sample}"</AppText>
+                    </View>
+                    <View style={[styles.radio, on && styles.radioOn]} />
+                  </TouchableOpacity>
+                );
+              })}
+            </Card>
+
+            <Card style={styles.spacedCard}>
               <AppText variant="cardLabel" color="primary">About</AppText>
               <AppText variant="rowSubtitle" color="secondary" style={styles.aboutText}>
                 You'll receive reminders at the times you set to log your workouts. If you don't log anything after the first reminder, a badge will appear on the app icon.
@@ -333,6 +371,20 @@ export default function NotificationsScreen() {
 }
 
 const styles = StyleSheet.create({
+  styleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    marginTop: spacing.sm,
+    padding: spacing.md,
+    borderRadius: radius.tile,
+    borderWidth: 1,
+    borderColor: colors.divider,
+    backgroundColor: colors.surface2,
+  },
+  styleRowOn: { borderColor: colors.primary, backgroundColor: colors.primaryTint },
+  radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: colors.textMuted },
+  radioOn: { borderColor: colors.primary, backgroundColor: colors.primary },
   container: { flex: 1, backgroundColor: colors.background },
   flex: { flex: 1 },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.lg },

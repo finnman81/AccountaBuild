@@ -1026,3 +1026,16 @@ exports.checkInReachOut = onCall(async (request) => {
   });
   return { ok };
 });
+
+// ---------------------------------------------------------------------------
+// Social nudge: "Kari and Grace logged today." (2pm ET, tone per member)
+// ---------------------------------------------------------------------------
+const { evaluateSocialNudge } = require('./social-nudge');
+exports.socialNudge = onSchedule(
+  { schedule: '0 14 * * *', timeZone: TZ, timeoutSeconds: 300, memory: '256MiB' },
+  async () => {
+    const { items } = await evaluateSocialNudge(db, new Date());
+    const r = items.length ? await sendExpoPushes(db, items) : { sent: 0 };
+    console.log(`[socialNudge] candidates ${items.length}, sent ${r.sent}`);
+  },
+);
