@@ -44,6 +44,7 @@ import { getHydrated, setHydrated } from '../services/hydrationCache';
 import { subscribeMyMmrGoals } from '../services/mmrGoals';
 import { useMyLogsAllGroups } from '../hooks/useMyLogsAllGroups';
 import type { ChecklistItem, TodayLogEntry } from '../viewmodels/today';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Tier } from '../mmr/types';
 
 type Props = {
@@ -76,6 +77,10 @@ function dateLabel(d: Date): string {
 export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember, onSwitchGroup, onChat, onBell, onOpenChallenge, onOpenWeeklyRecap, onEditEntry, onJoinGroup, onCreateGroup }: Props) {
   const { user, group, memberUids, canSee, publicUsers, logs, myProfile } = useTodayData();
   const { activeGroupId, isReady: activeGroupReady, groupsLoaded } = useActiveGroup();
+  // The scroll view starts BELOW the status bar / camera cutout. It used to
+  // start at y=0, so the pull-to-refresh spinner (drawn at the scroll view's
+  // top edge) sat behind the Dynamic Island where nobody could see it.
+  const insets = useSafeAreaInsets();
   const [entriesItem, setEntriesItem] = useState<ChecklistItem | null>(null);
   const [fpExplainer, setFpExplainer] = useState(false);
   const [cheerSnack, setCheerSnack] = useState<string | null>(null);
@@ -369,8 +374,9 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
     <>
 
     <ScrollView
-      style={{ flex: 1, backgroundColor: colors.background }}
-      contentContainerStyle={{ padding: spacing.lg, paddingTop: 56, paddingBottom: 32 }}
+      style={{ flex: 1, backgroundColor: colors.background, marginTop: insets.top }}
+      // Same on-screen spot for the header as before (56 from the top edge).
+      contentContainerStyle={{ padding: spacing.lg, paddingTop: Math.max(spacing.sm, 56 - insets.top), paddingBottom: 32 }}
       refreshControl={
         <RefreshControl
           refreshing={refreshing}
