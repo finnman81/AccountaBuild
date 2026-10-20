@@ -32,7 +32,9 @@ export function useTodayData() {
   const [memberUids, setMemberUids] = useState<string[]>(() => (activeGroupId ? getHydrated<string[]>(`members:${activeGroupId}`) ?? [] : []));
   const [canSee, setCanSee] = useState<Set<string>>(() => new Set(uid ? getHydrated<string[]>(`canSee:${uid}`) ?? [] : []));
   const [publicUsers, setPublicUsers] = useState<Record<string, PublicUser>>(() => (activeGroupId ? getHydrated<Record<string, PublicUser>>(`publicUsers:${activeGroupId}`) ?? {} : {}));
-  const [logs, setLogs] = useState<GroupLog[]>([]);
+  // Group feed (14 days): Team Today's "who logged" and streaks. Cached so the
+  // rail paints last-known state instead of everyone reading "not logged".
+  const [logs, setLogs] = useState<GroupLog[]>(() => (activeGroupId ? getHydrated<GroupLog[]>(`groupLogs:${activeGroupId}`) ?? [] : []));
   const [myProfile, setMyProfile] = useState<TodayProfile>(() => (uid ? getHydrated<TodayProfile>(`profile:${uid}`) ?? null : null));
 
   useEffect(() => {
@@ -90,7 +92,31 @@ export function useTodayData() {
       setLogs([]);
       return;
     }
-    return subscribeGroupLogsSince(activeGroupId, daysAgoYYYYMMDD(14), setLogs);
+    const key = `groupLogs:${activeGroupId}`;
+    setLogs(getHydrated<any>(key) ?? []);
+    return subscribeGroupLogsSince(activeGroupId, daysAgoYYYYMMDD(14), (items) => {
+      setLogs(items);
+      // Slim copy: what the rail and checklist read. Notes, photo URLs and
+      // reactions stay out to keep the cache small.
+      setHydrated(
+        key,
+        items.map((l: any) => ({
+          id: l.id,
+          uid: l.uid,
+          type: l.type,
+          date: l.date,
+          ts: l.ts && typeof l.ts.seconds === 'number' ? { seconds: l.ts.seconds } : null,
+          source: l.source ?? null,
+          payload: {
+            workoutType: l.payload?.workoutType ?? null,
+            durationMinutes: l.payload?.durationMinutes ?? null,
+            calories: l.payload?.calories ?? null,
+            meal: l.payload?.meal ?? null,
+            weight: l.payload?.weight ?? null,
+          },
+        })),
+      );
+    });
   }, [activeGroupId]);
 
   useEffect(() => {

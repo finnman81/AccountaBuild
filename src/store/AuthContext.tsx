@@ -9,32 +9,14 @@ import {
   updateProfile,
 } from 'firebase/auth';
 import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { auth, db, firebaseInitError, isFirebaseConfigured } from '../firebase/firebase';
 import { syncMyMemberProfileToAllGroups } from '../services/profile';
 import { STARTING_MMR, STARTING_TIER, STARTING_DIVISION } from '../mmr/constants';
+import { getHydrated, setHydrated } from '../services/hydrationCache';
 import { captureBootState, flushSessionLoss, noteAuthState, noteExplicitLogout } from '../services/sessionDiag';
 
 void captureBootState();
-
-// Debug: Check AsyncStorage for Firebase auth data
-async function debugAsyncStorage() {
-  try {
-    const allKeys = await AsyncStorage.getAllKeys();
-    const firebaseKeys = allKeys.filter((k) => k.includes('firebase') || k.includes('auth'));
-    console.log('[Auth Debug] AsyncStorage keys (Firebase-related):', firebaseKeys);
-    
-    if (firebaseKeys.length > 0) {
-      const values = await AsyncStorage.multiGet(firebaseKeys);
-      console.log('[Auth Debug] AsyncStorage values:', values.map(([k, v]) => [k, v?.substring(0, 50)]));
-    } else {
-      console.warn('[Auth Debug] ⚠️ No Firebase auth keys found in AsyncStorage');
-    }
-  } catch (error) {
-    console.error('[Auth Debug] Error checking AsyncStorage:', error);
-  }
-}
 
 export type AuthUser = {
   uid: string;
@@ -57,9 +39,20 @@ function toAuthUser(user: FirebaseUser): AuthUser {
   return { uid: user.uid, email: user.email, displayName: user.displayName };
 }
 
+/**
+ * Last signed-in user, cached so the app can paint BEFORE Firebase Auth
+ * finishes restoring. Sentry (10/19): on every launch Auth ran a token
+ * refresh (~420ms) and then an account lookup (~380ms) back to back, and the
+ * whole app waited behind them: Home mounted ~1.2s in, and the cached screen
+ * data couldn't show because there was no user yet. Firestore queues its own
+ * requests until Auth is ready, so painting early is safe; if Auth comes back
+ * signed out, the app drops to Login a moment later.
+ */
+const LAST_USER_KEY = 'auth:lastUser';
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [user, setUser] = useState<AuthUser | null>(() => getHydrated<AuthUser>(LAST_USER_KEY) ?? null);
+  const [isLoading, setIsLoading] = useState(() => !getHydrated<AuthUser>(LAST_USER_KEY));
   const [didSyncMemberProfile, setDidSyncMemberProfile] = useState(false);
 
   useEffect(() => {
@@ -77,9 +70,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     console.log('[Auth Debug] ✅ Setting up onAuthStateChanged listener');
     
-    // Debug: Check AsyncStorage on mount
-    void debugAsyncStorage();
-    
     let firstState = true;
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       if (firstState || firebaseUser) void noteAuthState(firebaseUser?.uid ?? null);
@@ -92,12 +82,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         timestamp: new Date().toISOString(),
       });
       
-      // Debug: Check AsyncStorage after auth state change
-      if (firebaseUser) {
-        void debugAsyncStorage();
-      }
-      
-      setUser(firebaseUser ? toAuthUser(firebaseUser) : null);
+      const next = firebaseUser ? toAuthUser(firebaseUser) : null;
+      setHydrated(LAST_USER_KEY, next);
+      // Keep the cached object when nothing changed: effects keyed on `user`
+      // would otherwise all re-run when Auth confirms the same person.
+      setUser((prev) =>
+        prev && next && prev.uid === next.uid && prev.email === next.email && prev.displayName === next.displayName ? prev : next,
+      );
       setIsLoading(false);
     });
 
@@ -209,6 +200,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         console.log('[Auth Debug] 🚪 Logging out user');
         noteExplicitLogout();
+        setHydrated(LAST_USER_KEY, null);
         await signOut(auth);
         console.log('[Auth Debug] ✅ Logout complete');
       },

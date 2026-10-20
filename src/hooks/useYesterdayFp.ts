@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
 
 import { db } from '../firebase/firebase';
+import { getHydrated, setHydrated } from '../services/hydrationCache';
 
 function dayOffsetYYYYMMDD(offsetDays: number): string {
   const d = new Date();
@@ -28,7 +29,10 @@ function dayOffsetYYYYMMDD(offsetDays: number): string {
  * days this returns null.
  */
 export function useYesterdayFp(uid?: string | null): number | null {
-  const [delta, setDelta] = useState<number | null>(null);
+  // Cached per day: it's fixed once yesterday closes, so last launch's value
+  // is right for the rest of today (no "Yesterday: +44 FP" popping in late).
+  const cacheKey = uid ? `yesterdayFp:${uid}:${dayOffsetYYYYMMDD(-1)}` : '';
+  const [delta, setDelta] = useState<number | null>(() => (cacheKey ? getHydrated<number | null>(cacheKey) ?? null : null));
 
   useEffect(() => {
     if (!uid) {
@@ -48,7 +52,9 @@ export function useYesterdayFp(uid?: string | null): number | null {
         const b = bData ? Number(bData.mmr) : NaN;
         const sameWeek = !!yData?.weekId && yData.weekId === bData?.weekId;
         if (!cancelled) {
-          setDelta(sameWeek && Number.isFinite(y) && Number.isFinite(b) ? Math.round(y - b) : null);
+          const v = sameWeek && Number.isFinite(y) && Number.isFinite(b) ? Math.round(y - b) : null;
+          setDelta(v);
+          setHydrated(cacheKey, v);
         }
       } catch {
         if (!cancelled) setDelta(null);
