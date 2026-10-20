@@ -9,6 +9,9 @@ import { RootStackParamList } from '../navigation/types';
 import AppText from '../components/ui/AppText';
 import RankEmblem from '../components/ui/RankEmblem';
 import { colors, radius, spacing } from '../theme';
+import ShareCardHost, { type ShareCardHandle } from '../components/share/ShareCard';
+import { useActiveGroup } from '../store/ActiveGroupContext';
+import { APP_STORE_URL, inviteUrl } from '../constants/links';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'RankUp'>;
 
@@ -18,6 +21,8 @@ export default function RankUpScreen({ route, navigation }: Props) {
   const { tier, division, kind, mmr } = route.params;
   const promo = kind === 'promotion';
   const accent = promo ? colors.rankGold : colors.danger;
+  const shareRef = useRef<ShareCardHandle>(null);
+  const { activeGroupId, groups } = useActiveGroup();
 
   const scale = useRef(new Animated.Value(0.6)).current;
   const opacity = useRef(new Animated.Value(0)).current;
@@ -31,6 +36,17 @@ export default function RankUpScreen({ route, navigation }: Props) {
   }, []);
 
   const share = async () => {
+    const label = `${tier}${division ? ` ${ROMAN[division]}` : ''}`;
+    if (promo) {
+      // Story card + this group's invite link: a promotion is the brag people post.
+      const g = groups.find((x) => x.groupId === activeGroupId);
+      const link = g?.joinCode ? inviteUrl(g.joinCode) : APP_STORE_URL;
+      await shareRef.current?.share(
+        { eyebrow: 'PROMOTED', big: label, title: 'Earned a week at a time.', accent: colors.rankGold, groupName: g?.name ?? null },
+        `Just ranked up to ${label} on AccountaBuild.${g?.name ? ` Join ${g.name}:` : ''} ${link}`,
+      );
+      return;
+    }
     try {
       await Share.share({
         message: promo
@@ -97,6 +113,7 @@ export default function RankUpScreen({ route, navigation }: Props) {
           </TouchableOpacity>
         </View>
       </SafeAreaView>
+      <ShareCardHost ref={shareRef} />
     </View>
   );
 }

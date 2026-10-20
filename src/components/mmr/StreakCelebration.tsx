@@ -18,6 +18,8 @@ import {
 } from '../../viewmodels/today';
 import { DEFAULT_TZ, yyyyMmDdInTz } from '../../mmr/time';
 import { colors, radius, spacing } from '../../theme';
+import ShareCardHost, { type ShareCardHandle } from '../share/ShareCard';
+import { APP_STORE_URL, inviteUrl } from '../../constants/links';
 import AppText from '../ui/AppText';
 
 /**
@@ -84,7 +86,8 @@ function Dot({ state }: { state: StreakDayState }) {
 
 export default function StreakCelebration() {
   const { user } = useContext(AuthContext);
-  const { activeGroupId } = useActiveGroup();
+  const { activeGroupId, groups } = useActiveGroup();
+  const shareRef = useRef<ShareCardHandle>(null);
   const insets = useSafeAreaInsets();
   const [moment, setMoment] = useState<MyStreakMoment | null>(null);
   const [mode, setMode] = useState<Mode>({ kind: 'daily' });
@@ -218,6 +221,23 @@ export default function StreakCelebration() {
         ? { title: streakMilestoneCopy(mode.m).title, sub: streakMilestoneCopy(mode.m).line }
         : lines(moment);
   const hasRest = !ended && moment.week.some((d) => d.state === 'rest');
+
+  // Share as a story card. The message carries this group's invite link, so
+  // every share is also a way in.
+  const shareStreak = () => {
+    const g = groups.find((x) => x.groupId === activeGroupId);
+    const link = g?.joinCode ? inviteUrl(g.joinCode) : APP_STORE_URL;
+    void shareRef.current?.share(
+      {
+        eyebrow: 'DAY STREAK',
+        big: String(moment.streak),
+        title: big ? copy.title : `${moment.streak} ${moment.streak === 1 ? 'day' : 'days'} straight.`,
+        sub: big ? copy.sub : "Logged every day. Rest days count, excuses don't.",
+        groupName: g?.name ?? null,
+      },
+      `${moment.streak}-day streak on AccountaBuild.${g?.name ? ` Join ${g.name}:` : ''} ${link}`,
+    );
+  };
   const ringColor = ended ? colors.textMuted : colors.ringStreakLeader;
 
   return (
@@ -286,6 +306,12 @@ export default function StreakCelebration() {
       <TouchableOpacity onPress={close} activeOpacity={0.85} style={styles.button} accessibilityRole="button">
         <AppText variant="rowTitle" style={{ color: '#FFFFFF' }}>{ended ? 'Start again' : 'Continue'}</AppText>
       </TouchableOpacity>
+      {ended ? null : (
+        <TouchableOpacity onPress={shareStreak} activeOpacity={0.7} style={styles.shareBtn} accessibilityRole="button">
+          <AppText variant="rowTitle" color="secondary">Share</AppText>
+        </TouchableOpacity>
+      )}
+      <ShareCardHost ref={shareRef} />
     </Animated.View>
   );
 }
@@ -318,4 +344,5 @@ const styles = StyleSheet.create({
   dotAhead: { backgroundColor: colors.surface2 },
   legend: { marginTop: spacing.md, textAlign: 'center' },
   button: { height: 52, borderRadius: radius.button, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  shareBtn: { height: 44, alignItems: 'center', justifyContent: 'center', marginTop: spacing.xs },
 });

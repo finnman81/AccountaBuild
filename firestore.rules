@@ -327,7 +327,14 @@ service cloud.firestore {
         // role; a group admin may update (promote/demote) or delete (remove)
         // any member EXCEPT the creator. Leaving = deleting your own doc.
         allow update: if signedIn() && (
-          (request.auth.uid == uid && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']))
+          (request.auth.uid == uid
+            && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role'])
+            // invitedBy ("Who got you here?"): set once, never yourself. It
+            // earns the inviter a badge, so it can't be re-pointed or farmed.
+            && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['invitedBy'])
+                || (!('invitedBy' in resource.data)
+                    && request.resource.data.invitedBy is string
+                    && request.resource.data.invitedBy != uid)))
           || (isGroupAdmin(groupId) && get(/databases/$(database)/documents/groups/$(groupId)).data.createdBy != uid)
         );
         allow delete: if signedIn() && (

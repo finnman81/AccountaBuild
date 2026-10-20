@@ -1039,3 +1039,64 @@ exports.socialNudge = onSchedule(
     console.log(`[socialNudge] candidates ${items.length}, sent ${r.sent}`);
   },
 );
+
+// ---------------------------------------------------------------------------
+// Inviter credit: a new member answered "Who got you here?"
+// ---------------------------------------------------------------------------
+const { rebuildBadgesPublic: rebuildBadgesForInviter } = require('./badges');
+exports.creditInviter = onDocumentWritten('groups/{groupId}/members/{memberId}', async (event) => {
+  const before = event.data?.before?.exists ? event.data.before.data() || {} : {};
+  const after = event.data?.after?.exists ? event.data.after.data() || {} : null;
+  if (!after) return;
+  const inviter = typeof after.invitedBy === 'string' ? after.invitedBy : null;
+  if (!inviter || before.invitedBy) return; // only the first time it's set
+  const { groupId, memberId } = event.params;
+  if (inviter === memberId) return;
+  try {
+    // The inviter must really be in this group.
+    const inv = await db.doc(`groups/${groupId}/members/${inviter}`).get();
+    if (!inv.exists) return;
+    const [newPub, invPub, groupSnap] = await Promise.all([
+      db.doc(`publicUsers/${memberId}`).get(),
+      db.doc(`publicUsers/${inviter}`).get(),
+      db.doc(`groups/${groupId}`).get(),
+    ]);
+    const first = (n) => String(n || '').trim().split(/\s+/)[0] || 'A teammate';
+    const newName = first(newPub.exists && newPub.get('displayName'));
+    const invName = first(invPub.exists && invPub.get('displayName'));
+    const groupName = (groupSnap.exists && groupSnap.get('name')) || 'your group';
+
+    await db.collection(`groups/${groupId}/messages`).add({
+      uid: 'system', system: true, senderName: 'AccountaBuild',
+      text: `🤝 ${newName} joined, thanks to ${invName}.`,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+
+    // Recruiter count on the private profile; the badge is earned once.
+    await db.doc(`users/${inviter}`).set({ recruits: FieldValue.increment(1) }, { merge: true });
+    let newBadge = false;
+    try {
+      await db.doc(`users/${inviter}/badges/achv-recruiter`).create({
+        type: 'achievement', achievementId: 'recruiter', title: 'Recruiter', earnedAt: FieldValue.serverTimestamp(),
+      });
+      newBadge = true;
+      await rebuildBadgesForInviter(db, inviter);
+    } catch {
+      /* already a Recruiter */
+    }
+
+    const u = (await db.doc(`users/${inviter}`).get()).data() || {};
+    if (isExpoToken(u.expoPushToken) && prefEnabled(u, 'milestones')) {
+      await sendExpoPushes(db, [{
+        uid: inviter,
+        token: u.expoPushToken,
+        title: `🤝 ${newName} joined ${groupName} thanks to you`,
+        body: newBadge ? 'Recruiter badge earned. Nobody left behind.' : 'Another one in. Nobody left behind.',
+        data: { type: 'recruit', screen: 'GroupChat', groupId },
+      }]);
+    }
+    console.log(`[creditInviter] ${memberId} -> ${inviter} in ${groupId}`);
+  } catch (e) {
+    console.error('[creditInviter] failed', e);
+  }
+});

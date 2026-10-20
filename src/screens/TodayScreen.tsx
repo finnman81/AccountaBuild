@@ -25,6 +25,8 @@ import LeaderboardPreviewCard from '../components/today/LeaderboardPreviewCard';
 import WeeklyRecapBanner from '../components/today/WeeklyRecapBanner';
 import SetupChecklistCard from '../components/today/SetupChecklistCard';
 import NotificationPromptCard from '../components/today/NotificationPromptCard';
+import { ChallengeStartCard, InviteFirstCard } from '../components/today/GrowthCards';
+import InviterPrompt from '../components/today/InviterPrompt';
 import TargetReviewCard from '../components/today/TargetReviewCard';
 import GoalReachedCard from '../components/today/GoalReachedCard';
 import GoalDeadlineCard from '../components/today/GoalDeadlineCard';
@@ -76,7 +78,7 @@ function dateLabel(d: Date): string {
 
 export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember, onSwitchGroup, onChat, onBell, onOpenChallenge, onOpenWeeklyRecap, onEditEntry, onJoinGroup, onCreateGroup }: Props) {
   const { user, group, memberUids, canSee, publicUsers, logs, myProfile } = useTodayData();
-  const { activeGroupId, isReady: activeGroupReady, groupsLoaded } = useActiveGroup();
+  const { activeGroupId, isReady: activeGroupReady, groupsLoaded, groups } = useActiveGroup();
   // The scroll view starts BELOW the status bar / camera cutout. It used to
   // start at y=0, so the pull-to-refresh spinner (drawn at the scroll view's
   // top edge) sat behind the Dynamic Island where nobody could see it.
@@ -350,6 +352,7 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
   const rankTier = asTier(publicUsers[myUid]?.rankTierPublic);
   const rankDivision = typeof publicUsers[myUid]?.rankDivisionPublic === 'number' ? publicUsers[myUid]?.rankDivisionPublic : null;
   const myMember = team.members.find((m) => m.uid === myUid);
+  const myGroupItem = groups.find((g) => g.groupId === activeGroupId);
   const myStreak = myMember?.streakDays ?? 0;
 
   // Long-press a teammate on the rail to fire a quick cheer. Deduped per-session
@@ -409,6 +412,20 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
       <UpdateBanner />
       <NotificationPromptCard />
       <SetupChecklistCard />
+      {/* Growth: a solo group gets an invite card; a real group with no
+          challenge gives its admin a "start one" prompt. */}
+      {memberUids.length < 2 && myGroupItem?.joinCode ? (
+        <InviteFirstCard groupName={groupName} joinCode={myGroupItem.joinCode} />
+      ) : null}
+      {memberUids.length >= 2 && !challengeInfo && myGroupItem?.role === 'admin' ? (
+        <ChallengeStartCard groupId={activeGroupId} groupName={groupName} onStart={onOpenChallenge ?? (() => {})} />
+      ) : null}
+      <InviterPrompt
+        uid={myUid}
+        groupId={activeGroupId}
+        groupName={groupName}
+        people={team.members.filter((m) => m.uid !== myUid).map((m) => ({ uid: m.uid, name: m.name, photoURL: m.photoURL }))}
+      />
       <SignWeekCard memberUids={memberUids} publicUsers={publicUsers} canSee={canSee} />
       <GoalReachedCard />
       <GoalDeadlineCard />

@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useMemo, useState } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Alert, Share } from 'react-native';
 import { Icon, Snackbar } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -29,6 +29,7 @@ import AppText from '../components/ui/AppText';
 import Avatar from '../components/ui/Avatar';
 import PrimaryButton from '../components/ui/PrimaryButton';
 import TextField from '../components/ui/TextField';
+import { inviteUrl } from '../constants/links';
 import { colors, radius, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<GroupsStackParamList, 'Challenge'>;
@@ -62,6 +63,7 @@ export default function ChallengeScreen({ route, navigation }: Props) {
   const [customEndDate, setCustomEndDate] = useState('');
   const [useCustomEnd, setUseCustomEnd] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [groupInfo, setGroupInfo] = useState<{ name: string | null; joinCode: string | null }>({ name: null, joinCode: null });
 
   useEffect(
     () =>
@@ -69,6 +71,7 @@ export default function ChallengeScreen({ route, navigation }: Props) {
         const data = s.exists() ? (s.data() as any) : null;
         setChallenge(data?.challenge ?? null);
         setCreatedBy(data?.createdBy ?? null);
+        setGroupInfo({ name: data?.name ?? null, joinCode: data?.joinCode ?? null });
       }),
     [groupId],
   );
@@ -159,6 +162,17 @@ export default function ChallengeScreen({ route, navigation }: Props) {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setEditing(false);
       setSnack('Challenge saved');
+      // A named challenge is the easiest reason to bring someone in.
+      if (groupInfo.joinCode) {
+        const code = groupInfo.joinCode;
+        const msg = `Join our "${name.trim() || 'Challenge'}" challenge on AccountaBuild. ${weeks} weeks, everyone in.
+${inviteUrl(code)}
+Code: ${code}`;
+        Alert.alert('Challenge is set', 'Invite people to join it?', [
+          { text: 'Not now', style: 'cancel' },
+          { text: 'Share invite', onPress: () => void Share.share({ message: msg }).catch(() => {}) },
+        ]);
+      }
     } catch (e) {
       setSnack(e instanceof Error ? e.message : 'Failed to save challenge');
     } finally {

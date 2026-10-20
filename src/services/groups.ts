@@ -14,6 +14,7 @@ import {
   where,
 } from 'firebase/firestore';
 
+import { markInviterAsk } from './inviter';
 import { db } from '../firebase/firebase';
 
 export type UserGroupListItem = {
@@ -262,6 +263,8 @@ export async function joinGroupByCode(params: {
     );
   }
 
+  // New membership (not a re-join): ask "Who got you here?" once on Today.
+  await markInviterAsk(params.uid, groupId);
   return { groupId };
 }
 
