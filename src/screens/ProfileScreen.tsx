@@ -559,6 +559,7 @@ export default function ProfileScreen() {
         <View style={{ marginHorizontal: -spacing.base }}>
           <NavList
             items={[
+              { title: 'My stats', icon: 'chart-line', onPress: () => (nav as any).navigate('MainTabs', { screen: 'ProgressTab', params: { screen: 'MyStats' } }) },
               { title: 'Goals', icon: 'target', onPress: () => nav.navigate('MMRGoals') },
               { title: 'Season history', icon: 'trophy', onPress: () => (nav as any).navigate('SeasonHistory') },
               { title: 'FP history', icon: 'chart-line', onPress: () => (nav as any).navigate('MMRHistory') },

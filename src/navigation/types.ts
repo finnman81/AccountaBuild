@@ -70,6 +70,7 @@ export type GroupsStackParamList = {
 export type ProgressStackParamList = {
   Progress: undefined;
   History: undefined;
+  MyStats: { metric?: 'weight' | 'workout' | 'calories' } | undefined;
 };
 
 export type ProfileStackParamList = {

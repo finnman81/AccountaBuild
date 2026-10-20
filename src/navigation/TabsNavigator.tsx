@@ -46,6 +46,7 @@ import VacationScreen from '../screens/VacationScreen';
 import LegalScreen from '../screens/LegalScreen';
 import ProgressScreen from '../screens/ProgressScreen';
 import HistoryScreen from '../screens/HistoryScreen';
+import MyStatsScreen from '../screens/MyStatsScreen';
 import HomeScreen from '../screens/HomeScreen';
 import LeaderboardScreen from '../screens/LeaderboardScreen';
 import { colors } from '../theme/colors';
@@ -97,6 +98,7 @@ function ProgressStackNavigator() {
     <ProgressStack.Navigator screenOptions={{ header: appHeader }}>
       <ProgressStack.Screen name="Progress" component={ProgressScreen} options={{ title: 'Progress' }} />
       <ProgressStack.Screen name="History" component={HistoryScreen} options={{ headerShown: false }} />
+      <ProgressStack.Screen name="MyStats" component={MyStatsScreen} options={{ headerShown: false }} />
     </ProgressStack.Navigator>
   );
 }

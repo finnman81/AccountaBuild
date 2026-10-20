@@ -628,6 +628,25 @@ export default function ProgressScreen({ navigation }: Props) {
 
       <View style={{ height: spacing.base }} />
 
+      {/* YOUR numbers first: weight curve, training volume, calorie habit.
+          The rest of this page is the group's week. */}
+      <TouchableOpacity activeOpacity={0.85} onPress={() => navigation.navigate('MyStats')}>
+        <Card>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+            <View style={{ width: 38, height: 38, borderRadius: radius.tile, backgroundColor: colors.primaryTint, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon source="chart-line" size={20} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <AppText variant="rowTitle" color="primary">My stats</AppText>
+              <AppText variant="rowSubtitle" color="muted">Your weight, workouts and calories over time</AppText>
+            </View>
+            <Icon source="chevron-right" size={20} color={colors.textMuted} />
+          </View>
+        </Card>
+      </TouchableOpacity>
+
+      <View style={{ height: spacing.base }} />
+
       {/* The group's week up top — who's showing up is the page's headline. */}
       <ConsistencyMatrix rows={matrix.rows} todayIndex={matrix.todayIndex} />
 

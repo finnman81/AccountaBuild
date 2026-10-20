@@ -85,7 +85,7 @@ const WORKOUT_LABELS: Record<string, string> = {
   walking: 'Walk',
   other: 'Activity',
 };
-function prettyWorkout(type: unknown): string {
+export function prettyWorkout(type: unknown): string {
   const s = String(type ?? '').trim();
   return WORKOUT_LABELS[s] ?? (s ? s.charAt(0).toUpperCase() + s.slice(1) : 'Workout');
 }
