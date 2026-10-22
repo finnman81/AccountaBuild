@@ -27,6 +27,7 @@ import SetupChecklistCard from '../components/today/SetupChecklistCard';
 import NotificationPromptCard from '../components/today/NotificationPromptCard';
 import { ChallengeStartCard, InviteFirstCard } from '../components/today/GrowthCards';
 import InviterPrompt from '../components/today/InviterPrompt';
+import ContestCard from '../components/today/ContestCard';
 import TargetReviewCard from '../components/today/TargetReviewCard';
 import GoalReachedCard from '../components/today/GoalReachedCard';
 import GoalDeadlineCard from '../components/today/GoalDeadlineCard';
@@ -420,6 +421,7 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
       {memberUids.length >= 2 && !challengeInfo && myGroupItem?.role === 'admin' ? (
         <ChallengeStartCard groupId={activeGroupId} groupName={groupName} onStart={onOpenChallenge ?? (() => {})} />
       ) : null}
+      <ContestCard uid={myUid} groupName={groupName} joinCode={myGroupItem?.joinCode ?? null} />
       <InviterPrompt
         uid={myUid}
         groupId={activeGroupId}

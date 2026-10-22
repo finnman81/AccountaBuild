@@ -4,8 +4,28 @@
       "collectionGroup": "logs",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "uid", "order": "ASCENDING" },
-        { "fieldPath": "date", "order": "ASCENDING" }
+        {
+          "fieldPath": "uid",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "date",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "standings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "qualified",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "lastQualifiedAt",
+          "order": "ASCENDING"
+        }
       ]
     }
   ],

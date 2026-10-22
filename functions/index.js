@@ -1095,8 +1095,20 @@ exports.creditInviter = onDocumentWritten('groups/{groupId}/members/{memberId}',
         data: { type: 'recruit', screen: 'GroupChat', groupId },
       }]);
     }
+    // Recruit contest (no-op unless one is running and this is a new account).
+    await require('./contest').recordReferral(db, { groupId, memberId, inviter }).catch((e) => console.warn('[creditInviter] contest', e));
     console.log(`[creditInviter] ${memberId} -> ${inviter} in ${groupId}`);
   } catch (e) {
     console.error('[creditInviter] failed', e);
   }
 });
+
+// Recruit contest scoreboard: re-check qualification (3 log days in a new
+// member's first 7) and rewrite public standings. Cheap at this size.
+exports.contestTally = onSchedule(
+  { schedule: 'every 3 hours', timeZone: TZ, timeoutSeconds: 300, memory: '256MiB' },
+  async () => {
+    const r = await require('./contest').tallyContest(db, null, new Date());
+    console.log('[contestTally]', JSON.stringify(r));
+  },
+);

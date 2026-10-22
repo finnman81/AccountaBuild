@@ -38,6 +38,18 @@ service cloud.firestore {
               'vacationUsed'];
     }
 
+    // Recruit contest: settings and the public scoreboard are readable by any
+    // signed-in member; everything is written by Cloud Functions only.
+    // referrals (who invited whom) stays private.
+    match /contests/{contestId} {
+      allow read: if signedIn();
+      allow write: if false;
+      match /standings/{uid} {
+        allow read: if signedIn();
+        allow write: if false;
+      }
+    }
+
     // User profile documents: users/{uid}
     // Contains profile data, onboarding status, goals, and preferences.
     // Onboarding fields: onboarding.completed, onboarding.version, onboarding.startedAt, onboarding.completedAt, onboarding.lastStep
