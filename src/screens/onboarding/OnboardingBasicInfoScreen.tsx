@@ -221,10 +221,16 @@ export default function OnboardingBasicInfoScreen({ navigation }: Props) {
               label="Height (feet)"
               value={heightFt}
               onChangeText={(text) => {
-                const v = text.replace(/[^0-9]/g, '').slice(0, 1);
-                setHeightFt(v);
+                // One digit is feet; anything typed after it is inches. iOS can
+                // ignore a focus jump made mid-keystroke, and the old slice(0,1)
+                // then threw away every digit after the "5" ("only lets me
+                // enter 5"). Spill-over means "510" still reads 5 ft 10 in.
+                const digits = text.replace(/[^0-9]/g, '');
+                setHeightFt(digits.slice(0, 1));
+                if (digits.length > 1) setHeightIn(digits.slice(1, 3));
                 clearHeightError();
-                if (v) heightInInputRef.current?.focus();
+                // Defer the jump so iOS actually moves the cursor.
+                if (digits) setTimeout(() => heightInInputRef.current?.focus(), 60);
               }}
               editable={!isSubmitting}
               keyboardType="number-pad"
