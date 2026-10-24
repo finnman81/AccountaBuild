@@ -3,6 +3,7 @@ import { useContext, useEffect, useRef } from 'react';
 import { AuthContext } from '../../store/AuthContext';
 import { useActiveGroup } from '../../store/ActiveGroupContext';
 import { subscribeLogsChanged } from '../../services/fpEvents';
+import { whenAppSettled } from '../../services/startupGate';
 import { computeAndMirrorMyStreak } from '../../services/streakMirror';
 
 /**
@@ -38,7 +39,7 @@ export default function StreakMirror() {
       }
     };
 
-    void run(); // app open / group switch
+    void whenAppSettled().then(() => run()); // app open / group switch, after Home's data
 
     const unsub = subscribeLogsChanged(() => {
       if (timer.current) clearTimeout(timer.current);

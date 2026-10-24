@@ -35,6 +35,8 @@ export function useTodayData() {
   // Group feed (14 days): Team Today's "who logged" and streaks. Cached so the
   // rail paints last-known state instead of everyone reading "not logged".
   const [logs, setLogs] = useState<GroupLog[]>(() => (activeGroupId ? getHydrated<GroupLog[]>(`groupLogs:${activeGroupId}`) ?? [] : []));
+  // True once the LIVE feed has answered (not just the cache): Home's "fresh data" moment.
+  const [logsLive, setLogsLive] = useState(false);
   const [myProfile, setMyProfile] = useState<TodayProfile>(() => (uid ? getHydrated<TodayProfile>(`profile:${uid}`) ?? null : null));
 
   useEffect(() => {
@@ -94,8 +96,10 @@ export function useTodayData() {
     }
     const key = `groupLogs:${activeGroupId}`;
     setLogs(getHydrated<any>(key) ?? []);
+    setLogsLive(false);
     return subscribeGroupLogsSince(activeGroupId, daysAgoYYYYMMDD(14), (items) => {
       setLogs(items);
+      setLogsLive(true);
       // Slim copy: what the rail and checklist read. Notes, photo URLs and
       // reactions stay out to keep the cache small.
       setHydrated(
@@ -132,5 +136,5 @@ export function useTodayData() {
     });
   }, [user?.uid]);
 
-  return { user, activeGroupId, group, memberUids, canSee, publicUsers, logs, myProfile };
+  return { user, activeGroupId, group, memberUids, canSee, publicUsers, logs, myProfile, logsLive };
 }

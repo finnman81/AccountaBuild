@@ -16,7 +16,7 @@ export type MyLog = GroupLog & { groupId: string };
  *
  * The active group's copy wins a duplicate, so edits/deletes go there first.
  */
-export function useMyLogsAllGroups(uid: string | null | undefined, lookbackDays = 14): MyLog[] {
+export function useMyLogsAllGroups(uid: string | null | undefined, lookbackDays = 14, onLive?: () => void): MyLog[] {
   const { groups, activeGroupId } = useActiveGroup();
   const groupIds = useMemo(() => groups.map((g) => g.groupId).filter(Boolean).sort(), [groups]);
   const key = groupIds.join(',');
@@ -52,6 +52,11 @@ export function useMyLogsAllGroups(uid: string | null | undefined, lookbackDays 
     return [...out.values()];
   }, [byGroup, activeGroupId]);
   const complete = groupIds.length > 0 && groupIds.every((g) => g in byGroup);
+
+  useEffect(() => {
+    if (complete) onLive?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [complete]);
 
   useEffect(() => {
     if (!complete || !cacheKey) return;

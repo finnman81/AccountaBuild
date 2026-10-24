@@ -128,6 +128,23 @@ export function captureError(err: unknown, context?: Record<string, unknown>): v
 }
 
 /**
+ * Marks the screen's "full display" (ui.load.full_display) when `ready` turns
+ * true: for Home, the moment fresh data has replaced the cache. Initial
+ * display only measured the first frame, which missed what members feel.
+ */
+export function FullDisplay({ ready }: { ready: boolean }): any {
+  const C = sentry?.TimeToFullDisplay;
+  if (!C) return null;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const React = require('react');
+    return React.createElement(C, { record: ready });
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Hand React Navigation's container to Sentry so screen transitions are traced
  * (Progress/Groups/Profile switches — the reported lag). No-ops when Sentry
  * isn't running, which is every build before the native module ships.

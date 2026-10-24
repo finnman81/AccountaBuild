@@ -8,6 +8,7 @@ import { AuthContext } from '../../store/AuthContext';
 import { authPersistenceMode, db } from '../../firebase/firebase';
 import { noteAlive } from '../../services/sessionDiag';
 import { setErrorReporterUser, flushPendingErrors } from '../../services/errorReporter';
+import { whenAppSettled } from '../../services/startupGate';
 import { isSentryActive } from '../../services/sentry';
 
 /**
@@ -78,8 +79,11 @@ export default function Heartbeat() {
       }
     };
 
-    void beat();
-    void flushPendingErrors();
+    // After Home's data lands, not alongside it (startupGate).
+    void whenAppSettled().then(() => {
+      void beat();
+      void flushPendingErrors();
+    });
     const sub = AppState.addEventListener('change', (s) => {
       if (s === 'active') void beat();
     });

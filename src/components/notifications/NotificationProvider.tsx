@@ -12,6 +12,7 @@ import { asReminderStyle, getLocalReminderStyle, setLocalReminderStyle } from '.
 import { subscribeMyProfile } from '../../services/profile';
 import { subscribeLogSaved } from '../../services/fpEvents';
 import { fetchMyLogsInRange } from '../../services/logs';
+import { whenAppSettled } from '../../services/startupGate';
 import { todayYYYYMMDD } from '../../utils/dates';
 
 const CLEARED_PREFIX = 'remindersClearedFor';
@@ -74,7 +75,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       }
     };
 
-    void rearm();
+    void whenAppSettled().then(() => rearm()); // after Home's data
     const appStateSub = AppState.addEventListener('change', (state) => {
       if (state === 'active') void rearm();
     });

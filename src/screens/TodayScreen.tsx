@@ -48,6 +48,8 @@ import { subscribeMyMmrGoals } from '../services/mmrGoals';
 import { useMyLogsAllGroups } from '../hooks/useMyLogsAllGroups';
 import type { ChecklistItem, TodayLogEntry } from '../viewmodels/today';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { markAppSettled } from '../services/startupGate';
+import { FullDisplay } from '../services/sentry';
 import type { Tier } from '../mmr/types';
 
 type Props = {
@@ -78,7 +80,7 @@ function dateLabel(d: Date): string {
 }
 
 export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember, onSwitchGroup, onChat, onBell, onOpenChallenge, onOpenWeeklyRecap, onEditEntry, onJoinGroup, onCreateGroup }: Props) {
-  const { user, group, memberUids, canSee, publicUsers, logs, myProfile } = useTodayData();
+  const { user, group, memberUids, canSee, publicUsers, logs, myProfile, logsLive } = useTodayData();
   const { activeGroupId, isReady: activeGroupReady, groupsLoaded, groups } = useActiveGroup();
   // The scroll view starts BELOW the status bar / camera cutout. It used to
   // start at y=0, so the pull-to-refresh spinner (drawn at the scroll view's
@@ -91,9 +93,21 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
   const [cheeredToday, setCheeredToday] = useState<Set<string>>(new Set());
 
   const [challenge, setChallenge] = useState<GroupChallenge | null>(null);
+  // Don't offer "Start a group challenge" until we KNOW there isn't one: the
+  // card used to flash in BPM over a running Winter Arc while it loaded.
+  const [challengeLoaded, setChallengeLoaded] = useState(false);
   useEffect(() => {
     if (!activeGroupId) { setChallenge(null); return; }
-    return subscribeGroupChallenge(activeGroupId, setChallenge);
+    // Last-known challenge paints instantly (and counts as loaded); live replaces it.
+    const key = `challenge:${activeGroupId}`;
+    const cached = getHydrated<GroupChallenge | null>(key);
+    setChallenge(cached ?? null);
+    setChallengeLoaded(cached !== undefined);
+    return subscribeGroupChallenge(activeGroupId, (c) => {
+      setChallenge(c);
+      setChallengeLoaded(true);
+      setHydrated(key, c);
+    });
   }, [activeGroupId]);
   // Ended challenges linger a week for the victory lap, then the card goes
   // quiet until the next one starts.
@@ -217,7 +231,13 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
   // the row). Nothing hides until goals have loaded.
   // My logs from every group: the checklist, "tracks this?" and the vacation
   // prompt are about me, not this group's feed.
-  const myLogs = useMyLogsAllGroups(myUid);
+  const [myLogsLive, setMyLogsLive] = useState(false);
+  const myLogs = useMyLogsAllGroups(myUid, 14, () => setMyLogsLive(true));
+  // Fresh data in: let the background chores start (startupGate).
+  const homeFresh = logsLive && myLogsLive;
+  useEffect(() => {
+    if (homeFresh) markAppSettled();
+  }, [homeFresh]);
   const [myGoals, setMyGoals] = useState<Record<string, any> | null>(() =>
     myUid ? getHydrated<Record<string, any>>(`myGoals:${myUid}`) ?? null : null,
   );
@@ -411,6 +431,7 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
       <FpExplainerSheet visible={fpExplainer} onClose={() => setFpExplainer(false)} />
       <WeeklyRecapBanner onOpen={onOpenWeeklyRecap ?? (() => {})} />
       <UpdateBanner />
+      <FullDisplay ready={homeFresh} />
       <NotificationPromptCard />
       <SetupChecklistCard />
       {/* Growth: a solo group gets an invite card; a real group with no
@@ -418,7 +439,7 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
       {memberUids.length < 2 && myGroupItem?.joinCode ? (
         <InviteFirstCard groupName={groupName} joinCode={myGroupItem.joinCode} />
       ) : null}
-      {memberUids.length >= 2 && !challengeInfo && myGroupItem?.role === 'admin' ? (
+      {memberUids.length >= 2 && challengeLoaded && !challenge && myGroupItem?.role === 'admin' ? (
         <ChallengeStartCard groupId={activeGroupId} groupName={groupName} onStart={onOpenChallenge ?? (() => {})} />
       ) : null}
       <ContestCard uid={myUid} groupName={groupName} joinCode={myGroupItem?.joinCode ?? null} />

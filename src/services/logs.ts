@@ -18,6 +18,7 @@ import {
 import { db } from '../firebase/firebase';
 import { touchGroupActivity } from './groups';
 import { isValidYYYYMMDD, todayYYYYMMDD } from '../utils/dates';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DEFAULT_TZ, yyyyMmDdInTz } from '../mmr/time';
 
 export type WorkoutType =
@@ -214,10 +215,58 @@ export async function addPhotoLog(params: {
  */
 type UpsertData = { uid: string; type: LogType; date?: string; source?: string; payload: Record<string, unknown>; eventAt?: Date };
 
+/*
+ * Health sync re-reads the last 7 days from Apple Health on EVERY open and
+ * foreground, and upserted every sample each time: a read + write + group
+ * touch per sample per group (~100+ ops for a two-group member), all queued
+ * ahead of Home's own reads. Sentry traces showed Home waiting behind them.
+ * Now each synced log's last-written signature is remembered on the device
+ * and an unchanged sample costs nothing. The group set is part of the
+ * signature, so joining a group still copies existing logs into it.
+ */
+const SYNCED_SIG_KEY = 'syncedLogSigs:v1';
+let syncedSigs: Record<string, string> | null = null;
+let sigsDirty = false;
+
+async function loadSigs(): Promise<Record<string, string>> {
+  if (syncedSigs) return syncedSigs;
+  try {
+    syncedSigs = JSON.parse((await AsyncStorage.getItem(SYNCED_SIG_KEY)) ?? '{}') ?? {};
+  } catch {
+    syncedSigs = {};
+  }
+  return syncedSigs!;
+}
+
+function flushSigsSoon() {
+  if (sigsDirty) return;
+  sigsDirty = true;
+  setTimeout(() => {
+    sigsDirty = false;
+    const entries = Object.entries(syncedSigs ?? {});
+    // Bounded: keep the newest 600 (a 7-day window is well under that).
+    const kept = Object.fromEntries(entries.slice(-600));
+    syncedSigs = kept;
+    void AsyncStorage.setItem(SYNCED_SIG_KEY, JSON.stringify(kept)).catch(() => {});
+  }, 1500);
+}
+
+function logSignature(groups: string[], data: UpsertData): string {
+  const at = data.eventAt instanceof Date && !Number.isNaN(data.eventAt.valueOf()) ? data.eventAt.getTime() : 0;
+  return JSON.stringify([groups.slice().sort(), data.type, data.date ?? '', data.source ?? '', at, data.payload]);
+}
+
 export async function upsertGroupLogById(groupId: string, logId: string, data: UpsertData): Promise<string> {
   const groups = await myGroupIds(data.uid, groupId);
+  const sigs = await loadSigs();
+  const sig = logSignature(groups, data);
+  const key = `${data.uid}:${logId}`;
+  if (sigs[key] === sig) return logId; // already written exactly like this
   await upsertOneGroupLog(groups[0], logId, data);
   await Promise.all(groups.slice(1).map((g) => upsertOneGroupLog(g, logId, data).catch(() => {})));
+  delete sigs[key]; // re-insert at the end (newest)
+  sigs[key] = sig;
+  flushSigsSoon();
   return logId;
 }
 
@@ -286,6 +335,14 @@ export async function deleteGroupLogById(groupId: string, logId: string, opts?: 
     }
   }
   await deleteDoc(doc(db, 'groups', groupId, 'logs', logId));
+  // Forget its sync signature, so a later re-import (health self-heal) writes again.
+  if (d?.uid) {
+    const sigs = await loadSigs();
+    if (sigs[`${d.uid}:${logId}`]) {
+      delete sigs[`${d.uid}:${logId}`];
+      flushSigsSoon();
+    }
+  }
   // Same id in my other groups: delete every copy.
   if (d?.uid) {
     const others = (await myGroupIds(String(d.uid), groupId)).slice(1);

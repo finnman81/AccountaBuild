@@ -448,7 +448,14 @@ export async function setGroupLogoUrl(params: { groupId: string; logoUrl: string
   });
 }
 
+// lastActivityAt is coarse (sorting, "active" hints). Writing it on every log
+// meant every health-sync sample rewrote the group doc, and every member's
+// live group listener re-fired. Once per group per 5 minutes is plenty.
+const lastTouch = new Map<string, number>();
 export async function touchGroupActivity(groupId: string) {
+  const now = Date.now();
+  if (now - (lastTouch.get(groupId) ?? 0) < 5 * 60 * 1000) return;
+  lastTouch.set(groupId, now);
   await updateDoc(doc(db, 'groups', groupId), { lastActivityAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 

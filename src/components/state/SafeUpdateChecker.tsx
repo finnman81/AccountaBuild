@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { whenAppSettled } from '../../services/startupGate';
 import * as Updates from 'expo-updates';
 
 /**
@@ -13,6 +14,7 @@ import * as Updates from 'expo-updates';
 export default function SafeUpdateChecker() {
   useEffect(() => {
     void (async () => {
+      await whenAppSettled(8000);
       try {
         if (!Updates.isEnabled) return;
         const update = await Updates.checkForUpdateAsync();

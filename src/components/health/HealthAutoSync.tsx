@@ -6,6 +6,7 @@ import { AuthContext } from '../../store/AuthContext';
 import { useActiveGroup } from '../../store/ActiveGroupContext';
 import { subscribeHealthSettings, type HealthSettings } from '../../services/healthSettings';
 // Importing this module also defines the background task (required at import time).
+import { whenAppSettled } from '../../services/startupGate';
 import { registerBackgroundHealthSync } from '../../services/health/backgroundHealthSync';
 
 /**
@@ -20,7 +21,7 @@ export default function HealthAutoSync() {
   const lastSyncTimeRef = useRef<number>(0);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const isExpoGo = Constants.appOwnership === 'expo';
-  const SYNC_COOLDOWN_MS = 30000; // 30 seconds minimum between auto-syncs
+  const SYNC_COOLDOWN_MS = 2 * 60 * 1000; // 2 minutes between auto-syncs (HealthKit observers still fire instantly)
   const SYNC_INTERVAL_MS = 60 * 60 * 1000; // 1 hour when app is open
 
   const triggerSync = useCallback((reason: 'foreground' | 'interval' | 'initial') => {
@@ -132,13 +133,15 @@ export default function HealthAutoSync() {
     
     // Only trigger initial sync if app is already active (not coming from background)
     if (appState.current === 'active') {
-      // Small delay to ensure everything is initialized
-      const timeoutId = setTimeout(() => {
-        console.log('[HealthAutoSync] Triggering initial sync on mount');
-        triggerSync('initial');
-      }, 2000); // 2 second delay to let everything initialize
-      
-      return () => clearTimeout(timeoutId);
+      // After Home's data lands (startupGate), not 2s in where it competed
+      // with Home's reads on Firestore's one connection.
+      let cancelled = false;
+      void whenAppSettled(8000).then(() => {
+        if (!cancelled) triggerSync('initial');
+      });
+      return () => {
+        cancelled = true;
+      };
     }
   }, [user, activeGroupId, settings, isExpoGo, triggerSync]);
 

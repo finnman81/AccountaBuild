@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { AuthContext } from '../../store/AuthContext';
 import { registerPushToken } from '../../services/pushTokens';
+import { whenAppSettled } from '../../services/startupGate';
 import { syncNotifPrefsToServer } from '../../services/appSettings';
 
 const ASKED_KEY_PREFIX = 'pushPermissionAsked';
@@ -28,6 +29,7 @@ export default function PushRegistrar() {
     const uid = user.uid;
 
     void (async () => {
+      await whenAppSettled();
       try {
         const { status, canAskAgain } = await Notifications.getPermissionsAsync();
 
