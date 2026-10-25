@@ -346,7 +346,9 @@ exports.streakRiskReminder = onSchedule(
     // or a streak warning tonight is not also told to sign — one evening, one
     // push, or the whole set gets muted.
     const claimed = new Set([...vacUids, ...riskItems.map((i) => i.uid)]);
-    const sign = await evaluateSignNudge(db, now);
+    // Weekly signing is switched off in the app (2026-10-25), so no nudge.
+    const SIGNING_ENABLED = false;
+    const sign = SIGNING_ENABLED ? await evaluateSignNudge(db, now) : { items: [], weekId: null };
     const signItems = sign.items.filter((i) => !claimed.has(i.uid));
 
     // Goal-deadline nudge, same one-push-per-evening rule.

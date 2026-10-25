@@ -50,6 +50,8 @@ import type { ChecklistItem, TodayLogEntry } from '../viewmodels/today';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { markAppSettled } from '../services/startupGate';
 import { FullDisplay } from '../services/sentry';
+
+const SIGNING_ENABLED = false;
 import type { Tier } from '../mmr/types';
 
 type Props = {
@@ -449,7 +451,9 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
         groupName={groupName}
         people={team.members.filter((m) => m.uid !== myUid).map((m) => ({ uid: m.uid, name: m.name, photoURL: m.photoURL }))}
       />
-      <SignWeekCard memberUids={memberUids} publicUsers={publicUsers} canSee={canSee} />
+      {/* Weekly signing is switched off (Jake, 2026-10-25: little use, adds
+          noise). Flip SIGNING_ENABLED to bring the card back; data is kept. */}
+      {SIGNING_ENABLED ? <SignWeekCard memberUids={memberUids} publicUsers={publicUsers} canSee={canSee} /> : null}
       <GoalReachedCard />
       <GoalDeadlineCard />
       <TargetReviewCard />
