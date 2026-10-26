@@ -14,7 +14,9 @@
     "build:android:preview": "eas build --platform android --profile preview",
     "build:ios:preview": "eas build --platform ios --profile preview",
     "build:android:production": "eas build --platform android --profile production",
-    "build:ios:production": "eas build --platform ios --profile production"
+    "build:ios:production": "eas build --platform ios --profile production",
+    "ota": "eas update --branch production --non-interactive --message",
+    "ota:sourcemaps": "sentry-expo-upload-sourcemaps dist"
   },
   "dependencies": {
     "@expo-google-fonts/inter": "^0.4.2",

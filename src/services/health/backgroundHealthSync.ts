@@ -121,6 +121,16 @@ if (!isExpoGo && Platform.OS !== 'web') {
 /** Register the periodic background sync task (idempotent). Call once on app start. */
 export async function registerBackgroundHealthSync(): Promise<void> {
   if (isExpoGo || Platform.OS === 'web') return;
+  // ANDROID: off until Health Connect sync works. The periodic task has never
+  // synced anything there (healthBg.lastSynced false on every wake), and the
+  // sign-out diagnostic (10/26, Regmong) caught the session vanishing at the
+  // exact second this task ran headless: storage intact, auth key present at
+  // boot, Firebase restored signed-out. Headless Firebase init + the foreground
+  // launch in the same process is the prime suspect. iOS is unaffected.
+  if (Platform.OS === 'android') {
+    await unregisterBackgroundHealthSync();
+    return;
+  }
   try {
     const status = await BackgroundTask.getStatusAsync();
     if (status === BackgroundTask.BackgroundTaskStatus.Restricted) {

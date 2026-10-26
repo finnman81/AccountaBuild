@@ -103,6 +103,14 @@ export function initSentry(): void {
         }
       },
     });
+    // Searchable OTA tag: which over-the-air bundle was this phone running?
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const updateId = require('expo-updates').updateId ?? 'embedded';
+      sentry.setTag('ota_update', String(updateId).slice(0, 8));
+    } catch {
+      /* dev client */
+    }
   } catch {
     sentry = null; // native module absent (older build) — silently stay off
   }
