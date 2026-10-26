@@ -31,6 +31,7 @@ import { useMyUnits } from '../hooks/useMyUnits';
 import { colors, spacing, radius } from '../theme';
 import type { ProgressStackParamList } from '../navigation/types';
 import LoadingState from '../components/state/LoadingState';
+import { useEased } from '../hooks/useCached';
 import type { RootStackParamList } from '../navigation/types';
 
 type Props = NativeStackScreenProps<ProgressStackParamList, 'Progress'>;
@@ -515,6 +516,7 @@ export default function ProgressScreen({ navigation }: Props) {
     }
     return { series, secondary, yMin, yMax, realCount, title, subtitle, dates: weekDates.slice(0, n) };
   }, [aggregates, metric, weekDates]);
+  useEased(`${matrix.rows.length}|${crewWeek.workouts}|${crewWeek.minutes}|${chart.realCount}`);
 
   const yTicks = useMemo(() => {
     if (chart.realCount === 0) return { top: '—', mid: '—', bot: '—' };

@@ -17,6 +17,8 @@ import { subscribeMyCanSeeUids } from '../services/visibility';
 import { blockUser, reportContent, subscribeMyBlocks } from '../services/moderation';
 import Card from '../components/ui/Card';
 import AppText from '../components/ui/AppText';
+import { getHydrated, setHydrated } from '../services/hydrationCache';
+import { useEased } from '../hooks/useCached';
 import { colors, radius, spacing } from '../theme';
 
 // ViewPhotos is in the Home stack but navigates to the root-level AddPhoto modal.
@@ -29,18 +31,41 @@ export default function ViewPhotosScreen({ route, navigation }: Props) {
   const { user } = useContext(AuthContext);
   const { groupId } = route.params;
 
-  const [photos, setPhotos] = useState<GroupLog[]>([]);
+  // Cache-then-ease: thumbnails, roster and names paint from last-known values.
+  const [photos, setPhotos] = useState<GroupLog[]>(() => getHydrated<GroupLog[]>(`photos:${groupId}`) ?? []);
   const [blocked, setBlocked] = useState<Set<string>>(new Set());
-  const [memberUids, setMemberUids] = useState<string[]>([]);
-  const [publicUsers, setPublicUsers] = useState<Record<string, PublicUser>>({});
-  const [canSee, setCanSee] = useState<Set<string>>(new Set());
+  const [memberUids, setMemberUids] = useState<string[]>(() => getHydrated<string[]>(`members:${groupId}`) ?? []);
+  const [publicUsers, setPublicUsers] = useState<Record<string, PublicUser>>(() => getHydrated<Record<string, PublicUser>>(`publicUsers:${groupId}`) ?? {});
+  const [canSee, setCanSee] = useState<Set<string>>(() => new Set(user?.uid ? getHydrated<string[]>(`canSee:${user.uid}`) ?? [] : []));
+  useEased(`${photos.length}:${photos[0]?.id ?? ''}`);
 
-  useEffect(() => subscribeGroupPhotoLogs(groupId, setPhotos, undefined, 50), [groupId]);
+  useEffect(
+    () =>
+      subscribeGroupPhotoLogs(
+        groupId,
+        (items) => {
+          setPhotos(items);
+          setHydrated(
+            `photos:${groupId}`,
+            items.slice(0, 50).map((l: any) => ({
+              id: l.id, uid: l.uid, type: l.type, date: l.date,
+              ts: l.ts && typeof l.ts.seconds === 'number' ? { seconds: l.ts.seconds } : null,
+              payload: { url: l.payload?.url ?? null, caption: l.payload?.caption ?? null },
+              reactions: l.reactions ?? null,
+            })),
+          );
+        },
+        undefined,
+        50,
+      ),
+    [groupId],
+  );
 
   useEffect(() => {
     return onSnapshot(collection(db, 'groups', groupId, 'members'), (snap) => {
       const uids = snap.docs.map((d) => String((d.data() as any)?.uid ?? d.id)).filter(Boolean);
       setMemberUids(uids);
+      setHydrated(`members:${groupId}`, uids);
     });
   }, [groupId]);
 
@@ -52,7 +77,10 @@ export default function ViewPhotosScreen({ route, navigation }: Props) {
   useEffect(() => {
     if (!user?.uid) return;
     const allowed = memberUids.filter((uid) => uid === user.uid || canSee.has(uid));
-    return subscribePublicUsers(allowed, setPublicUsers);
+    return subscribePublicUsers(allowed, (m) => {
+      setPublicUsers(m);
+      setHydrated(`publicUsers:${groupId}`, m);
+    });
   }, [canSee, memberUids, user?.uid]);
 
   useEffect(() => {

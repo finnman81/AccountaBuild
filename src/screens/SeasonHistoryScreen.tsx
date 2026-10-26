@@ -7,6 +7,8 @@ import { AuthContext } from '../store/AuthContext';
 import { subscribeMySeasonResults, type SeasonResult } from '../services/mmrSeasonResults';
 import { subscribeMyBadges, type EarnedBadge } from '../services/mmrBadges';
 import RankBadge from '../components/mmr/RankBadge';
+import { getHydrated, setHydrated } from '../services/hydrationCache';
+import { useEased } from '../hooks/useCached';
 import { colors, spacing } from '../theme';
 
 // EarnedBadge's rank member covers both seasonRank and seasonPeak in one shape,
@@ -22,17 +24,26 @@ function rankLabel(tier: string, division?: number | null, mp?: number | null) {
 
 export default function SeasonHistoryScreen() {
   const { user } = useContext(AuthContext);
-  const [results, setResults] = useState<SeasonResult[]>([]);
-  const [badges, setBadges] = useState<EarnedBadge[]>([]);
+  const [results, setResults] = useState<SeasonResult[]>(() => (user?.uid ? getHydrated<SeasonResult[]>(`seasons:${user.uid}`) ?? [] : []));
+  const [badges, setBadges] = useState<EarnedBadge[]>(() => (user?.uid ? getHydrated<EarnedBadge[]>(`badges:${user.uid}`) ?? [] : []));
+  useEased(`${results.length}|${badges.length}`);
 
   useEffect(() => {
     if (!user) return;
-    return subscribeMySeasonResults(user.uid, setResults);
+    const uid = user.uid;
+    return subscribeMySeasonResults(uid, (r) => {
+      setResults(r);
+      setHydrated(`seasons:${uid}`, r);
+    });
   }, [user]);
 
   useEffect(() => {
     if (!user) return;
-    return subscribeMyBadges(user.uid, setBadges);
+    const uid = user.uid;
+    return subscribeMyBadges(uid, (b) => {
+      setBadges(b);
+      setHydrated(`badges:${uid}`, b);
+    });
   }, [user]);
 
   const badgeBySeason = useMemo(() => {

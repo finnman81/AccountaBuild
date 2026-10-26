@@ -23,6 +23,7 @@ import Avatar from '../components/ui/Avatar';
 import RankEmblem from '../components/ui/RankEmblem';
 import StatTile from '../components/ui/StatTile';
 import { colors, radius, spacing } from '../theme';
+import { useEased } from '../hooks/useCached';
 import type { Tier } from '../mmr/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'MemberDetail'>;
@@ -151,6 +152,7 @@ export default function MemberDetailScreen({ route, navigation }: Props) {
     const checklist = (['calories', 'workout', 'weight'] as const).map((t) => ({ type: t, logged: todayTypes.has(t) }));
     return { streak, weekWorkouts, week, checklist };
   }, [marks, uid, group?.streakRule, pub]);
+  useEased(JSON.stringify(stats));
 
   // Tapping Cheer opens the hype picker; the chosen variant is what gets sent.
   const [hypeOpen, setHypeOpen] = useState<null | 'cheer' | 'nudge'>(null);

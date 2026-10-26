@@ -30,6 +30,8 @@ import Avatar from '../components/ui/Avatar';
 import PrimaryButton from '../components/ui/PrimaryButton';
 import TextField from '../components/ui/TextField';
 import { inviteUrl } from '../constants/links';
+import { getHydrated, setHydrated } from '../services/hydrationCache';
+import { slimLogs, useEased } from '../hooks/useCached';
 import { colors, radius, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<GroupsStackParamList, 'Challenge'>;
@@ -47,11 +49,14 @@ export default function ChallengeScreen({ route, navigation }: Props) {
   const { user } = useContext(AuthContext);
   const myUid = user?.uid ?? '';
 
-  const [challenge, setChallenge] = useState<GroupChallenge | null>(null);
-  const [createdBy, setCreatedBy] = useState<string | null>(null);
-  const [members, setMembers] = useState<GroupMember[]>([]);
+  // Cache-then-ease: the group doc, members, names and the standings feed
+  // all paint from last-known values, then go live.
+  const cachedGroup = getHydrated<{ challenge: GroupChallenge | null; createdBy: string | null; name: string | null; joinCode: string | null }>(`challengeGroup:${groupId}`);
+  const [challenge, setChallenge] = useState<GroupChallenge | null>(cachedGroup?.challenge ?? null);
+  const [createdBy, setCreatedBy] = useState<string | null>(cachedGroup?.createdBy ?? null);
+  const [members, setMembers] = useState<GroupMember[]>(() => getHydrated<GroupMember[]>(`groupMembers:${groupId}`) ?? []);
   const [pub, setPub] = useState<Record<string, PublicUser>>({});
-  const [canSee, setCanSee] = useState<Set<string>>(new Set());
+  const [canSee, setCanSee] = useState<Set<string>>(() => new Set(myUid ? getHydrated<string[]>(`canSee:${myUid}`) ?? [] : []));
   const [logs, setLogs] = useState<GroupLog[]>([]);
   const [snack, setSnack] = useState<string | null>(null);
 
@@ -63,7 +68,7 @@ export default function ChallengeScreen({ route, navigation }: Props) {
   const [customEndDate, setCustomEndDate] = useState('');
   const [useCustomEnd, setUseCustomEnd] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [groupInfo, setGroupInfo] = useState<{ name: string | null; joinCode: string | null }>({ name: null, joinCode: null });
+  const [groupInfo, setGroupInfo] = useState<{ name: string | null; joinCode: string | null }>({ name: cachedGroup?.name ?? null, joinCode: cachedGroup?.joinCode ?? null });
 
   useEffect(
     () =>
@@ -72,32 +77,54 @@ export default function ChallengeScreen({ route, navigation }: Props) {
         setChallenge(data?.challenge ?? null);
         setCreatedBy(data?.createdBy ?? null);
         setGroupInfo({ name: data?.name ?? null, joinCode: data?.joinCode ?? null });
+        setHydrated(`challengeGroup:${groupId}`, { challenge: data?.challenge ?? null, createdBy: data?.createdBy ?? null, name: data?.name ?? null, joinCode: data?.joinCode ?? null });
       }),
     [groupId],
   );
-  useEffect(() => subscribeGroupMembers(groupId, setMembers), [groupId]);
+  useEffect(
+    () =>
+      subscribeGroupMembers(groupId, (m) => {
+        setMembers(m);
+        setHydrated(`groupMembers:${groupId}`, m);
+      }),
+    [groupId],
+  );
   // Standings need every week of the challenge, so the feed starts at the
   // challenge's own first Monday. A fixed 70-day window dropped week 1 of
   // anything longer (the editor allows up to 52) and emptied the final
   // standings a couple of weeks after an 8-week challenge ended.
   const feedFrom = challenge?.startWeekId ? isoWeekRangeInTz(challenge.startWeekId, DEFAULT_TZ).start : null;
-  useEffect(
-    () => subscribeGroupLogsSince(groupId, feedFrom ?? daysAgoYYYYMMDD(70), setLogs),
-    [groupId, feedFrom],
-  );
+  useEffect(() => {
+    const key = `challengeLogs:${groupId}:${feedFrom ?? '70d'}`;
+    setLogs(getHydrated<GroupLog[]>(key) ?? []);
+    return subscribeGroupLogsSince(groupId, feedFrom ?? daysAgoYYYYMMDD(70), (l) => {
+      setLogs(l);
+      setHydrated(key, slimLogs(l));
+    });
+  }, [groupId, feedFrom]);
   useEffect(() => {
     if (!myUid) return;
-    return subscribeMyCanSeeUids(myUid, (uids) => setCanSee(new Set(uids)));
+    return subscribeMyCanSeeUids(myUid, (uids) => {
+      setCanSee(new Set(uids));
+      setHydrated(`canSee:${myUid}`, Array.from(uids));
+    });
   }, [myUid]);
 
   const memberUids = useMemo(() => members.map((m) => m.uid), [members]);
   useEffect(() => {
     if (memberUids.length === 0) return;
-    return subscribePublicUsers(memberUids, setPub);
+    const key = `groupPub:${groupId}:${memberUids.join(',')}`;
+    setPub(getHydrated<Record<string, PublicUser>>(key) ?? {});
+    return subscribePublicUsers(memberUids, (m) => {
+      setPub(m);
+      setHydrated(key, m);
+    });
   }, [memberUids.join(',')]);
 
   const myRole = members.find((m) => m.uid === myUid)?.role ?? 'member';
   const isOwner = createdBy === myUid || myRole === 'admin';
+
+  useEased(`${challenge?.name ?? ''}|${members.length}|${logs.length}|${Object.keys(pub).length}`);
 
   const progress = useMemo(() => (challenge ? challengeProgress(challenge) : null), [challenge]);
 

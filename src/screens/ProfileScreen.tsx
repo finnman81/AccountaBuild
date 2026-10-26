@@ -37,6 +37,7 @@ import ConsistencyStrip from '../components/profile/ConsistencyStrip';
 import TrendPreviewSparkline from '../components/profile/TrendPreviewSparkline';
 import RankDetailsModal from '../components/profile/RankDetailsModal';
 import ProjectionDetailsModal from '../components/profile/ProjectionDetailsModal';
+import { useEased } from '../hooks/useCached';
 import { colors, spacing } from '../theme';
 
 function weekStartMondayLocal() {
@@ -327,6 +328,7 @@ export default function ProfileScreen() {
     const last = last7[last7.length - 1].weight;
     return last - first;
   }, [dailyWeightEntries]);
+  useEased(`${dailyStreak}|${weekStreakCount}|${weightSeries.length}|${JSON.stringify(weightDelta)}`);
 
   const dailyCalorieGoal = Number(profile?.dailyCalorieGoal ?? 0);
   const calorieDayDots = useMemo(() => {

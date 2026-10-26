@@ -19,6 +19,7 @@ import Card from '../components/ui/Card';
 import SegmentedControl from '../components/ui/SegmentedControl';
 import TrendLineChart from '../components/charts/TrendLineChart';
 import { colors, radius, spacing } from '../theme';
+import { useEased } from '../hooks/useCached';
 import type { ProgressStackParamList } from '../navigation/types';
 
 type Props = NativeStackScreenProps<ProgressStackParamList, 'MyStats'>;
@@ -259,6 +260,7 @@ export default function MyStatsScreen({ navigation, route }: Props) {
       recent,
     };
   }, [logs, profile.dailyCalorieGoal]);
+  useEased(`${metric}|${range}|${logs.length}`);
 
   const empty = (what: string) => (
     <View style={styles.empty}>

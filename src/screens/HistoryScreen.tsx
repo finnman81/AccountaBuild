@@ -15,6 +15,8 @@ import AppText from '../components/ui/AppText';
 import Card from '../components/ui/Card';
 import Tag from '../components/ui/Tag';
 import { colors, radius, spacing } from '../theme';
+import { getHydrated, setHydrated } from '../services/hydrationCache';
+import { slimLogs, useEased } from '../hooks/useCached';
 import type { ProgressStackParamList } from '../navigation/types';
 
 type Props = NativeStackScreenProps<ProgressStackParamList, 'History'>;
@@ -67,6 +69,7 @@ function prettyDay(dateStr: string): string {
 
 function tsMs(ts: any): number {
   if (ts && typeof ts.toMillis === 'function') return ts.toMillis();
+  if (ts && typeof ts.seconds === 'number') return ts.seconds * 1000; // cached shape
   if (ts && typeof ts.seconds === 'number') return ts.seconds * 1000;
   return 0;
 }
@@ -84,10 +87,10 @@ export default function HistoryScreen({ navigation }: Props) {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth()); // 0-based
-  const [logs, setLogs] = useState<GroupLog[]>([]);
+  const [logs, setLogs] = useState<GroupLog[]>([]); // seeded per month in the effect below
   const [loading, setLoading] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string>(today);
-  const [weeks, setWeeks] = useState<MmrWeeklySummary[]>([]);
+  const [weeks, setWeeks] = useState<MmrWeeklySummary[]>(() => (user?.uid ? getHydrated<MmrWeeklySummary[]>(`weekly:${user.uid}:12`) ?? [] : []));
   const [expandedWeekId, setExpandedWeekId] = useState<string | null>(null);
 
   const { start, end, daysInMonth, firstWeekday } = useMemo(() => monthRange(year, month), [year, month]);
@@ -99,10 +102,16 @@ export default function HistoryScreen({ navigation }: Props) {
       return;
     }
     let cancelled = false;
-    setLoading(true);
+    // Last-known month paints at once; the fetch refreshes it behind.
+    const key = `history:${user.uid}:${activeGroupId}:${start}`;
+    const cached = getHydrated<GroupLog[]>(key);
+    setLogs(cached ?? []);
+    setLoading(!cached);
     fetchMyLogsInRange({ groupId: activeGroupId, uid: user.uid, startDate: start, endDate: end })
       .then((rows) => {
-        if (!cancelled) setLogs(rows);
+        if (cancelled) return;
+        setLogs(rows);
+        setHydrated(key, slimLogs(rows));
       })
       .catch(() => {
         if (!cancelled) setLogs([]);
@@ -117,8 +126,14 @@ export default function HistoryScreen({ navigation }: Props) {
 
   useEffect(() => {
     if (!user?.uid) return;
-    return subscribeMmrWeeklyHistory(user.uid, 12, setWeeks);
+    const uid = user.uid;
+    return subscribeMmrWeeklyHistory(uid, 12, (w) => {
+      setWeeks(w);
+      setHydrated(`weekly:${uid}:12`, w);
+    });
   }, [user?.uid]);
+
+  useEased(`${logs.length}|${weeks.length}`);
 
   const byDate = useMemo(() => {
     const map = new Map<string, GroupLog[]>();

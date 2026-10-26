@@ -10,6 +10,8 @@ import StatTile from '../components/ui/StatTile';
 import Tag from '../components/ui/Tag';
 import { AuthContext } from '../store/AuthContext';
 import { subscribeMmrWeeklyHistory, type MmrWeeklySummary } from '../services/mmrWeekly';
+import { getHydrated, setHydrated } from '../services/hydrationCache';
+import { useEased } from '../hooks/useCached';
 import { colors, radius, spacing } from '../theme';
 
 function weekLabel(weekId: string) {
@@ -24,11 +26,17 @@ export default function MMRHistoryScreen() {
   const { width: windowWidth } = useWindowDimensions();
   const { user } = useContext(AuthContext);
 
-  const [weeks, setWeeks] = useState<MmrWeeklySummary[]>([]); // newest-first from query
+  // newest-first from query; last-known paints instantly
+  const [weeks, setWeeks] = useState<MmrWeeklySummary[]>(() => (user?.uid ? getHydrated<MmrWeeklySummary[]>(`weekly:${user.uid}:26`) ?? [] : []));
+  useEased(`${weeks.length}:${weeks[0]?.weekId ?? ''}:${Math.round(weeks[0]?.mmrAfter ?? 0)}`);
 
   useEffect(() => {
     if (!user) return;
-    return subscribeMmrWeeklyHistory(user.uid, 26, setWeeks);
+    const uid = user.uid;
+    return subscribeMmrWeeklyHistory(uid, 26, (w) => {
+      setWeeks(w);
+      setHydrated(`weekly:${uid}:26`, w);
+    });
   }, [user]);
 
   const weeksAsc = useMemo(() => [...weeks].reverse(), [weeks]);

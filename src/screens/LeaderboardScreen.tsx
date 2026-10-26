@@ -24,6 +24,7 @@ import AppText from '../components/ui/AppText';
 import Avatar from '../components/ui/Avatar';
 import RankEmblem from '../components/ui/RankEmblem';
 import type { HomeStackParamList, RootStackParamList } from '../navigation/types';
+import { useEased } from '../hooks/useCached';
 import { colors, radius, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'Leaderboard'>;
@@ -142,6 +143,7 @@ export default function LeaderboardScreen({ route }: Props) {
       movement: null, // week-over-week arrows are an all-time concept
     }));
   }, [rows, board, weekDeltas]);
+  useEased(JSON.stringify(displayRows)); // rows ease into new positions
 
   const valueText = (r: LeaderboardRow & { weekDelta?: number }) =>
     board === 'week' ? `+${r.weekDelta ?? 0} FP` : mmrText(r.mmr);
