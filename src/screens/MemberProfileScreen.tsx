@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useMemo, useState } from 'react';
+import React, { useContext, useMemo } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity, useWindowDimensions } from 'react-native';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { Icon, useTheme } from 'react-native-paper';
@@ -22,6 +22,7 @@ import StatTile from '../components/ui/StatTile';
 import BadgeMedallion from '../components/ui/BadgeMedallion';
 import { lookKeyForPublicBadge } from '../services/badgeCatalog';
 import { colors, radius, spacing } from '../theme';
+import { slimLogs, useCachedSubscription, useEased } from '../hooks/useCached';
 import type { Tier } from '../mmr/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'MemberProfile'>;
@@ -62,21 +63,22 @@ export default function MemberProfileScreen({ route, navigation }: Props) {
   const theme = useTheme();
   const { width: windowWidth } = useWindowDimensions();
 
-  const [pub, setPub] = useState<PublicUser | null>(null);
-  const [logs, setLogs] = useState<GroupLog[]>([]);
-  const [weeks, setWeeks] = useState<WeeklyPublic[]>([]);
-  const [group, setGroup] = useState<{ streakRule?: 'workout' | 'any' } | null>(null);
-
-  useEffect(() => subscribePublicUsers([uid], (m) => setPub(m[uid] ?? null)), [uid]);
-  useEffect(() => subscribeMemberLogsSince(groupId, uid, daysAgoYYYYMMDD(35), setLogs), [groupId, uid]);
-  useEffect(() => subscribeWeeklyPublic(uid, 26, setWeeks, () => setWeeks([])), [uid]);
-  useEffect(() => onSnapshot(doc(db, 'groups', groupId), (s) => setGroup(s.exists() ? ((s.data() as any) ?? null) : null)), [groupId]);
+  // Cache-then-ease: every feed paints its last-known value instantly, then
+  // goes live. This screen used to open blank and fill in piecewise.
+  const pub = useCachedSubscription<PublicUser | null>(`memberPub:${uid}`, (on) => subscribePublicUsers([uid], (m) => on(m[uid] ?? null))).value ?? null;
+  const logs = useCachedSubscription<GroupLog[]>(`memberLogs:${groupId}:${uid}`, (on) => subscribeMemberLogsSince(groupId, uid, daysAgoYYYYMMDD(35), on), { toCache: slimLogs }).value ?? [];
+  const weeks = useCachedSubscription<WeeklyPublic[]>(`memberWeeks:${uid}`, (on) => subscribeWeeklyPublic(uid, 26, on, () => on([]))).value ?? [];
+  const group = useCachedSubscription<{ streakRule?: 'workout' | 'any' } | null>(`group:${groupId}`, (on) =>
+    onSnapshot(doc(db, 'groups', groupId), (s) => on(s.exists() ? ((s.data() as any) ?? null) : null)),
+  ).value ?? null;
 
   const isMe = uid === user?.uid;
   const name = friendlyNameFromDisplayName(pub?.displayName ?? null, uid);
   const tier = asTier(pub?.rankTierPublic);
   const division = typeof pub?.rankDivisionPublic === 'number' ? pub.rankDivisionPublic : null;
   const fp = typeof pub?.mmrPublic === 'number' ? Math.round(pub.mmrPublic) : null;
+
+  useEased(`${pub?.mmrPublic ?? ''}|${logs.length}|${weeks.length}`);
 
   const kpis = useMemo(() => {
     const today = yyyyMmDdInTz(new Date(), DEFAULT_TZ);
