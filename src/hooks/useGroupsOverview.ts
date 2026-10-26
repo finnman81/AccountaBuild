@@ -4,6 +4,8 @@ import { subscribeGroupMemberUids } from '../services/leaderboard';
 import { subscribeGroupLogsSince, daysAgoYYYYMMDD, type GroupLog } from '../services/logs';
 import { subscribePublicUsers, type PublicUser } from '../services/publicUsers';
 import { buildGroupOverview, type GroupOverview } from '../viewmodels/groups';
+import { getHydrated, setHydrated } from '../services/hydrationCache';
+import { slimLogs } from './useCached';
 import { DEFAULT_TZ, isoWeekDatesInTz, isoWeekIdInTz, yyyyMmDdInTz } from '../mmr/time';
 
 /**
@@ -26,10 +28,31 @@ export function useGroupsOverview(groupIds: string[], myUid: string | undefined)
       setLogsByGroup({});
       return;
     }
+    // Paint each card from its last-known members/logs, then go live.
+    const seedM: Record<string, string[]> = {};
+    const seedL: Record<string, GroupLog[]> = {};
+    for (const gid of groupIds) {
+      const m = getHydrated<string[]>(`ovMembers:${gid}`);
+      const l = getHydrated<GroupLog[]>(`ovLogs:${gid}`);
+      if (m) seedM[gid] = m;
+      if (l) seedL[gid] = l;
+    }
+    setMembersByGroup(seedM);
+    setLogsByGroup(seedL);
     const unsubs: Array<() => void> = [];
     for (const gid of groupIds) {
-      unsubs.push(subscribeGroupMemberUids(gid, (uids) => setMembersByGroup((prev) => ({ ...prev, [gid]: uids }))));
-      unsubs.push(subscribeGroupLogsSince(gid, daysAgoYYYYMMDD(14), (l) => setLogsByGroup((prev) => ({ ...prev, [gid]: l }))));
+      unsubs.push(
+        subscribeGroupMemberUids(gid, (uids) => {
+          setMembersByGroup((prev) => ({ ...prev, [gid]: uids }));
+          setHydrated(`ovMembers:${gid}`, uids);
+        }),
+      );
+      unsubs.push(
+        subscribeGroupLogsSince(gid, daysAgoYYYYMMDD(14), (l) => {
+          setLogsByGroup((prev) => ({ ...prev, [gid]: l }));
+          setHydrated(`ovLogs:${gid}`, slimLogs(l));
+        }),
+      );
     }
     return () => unsubs.forEach((u) => u());
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -48,7 +71,11 @@ export function useGroupsOverview(groupIds: string[], myUid: string | undefined)
       setPublicUsers({});
       return;
     }
-    return subscribePublicUsers(allUids, setPublicUsers);
+    setPublicUsers(getHydrated<Record<string, PublicUser>>(`ovPub:${allKey}`) ?? {});
+    return subscribePublicUsers(allUids, (map) => {
+      setPublicUsers(map);
+      setHydrated(`ovPub:${allKey}`, map);
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allKey]);
 

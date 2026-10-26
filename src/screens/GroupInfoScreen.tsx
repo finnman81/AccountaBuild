@@ -22,6 +22,7 @@ import { subscribePublicUsers, type PublicUser } from '../services/publicUsers';
 import { friendlyNameFromDisplayName } from '../utils/formatters';
 import AppText from '../components/ui/AppText';
 import Avatar from '../components/ui/Avatar';
+import { useCachedSubscription, useEased } from '../hooks/useCached';
 import { colors, radius, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<GroupsStackParamList, 'GroupInfo'>;
@@ -49,19 +50,19 @@ export default function GroupInfoScreen({ route, navigation }: Props) {
   const { user } = useContext(AuthContext);
   const { setActiveGroupId } = useActiveGroup();
 
-  const [group, setGroup] = useState<GroupDoc | null>(null);
-  const [members, setMembers] = useState<GroupMember[]>([]);
-  const [pub, setPub] = useState<Record<string, PublicUser>>({});
+  // Cache-then-ease across all three feeds (group doc, members, names/photos).
+  const group = useCachedSubscription<GroupDoc | null>(`groupInfo:${groupId}`, (on) =>
+    onSnapshot(doc(db, 'groups', groupId), (s) => on(s.exists() ? (s.data() as GroupDoc) : null)),
+  ).value ?? null;
+  const members = useCachedSubscription<GroupMember[]>(`groupMembers:${groupId}`, (on) => subscribeGroupMembers(groupId, on)).value ?? [];
   const [snack, setSnack] = useState<string | null>(null);
 
-  useEffect(() => onSnapshot(doc(db, 'groups', groupId), (s) => setGroup(s.exists() ? (s.data() as GroupDoc) : null)), [groupId]);
-  useEffect(() => subscribeGroupMembers(groupId, setMembers), [groupId]);
+
 
   const memberUids = useMemo(() => members.map((m) => m.uid), [members]);
-  useEffect(() => {
-    if (memberUids.length === 0) return;
-    return subscribePublicUsers(memberUids, setPub);
-  }, [memberUids.join(',')]);
+  const pubKey = `groupPub:${groupId}:${memberUids.join(',')}`;
+  const pub = useCachedSubscription<Record<string, PublicUser>>(memberUids.length ? pubKey : null, (on) => subscribePublicUsers(memberUids, on)).value ?? {};
+  useEased(`${group?.name ?? ''}|${members.length}|${Object.keys(pub).length}`);
 
   const myUid = user?.uid ?? '';
   const isCreator = !!group?.createdBy && group.createdBy === myUid;

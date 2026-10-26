@@ -24,6 +24,7 @@ import { todayYYYYMMDD } from '../utils/dates';
 import AppText from '../components/ui/AppText';
 import LogCard from '../components/chat/LogCard';
 import MilestoneCard from '../components/chat/MilestoneCard';
+import { slimLogs, useEased } from '../hooks/useCached';
 import { colors, radius, spacing } from '../theme';
 
 type FeedItem =
@@ -66,7 +67,9 @@ export default function GroupChatScreen({ route }: Props) {
   const headerHeight = useHeaderHeight();
   const insets = useSafeAreaInsets();
 
-  const [messages, setMessages] = useState<GroupMessage[]>([]);
+  // Last-known feed paints instantly (newest 60 messages, slim logs); live
+  // replaces it. Chat used to open empty and then fill, which read as a jump.
+  const [messages, setMessages] = useState<GroupMessage[]>(() => getHydrated<GroupMessage[]>(`chatMsgs:${groupId}`) ?? []);
   // Roster seeds from the shared hydration cache (same keys Today/Leaderboard
   // write). Before this, GroupChat had to resolve members -> canSee ->
   // publicUsers as a CHAINED set of round-trips before the feed could render
@@ -78,14 +81,28 @@ export default function GroupChatScreen({ route }: Props) {
     () => getHydrated<Record<string, PublicUser>>(`publicUsers:${groupId}`) ?? {},
   );
   const [canSee, setCanSee] = useState<Set<string>>(() => new Set(user?.uid ? getHydrated<string[]>(`canSee:${user.uid}`) ?? [] : []));
-  const [logs, setLogs] = useState<GroupLog[]>([]);
+  const [logs, setLogs] = useState<GroupLog[]>(() => getHydrated<GroupLog[]>(`chatLogs:${groupId}`) ?? []);
   const [blocked, setBlocked] = useState<Set<string>>(new Set());
   const [text, setText] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [sendFailed, setSendFailed] = useState(false);
   const [composerH, setComposerH] = useState(0);
 
-  useEffect(() => subscribeGroupMessages(groupId, setMessages), [groupId]);
+  useEffect(
+    () =>
+      subscribeGroupMessages(groupId, (items) => {
+        setMessages(items);
+        setHydrated(
+          `chatMsgs:${groupId}`,
+          items.slice(0, 60).map((m: any) => ({
+            id: m.id, groupId: m.groupId, uid: m.uid, text: m.text, system: m.system ?? false, senderName: m.senderName ?? null,
+            milestone: m.milestone ?? null, reactions: m.reactions ?? null,
+            createdAt: m.createdAt && typeof m.createdAt.seconds === 'number' ? { seconds: m.createdAt.seconds } : null,
+          })),
+        );
+      }),
+    [groupId],
+  );
   useEffect(() => {
     return onSnapshot(collection(db, 'groups', groupId, 'members'), (snap) => {
       const uids = snap.docs.map((d) => String((d.data() as any)?.uid ?? d.id)).filter(Boolean);
@@ -110,7 +127,16 @@ export default function GroupChatScreen({ route }: Props) {
   }, [canSee, memberUids, user?.uid, groupId]);
   // 100, not 200: the feed only renders the last 3 days of logs, so the extra
   // 100 docs were fetched and immediately filtered out on every open.
-  useEffect(() => subscribeGroupLogsSince(groupId, daysAgoYYYYMMDD(7), setLogs), [groupId]);
+  useEffect(
+    () =>
+      subscribeGroupLogsSince(groupId, daysAgoYYYYMMDD(7), (items) => {
+        setLogs(items);
+        setHydrated(`chatLogs:${groupId}`, slimLogs(items));
+      }),
+    [groupId],
+  );
+  // New messages ease in rather than snap.
+  useEased(`${messages.length}:${messages[0]?.id ?? ''}`);
   useEffect(() => {
     if (!user?.uid) return;
     return subscribeMyBlocks(user.uid, setBlocked);
@@ -287,6 +313,9 @@ export default function GroupChatScreen({ route }: Props) {
           data={feed}
           keyExtractor={(item) => item.id}
           inverted
+          // Reading older messages: new arrivals must not shift what you're
+          // looking at. Near the bottom: still follow the newest.
+          maintainVisibleContentPosition={{ minIndexForVisible: 0, autoscrollToTopThreshold: 80 }}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
           contentContainerStyle={{ paddingHorizontal: spacing.base, paddingTop: spacing.md, paddingBottom: composerH + spacing.md + insets.bottom }}

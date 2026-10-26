@@ -19,6 +19,8 @@ import { AuthContext } from '../store/AuthContext';
 import { buildInviteMessage, leaveGroup, subscribeMyGroups, UserGroupListItem } from '../services/groups';
 import { useActiveGroup } from '../store/ActiveGroupContext';
 import { useGroupsOverview } from '../hooks/useGroupsOverview';
+import { getHydrated } from '../services/hydrationCache';
+import { useEased } from '../hooks/useCached';
 import { colors, radius, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<GroupsStackParamList, 'GroupList'>;
@@ -27,9 +29,11 @@ export default function GroupListScreen({ navigation }: Props) {
   const rootNav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { user, logout } = useContext(AuthContext);
   const { activeGroupId, setActiveGroupId } = useActiveGroup();
-  const [groups, setGroups] = useState<UserGroupListItem[]>([]);
+  // Seeded from the same cache ActiveGroupContext keeps, so the tab never
+  // shows skeletons for groups it already knows.
+  const [groups, setGroups] = useState<UserGroupListItem[]>(() => (user?.uid ? getHydrated<UserGroupListItem[]>(`myGroups:${user.uid}`) ?? [] : []));
   const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(() => !(user?.uid && getHydrated<UserGroupListItem[]>(`myGroups:${user.uid}`)));
   const [retryKey, setRetryKey] = useState(0);
   const [leaveDialogVisible, setLeaveDialogVisible] = useState(false);
   const [leavingGroupId, setLeavingGroupId] = useState<string | null>(null);
@@ -38,7 +42,7 @@ export default function GroupListScreen({ navigation }: Props) {
 
   useEffect(() => {
     if (!user) return;
-    setIsLoading(true);
+    if (!groups.length) setIsLoading(true);
     return subscribeMyGroups(
       user.uid,
       (items) => {
@@ -55,6 +59,7 @@ export default function GroupListScreen({ navigation }: Props) {
 
   const groupIds = useMemo(() => groups.map((g) => g.groupId), [groups]);
   const overviews = useGroupsOverview(groupIds, user?.uid);
+  useEased(JSON.stringify(overviews));
 
   // Which group the invite is FOR. Defaults to the open group, but with
   // several groups the card used to share that code without ever naming the
