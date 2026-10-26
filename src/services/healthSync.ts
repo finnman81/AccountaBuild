@@ -8,6 +8,7 @@ import { resolveHealthLogId, healthLogDocId, isRecentImportDate } from './health
 import { getAnchor, setAnchor } from './health/healthAnchors';
 import { formatYYYYMMDDLocal, todayYYYYMMDD } from '../utils/dates';
 import * as HealthService from './health/healthService';
+import { notifySyncFinished, notifySyncStarted } from './syncEvents';
 import type { HealthSettings } from './healthSettings';
 
 export type SyncResult = {
@@ -100,6 +101,8 @@ export async function syncHealthData(uid: string, groupId: string, settings: Hea
   syncInProgress = true;
   syncPromise = (async () => {
     const result: SyncResult = { workoutsSynced: 0, caloriesSynced: false, weightSynced: false, errors: [], diagnostics: {} };
+    let newItems = 0; // writes that actually happened (unchanged samples are skipped)
+    notifySyncStarted();
     const source = Platform.OS === 'ios' ? 'apple_health' : 'google_fit';
     const sourceLabel = Platform.OS === 'ios' ? 'Apple Health' : 'Google Fit';
     const today = todayYYYYMMDD();
@@ -200,6 +203,7 @@ export async function syncHealthData(uid: string, groupId: string, settings: Hea
                 },
               });
               synced += 1;
+              newItems += 1;
               result.workoutsSynced += 1;
             } catch (e) {
               result.errors.push(`workout: ${e}`);
@@ -243,6 +247,7 @@ export async function syncHealthData(uid: string, groupId: string, settings: Hea
                 payload: { calories: entry.calories, meal: entry.meal, note: entry.source ? `Synced from ${sourceLabel} (${entry.source})` : `Synced from ${sourceLabel}` },
               });
               synced += 1;
+              newItems += 1;
             } catch (e) {
               result.errors.push(`calorie entry: ${e}`);
             }
@@ -266,6 +271,7 @@ export async function syncHealthData(uid: string, groupId: string, settings: Hea
                 payload: { calories: entry.calories, meal: entry.meal, note: entry.source ? `Synced from ${sourceLabel} (${entry.source})` : `Synced from ${sourceLabel}` },
               });
               synced += 1;
+              newItems += 1;
             } catch (e) {
               result.errors.push(`calorie backfill: ${e}`);
             }
@@ -310,6 +316,7 @@ export async function syncHealthData(uid: string, groupId: string, settings: Hea
               });
               await upsertUserWeightHistoryFromGroupLog({ uid, groupId, groupLogId: logId, date: weight.date, weight: weight.weight });
               syncedW += 1;
+              newItems += 1;
             } catch (e) {
               result.errors.push(`weight: ${e}`);
             }
@@ -345,6 +352,7 @@ export async function syncHealthData(uid: string, groupId: string, settings: Hea
     } finally {
       syncInProgress = false;
       syncPromise = null;
+      notifySyncFinished(newItems, result.errors.length === 0);
     }
 
     return result;

@@ -228,7 +228,10 @@ export default function HistoryScreen({ navigation }: Props) {
         <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>{prettyDay(selectedDate)}</AppText>
         <Card>
           {loading && selectedInMonth ? (
-            <AppText variant="rowSubtitle" color="muted">Loading…</AppText>
+            <View style={{ gap: 8 }}>
+              <View style={{ height: 14, width: '60%', borderRadius: 7, backgroundColor: colors.surface2 }} />
+              <View style={{ height: 14, width: '40%', borderRadius: 7, backgroundColor: colors.surface2 }} />
+            </View>
           ) : selectedLogs.length === 0 ? (
             <AppText variant="rowSubtitle" color="muted">
               {selectedInMonth ? 'Nothing logged this day.' : 'Pick a day in this month to see its logs.'}

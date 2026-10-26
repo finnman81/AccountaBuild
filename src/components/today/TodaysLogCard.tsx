@@ -1,5 +1,5 @@
-import React from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { LayoutAnimation, Pressable, StyleSheet, View } from 'react-native';
 import { Text } from 'react-native-paper';
 
 import Card from '../ui/Card';
@@ -59,11 +59,20 @@ function Row({ item, onLog, onOpenEntries }: { item: ChecklistItem; onLog: (t: C
   return content;
 }
 
-export default function TodaysLogCard({ checklist, onLog, onOpenEntries }: { checklist: TodayChecklist; onLog: (t: ChecklistType) => void; onOpenEntries?: (item: ChecklistItem) => void }) {
+export default function TodaysLogCard({ checklist, onLog, onOpenEntries, aside }: { checklist: TodayChecklist; onLog: (t: ChecklistType) => void; onOpenEntries?: (item: ChecklistItem) => void; aside?: React.ReactNode }) {
+  // A row flipping to "logged" (a synced workout landing) eases in instead
+  // of snapping: the reshuffle-on-open was the visible part of sync lag.
+  const sig = checklist.items.map((i) => `${i.type}:${i.logged ? 1 : 0}:${i.valueLine}`).join('|');
+  const prevSig = useRef(sig);
+  useEffect(() => {
+    if (prevSig.current !== sig) LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    prevSig.current = sig;
+  }, [sig]);
   return (
     <Card>
       <View style={styles.header}>
         <Text style={styles.cardLabel}>Today's log</Text>
+        {aside ? <View style={{ flex: 1, alignItems: 'center' }}>{aside}</View> : null}
         <Text style={styles.doneLabel}>
           {checklist.doneCount} of {checklist.total} done
         </Text>

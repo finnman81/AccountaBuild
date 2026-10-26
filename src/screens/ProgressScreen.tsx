@@ -30,6 +30,7 @@ import { formatMinutesHM, formatDeltaForUnits } from '../utils/formatters';
 import { useMyUnits } from '../hooks/useMyUnits';
 import { colors, spacing, radius } from '../theme';
 import type { ProgressStackParamList } from '../navigation/types';
+import LoadingState from '../components/state/LoadingState';
 import type { RootStackParamList } from '../navigation/types';
 
 type Props = NativeStackScreenProps<ProgressStackParamList, 'Progress'>;
@@ -541,7 +542,7 @@ export default function ProgressScreen({ navigation }: Props) {
   if (!isReady) {
     return (
       <Screen>
-        <AppText variant="body" color="secondary">Loading…</AppText>
+        <LoadingState skeletonCount={3} />
       </Screen>
     );
   }

@@ -141,6 +141,11 @@ export default function TabsNavigator() {
       <Tab.Navigator
         screenOptions={{
           headerShown: false,
+          // 'shift': a short slide + fade between tabs instead of a hard cut.
+          // freezeOnBlur: hidden tabs stop re-rendering (their listeners keep
+          // data current) so Home stays smooth while Progress updates behind it.
+          animation: 'shift',
+          freezeOnBlur: true,
           tabBarStyle,
           tabBarActiveTintColor: theme.colors.primary,
           tabBarInactiveTintColor: colors.textMuted,

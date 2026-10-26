@@ -52,6 +52,7 @@ import { markAppSettled } from '../services/startupGate';
 import { FullDisplay } from '../services/sentry';
 
 const SIGNING_ENABLED = false;
+import SyncStatus from '../components/today/SyncStatus';
 import type { Tier } from '../mmr/types';
 
 type Props = {
@@ -498,7 +499,7 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
           </Text>
         </View>
       ) : null}
-      <TodaysLogCard checklist={checklist} onLog={onOpenLog ?? (() => {})} onOpenEntries={setEntriesItem} />
+      <TodaysLogCard checklist={checklist} onLog={onOpenLog ?? (() => {})} onOpenEntries={setEntriesItem} aside={<SyncStatus uid={myUid} />} />
       <TeamTodayRail team={team} onMemberPress={onOpenMember ?? (() => {})} onMemberLongPress={onCheer} />
       <LeaderboardPreviewCard rows={preview} onViewAll={onViewLeaderboard ?? (() => {})} />
 

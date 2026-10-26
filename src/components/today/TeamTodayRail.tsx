@@ -1,5 +1,5 @@
-import React from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { LayoutAnimation, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from 'react-native-paper';
 
 import Avatar, { type AvatarStatus } from '../ui/Avatar';
@@ -43,6 +43,13 @@ function MemberCell({ member, onPress, onLongPress }: { member: TeamMemberToday;
 }
 
 export default function TeamTodayRail({ team, onMemberPress, onMemberLongPress }: { team: TeamToday; onMemberPress: (uid: string) => void; onMemberLongPress?: (uid: string) => void }) {
+  // Ease status changes (someone's ring filling in) instead of snapping.
+  const sig = team.members.map((m) => `${m.uid}:${m.status}:${m.streakDays}`).join('|');
+  const prevSig = useRef(sig);
+  useEffect(() => {
+    if (prevSig.current !== sig) LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    prevSig.current = sig;
+  }, [sig]);
   return (
     <View style={{ marginTop: 20 }}>
       <View style={styles.header}>
