@@ -26,24 +26,54 @@ export const REMINDER_STYLES: Array<{ value: ReminderStyle; label: string; sampl
 ];
 
 /**
- * Friendly reminders open with a greeting that fits the slot's hour (the
- * phone knows the time it schedules for), then one of these. Direct and
- * savage skip the greeting.
+ * Friendly reminders are written per time of day: three lines each for
+ * morning, afternoon and evening, with a greeting that fits the slot's hour
+ * (the phone knows the time it schedules for). The line advances once a day,
+ * so a 9:00 slot never repeats itself two days running. Direct and savage
+ * share one pool and skip the greeting.
  */
-export function friendlyGreeting(hour: number): string {
-  if (hour < 12) return 'Good morning ☀️';
-  if (hour < 17) return 'Afternoon check-in 👋';
-  return 'Evening 🌙';
+export type DayPeriod = 'morning' | 'afternoon' | 'evening';
+
+export function periodFor(hour: number): DayPeriod {
+  if (hour < 12) return 'morning';
+  if (hour < 17) return 'afternoon';
+  return 'evening';
+}
+
+const FRIENDLY_GREETING: Record<DayPeriod, string> = {
+  morning: 'Good morning ☀️',
+  afternoon: 'Afternoon check-in 👋',
+  evening: 'Evening 🌙',
+};
+
+export const FRIENDLY_LINES: Record<DayPeriod, string[]> = {
+  morning: [
+    'Log today and keep your streak going!',
+    "New day, fresh start. One log and you're on the board 💪",
+    'Breakfast, a walk, a lift. Whatever today holds, log it!',
+  ],
+  afternoon: [
+    "Ten seconds to log and today's in the books 💪",
+    'Halfway through the day. Got something to log yet?',
+    'A walk counts. A stretch counts. Log it when you can 🙌',
+  ],
+  evening: [
+    'Still time to log today. Keep that streak alive 🔥',
+    'Before you wind down, log today. Future you says thanks ✨',
+    'Small wins stack up. Log what you did today 🙌',
+  ],
+};
+
+/** Greeting + the period's line for this day. `dayIndex` = any count that steps once a day. */
+export function friendlyBody(hour: number, dayIndex: number): string {
+  const period = periodFor(hour);
+  const lines = FRIENDLY_LINES[period];
+  const line = lines[((dayIndex % lines.length) + lines.length) % lines.length];
+  return `${FRIENDLY_GREETING[period]} ${line}`;
 }
 
 export const REMINDER_MESSAGES: Record<ReminderStyle, string[]> = {
-  friendly: [
-    'Log today and keep your streak going!',
-    "Ten seconds to log and today's in the books 💪",
-    'A walk, a lift, a stretch. It all counts. Log it!',
-    'Your streak is rooting for you. Log today 🔥',
-    'Small wins stack up. Log what you did today 🙌',
-  ],
+  friendly: [...FRIENDLY_LINES.morning, ...FRIENDLY_LINES.afternoon, ...FRIENDLY_LINES.evening],
   direct: [
     "Today isn't logged yet. Keep the streak alive.",
     'Log your workout, calories or weigh-in today.',
@@ -60,8 +90,8 @@ export const REMINDER_MESSAGES: Record<ReminderStyle, string[]> = {
   ],
 };
 
-export function reminderBody(style: ReminderStyle, line: string, hour: number): string {
-  return style === 'friendly' ? `${friendlyGreeting(hour)} ${line}` : line;
+export function reminderBody(style: ReminderStyle, line: string, hour: number, dayIndex = Math.floor(Date.now() / 86_400_000)): string {
+  return style === 'friendly' ? friendlyBody(hour, dayIndex) : line;
 }
 
 const KEY = 'reminder_style';
