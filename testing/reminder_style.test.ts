@@ -1,3 +1,6 @@
+jest.mock('../src/firebase/firebase', () => ({ db: {} }));
+jest.mock('firebase/firestore', () => ({ doc: jest.fn(), setDoc: jest.fn(), serverTimestamp: jest.fn() }));
+
 import { reminderBody, REMINDER_MESSAGES } from '../src/services/reminderStyle';
 
 describe('reminderBody', () => {
