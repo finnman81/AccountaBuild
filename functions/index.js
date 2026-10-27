@@ -683,10 +683,12 @@ exports.groupWeeklyRecap = onSchedule(
 );
 
 // ---------------------------------------------------------------------------
-// Challenge lifecycle: start/end announcements (daily 09:00 ET)
+// Challenge lifecycle: start/end announcements (Monday 09:00 ET; challenges
+// start and end on week boundaries, so a daily check only ever fired Mondays
+// anyway). Push only: the chat copy was a duplicate (Jake, 2026-10-27).
 // ---------------------------------------------------------------------------
 exports.challengeLifecycle = onSchedule(
-  { schedule: '0 9 * * *', timeZone: TZ, timeoutSeconds: 540, memory: '256MiB' },
+  { schedule: '0 9 * * 1', timeZone: TZ, timeoutSeconds: 540, memory: '256MiB' },
   async () => {
     const now = new Date();
     const currentWeekId = core.isoWeekIdInTz(now, TZ);
@@ -728,11 +730,11 @@ exports.challengeLifecycle = onSchedule(
         };
 
         if (over && !c.endNotifiedAt) {
-          await notify(`🏆 ${name} is complete!`, 'Check the final standings, then start the next one.', true);
+          await notify(`🏆 ${name} is complete!`, 'Check the final standings, then start the next one.', false);
           await g.ref.update({ 'challenge.endNotifiedAt': Timestamp.now() });
           announced += 1;
         } else if (started && !over && !c.startNotifiedAt) {
-          await notify(`🏁 ${name} is live!`, `${c.durationWeeks} weeks on the clock. Every log counts. Go.`, true);
+          await notify(`🏁 ${name} is live!`, `${c.durationWeeks} weeks on the clock. Every log counts. Go.`, false);
           await g.ref.update({ 'challenge.startNotifiedAt': Timestamp.now() });
           announced += 1;
         }
