@@ -20,18 +20,29 @@ import { db } from '../firebase/firebase';
 export type ReminderStyle = 'friendly' | 'direct' | 'savage';
 
 export const REMINDER_STYLES: Array<{ value: ReminderStyle; label: string; sample: string }> = [
-  { value: 'friendly', label: 'Friendly', sample: 'Quick check-in. Log today and keep your streak going.' },
+  { value: 'friendly', label: 'Friendly', sample: 'Good morning ☀️ Log today and keep your streak going!' },
   { value: 'direct', label: 'Direct', sample: "Today isn't logged yet. Keep the streak alive." },
   { value: 'savage', label: 'Savage', sample: "Excuses don't count. Logs do." },
 ];
 
+/**
+ * Friendly reminders open with a greeting that fits the slot's hour (the
+ * phone knows the time it schedules for), then one of these. Direct and
+ * savage skip the greeting.
+ */
+export function friendlyGreeting(hour: number): string {
+  if (hour < 12) return 'Good morning ☀️';
+  if (hour < 17) return 'Afternoon check-in 👋';
+  return 'Evening 🌙';
+}
+
 export const REMINDER_MESSAGES: Record<ReminderStyle, string[]> = {
   friendly: [
-    'Quick check-in. Log today and keep your streak going.',
-    'A short walk counts. Log it when you can.',
-    'Small steps add up. Log whatever you did today.',
-    'Ten seconds to log, and today counts.',
-    'Your streak is waiting on today. Log when you get a minute.',
+    'Log today and keep your streak going!',
+    "Ten seconds to log and today's in the books 💪",
+    'A walk, a lift, a stretch. It all counts. Log it!',
+    'Your streak is rooting for you. Log today 🔥',
+    'Small wins stack up. Log what you did today 🙌',
   ],
   direct: [
     "Today isn't logged yet. Keep the streak alive.",
@@ -48,6 +59,10 @@ export const REMINDER_MESSAGES: Record<ReminderStyle, string[]> = {
     'It takes 10 seconds. Your future self will care.',
   ],
 };
+
+export function reminderBody(style: ReminderStyle, line: string, hour: number): string {
+  return style === 'friendly' ? `${friendlyGreeting(hour)} ${line}` : line;
+}
 
 const KEY = 'reminder_style';
 

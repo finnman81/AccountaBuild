@@ -1,6 +1,6 @@
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getLocalReminderStyle, REMINDER_MESSAGES, type ReminderStyle } from './reminderStyle';
+import { getLocalReminderStyle, REMINDER_MESSAGES, reminderBody, type ReminderStyle } from './reminderStyle';
 import { getNotificationPreferences, type NotificationPreferences } from './notificationPreferences';
 
 // Configure notification behavior
@@ -142,7 +142,7 @@ async function scheduleNotificationsInner(options?: { force?: boolean; startFrom
       if (!timeStr) continue;
       const date = nextOccurrenceDate(timeStr, minLeadSeconds, Boolean(options?.startFromTomorrow));
       const messageIndex = await getNextMessageIndex(pool.length);
-      const body = pool[messageIndex] ?? pool[0];
+      const body = reminderBody(style, pool[messageIndex] ?? pool[0], parseTime(timeStr).hour);
       
       // Schedule next occurrence only (no catch-up bursts). No `badge` here:
       // local reminders used to force the home-screen badge to a phantom "1";
