@@ -19,13 +19,13 @@ function timeLabel(ms: number): string {
 }
 
 /**
- * One quiet line on Today's log: "Syncing…" / "Synced 9:42 AM" /
- * "Synced 9:42 AM · 2 new". Only for members with health sync on.
+ * One quiet line on Today's log: "Syncing…" / "Synced 9:42 AM". Only for
+ * members with health sync on. (The "· N new" count was dropped: the number
+ * reflects writes, not workouts, and read as noise.)
  */
 export default function SyncStatus({ uid }: { uid: string }) {
   const [enabled, setEnabled] = useState(false);
   const [state, setState] = useState<SyncState | null>(null);
-  const [showNew, setShowNew] = useState(false);
   const pulse = useRef(new Animated.Value(0.4)).current;
 
   useEffect(() => {
@@ -33,17 +33,6 @@ export default function SyncStatus({ uid }: { uid: string }) {
     return subscribeHealthSettings(uid, (s) => setEnabled(!!s && (s.syncWorkouts || s.syncCalories || s.syncWeight)), () => setEnabled(false));
   }, [uid]);
   useEffect(() => subscribeSyncState(setState), []);
-
-  // "· 2 new" shows for a bit after a sync that brought something, then settles.
-  useEffect(() => {
-    if (state?.phase !== 'done' || !state.lastNew) {
-      setShowNew(false);
-      return;
-    }
-    setShowNew(true);
-    const t = setTimeout(() => setShowNew(false), 20_000);
-    return () => clearTimeout(t);
-  }, [state]);
 
   useEffect(() => {
     if (state?.phase !== 'syncing') return;
@@ -82,7 +71,6 @@ export default function SyncStatus({ uid }: { uid: string }) {
       <View style={[styles.dot, { backgroundColor: colors.success }]} />
       <Text style={styles.text}>
         Synced {timeLabel(state.lastAt)}
-        {showNew ? <Text style={styles.newText}> · {state.lastNew} new</Text> : null}
       </Text>
     </View>
   );
@@ -92,5 +80,4 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   dot: { width: 6, height: 6, borderRadius: 3 },
   text: { fontSize: 11.5, color: colors.textMuted, fontWeight: '600' },
-  newText: { color: colors.success },
 });
