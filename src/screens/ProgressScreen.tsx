@@ -9,7 +9,7 @@ import { useNavigation } from '@react-navigation/native';
 import Screen from '../components/layout/Screen';
 import EmptyState from '../components/state/EmptyState';
 import TrendLineChart from '../components/charts/TrendLineChart';
-import ComplianceBars from '../components/progress/ComplianceBars';
+import GoalBoard, { type GoalRow } from '../components/progress/GoalBoard';
 import CrewWeekCard, { type CrewWeekStats } from '../components/progress/CrewWeekCard';
 import ConsistencyMatrix, { type MatrixRow } from '../components/progress/ConsistencyMatrix';
 import { friendlyNameFromDisplayName } from '../utils/formatters';
@@ -74,7 +74,7 @@ export default function ProgressScreen({ navigation }: Props) {
   const { user } = React.useContext(AuthContext);
   const { activeGroupId, groups, isReady, setActiveGroupId } = useActiveGroup();
   const currentWeekId = isoWeekIdInTz(new Date(), DEFAULT_TZ);
-  const [metric, setMetric] = useState<'weight' | 'workout' | 'calories'>('weight');
+  const [metric, setMetric] = useState<'weight' | 'workout' | 'calories'>('workout');
   // Trend canvas width, measured by onLayout (never estimated — see chart row).
   const [chartBoxW, setChartBoxW] = useState(0);
   const units = useMyUnits();
@@ -199,8 +199,8 @@ export default function ProgressScreen({ navigation }: Props) {
 
   const photoStrip = useMemo(() => photoLogs.slice(0, 12), [photoLogs]);
 
-  // Group compliance toward weekly goals (merged in from the old Charts screen).
-  const complianceBars = useMemo(() => {
+  // Weekly goals, per member. Was three group-total bars; see GoalBoard.
+  const goalBoard = useMemo(() => {
     const weekStart = weekStartMondayLocal();
     const workoutsCount: Record<string, number> = {};
     const caloriesDays: Record<string, Set<string>> = {};
@@ -212,35 +212,38 @@ export default function ProgressScreen({ navigation }: Props) {
       if (l.type === 'calories') (caloriesDays[l.uid] = caloriesDays[l.uid] ?? new Set()).add(l.date);
       if (l.type === 'weight') (weightDays[l.uid] = weightDays[l.uid] ?? new Set()).add(l.date);
     }
-    let membersWithGoals = 0;
-    let wDone = 0, wGoal = 0, cDone = 0, cGoal = 0, oDone = 0, oGoal = 0;
+    const rows: GoalRow[] = [];
+    const noGoals: string[] = [];
     for (const uid of memberUids) {
       const g = publicUsers[uid];
       if (!g) continue;
-      // A sleeping member has no targets to miss; counting them would drag the
-      // whole group's compliance down for someone else's deployment.
+      // A sleeping member has no targets to miss this week.
       if (isHibernating(g as any, currentWeekId)) continue;
-      const weightGoal = Math.max(0, Number(g.logWeightDaysPerWeek ?? 0));
-      const caloriesGoal = Math.max(0, Number(g.logCaloriesDaysPerWeek ?? 0));
-      const workoutsGoal = Math.max(0, Number(g.workoutsPerWeek ?? 0));
-      if (weightGoal > 0 || caloriesGoal > 0 || workoutsGoal > 0) membersWithGoals += 1;
-      if (weightGoal > 0) { wGoal += weightGoal; wDone += Math.min(weightDays[uid]?.size ?? 0, weightGoal); }
-      if (caloriesGoal > 0) { cGoal += caloriesGoal; cDone += Math.min(caloriesDays[uid]?.size ?? 0, caloriesGoal); }
-      if (workoutsGoal > 0) { oGoal += workoutsGoal; oDone += Math.min(workoutsCount[uid] ?? 0, workoutsGoal); }
+      const name = friendlyNameFromDisplayName(g.displayName ?? null, uid);
+      const chips = (
+        [
+          { key: 'workouts', goal: Number(g.workoutsPerWeek ?? 0), done: workoutsCount[uid] ?? 0 },
+          { key: 'calories', goal: Number(g.logCaloriesDaysPerWeek ?? 0), done: caloriesDays[uid]?.size ?? 0 },
+          { key: 'weight', goal: Number(g.logWeightDaysPerWeek ?? 0), done: weightDays[uid]?.size ?? 0 },
+        ] as const
+      )
+        .filter((t) => t.goal > 0)
+        .map((t) => ({ ...t, done: Math.min(t.done, t.goal) }));
+      if (!chips.length) {
+        noGoals.push(name);
+        continue;
+      }
+      rows.push({
+        uid,
+        name,
+        isMe: uid === user?.uid,
+        chips,
+        done: chips.reduce((sum, t) => sum + t.done, 0),
+        goal: chips.reduce((sum, t) => sum + t.goal, 0),
+      });
     }
-    const pct = (done: number, goal: number) => (goal > 0 ? Math.round((done / goal) * 100) : 0);
-    const ratio = (done: number, goal: number) => (goal > 0 ? `${done}/${goal}` : '—');
-    return {
-      membersWithGoals,
-      totalMembers: memberUids.length,
-      hasAny: wGoal + cGoal + oGoal > 0,
-      bars: [
-        { label: 'Workouts', pct: pct(oDone, oGoal), ratio: ratio(oDone, oGoal), missed: Math.max(0, oGoal - oDone) },
-        { label: 'Weigh-ins', pct: pct(wDone, wGoal), ratio: ratio(wDone, wGoal), missed: Math.max(0, wGoal - wDone) },
-        { label: 'Calories', pct: pct(cDone, cGoal), ratio: ratio(cDone, cGoal), missed: Math.max(0, cGoal - cDone) },
-      ],
-    };
-  }, [groupLogs, memberUids, publicUsers, todayKey]);
+    return { rows, noGoals };
+  }, [groupLogs, memberUids, publicUsers, todayKey, user?.uid]);
 
   const weekDates = useMemo(() => {
     const start = weekStartMondayLocal();
@@ -677,35 +680,19 @@ export default function ProgressScreen({ navigation }: Props) {
 
       <View style={{ height: spacing.base }} />
 
-      {/* Group compliance (merged from the old Charts screen) */}
-      <Card>
-        <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' }}>
-          <AppText variant="rowTitle" color="primary">Goals hit</AppText>
-          {complianceBars.totalMembers ? (
-            <AppText variant="rowSubtitle" color="muted">
-              {`${complianceBars.membersWithGoals} of ${complianceBars.totalMembers} set goals`}
-            </AppText>
-          ) : null}
-        </View>
-        <AppText variant="rowSubtitle" color="secondary" style={{ marginTop: 2 }}>
-          {complianceBars.totalMembers ? 'Across the group, this week' : 'No members yet'}
-        </AppText>
-        {complianceBars.hasAny ? (
-          <View style={{ marginTop: spacing.md }}>
-            <ComplianceBars bars={complianceBars.bars} elapsedDays={dayNum} />
-          </View>
-        ) : (
-          <AppText variant="body" color="muted" style={{ marginTop: spacing.md }}>
-            No goals set yet. Members can set weekly targets in Goals.
-          </AppText>
-        )}
-      </Card>
+      <GoalBoard
+        rows={goalBoard.rows}
+        noGoals={goalBoard.noGoals}
+        elapsedDays={dayNum}
+        onPressMember={(uid) => rootNav.navigate('MemberDetail' as any, { groupId: activeGroupId, uid } as any)}
+        onPressMe={() => rootNav.navigate('MMRGoals' as any)}
+      />
 
       <View style={{ height: spacing.base }} />
 
       <Card>
-        <AppText variant="rowTitle" color="primary">Trend</AppText>
-        <AppText variant="rowSubtitle" color="secondary" style={{ marginTop: 2, marginBottom: spacing.md }}>Group averages</AppText>
+        <AppText variant="rowTitle" color="primary">You vs the group</AppText>
+        <AppText variant="rowSubtitle" color="secondary" style={{ marginTop: 2, marginBottom: spacing.md }}>Your line against the group, day by day</AppText>
         <SegmentedControl
           value={metric}
           onChange={(v) => setMetric(v)}
