@@ -1,7 +1,10 @@
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getLocalReminderStyle, reminderBody, type ReminderStyle } from './reminderStyle';
-import { getNotificationPreferences, type NotificationPreferences } from './notificationPreferences';
+import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
+
+import { auth, db } from '../firebase/firebase';
+import { getLocalReminderStyle } from './reminderStyle';
+import { getNotificationPreferences } from './notificationPreferences';
 
 // Configure notification behavior
 Notifications.setNotificationHandler({
@@ -17,8 +20,7 @@ Notifications.setNotificationHandler({
 
 // Copy lives in reminderStyle.ts (three tones, all true whenever they fire).
 
-const LAST_SCHEDULED_PREFS_KEY = 'notification_last_scheduled_prefs';
-const LAST_SCHEDULED_DAY_KEY = 'notification_last_scheduled_day';
+const SERVER_SYNC_KEY = 'notification_server_sync';
 
 
 export async function requestNotificationPermissions(): Promise<boolean> {
@@ -47,41 +49,6 @@ export async function getNotificationPermissionsStatus(): Promise<Notifications.
   }
 }
 
-function parseTime(timeStr: string): { hour: number; minute: number } {
-  const [hour, minute] = timeStr.split(':').map(Number);
-  return { hour: hour ?? 9, minute: minute ?? 0 };
-}
-
-function localDayKey(d: Date) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-
-function nextOccurrenceDate(timeStr: string, minLeadSeconds: number, startFromTomorrow: boolean): Date {
-  const { hour, minute } = parseTime(timeStr);
-  const now = new Date();
-  const target = new Date(now);
-  target.setHours(hour, minute, 0, 0);
-  // If starting tomorrow, always push to next day.
-  if (startFromTomorrow) {
-    target.setDate(target.getDate() + 1);
-    return target;
-  }
-  // If the target is in the past OR too soon, push to next day
-  const diffMs = target.getTime() - now.getTime();
-  if (target <= now || diffMs <= minLeadSeconds * 1000) {
-    target.setDate(target.getDate() + 1);
-  }
-  return target;
-}
-
-function prefsSignature(prefs: NotificationPreferences, style: ReminderStyle) {
-  // Style is part of the signature: changing it re-arms with the new copy.
-  return JSON.stringify({ enabled: prefs.enabled, count: prefs.count, times: prefs.times, style });
-}
-
 // Serialize ALL scheduling: the flow is cancelAll -> schedule, so two
 // interleaved calls (mount + foreground + group-load can all trigger a
 // re-arm) each pass the dedupe check, each cancel, and each schedule —
@@ -95,91 +62,59 @@ export function scheduleNotifications(options?: { force?: boolean; startFromTomo
 }
 
 async function scheduleNotificationsInner(options?: { force?: boolean; startFromTomorrow?: boolean; minLeadSeconds?: number }): Promise<void> {
+  // Reminders are sent by the server now (functions/reminders.js): it reads
+  // the real logs, so a Health-synced workout cancels them too. The phone's
+  // job is to hand over the slots and make sure no local copies remain.
+  void options;
   try {
-    const prefs = await getNotificationPreferences();
-    if (!prefs.enabled) {
-      return;
-    }
-
-    const style = await getLocalReminderStyle();
-    const signature = prefsSignature(prefs, style);
-    const lastSignature = await AsyncStorage.getItem(LAST_SCHEDULED_PREFS_KEY);
-    const todayKey = localDayKey(new Date());
-    const lastDayKey = await AsyncStorage.getItem(LAST_SCHEDULED_DAY_KEY);
-    if (!options?.force && lastSignature === signature && lastDayKey === todayKey) {
-      return; // No changes, avoid rescheduling/spam
-    }
-    
-    // Cancel all existing notifications before rescheduling
     await Notifications.cancelAllScheduledNotificationsAsync();
-    // Clear any already-delivered notifications to avoid immediate bursts
-    await Notifications.dismissAllNotificationsAsync();
-    
-    const hasPermission = await requestNotificationPermissions();
-    if (!hasPermission) {
-      console.warn('Notification permissions not granted, cannot schedule notifications');
-      return;
-    }
-    
-    // Schedule notifications for each time slot (single fire for next occurrence)
-    // Use a small lead time to avoid immediate "save -> notify" behavior.
-    const minLeadSeconds = options?.minLeadSeconds ?? 120;
-    for (let i = 0; i < prefs.count; i++) {
-      const timeStr = prefs.times[i];
-      if (!timeStr) continue;
-      const date = nextOccurrenceDate(timeStr, minLeadSeconds, Boolean(options?.startFromTomorrow));
-      const body = reminderBody(style, parseTime(timeStr).hour);
-      
-      // Schedule next occurrence only (no catch-up bursts). No `badge` here:
-      // local reminders used to force the home-screen badge to a phantom "1";
-      // the badge now mirrors unread activity (useNotificationBadge).
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: 'AccountaBuild',
-          body,
-          sound: true,
-        },
-        trigger: {
-          type: Notifications.SchedulableTriggerInputTypes.DATE,
-          date,
-        },
-      });
-    }
-
-    await AsyncStorage.setItem(LAST_SCHEDULED_PREFS_KEY, signature);
-    await AsyncStorage.setItem(LAST_SCHEDULED_DAY_KEY, todayKey);
+    await syncReminderPrefsToServer();
   } catch (e) {
-    console.error('Failed to schedule notifications:', e);
+    console.error('Failed to sync reminders:', e);
   }
 }
 
 /**
- * No group yet: the daily "log today" reminders mean nothing (nobody to log
- * with, no week to protect). Instead, ONE repeating daily reminder at the
- * first reminder time: start or join a group. It repeats on its own, so it
- * keeps coming even if the app isn't opened. That's the only notification
- * until they're in a group; joining re-arms the normal reminders
- * (NotificationProvider -> scheduleNotifications cancels this one).
+ * Hand the slots to the server: users/{uid}.notifPrefs.{reminderTimes,
+ * reminderTz, reminderEnabled, reminderSource}. `reminderSource: 'server'` is
+ * the switch; a phone that hasn't updated never writes it, so the server stays
+ * silent for it and the old local reminders keep working there.
+ */
+export async function syncReminderPrefsToServer(): Promise<void> {
+  const uid = auth.currentUser?.uid;
+  if (!uid) return;
+  const prefs = await getNotificationPreferences();
+  const style = await getLocalReminderStyle();
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York';
+  const times = prefs.times.slice(0, prefs.count).filter((t) => /^\d{1,2}:\d{2}$/.test(t));
+  const signature = JSON.stringify([uid, prefs.enabled, times, tz, style]);
+  const last = await AsyncStorage.getItem(SERVER_SYNC_KEY).catch(() => null);
+  if (last === signature) return;
+  await setDoc(
+    doc(db, 'users', uid),
+    {
+      notifPrefs: {
+        reminderSource: 'server',
+        reminderTimes: times,
+        reminderTz: tz,
+        reminderEnabled: prefs.enabled,
+        reminderStyle: style,
+      },
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true },
+  );
+  await AsyncStorage.setItem(SERVER_SYNC_KEY, signature).catch(() => {});
+}
+
+/**
+ * No group yet: the server sends one "start or join a group" line a day at
+ * the first slot. Nothing to schedule here beyond handing over the slots.
  */
 export async function holdRemindersUntilGroup(): Promise<void> {
   try {
     await Notifications.cancelAllScheduledNotificationsAsync();
-    // Force the next scheduleNotifications() to re-arm instead of deduping
-    // against a schedule we just cancelled.
-    await AsyncStorage.multiRemove([LAST_SCHEDULED_PREFS_KEY, LAST_SCHEDULED_DAY_KEY]);
-    const prefs = await getNotificationPreferences();
-    if (!prefs.enabled) return;
-    const status = await Notifications.getPermissionsAsync();
-    if (status.status !== 'granted') return;
-    const { hour, minute } = parseTime(prefs.times[0] || '18:00');
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title: 'AccountaBuild',
-        body: 'Streaks last longer with someone watching. Start a group or join one with a code.',
-        sound: true,
-      },
-      trigger: { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour, minute },
-    });
+    await syncReminderPrefsToServer();
   } catch (e) {
     console.warn('holdRemindersUntilGroup failed', e);
   }
@@ -188,6 +123,7 @@ export async function holdRemindersUntilGroup(): Promise<void> {
 export async function cancelAllNotifications(): Promise<void> {
   try {
     await Notifications.cancelAllScheduledNotificationsAsync();
+    await syncReminderPrefsToServer();
   } catch (e) {
     console.error('Failed to cancel notifications:', e);
   }

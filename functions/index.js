@@ -1064,6 +1064,19 @@ exports.socialNudge = onSchedule(
 );
 
 // ---------------------------------------------------------------------------
+// Daily reminders (server-side; see reminders.js). Every 5 minutes.
+// ---------------------------------------------------------------------------
+const { evaluateReminderSlots } = require('./reminders');
+exports.reminderSlots = onSchedule(
+  { schedule: 'every 5 minutes', timeZone: TZ, timeoutSeconds: 240, memory: '256MiB' },
+  async () => {
+    const { items, evaluated } = await evaluateReminderSlots(db, new Date());
+    const r = items.length ? await sendExpoPushes(db, items) : { sent: 0 };
+    if (items.length) console.log(`[reminders] evaluated ${evaluated}, sent ${r.sent}`);
+  },
+);
+
+// ---------------------------------------------------------------------------
 // Inviter credit: a new member answered "Who got you here?"
 // ---------------------------------------------------------------------------
 const { rebuildBadgesPublic: rebuildBadgesForInviter } = require('./badges');
