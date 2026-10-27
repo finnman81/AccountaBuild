@@ -200,6 +200,9 @@ exports.sendChatPush = onDocumentCreated('groups/{groupId}/messages/{messageId}'
   const senderUid = String(msg.uid || '');
   const text = String(msg.text || '').trim();
   if (!senderUid || !text) return;
+  // System lines (weekly recap, streak chat lines) already reach people as
+  // their own pushes; pushing the chat copy too doubled them (2026-10-27).
+  if (msg.system === true || senderUid === 'system') return;
   if (inQuietHours(new Date(), TZ)) return;
 
   try {
@@ -256,10 +259,11 @@ exports.sendChatPush = onDocumentCreated('groups/{groupId}/messages/{messageId}'
 // ---------------------------------------------------------------------------
 // Teammate activity pushes (first log of the day only)
 // ---------------------------------------------------------------------------
+// Workouts and photos only. A weigh-in or a calorie entry is not news, and
+// two members weighing in every morning was most of what teammates received
+// (Cait's week, 2026-10-27: ~7 team pushes a day, mostly weigh-ins).
 const LOG_VERBS = {
   workout: 'logged a workout 💪',
-  calories: 'logged calories 🍽️',
-  weight: 'logged a weigh-in ⚖️',
   photo: 'posted a progress photo 📸',
 };
 
@@ -761,7 +765,18 @@ exports.dailyChampion = onSchedule(
     const { results, yDay } = await evaluateDailyChampion(db, new Date());
     let sent = 0;
 
-    for (const r of results) {
+    // ONE champion push per member per day. Someone in two groups got two
+    // every morning. Their own crown wins; otherwise the biggest group.
+    const pushed = new Set();
+    const crownGroupOf = new Map();
+    const groupsOrder = [...results].sort((a, b) => b.memberUids.length - a.memberUids.length);
+    for (const r of groupsOrder) {
+      for (const uid of [r.championUid, r.coChampUid].filter(Boolean)) {
+        if (!crownGroupOf.has(uid)) crownGroupOf.set(uid, r.groupId);
+      }
+    }
+
+    for (const r of groupsOrder) {
       try {
         const users = await getUsers(r.memberUids);
         const champs = [r.championUid, r.coChampUid].filter(Boolean);
@@ -773,6 +788,10 @@ exports.dailyChampion = onSchedule(
           if (!u || !isExpoToken(u.expoPushToken)) continue;
           if (!prefEnabled(u, 'teamActivity')) continue;
           const isChamp = champs.includes(uid);
+          if (pushed.has(uid)) continue;
+          // A member crowned elsewhere hears about that, not this group.
+          if (crownGroupOf.has(uid) && crownGroupOf.get(uid) !== r.groupId) continue;
+          pushed.add(uid);
           items.push({
             uid,
             token: u.expoPushToken,
