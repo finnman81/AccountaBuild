@@ -1,6 +1,6 @@
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getLocalReminderStyle, REMINDER_MESSAGES, reminderBody, type ReminderStyle } from './reminderStyle';
+import { getLocalReminderStyle, reminderBody, type ReminderStyle } from './reminderStyle';
 import { getNotificationPreferences, type NotificationPreferences } from './notificationPreferences';
 
 // Configure notification behavior
@@ -17,21 +17,9 @@ Notifications.setNotificationHandler({
 
 // Copy lives in reminderStyle.ts (three tones, all true whenever they fire).
 
-const LAST_MESSAGE_INDEX_KEY = 'notification_last_message_index';
 const LAST_SCHEDULED_PREFS_KEY = 'notification_last_scheduled_prefs';
 const LAST_SCHEDULED_DAY_KEY = 'notification_last_scheduled_day';
 
-async function getNextMessageIndex(poolSize: number): Promise<number> {
-  try {
-    const stored = await AsyncStorage.getItem(LAST_MESSAGE_INDEX_KEY);
-    const lastIndex = stored ? parseInt(stored, 10) : -1;
-    const nextIndex = (lastIndex + 1) % Math.max(1, poolSize);
-    await AsyncStorage.setItem(LAST_MESSAGE_INDEX_KEY, String(nextIndex));
-    return nextIndex;
-  } catch (e) {
-    return 0;
-  }
-}
 
 export async function requestNotificationPermissions(): Promise<boolean> {
   try {
@@ -114,7 +102,6 @@ async function scheduleNotificationsInner(options?: { force?: boolean; startFrom
     }
 
     const style = await getLocalReminderStyle();
-    const pool = REMINDER_MESSAGES[style];
     const signature = prefsSignature(prefs, style);
     const lastSignature = await AsyncStorage.getItem(LAST_SCHEDULED_PREFS_KEY);
     const todayKey = localDayKey(new Date());
@@ -141,8 +128,7 @@ async function scheduleNotificationsInner(options?: { force?: boolean; startFrom
       const timeStr = prefs.times[i];
       if (!timeStr) continue;
       const date = nextOccurrenceDate(timeStr, minLeadSeconds, Boolean(options?.startFromTomorrow));
-      const messageIndex = await getNextMessageIndex(pool.length);
-      const body = reminderBody(style, pool[messageIndex] ?? pool[0], parseTime(timeStr).hour);
+      const body = reminderBody(style, parseTime(timeStr).hour);
       
       // Schedule next occurrence only (no catch-up bursts). No `badge` here:
       // local reminders used to force the home-screen badge to a phantom "1";
