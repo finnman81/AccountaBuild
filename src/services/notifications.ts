@@ -3,7 +3,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 
 import { auth, db } from '../firebase/firebase';
-import { getLocalReminderStyle } from './reminderStyle';
 import { getNotificationPreferences } from './notificationPreferences';
 
 // Configure notification behavior
@@ -76,7 +75,9 @@ async function scheduleNotificationsInner(options?: { force?: boolean; startFrom
 
 /**
  * Hand the slots to the server: users/{uid}.notifPrefs.{reminderTimes,
- * reminderTz, reminderEnabled, reminderSource}. `reminderSource: 'server'` is
+ * reminderTz, reminderEnabled, reminderSource}. Never the style: the server
+ * copy is the source of truth (Settings writes it via saveReminderStyle), and
+ * sending the phone's local copy flipped BPM from savage to friendly (11/2). `reminderSource: 'server'` is
  * the switch; a phone that hasn't updated never writes it, so the server stays
  * silent for it and the old local reminders keep working there.
  */
@@ -84,10 +85,9 @@ export async function syncReminderPrefsToServer(): Promise<void> {
   const uid = auth.currentUser?.uid;
   if (!uid) return;
   const prefs = await getNotificationPreferences();
-  const style = await getLocalReminderStyle();
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York';
   const times = prefs.times.slice(0, prefs.count).filter((t) => /^\d{1,2}:\d{2}$/.test(t));
-  const signature = JSON.stringify([uid, prefs.enabled, times, tz, style]);
+  const signature = JSON.stringify([uid, prefs.enabled, times, tz]);
   const last = await AsyncStorage.getItem(SERVER_SYNC_KEY).catch(() => null);
   if (last === signature) return;
   await setDoc(
@@ -98,7 +98,6 @@ export async function syncReminderPrefsToServer(): Promise<void> {
         reminderTimes: times,
         reminderTz: tz,
         reminderEnabled: prefs.enabled,
-        reminderStyle: style,
       },
       updatedAt: serverTimestamp(),
     },
