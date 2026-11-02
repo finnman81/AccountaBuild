@@ -266,9 +266,14 @@ async function evaluateDailyChampion(db, now) {
       const championName = await nameOf(top.uid);
       const coChampName = coChamp ? await nameOf(coChamp.uid) : null;
 
-      const line = useFp
-        ? `+${top.fp} FP earned${top.minutes > 0 ? ` · ${top.minutes} min trained` : ''}`
-        : `${top.cats}/3 logged${top.minutes > 0 ? ` · ${top.minutes} min trained` : ''}`;
+      // A small FP gain usually means the week's goals were already full, so
+      // "+2 FP earned" undersold a 65-minute day (Jake, 2026-11-02). Under
+      // SMALL_FP, lead with the effort instead.
+      const SMALL_FP = 10;
+      const mins = top.minutes > 0 ? `${top.minutes} min trained` : null;
+      const line = useFp && top.fp >= SMALL_FP
+        ? `+${top.fp} FP earned${mins ? ` · ${mins}` : ''}`
+        : mins || `${top.cats}/3 logged`;
       results.push({
         groupId: g.id,
         yDay,
