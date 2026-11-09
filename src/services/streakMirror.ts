@@ -27,11 +27,12 @@ import { shieldedWeekIds } from '../mmr/shields';
  * publicUsers map rides the hydration cache through JSON.
  */
 const LOOKBACK_DAYS = 120;
+const MAX_LOOKBACK_DAYS = 1500;
 
 /** Everything the streak math needs, from one complete uid-scoped read. */
-async function loadMyStreakInputs(uid: string, groupId: string) {
+async function loadMyStreakInputs(uid: string, groupId: string, lookbackDays = LOOKBACK_DAYS) {
   const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - LOOKBACK_DAYS);
+  cutoff.setDate(cutoff.getDate() - lookbackDays);
   const minDate = yyyyMmDdInTz(cutoff, DEFAULT_TZ);
 
   // The streak is the PERSON's, not the group's: read my logs from every group
@@ -78,8 +79,16 @@ async function loadMyStreakInputs(uid: string, groupId: string) {
 
 export async function computeAndMirrorMyStreak(uid: string, groupId: string): Promise<number | null> {
   try {
-    const inputs = await loadMyStreakInputs(uid, groupId);
-    const streak = computeGoalStreak(inputs);
+    // A streak that reaches the edge of the window may run further back:
+    // widen and recount. A fixed 120-day read capped Watto at 120 (11/9).
+    let lookback = LOOKBACK_DAYS;
+    let inputs = await loadMyStreakInputs(uid, groupId, lookback);
+    let streak = computeGoalStreak(inputs);
+    while (streak >= lookback - 7 && lookback < MAX_LOOKBACK_DAYS) {
+      lookback = Math.min(lookback * 2, MAX_LOOKBACK_DAYS);
+      inputs = await loadMyStreakInputs(uid, groupId, lookback);
+      streak = computeGoalStreak(inputs);
+    }
     // Best-ever rides along: a broken streak should still leave a record.
     const best = Math.max(streak, inputs.bestSoFar);
     await setDoc(

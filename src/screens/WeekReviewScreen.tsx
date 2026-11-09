@@ -16,6 +16,7 @@ import RankEmblem from '../components/ui/RankEmblem';
 import { colors, radius, spacing } from '../theme';
 import type { RootStackParamList } from '../navigation/types';
 import type { Tier } from '../mmr/types';
+import { DEFAULT_TZ, isoWeekIdInTz } from '../mmr/time';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'WeekReview'>;
 
@@ -114,7 +115,10 @@ export default function WeekReviewScreen({ route, navigation }: Props) {
     if (!weeks) return null;
     const wanted = route.params?.weekId;
     if (wanted) return weeks.find((w) => w.weekId === wanted) ?? null;
-    return weeks[0] ?? null;
+    // Newest CLOSED week. weeks[0] is the current week as soon as it's been
+    // scored (Monday morning), so "review last week" opened a +0 partial week.
+    const current = isoWeekIdInTz(new Date(), DEFAULT_TZ);
+    return weeks.find((w) => w.weekId < current) ?? null;
   }, [weeks, route.params?.weekId]);
 
   useEffect(() => {
