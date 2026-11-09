@@ -125,4 +125,30 @@ async function tallyContest(db, contestIn, now = new Date()) {
   return { referrals: refs.size, inviters: standings.size };
 }
 
-module.exports = { recordReferral, tallyContest, activeContest };
+/**
+ * Launch push: once, the first time this runs on or after startYmd (the Monday
+ * 9 AM job). Push only, no chat post. Stamped on the contest doc so it never
+ * repeats. Members who turned off milestone pushes are skipped.
+ */
+async function launchPushItems(db, now = new Date(), { apply = true } = {}) {
+  const { isExpoToken, prefEnabled } = require('./push-helper');
+  const c = await activeContest(db);
+  if (!c || c.status !== 'live' || c.launchPushedAt) return [];
+  const today = core.yyyyMmDdInTz(now, TZ);
+  if (today < c.startYmd || today > c.endYmd) return [];
+  const prize = (c.prizes && c.prizes.first) || 'the prize';
+  const title = `${c.name || 'Recruit Challenge'} starts today 🏆`;
+  const body = `Bring in someone new. Top recruiter wins ${prize}. Your link is on Today.`;
+  const users = await db.collection('users').get();
+  const items = [];
+  for (const u of users.docs) {
+    const d = u.data() || {};
+    if (!isExpoToken(d.expoPushToken) || !prefEnabled(d, 'milestones')) continue;
+    if (Array.isArray(c.excludedUids) && c.excludedUids.includes(u.id)) continue;
+    items.push({ uid: u.id, token: d.expoPushToken, title, body, data: { type: 'contest', screen: 'Today' } });
+  }
+  if (apply) await db.doc(`contests/${c.id}`).set({ launchPushedAt: FieldValue.serverTimestamp() }, { merge: true });
+  return items;
+}
+
+module.exports = { recordReferral, tallyContest, activeContest, launchPushItems };

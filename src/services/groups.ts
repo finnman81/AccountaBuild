@@ -539,5 +539,10 @@ export function buildInviteMessage(groupName: string | null | undefined, joinCod
   // landing page (code + App Store button) when not. The code stays in the
   // text too: after a fresh install iOS drops the link context, and this
   // message is where the recipient finds it again.
-  return `Join "${name}" on AccountaBuild. We hold each other to it: workouts, calories, weekly goals.\nhttps://app.munitor.ai/join/${joinCode}\nCode: ${joinCode}`;
+  return `Join "${name}" on AccountaBuild. We hold each other to it: workouts, calories, weekly goals.\n${inviteLink(joinCode)}\nCode: ${joinCode}`;
+}
+
+/** The join link for a group code: opens the app, or the landing page if not installed. */
+export function inviteLink(joinCode: string): string {
+  return `https://app.munitor.ai/join/${joinCode}`;
 }

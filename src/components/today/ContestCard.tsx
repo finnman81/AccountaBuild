@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
+import * as Clipboard from 'expo-clipboard';
 import { Linking, Share, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Icon, Text } from 'react-native-paper';
 
 import { subscribeActiveContest, subscribeContestTop, subscribeMyStanding, type Contest, type Standing } from '../../services/contest';
-import { buildInviteMessage } from '../../services/groups';
+import { buildInviteMessage, inviteLink } from '../../services/groups';
 import { todayYYYYMMDD } from '../../utils/dates';
 import { colors } from '../../theme/colors';
 
@@ -21,6 +22,7 @@ export default function ContestCard({ uid, groupName, joinCode }: { uid: string;
   const [contest, setContest] = useState<Contest | null>(null);
   const [top, setTop] = useState<Standing[]>([]);
   const [mine, setMine] = useState<Standing | null>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => subscribeActiveContest(setContest), []);
   useEffect(() => (contest ? subscribeContestTop(contest.id, 5, setTop) : undefined), [contest?.id]);
@@ -41,6 +43,12 @@ export default function ContestCard({ uid, groupName, joinCode }: { uid: string;
     if (!joinCode) return;
     await Share.share({ message: buildInviteMessage(groupName, joinCode) }).catch(() => {});
   };
+  const copy = async () => {
+    if (!joinCode) return;
+    await Clipboard.setStringAsync(buildInviteMessage(groupName, joinCode)).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   return (
     <View style={styles.wrap}>
@@ -49,8 +57,19 @@ export default function ContestCard({ uid, groupName, joinCode }: { uid: string;
         <Text style={styles.title}>{contest.name}</Text>
         <Text style={styles.status}>{status}</Text>
       </View>
-      {contest.prizes?.first ? <Text style={styles.prize}>#1 recruiter wins {contest.prizes.first}.</Text> : null}
+      {contest.prizes?.first ? <Text style={styles.prize}>Top recruiter wins {contest.prizes.first}!</Text> : null}
       {contest.prizes?.drawing ? <Text style={styles.prizeSub}>Bring in 1 or more and you're in the drawing for {contest.prizes.drawing}.</Text> : null}
+
+      {running && joinCode ? (
+        <View style={styles.link}>
+          <Text style={styles.linkLabel}>Your invite link</Text>
+          <TouchableOpacity onPress={() => void copy()} activeOpacity={0.8} style={styles.linkRow} accessibilityRole="button" accessibilityLabel="Copy invite link">
+            <Text style={styles.linkText} numberOfLines={1}>{inviteLink(joinCode).replace('https://', '')}</Text>
+            <Icon source={copied ? 'check' : 'content-copy'} size={16} color={copied ? colors.rankGold : colors.textSecondary} />
+          </TouchableOpacity>
+          <Text style={styles.linkSub}>{copied ? 'Copied. Paste it anywhere.' : `Anyone who joins with it lands in ${groupName || 'your group'}.`}</Text>
+        </View>
+      ) : null}
 
       <View style={styles.mine}>
         <Text style={styles.mineBig}>{mine?.qualified ?? 0}</Text>
@@ -105,6 +124,11 @@ const styles = StyleSheet.create({
   status: { color: colors.rankGold, fontSize: 12, fontWeight: '700' },
   prize: { color: colors.textPrimary, fontSize: 14, fontWeight: '600', marginTop: 8 },
   prizeSub: { color: colors.textSecondary, fontSize: 13, lineHeight: 18, marginTop: 2 },
+  link: { marginTop: 12 },
+  linkLabel: { color: colors.textMuted, fontSize: 12, fontWeight: '700', marginBottom: 6 },
+  linkRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, backgroundColor: colors.surface2 },
+  linkText: { color: colors.textPrimary, fontSize: 14, fontWeight: '600', flex: 1 },
+  linkSub: { color: colors.textMuted, fontSize: 12, marginTop: 6 },
   mine: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 12, padding: 12, borderRadius: 12, backgroundColor: colors.surface2 },
   mineBig: { color: colors.rankGold, fontSize: 32, fontWeight: '800', minWidth: 36, textAlign: 'center' },
   mineLabel: { color: colors.textPrimary, fontSize: 14, fontWeight: '700' },

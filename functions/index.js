@@ -747,6 +747,16 @@ exports.challengeLifecycle = onSchedule(
       }
     }
     console.log(`[challengeLifecycle] announced ${announced} of ${groups.size} groups`);
+    // Recruit contest launch push (once, on its first Monday).
+    try {
+      const items = await require('./contest').launchPushItems(db, now);
+      if (items.length) {
+        const r = await sendExpoPushes(db, items);
+        console.log(`[challengeLifecycle] contest launch push sent ${r.sent}`);
+      }
+    } catch (e) {
+      console.error('[challengeLifecycle] contest launch push failed', e);
+    }
   },
 );
 
