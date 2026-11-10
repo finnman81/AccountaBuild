@@ -1,11 +1,12 @@
 import React from 'react';
-import { Image, Pressable, StyleSheet, View } from 'react-native';
+import { Image, StyleSheet, View } from 'react-native';
 import { Text } from 'react-native-paper';
 import { Icon } from 'react-native-paper';
 
 import RankEmblem from '../ui/RankEmblem';
 import { colors } from '../../theme/colors';
 import type { Tier } from '../../mmr/types';
+import PressableScale from '../ui/PressableScale';
 
 const ROMAN = ['', 'I', 'II', 'III', 'IV'];
 
@@ -56,7 +57,7 @@ function StreakChip({ days, atRisk }: { days: number; atRisk: boolean }) {
 
 function RankChip({ tier, division, onPress }: { tier: Tier; division?: number | null; onPress?: () => void }) {
   return (
-    <Pressable
+    <PressableScale
       onPress={onPress}
       disabled={!onPress}
       style={styles.rankChip}
@@ -71,7 +72,7 @@ function RankChip({ tier, division, onPress }: { tier: Tier; division?: number |
           reason they open the app. The rank chip is where they look, so it is
           where the explanation lives. */}
       {onPress ? <Text style={styles.rankChipHint}>?</Text> : null}
-    </Pressable>
+    </PressableScale>
   );
 }
 
@@ -95,18 +96,18 @@ export default function TodayHeader({
   return (
     <View>
       <View style={styles.topRow}>
-        <Pressable onPress={onSwitchGroup} style={styles.groupChip} accessibilityRole="button">
+        <PressableScale onPress={onSwitchGroup} style={styles.groupChip} accessibilityRole="button">
           <GroupTile name={groupName} logoURL={groupLogoURL} />
           <Text style={styles.groupName} numberOfLines={1}>
             {groupName}
           </Text>
           <Icon source="chevron-down" size={18} color={colors.textMuted} />
-        </Pressable>
+        </PressableScale>
 
         <View style={styles.actions}>
           {streakDays > 0 ? <StreakChip days={streakDays} atRisk={streakAtRisk} /> : null}
           {rankTier ? <RankChip tier={rankTier} division={rankDivision} onPress={onExplainFp} /> : null}
-          <Pressable
+          <PressableScale
             onPress={onChat}
             style={[styles.iconBtn, unreadChat > 0 && styles.iconBtnHighlight]}
             accessibilityRole="button"
@@ -114,15 +115,15 @@ export default function TodayHeader({
           >
             <Icon source={unreadChat > 0 ? 'chat' : 'chat-outline'} size={26} color={unreadChat > 0 ? colors.primary : colors.textSecondary} />
             {unreadChat > 0 && <View style={styles.dot} />}
-          </Pressable>
-          <Pressable onPress={onBell} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel={unreadCount > 0 ? `Activity, ${unreadCount} new` : 'Activity'}>
+          </PressableScale>
+          <PressableScale onPress={onBell} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel={unreadCount > 0 ? `Activity, ${unreadCount} new` : 'Activity'}>
             <Icon source={unreadCount > 0 ? 'bell' : 'bell-outline'} size={26} color={unreadCount > 0 ? colors.primary : colors.textSecondary} />
             {unreadCount > 0 && (
               <View style={styles.countBadge}>
                 <Text style={styles.countBadgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
               </View>
             )}
-          </Pressable>
+          </PressableScale>
         </View>
       </View>
       <Text style={styles.dateEyebrow}>{dateLabel.toUpperCase()}</Text>

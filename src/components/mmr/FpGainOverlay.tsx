@@ -1,11 +1,13 @@
 import React, { useContext, useEffect, useRef, useState } from 'react';
-import { Animated, Easing, StyleSheet } from 'react-native';
+import { Animated, StyleSheet } from 'react-native';
 
 import { AuthContext } from '../../store/AuthContext';
 import { subscribeMyMmrProjection } from '../../services/mmrProjection';
 import { subscribeLogSaved, type SavedLogInfo } from '../../services/fpEvents';
 import { setLogFpDelta } from '../../services/logs';
 import { colors } from '../../theme/colors';
+import { duration, easing, toastHold } from '../../theme/motion';
+import { enqueueCelebration } from '../../services/celebrationQueue';
 
 /**
  * Floats feedback after EVERY manual log: "+N FP" for what THAT log is worth,
@@ -39,19 +41,23 @@ export default function FpGainOverlay() {
   const opacity = useRef(new Animated.Value(0)).current;
   const rise = useRef(new Animated.Value(0)).current;
 
-  const show = (next: Toast) => {
-    setToast(next);
-    opacity.setValue(0);
-    rise.setValue(0);
-    Animated.parallel([
-      Animated.sequence([
-        Animated.timing(opacity, { toValue: 1, duration: 220, useNativeDriver: true }),
-        Animated.delay(1400),
-        Animated.timing(opacity, { toValue: 0, duration: 420, useNativeDriver: true }),
-      ]),
-      Animated.timing(rise, { toValue: 1, duration: 2040, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-    ]).start(() => setToast(null));
-  };
+  const show = (next: Toast) =>
+    enqueueCelebration((done) => {
+      setToast(next);
+      opacity.setValue(0);
+      rise.setValue(0);
+      Animated.parallel([
+        Animated.sequence([
+          Animated.timing(opacity, { toValue: 1, duration: duration.base, easing: easing.enter, useNativeDriver: true }),
+          Animated.delay(toastHold),
+          Animated.timing(opacity, { toValue: 0, duration: duration.slow, easing: easing.exit, useNativeDriver: true }),
+        ]),
+        Animated.timing(rise, { toValue: 1, duration: duration.base + toastHold + duration.slow, easing: easing.enter, useNativeDriver: true }),
+      ]).start(() => {
+        setToast(null);
+        done();
+      });
+    });
 
   const showGain = (delta: number) => {
     // Sub-1 gains still deserve acknowledgement — round up to +1 rather than

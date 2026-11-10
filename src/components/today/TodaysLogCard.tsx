@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { easeIfChanged } from '../../hooks/useCached';
 import { Text } from 'react-native-paper';
@@ -7,6 +7,7 @@ import { Text } from 'react-native-paper';
 import Card from '../ui/Card';
 import { colors } from '../../theme/colors';
 import type { ChecklistItem, ChecklistType, TodayChecklist } from '../../viewmodels/today';
+import PressableScale from '../ui/PressableScale';
 
 function fmtTime(ms: number | null): string {
   if (!ms) return '';
@@ -43,9 +44,9 @@ function Row({ item, onLog, onOpenEntries }: { item: ChecklistItem; onLog: (t: C
           <Text style={styles.editHint}>Edit ›</Text>
         </View>
       ) : (
-        <Pressable onPress={() => onLog(item.type)} style={styles.logBtn} accessibilityRole="button">
+        <PressableScale onPress={() => onLog(item.type)} style={styles.logBtn} accessibilityRole="button">
           <Text style={styles.logBtnText}>Log</Text>
-        </Pressable>
+        </PressableScale>
       )}
     </View>
   );
@@ -53,9 +54,9 @@ function Row({ item, onLog, onOpenEntries }: { item: ChecklistItem; onLog: (t: C
   // A logged row is tappable to view/edit/delete its entries.
   if (item.logged && onOpenEntries) {
     return (
-      <Pressable onPress={() => onOpenEntries(item)} accessibilityRole="button" accessibilityHint="View, edit, or delete entries">
+      <PressableScale onPress={() => onOpenEntries(item)} accessibilityRole="button" accessibilityHint="View, edit, or delete entries">
         {content}
-      </Pressable>
+      </PressableScale>
     );
   }
   return content;

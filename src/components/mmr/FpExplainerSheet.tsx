@@ -3,6 +3,8 @@ import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import AppText from '../ui/AppText';
 import { colors, radius, spacing } from '../../theme';
+import PressableScale from '../ui/PressableScale';
+import SlideUp from '../ui/SlideUp';
 
 /**
  * "How Fitness Points work", in plain language.
@@ -43,9 +45,10 @@ const RULES: Array<{ title: string; body: string }> = [
 
 export default function FpExplainerSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Close" />
-      <View style={styles.sheet}>
+      <View style={{ flex: 1 }} pointerEvents="none" />
+      <SlideUp style={styles.sheet}>
         <View style={styles.grabber} />
         <AppText variant="pageTitle" color="primary" style={{ marginBottom: 4 }}>
           How Fitness Points work
@@ -73,16 +76,18 @@ export default function FpExplainerSheet({ visible, onClose }: { visible: boolea
           </AppText>
         </ScrollView>
 
-        <Pressable onPress={onClose} style={styles.cta} accessibilityRole="button">
+        <PressableScale onPress={onClose} style={styles.cta} accessibilityRole="button">
           <AppText variant="rowTitle" style={{ color: '#FFFFFF' }}>Got it</AppText>
-        </Pressable>
-      </View>
+        </PressableScale>
+      </SlideUp>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)' },
+  // Fills the whole modal so the dim layer covers the sheet's slot while the
+  // panel slides in; the spacer below it pushes the sheet to the bottom.
+  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.6)' },
   sheet: {
     maxHeight: '82%',
     backgroundColor: colors.surface,

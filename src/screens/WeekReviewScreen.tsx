@@ -1,5 +1,5 @@
-import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import React, { useContext, useEffect, useMemo, useState } from 'react';
+import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Icon, Text } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -14,6 +14,8 @@ import { fetchGroupWeekDeltas } from '../services/publicUsers';
 import { friendlyNameFromDisplayName } from '../utils/formatters';
 import RankEmblem from '../components/ui/RankEmblem';
 import { colors, radius, spacing } from '../theme';
+import { duration } from '../theme/motion';
+import { useCountTo } from '../components/ui/AnimatedNumber';
 import type { RootStackParamList } from '../navigation/types';
 import type { Tier } from '../mmr/types';
 import { DEFAULT_TZ, isoWeekIdInTz } from '../mmr/time';
@@ -44,15 +46,8 @@ function weekNumber(weekId: string): string {
 
 /** Animated count-up for the headline FP delta. */
 function CountUp({ to, color, prefix }: { to: number; color: string; prefix: string }) {
-  const anim = useRef(new Animated.Value(0)).current;
-  const [val, setVal] = useState(0);
-
-  useEffect(() => {
-    const sub = anim.addListener(({ value }) => setVal(Math.round(value)));
-    Animated.timing(anim, { toValue: to, duration: 1100, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
-    return () => anim.removeListener(sub);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [to]);
+  // Counts from 0 once the screen has finished arriving (see useCountTo).
+  const val = useCountTo(to, { from: 0, duration: duration.celebrate, animateFirst: true, delay: duration.slow });
 
   return (
     <Text style={[styles.bigNumber, { color }]}>

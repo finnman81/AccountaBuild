@@ -1,6 +1,8 @@
-import React from 'react';
-import { View, type DimensionValue } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { Animated, View, type DimensionValue } from 'react-native';
 import { ActivityIndicator, Card, Text, useTheme } from 'react-native-paper';
+
+import { easing } from '../../theme/motion';
 
 type Props = {
   title?: string;
@@ -22,9 +24,23 @@ function SkeletonCard() {
     />
   );
 
+  // A slow breath, so a loading card reads as "working", not "stuck".
+  const pulse = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: 800, easing: easing.breathe, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0, duration: 800, easing: easing.breathe, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulse]);
+
   return (
     <Card>
       <Card.Content>
+        <Animated.View style={{ opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 0.45] }) }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
           {block(44, 44, 22)}
           <View style={{ flex: 1, gap: 8 }}>
@@ -34,6 +50,7 @@ function SkeletonCard() {
         </View>
         <View style={{ height: 12 }} />
         {block(90, '100%', 12)}
+        </Animated.View>
       </Card.Content>
     </Card>
   );

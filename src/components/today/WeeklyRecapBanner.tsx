@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { Icon, Text } from 'react-native-paper';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -7,6 +7,7 @@ import { AuthContext } from '../../store/AuthContext';
 import { subscribeMmrWeeklyHistory, type MmrWeeklySummary } from '../../services/mmrWeekly';
 import { DEFAULT_TZ, isoWeekIdInTz, prevIsoWeekId } from '../../mmr/time';
 import { colors } from '../../theme/colors';
+import PressableScale from '../ui/PressableScale';
 
 const ROMAN = ['', 'I', 'II', 'III', 'IV'];
 const DISMISS_KEY_PREFIX = 'weeklyRecapDismissed';
@@ -78,7 +79,7 @@ export default function WeeklyRecapBanner({ onOpen }: Props) {
           : 'Week wrapped';
 
   return (
-    <Pressable onPress={onOpen} style={styles.wrap} accessibilityRole="button">
+    <PressableScale onPress={onOpen} style={styles.wrap} accessibilityRole="button">
       <View style={styles.iconWrap}>
         <Icon source="calendar-week" size={18} color={colors.primary} />
       </View>
@@ -87,10 +88,10 @@ export default function WeeklyRecapBanner({ onOpen }: Props) {
         <Text style={styles.body}>{rankChangeLabel}</Text>
       </View>
       <Text style={[styles.deltaChip, { color: deltaColor }]}>{deltaLabel}</Text>
-      <Pressable onPress={dismiss} hitSlop={10} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Dismiss">
+      <PressableScale onPress={dismiss} hitSlop={10} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Dismiss">
         <Icon source="close" size={16} color={colors.textMuted} />
-      </Pressable>
-    </Pressable>
+      </PressableScale>
+    </PressableScale>
   );
 }
 

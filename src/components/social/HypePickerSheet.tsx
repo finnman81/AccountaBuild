@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AppText from '../ui/AppText';
 import { colors, radius, spacing } from '../../theme';
 import { HYPES, type Hype } from '../../services/hypeCatalog';
+import SlideUp from '../ui/SlideUp';
 
 type Props = {
   visible: boolean;
@@ -53,10 +54,10 @@ export default function HypePickerSheet({ visible, targetName, allowNudges, only
   );
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
       <View style={styles.overlay}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-        <View style={[styles.sheet, { paddingBottom: Math.max(spacing.lg, insets.bottom + spacing.sm) }]}>
+        <SlideUp style={[styles.sheet, { paddingBottom: Math.max(spacing.lg, insets.bottom + spacing.sm) }]}>
           <View style={styles.grabber} />
           <AppText variant="rowTitle" color="primary" style={{ textAlign: 'center' }}>
             {targetName ? `Hype up ${targetName}` : 'Send some hype'}
@@ -77,7 +78,7 @@ export default function HypePickerSheet({ visible, targetName, allowNudges, only
               </>
             )}
           </ScrollView>
-        </View>
+        </SlideUp>
       </View>
     </Modal>
   );

@@ -1,20 +1,21 @@
 import React from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { Text } from 'react-native-paper';
 
 import Card from '../ui/Card';
 import RankEmblem from '../ui/RankEmblem';
 import { colors } from '../../theme/colors';
 import type { LeaderboardPreviewRow } from '../../viewmodels/today';
+import PressableScale from '../ui/PressableScale';
 
 export default function LeaderboardPreviewCard({ rows, onViewAll }: { rows: LeaderboardPreviewRow[]; onViewAll: () => void }) {
   return (
     <Card style={{ marginTop: 16 }}>
       <View style={styles.header}>
         <Text style={styles.cardLabel}>This week's race</Text>
-        <Pressable onPress={onViewAll} accessibilityRole="button">
+        <PressableScale onPress={onViewAll} hitSlop={14} accessibilityRole="button" accessibilityLabel="View the full leaderboard">
           <Text style={styles.viewAll}>View all</Text>
-        </Pressable>
+        </PressableScale>
       </View>
       <View style={{ marginTop: 8 }}>
         {rows.map((r, i) => (

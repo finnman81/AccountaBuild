@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AppText from '../ui/AppText';
 import { colors, radius, spacing } from '../../theme';
 import type { UserGroupListItem } from '../../services/groups';
+import SlideUp from '../ui/SlideUp';
 
 type Props = {
   visible: boolean;
@@ -36,10 +37,10 @@ export default function GroupSwitcherSheet({ visible, onClose, groups, activeGro
   const insets = useSafeAreaInsets();
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
       <View style={styles.overlay}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-        <View style={[styles.sheet, { paddingBottom: Math.max(spacing.lg, insets.bottom + spacing.sm) }]}>
+        <SlideUp style={[styles.sheet, { paddingBottom: Math.max(spacing.lg, insets.bottom + spacing.sm) }]}>
           <View style={styles.grabber} />
           <View style={styles.headerRow}>
             <AppText variant="rowTitle" color="primary">Your groups</AppText>
@@ -88,7 +89,7 @@ export default function GroupSwitcherSheet({ visible, onClose, groups, activeGro
               <AppText variant="rowTitle" color="secondary">Manage groups</AppText>
             </TouchableOpacity>
           </View>
-        </View>
+        </SlideUp>
       </View>
     </Modal>
   );

@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import * as Haptics from 'expo-haptics';
 import { TouchableOpacity, View } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -145,6 +146,9 @@ export default function TabsNavigator() {
   return (
     <>
       <Tab.Navigator
+        screenListeners={{
+          tabPress: () => void Haptics.selectionAsync().catch(() => {}),
+        }}
         screenOptions={{
           headerShown: false,
           // 'shift': a short slide + fade between tabs instead of a hard cut.
@@ -184,7 +188,12 @@ export default function TabsNavigator() {
             tabBarButton: (props) => (
               <TouchableOpacity
                 {...(props as any)}
-                onPress={() => rootNav.navigate('LogComposer')}
+                accessibilityRole="button"
+                accessibilityLabel="Log"
+                onPress={() => {
+                  void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+                  rootNav.navigate('LogComposer');
+                }}
                 style={{
                   marginTop: -18,
                   width: 64,

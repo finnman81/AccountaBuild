@@ -1,8 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, StyleSheet, View } from 'react-native';
+import { Animated, StyleSheet, View } from 'react-native';
 
 import { subscribeFirstLog } from '../../services/fpEvents';
 import { colors } from '../../theme/colors';
+import { duration, easing, spring } from '../../theme/motion';
+import { enqueueCelebration } from '../../services/celebrationQueue';
 import AppText from '../ui/AppText';
 
 /**
@@ -22,24 +24,30 @@ export default function FirstLogCelebration() {
   const burst = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    const unsub = subscribeFirstLog(() => {
-      setVisible(true);
-      backdrop.setValue(0);
-      scale.setValue(0.7);
-      burst.setValue(0);
-      Animated.parallel([
-        Animated.timing(backdrop, { toValue: 1, duration: 260, useNativeDriver: true }),
-        Animated.spring(scale, { toValue: 1, friction: 6, tension: 90, useNativeDriver: true }),
-        Animated.timing(burst, { toValue: 1, duration: 900, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-      ]).start(() => {
-        Animated.timing(backdrop, {
-          toValue: 0,
-          duration: 380,
-          delay: 2200,
-          useNativeDriver: true,
-        }).start(() => setVisible(false));
-      });
-    });
+    const unsub = subscribeFirstLog(() =>
+      enqueueCelebration((done) => {
+        setVisible(true);
+        backdrop.setValue(0);
+        scale.setValue(0.7);
+        burst.setValue(0);
+        Animated.parallel([
+          Animated.timing(backdrop, { toValue: 1, duration: duration.base, easing: easing.enter, useNativeDriver: true }),
+          Animated.spring(scale, { toValue: 1, ...spring.pop, useNativeDriver: true }),
+          Animated.timing(burst, { toValue: 1, duration: duration.celebrate, easing: easing.enter, useNativeDriver: true }),
+        ]).start(() => {
+          Animated.timing(backdrop, {
+            toValue: 0,
+            duration: duration.slow,
+            easing: easing.exit,
+            delay: 2200,
+            useNativeDriver: true,
+          }).start(() => {
+            setVisible(false);
+            done();
+          });
+        });
+      }),
+    );
     return unsub;
   }, [backdrop, scale, burst]);
 

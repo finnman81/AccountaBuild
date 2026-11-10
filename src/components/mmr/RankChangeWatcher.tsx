@@ -4,6 +4,7 @@ import { useNavigation } from '@react-navigation/native';
 
 import { AuthContext } from '../../store/AuthContext';
 import { subscribeMyMmrState } from '../../services/mmrState';
+import { enqueueCelebration } from '../../services/celebrationQueue';
 import { detectRankChange, rankKey, rankOrdinal, type RankRef } from '../../viewmodels/rankChange';
 import type { Tier } from '../../mmr/types';
 
@@ -53,7 +54,12 @@ export default function RankChangeWatcher() {
           const change = detectRankChange(prev, current);
           await AsyncStorage.setItem(storageKey, rankKey(current));
           if (change === 'promotion') {
-            nav.navigate('RankUp', { tier: current.tier, division: current.division, kind: 'promotion', mmr: state.mmr });
+            // Wait for the stage: never push over the streak screen or a sheet
+            // that is still closing. Hold it while the rank-up screen is read.
+            enqueueCelebration((done) => {
+              nav.navigate('RankUp', { tier: current.tier, division: current.division, kind: 'promotion', mmr: state.mmr });
+              setTimeout(done, 4000);
+            });
           }
         })
         .catch(() => {});

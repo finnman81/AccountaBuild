@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { easeIfChanged } from '../../hooks/useCached';
 import { Text } from 'react-native-paper';
@@ -7,6 +7,7 @@ import { Text } from 'react-native-paper';
 import Avatar, { type AvatarStatus } from '../ui/Avatar';
 import { colors } from '../../theme/colors';
 import type { TeamMemberToday, TeamToday } from '../../viewmodels/today';
+import PressableScale from '../ui/PressableScale';
 
 function statusFor(m: TeamMemberToday): AvatarStatus {
   // Danger (red) wins — it's the actionable "nudge them" signal and takes
@@ -21,7 +22,7 @@ function statusFor(m: TeamMemberToday): AvatarStatus {
 function MemberCell({ member, onPress, onLongPress }: { member: TeamMemberToday; onPress: (uid: string) => void; onLongPress?: (uid: string) => void }) {
   const valueColor = member.atRisk ? colors.danger : member.streakDays > 0 ? colors.success : colors.textMuted;
   return (
-    <Pressable
+    <PressableScale
       onPress={() => onPress(member.uid)}
       onLongPress={onLongPress ? () => onLongPress(member.uid) : undefined}
       delayLongPress={300}
@@ -40,7 +41,7 @@ function MemberCell({ member, onPress, onLongPress }: { member: TeamMemberToday;
       ) : (
         <View style={{ height: 12 }} />
       )}
-    </Pressable>
+    </PressableScale>
   );
 }
 

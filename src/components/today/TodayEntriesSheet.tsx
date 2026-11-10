@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AppText from '../ui/AppText';
 import { colors, radius, spacing } from '../../theme';
 import type { ChecklistItem, TodayLogEntry } from '../../viewmodels/today';
+import SlideUp from '../ui/SlideUp';
 
 type Props = {
   item: ChecklistItem | null;
@@ -38,10 +39,10 @@ export default function TodayEntriesSheet({ item, onClose, onEdit, onDelete, onA
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
       <View style={styles.overlay}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-        <View style={[styles.sheet, { paddingBottom: Math.max(spacing.lg, insets.bottom + spacing.sm) }]}>
+        <SlideUp style={[styles.sheet, { paddingBottom: Math.max(spacing.lg, insets.bottom + spacing.sm) }]}>
           <View style={styles.grabber} />
           <View style={styles.headerRow}>
             <AppText variant="rowTitle" color="primary">{item?.title ?? ''}</AppText>
@@ -83,7 +84,7 @@ export default function TodayEntriesSheet({ item, onClose, onEdit, onDelete, onA
               <AppText variant="rowTitle" color="primary">Add another</AppText>
             </TouchableOpacity>
           ) : null}
-        </View>
+        </SlideUp>
       </View>
     </Modal>
   );

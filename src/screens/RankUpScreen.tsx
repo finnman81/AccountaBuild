@@ -9,6 +9,7 @@ import { RootStackParamList } from '../navigation/types';
 import AppText from '../components/ui/AppText';
 import RankEmblem from '../components/ui/RankEmblem';
 import { colors, radius, spacing } from '../theme';
+import { duration, easing, spring } from '../theme/motion';
 import ShareCardHost, { type ShareCardHandle } from '../components/share/ShareCard';
 import { useActiveGroup } from '../store/ActiveGroupContext';
 import { APP_STORE_URL, inviteUrl } from '../constants/links';
@@ -29,10 +30,25 @@ export default function RankUpScreen({ route, navigation }: Props) {
 
   useEffect(() => {
     Haptics.notificationAsync(promo ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Warning).catch(() => {});
-    Animated.parallel([
-      Animated.spring(scale, { toValue: 1, useNativeDriver: true, friction: 6, tension: 60 }),
-      Animated.timing(opacity, { toValue: 1, duration: 600, useNativeDriver: true }),
-    ]).start();
+    // Start once the screen's own fade has finished. Starting at mount put
+    // the emblem's pop inside the navigation fade, so it looked like a hitch.
+    // (Native-stack transitions don't register with InteractionManager, so
+    // wait on the navigator's own transitionEnd, with a timer as a backstop.)
+    let started = false;
+    const start = () => {
+      if (started) return;
+      started = true;
+      Animated.parallel([
+        Animated.spring(scale, { toValue: 1, useNativeDriver: true, ...spring.pop }),
+        Animated.timing(opacity, { toValue: 1, duration: duration.base, easing: easing.enter, useNativeDriver: true }),
+      ]).start();
+    };
+    const off = navigation.addListener('transitionEnd', start);
+    const backstop = setTimeout(start, 500);
+    return () => {
+      off();
+      clearTimeout(backstop);
+    };
   }, []);
 
   const share = async () => {

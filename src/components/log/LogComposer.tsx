@@ -1,5 +1,6 @@
+import * as Haptics from 'expo-haptics';
 import React, { useContext, useEffect, useRef, useState } from 'react';
-import { Alert, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, TouchableWithoutFeedback, View } from 'react-native';
+import { Alert, Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TextInput, TouchableWithoutFeedback, View } from 'react-native';
 import { Text } from 'react-native-paper';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { doc, getDoc } from 'firebase/firestore';
@@ -20,6 +21,7 @@ import { spacing } from '../../theme/spacing';
 import PrimaryButton from '../ui/PrimaryButton';
 import SegmentedControl from '../ui/SegmentedControl';
 import RulerDial from './RulerDial';
+import PressableScale from '../ui/PressableScale';
 
 type Props = {
   initialType?: LogType;
@@ -67,14 +69,14 @@ const MEALS: Array<{ value: MealType; label: string }> = [
 
 function Chip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
   return (
-    <Pressable
+    <PressableScale
       onPress={onPress}
       accessibilityRole="button"
       accessibilityState={{ selected: active }}
       style={[styles.chip, active ? styles.chipActive : styles.chipIdle]}
     >
       <Text style={{ fontSize: 13, fontWeight: '600', color: active ? colors.primaryOnDark : colors.textSecondary }}>{label}</Text>
-    </Pressable>
+    </PressableScale>
   );
 }
 
@@ -137,11 +139,11 @@ function Hero({
     <View>
       <View style={styles.heroRowWithSteppers}>
         {onStep && (
-          <Pressable onPress={() => onStep(-1)} hitSlop={10} style={styles.stepBtn} accessibilityRole="button" accessibilityLabel="Decrease">
+          <PressableScale onPress={() => onStep(-1)} hitSlop={10} style={styles.stepBtn} accessibilityRole="button" accessibilityLabel="Decrease">
             <Text style={styles.stepGlyph}>−</Text>
-          </Pressable>
+          </PressableScale>
         )}
-        <Pressable
+        <PressableScale
           onPress={() => {
             setDraft(s);
             setTyping(true);
@@ -153,11 +155,11 @@ function Hero({
           <Text style={styles.heroInt}>{intPart}</Text>
           {decPart != null && <Text style={styles.heroDec}>.{decPart}</Text>}
           <Text style={styles.heroUnit}> {unit}</Text>
-        </Pressable>
+        </PressableScale>
         {onStep && (
-          <Pressable onPress={() => onStep(1)} hitSlop={10} style={styles.stepBtn} accessibilityRole="button" accessibilityLabel="Increase">
+          <PressableScale onPress={() => onStep(1)} hitSlop={10} style={styles.stepBtn} accessibilityRole="button" accessibilityLabel="Increase">
             <Text style={styles.stepGlyph}>+</Text>
-          </Pressable>
+          </PressableScale>
         )}
       </View>
       <Text style={styles.heroHint}>Tap the number to type it, drag the ruler, or use −/+</Text>
@@ -273,6 +275,7 @@ export default function LogComposer({ initialType = 'weight', onClose, onSaved, 
         }
         notifyFirstLog();
       })();
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       onSaved?.();
       onClose?.();
     } catch (e: any) {
@@ -286,9 +289,9 @@ export default function LogComposer({ initialType = 'weight', onClose, onSaved, 
     <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={styles.header}>
         <Text style={styles.eyebrow}>LOG · {mode.toUpperCase()}</Text>
-        <Pressable onPress={onClose} style={styles.close} accessibilityRole="button" accessibilityLabel="Close">
+        <PressableScale onPress={onClose} style={styles.close} accessibilityRole="button" accessibilityLabel="Close">
           <Text style={{ color: colors.textSecondary, fontSize: 18 }}>✕</Text>
-        </Pressable>
+        </PressableScale>
       </View>
 
       <SegmentedControl variant="primary" value={mode} onChange={(m) => setMode(m as LogType)} options={MODE_OPTIONS} style={{ marginTop: 8 }} />
@@ -370,7 +373,7 @@ export default function LogComposer({ initialType = 'weight', onClose, onSaved, 
             {(['today', 'yesterday'] as const).map((d) => {
               const active = logDay === d;
               return (
-                <Pressable
+                <PressableScale
                   key={d}
                   onPress={() => setLogDay(d)}
                   accessibilityRole="button"
@@ -380,7 +383,7 @@ export default function LogComposer({ initialType = 'weight', onClose, onSaved, 
                   <Text style={{ fontSize: 13, fontWeight: '600', color: active ? colors.primaryOnDark : colors.textSecondary }}>
                     {d === 'today' ? 'Today' : 'Yesterday'}
                   </Text>
-                </Pressable>
+                </PressableScale>
               );
             })}
           </View>

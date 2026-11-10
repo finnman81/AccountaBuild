@@ -1,9 +1,11 @@
 import React from 'react';
-import { Pressable, StyleSheet, View, ViewStyle } from 'react-native';
+import * as Haptics from 'expo-haptics';
+import { StyleSheet, View, ViewStyle } from 'react-native';
 import { Text } from 'react-native-paper';
 
 import { colors } from '../../theme/colors';
 import { radius } from '../../theme/radius';
+import PressableScale from './PressableScale';
 
 export type SegmentOption<T extends string = string> = { value: T; label: string };
 
@@ -24,15 +26,18 @@ export default function SegmentedControl<T extends string>({ options, value, onC
         const activeStyle = active ? (variant === 'primary' ? styles.activePrimary : styles.activeSurface) : null;
         const textColor = active ? (variant === 'primary' ? '#FFFFFF' : colors.textPrimary) : colors.textSecondary;
         return (
-          <Pressable
+          <PressableScale
             key={opt.value}
-            onPress={() => onChange(opt.value)}
+            onPress={() => {
+              if (!active) void Haptics.selectionAsync().catch(() => {});
+              onChange(opt.value);
+            }}
             accessibilityRole="button"
             accessibilityState={{ selected: active }}
             style={[styles.segment, activeStyle]}
           >
             <Text style={{ fontSize: 13, fontWeight: '600', color: textColor }}>{opt.label}</Text>
-          </Pressable>
+          </PressableScale>
         );
       })}
     </View>

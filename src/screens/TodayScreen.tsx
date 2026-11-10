@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
+import { RefreshControl, ScrollView, View } from 'react-native';
 import { Icon, Snackbar, Text } from 'react-native-paper';
 import { useIsFocused } from '@react-navigation/native';
 
@@ -54,6 +54,7 @@ import { FullDisplay } from '../services/sentry';
 const SIGNING_ENABLED = false;
 import SyncStatus from '../components/today/SyncStatus';
 import type { Tier } from '../mmr/types';
+import PressableScale from '../components/ui/PressableScale';
 
 type Props = {
   onOpenLog?: (type: ChecklistType) => void;
@@ -337,20 +338,20 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
           <Text style={{ color: colors.textSecondary, fontSize: 14, textAlign: 'center', marginTop: 6, lineHeight: 20 }}>
             Nobody left behind. Join with a code from a friend, or start a group and bring them in.
           </Text>
-          <Pressable
+          <PressableScale
             onPress={onJoinGroup ?? (() => {})}
             accessibilityRole="button"
             style={{ alignSelf: 'stretch', marginTop: 18, height: 48, borderRadius: 12, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' }}
           >
             <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '700' }}>Join with a code</Text>
-          </Pressable>
-          <Pressable
+          </PressableScale>
+          <PressableScale
             onPress={onCreateGroup ?? (() => {})}
             accessibilityRole="button"
             style={{ alignSelf: 'stretch', marginTop: 10, height: 48, borderRadius: 12, backgroundColor: colors.surface2, alignItems: 'center', justifyContent: 'center' }}
           >
             <Text style={{ color: colors.textPrimary, fontSize: 15, fontWeight: '600' }}>Create a group</Text>
-          </Pressable>
+          </PressableScale>
         </View>
       </ScrollView>
     );
@@ -474,7 +475,7 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
       <GoalDeadlineCard />
       <TargetReviewCard />
       {challenge && challengeInfo ? (
-        <Pressable
+        <PressableScale
           onPress={onOpenChallenge ?? (() => {})}
           style={{
             flexDirection: 'row',
@@ -501,7 +502,7 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
             </Text>
           </View>
           <Icon source="chevron-right" size={20} color={colors.textMuted} />
-        </Pressable>
+        </PressableScale>
       ) : null}
 
       <VacationCard uid={myUid} myLogDates={myLogs.map((l) => l.date)} />

@@ -7,6 +7,8 @@ import { db } from '../../firebase/firebase';
 import { AuthContext } from '../../store/AuthContext';
 import { subscribeMyBadges, type EarnedBadge } from '../../services/mmrBadges';
 import { colors } from '../../theme/colors';
+import { duration, easing } from '../../theme/motion';
+import { enqueueCelebration } from '../../services/celebrationQueue';
 
 const SEEN_KEY_PREFIX = 'badgesSeen';
 const ROMAN = ['', 'I', 'II', 'III', 'IV'];
@@ -34,19 +36,23 @@ export default function BadgeCelebrationWatcher() {
   const opacity = useRef(new Animated.Value(0)).current;
   const slide = useRef(new Animated.Value(0)).current;
 
-  const show = (label: string) => {
-    setToast(label);
-    opacity.setValue(0);
-    slide.setValue(0);
-    Animated.parallel([
-      Animated.sequence([
-        Animated.timing(opacity, { toValue: 1, duration: 250, useNativeDriver: true }),
-        Animated.delay(2600),
-        Animated.timing(opacity, { toValue: 0, duration: 400, useNativeDriver: true }),
-      ]),
-      Animated.timing(slide, { toValue: 1, duration: 450, easing: Easing.out(Easing.back(1.4)), useNativeDriver: true }),
-    ]).start(() => setToast(null));
-  };
+  const show = (label: string) =>
+    enqueueCelebration((done) => {
+      setToast(label);
+      opacity.setValue(0);
+      slide.setValue(0);
+      Animated.parallel([
+        Animated.sequence([
+          Animated.timing(opacity, { toValue: 1, duration: duration.base, easing: easing.enter, useNativeDriver: true }),
+          Animated.delay(2600), // longer than a toast: there is a badge name to read
+          Animated.timing(opacity, { toValue: 0, duration: duration.slow, easing: easing.exit, useNativeDriver: true }),
+        ]),
+        Animated.timing(slide, { toValue: 1, duration: duration.slow, easing: Easing.out(Easing.back(1.4)), useNativeDriver: true }),
+      ]).start(() => {
+        setToast(null);
+        done();
+      });
+    });
 
   useEffect(() => {
     if (!user?.uid) return;

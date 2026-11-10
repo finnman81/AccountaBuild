@@ -18,6 +18,8 @@ import {
 } from '../../viewmodels/today';
 import { DEFAULT_TZ, yyyyMmDdInTz } from '../../mmr/time';
 import { colors, radius, spacing } from '../../theme';
+import { duration, easing, spring } from '../../theme/motion';
+import { enqueueCelebration } from '../../services/celebrationQueue';
 import ShareCardHost, { type ShareCardHandle } from '../share/ShareCard';
 import { APP_STORE_URL, inviteUrl } from '../../constants/links';
 import AppText from '../ui/AppText';
@@ -101,6 +103,15 @@ export default function StreakCelebration() {
   const busy = useRef(false);
   const suppressToday = useRef(false);
 
+  // Take the shared celebration stage (after the FP toast, never over a
+  // rank-up) and give it back when this screen closes.
+  const stageDone = useRef<(() => void) | null>(null);
+  const present = (showIt: () => void) =>
+    enqueueCelebration((done) => {
+      stageDone.current = done;
+      showIt();
+    });
+
   const maybeShow = useCallback(async () => {
     const uid = user?.uid;
     if (!uid || !activeGroupId || busy.current || suppressToday.current) return;
@@ -126,8 +137,10 @@ export default function StreakCelebration() {
         ]);
         queued.current = m.loggedToday && m.streak >= 1 ? m : null;
         if (queued.current) await AsyncStorage.setItem(seenKey(uid), today).catch(() => {});
-        setMode({ kind: 'ended', was: last });
-        setMoment({ ...m, best: Math.max(m.best, last) });
+        present(() => {
+          setMode({ kind: 'ended', was: last });
+          setMoment({ ...m, best: Math.max(m.best, last) });
+        });
         return;
       }
 
@@ -140,8 +153,10 @@ export default function StreakCelebration() {
         AsyncStorage.setItem(milestoneKey(uid), String(hit ?? seenMs)).catch(() => {}),
       ]);
       if (hit) void announceStreakMilestone(hit);
-      setMode(hit ? { kind: 'milestone', m: hit } : { kind: 'daily' });
-      setMoment(m);
+      present(() => {
+        setMode(hit ? { kind: 'milestone', m: hit } : { kind: 'daily' });
+        setMoment(m);
+      });
     } finally {
       busy.current = false;
     }
@@ -179,17 +194,17 @@ export default function StreakCelebration() {
     // The ring breathes for as long as the screen is up (bigger on milestones).
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(pulse, { toValue: 1, duration: 1400, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 0, duration: 1400, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1, duration: 1400, easing: easing.breathe, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0, duration: 1400, easing: easing.breathe, useNativeDriver: true }),
       ]),
     );
     if (mode.kind !== 'ended') loop.start();
-    if (big) Animated.timing(burst, { toValue: 1, duration: 1100, delay: 700, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+    if (big) Animated.timing(burst, { toValue: 1, duration: duration.celebrate, delay: 700, easing: easing.enter, useNativeDriver: true }).start();
     const cleanup = () => { loop.stop(); timers.forEach(clearTimeout); };
     Animated.parallel([
-      Animated.timing(fade, { toValue: 1, duration: 240, useNativeDriver: true }),
-      Animated.spring(pop, { toValue: 1, friction: 6, tension: 80, useNativeDriver: true }),
-      Animated.timing(ring, { toValue: 1, duration: 900, delay: 200, easing: Easing.out(Easing.cubic), useNativeDriver: false }),
+      Animated.timing(fade, { toValue: 1, duration: duration.base, easing: easing.enter, useNativeDriver: true }),
+      Animated.spring(pop, { toValue: 1, ...spring.pop, useNativeDriver: true }),
+      Animated.timing(ring, { toValue: 1, duration: duration.celebrate, delay: 200, easing: easing.enter, useNativeDriver: false }),
     ]).start();
     return cleanup;
   }, [moment, mode, fade, pop, ring, pulse, burst]);
@@ -197,14 +212,18 @@ export default function StreakCelebration() {
   if (!moment) return null;
 
   const close = () =>
-    Animated.timing(fade, { toValue: 0, duration: 200, useNativeDriver: true }).start(() => {
+    Animated.timing(fade, { toValue: 0, duration: duration.fast, easing: easing.exit, useNativeDriver: true }).start(() => {
       const next = queued.current;
       queued.current = null;
       if (next) {
         // The streak ended AND they logged today: Day 1 follows the goodbye.
         setMode({ kind: 'daily' });
         setMoment({ ...next });
-      } else setMoment(null);
+      } else {
+        setMoment(null);
+        stageDone.current?.();
+        stageDone.current = null;
+      }
     });
 
   const ended = mode.kind === 'ended';
