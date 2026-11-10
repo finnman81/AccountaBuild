@@ -83,7 +83,7 @@ function getMetric(member: MemberSummary, mode: 'calories' | 'workout' | 'weight
     if (member.caloriesLoggedToday > 0) {
       return String(member.caloriesLoggedToday);
     }
-    return '—';
+    return '-';
   }
 
   if (mode === 'workout') {
@@ -97,7 +97,7 @@ function getMetric(member: MemberSummary, mode: 'calories' | 'workout' | 'weight
     if (member.workoutTypesToday.length > 0) {
       return member.workoutTypesToday[0].substring(0, 5);
     }
-    return '—';
+    return '-';
   }
 
   // weight mode
@@ -113,7 +113,7 @@ function getMetric(member: MemberSummary, mode: 'calories' | 'workout' | 'weight
     const sign = rounded > 0 ? '+' : '';
     return `${sign}${rounded}`;
   }
-  return '—';
+  return '-';
 }
 
 const styles = StyleSheet.create({

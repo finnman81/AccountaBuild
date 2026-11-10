@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, TouchableOpacity } from 'react-native';
-import { Card } from 'react-native-paper';
+import Card from '../ui/Card';
 import Text from '../ui/Text';
 import { colors } from '../../theme/colors';
 import { spacing } from '../../theme/spacing';
@@ -26,7 +26,7 @@ export default function ConsistencyStrip({
   onPress,
 }: Props) {
   return (
-    <Card>
+    <Card flush>
       <Card.Content>
         <TouchableOpacity
           onPress={onPress}

@@ -11,7 +11,7 @@ export function friendlyNameFromDisplayName(raw?: string | null, fallbackUid?: s
 }
 
 export function formatHeightInches(inches?: number | null) {
-  if (inches == null || !Number.isFinite(inches)) return '—';
+  if (inches == null || !Number.isFinite(inches)) return '-';
   const total = Math.round(inches);
   const ft = Math.floor(total / 12);
   const inch = Math.abs(total % 12);
@@ -19,7 +19,7 @@ export function formatHeightInches(inches?: number | null) {
 }
 
 export function formatWeightLb(lb?: number | null) {
-  if (lb == null || !Number.isFinite(lb)) return '—';
+  if (lb == null || !Number.isFinite(lb)) return '-';
   // Keep up to 1 decimal if needed, otherwise show integer.
   const rounded = Math.round(lb * 10) / 10;
   const txt = String(rounded);
@@ -35,7 +35,7 @@ export function formatMinutesHM(totalMinutes: number) {
 }
 
 export function formatDeltaLb(delta?: number | null) {
-  if (delta == null || !Number.isFinite(delta)) return '—';
+  if (delta == null || !Number.isFinite(delta)) return '-';
   // Use symmetric rounding so -1.25 -> -1.3 (JS Math.round would yield -1.2).
   const rounded = (delta >= 0 ? Math.round(delta * 10) : -Math.round(Math.abs(delta) * 10)) / 10;
   const sign = rounded > 0 ? '+' : '';
@@ -63,7 +63,7 @@ export function kgToLb(kg: number): number {
  * checklist) shows a metric user's own preferred unit instead of hardcoded lb.
  */
 export function formatWeightForUnits(lb?: number | null, units?: Units | null) {
-  if (lb == null || !Number.isFinite(lb)) return '—';
+  if (lb == null || !Number.isFinite(lb)) return '-';
   if (units === 'metric') {
     const kg = Math.round((lb / LB_PER_KG) * 10) / 10;
     return `${kg} kg`;
@@ -72,7 +72,7 @@ export function formatWeightForUnits(lb?: number | null, units?: Units | null) {
 }
 
 export function formatDeltaForUnits(deltaLb?: number | null, units?: Units | null) {
-  if (deltaLb == null || !Number.isFinite(deltaLb)) return '—';
+  if (deltaLb == null || !Number.isFinite(deltaLb)) return '-';
   if (units === 'metric') {
     const deltaKg = deltaLb / LB_PER_KG;
     const rounded = (deltaKg >= 0 ? Math.round(deltaKg * 10) : -Math.round(Math.abs(deltaKg) * 10)) / 10;
@@ -83,7 +83,7 @@ export function formatDeltaForUnits(deltaLb?: number | null, units?: Units | nul
 }
 
 export function formatTimeAgo(ms: number | null) {
-  if (!ms) return '—';
+  if (!ms) return '-';
   const s = Math.max(0, Math.floor((Date.now() - ms) / 1000));
   if (s < 60) return `${s}s ago`;
   const m = Math.floor(s / 60);

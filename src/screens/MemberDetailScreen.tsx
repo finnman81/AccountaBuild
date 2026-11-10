@@ -199,7 +199,7 @@ export default function MemberDetailScreen({ route, navigation }: Props) {
             <Avatar photoURL={pub?.photoURL ?? null} name={name} size={58} status={stats.streak >= 7 ? 'streakLeader' : undefined} />
             <View style={styles.headerInfo}>
               <View style={styles.nameRow}>
-                <AppText variant="rowTitle" color="primary">{name}</AppText>
+                <AppText variant="cardTitle" color="primary" numberOfLines={1} style={{ flexShrink: 1 }}>{name}</AppText>
                 {stats.streak >= 7 ? (
                   <View style={styles.streakChip}><AppText variant="eyebrow" style={styles.streakChipText}>STREAK LEADER</AppText></View>
                 ) : null}
@@ -214,9 +214,9 @@ export default function MemberDetailScreen({ route, navigation }: Props) {
           </View>
 
           <View style={styles.tiles}>
-            <StatTile label="Streak" value={stats.streak} unit="d" />
-            <StatTile label="This week" value={visible ? stats.weekWorkouts : '—'} unit={visible ? 'workouts' : ''} />
-            <StatTile label="Rank" value={tier ? `${tier[0]}${division ?? ''}` : '—'} />
+            <StatTile label="Streak" value={stats.streak} unit={stats.streak === 1 ? 'day' : 'days'} />
+            <StatTile label="This week" value={visible ? stats.weekWorkouts : '-'} unit={visible ? (stats.weekWorkouts === 1 ? 'workout' : 'workouts') : ''} />
+            <StatTile label="FP" value={typeof pub?.mmrPublic === 'number' ? Math.round(pub.mmrPublic).toLocaleString() : '-'} />
           </View>
 
           <TouchableOpacity
@@ -224,7 +224,7 @@ export default function MemberDetailScreen({ route, navigation }: Props) {
             activeOpacity={0.85}
             onPress={() => (navigation as any).replace('MemberProfile', { groupId, uid })}
           >
-            <AppText variant="rowTitle" color="accent">Full profile</AppText>
+            <AppText variant="button" color="primary">Full profile</AppText>
           </TouchableOpacity>
 
           <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>Today</AppText>
@@ -232,10 +232,10 @@ export default function MemberDetailScreen({ route, navigation }: Props) {
             {stats.checklist.map((c, i) => (
               <View key={c.type} style={[styles.checkRow, i < 2 && styles.checkDivider]}>
                 <View style={[styles.checkDot, c.logged && styles.checkDotDone]}>
-                  {c.logged ? <AppText variant="label" style={{ color: '#FFF' }}>✓</AppText> : null}
+                  {c.logged ? <AppText variant="label" style={{ color: colors.onPrimary }}>✓</AppText> : null}
                 </View>
                 <AppText variant="rowTitle" color="primary" style={{ flex: 1, textTransform: 'capitalize' }}>{c.type}</AppText>
-                <AppText variant="rowSubtitle" color={c.logged ? 'success' : 'muted'}>{c.logged ? 'Logged' : 'Not yet'}</AppText>
+                <AppText variant="rowSubtitle" color={c.logged ? 'success' : 'muted'}>{c.logged ? 'Logged' : 'Still open'}</AppText>
               </View>
             ))}
           </View>
@@ -255,10 +255,10 @@ export default function MemberDetailScreen({ route, navigation }: Props) {
           <>
             <View style={styles.actions}>
               <TouchableOpacity style={[styles.cheerBtn, cheered && styles.cheerBtnDone]} onPress={() => setHypeOpen('cheer')} activeOpacity={0.85}>
-                <AppText variant="rowTitle" style={{ color: colors.onPrimary }}>{cheered ? '💪 Cheered' : '💪 Cheer'}</AppText>
+                <AppText variant="button" style={{ color: colors.onPrimary }}>{cheered ? 'Cheered' : 'Cheer'}</AppText>
               </TouchableOpacity>
               <TouchableOpacity style={styles.msgBtn} onPress={message} activeOpacity={0.85}>
-                <AppText variant="rowTitle" color="primary">Message</AppText>
+                <AppText variant="button" color="primary">Message</AppText>
               </TouchableOpacity>
             </View>
             {/* Mirrors the server gate exactly (allowNudges === true). The
@@ -267,14 +267,11 @@ export default function MemberDetailScreen({ route, navigation }: Props) {
                 written for anyone, so this button was invisible to everybody. */}
             {(pub as any)?.allowNudges === true ? (
               <TouchableOpacity style={[styles.nudgeBtn, nudged && styles.nudgeBtnDone]} onPress={() => setHypeOpen('nudge')} activeOpacity={0.85} disabled={nudged}>
-                <AppText variant="rowTitle" color={nudged ? 'success' : 'primary'}>{nudged ? '👋 Nudged' : '👋 Nudge to log'}</AppText>
+                <AppText variant="button" color={nudged ? 'success' : 'primary'}>{nudged ? 'Nudged' : 'Nudge to log'}</AppText>
               </TouchableOpacity>
             ) : null}
           </>
         )}
-        <TouchableOpacity style={styles.close} onPress={() => navigation.goBack()}>
-          <AppText variant="rowSubtitle" color="muted">Close</AppText>
-        </TouchableOpacity>
       </View>
     <HypePickerSheet
       visible={hypeOpen !== null}
@@ -290,7 +287,7 @@ export default function MemberDetailScreen({ route, navigation }: Props) {
 
 const styles = StyleSheet.create({
   overlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
-  sheet: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: spacing.lg, paddingBottom: spacing.lg, maxHeight: '88%' },
+  sheet: { backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: spacing.lg, paddingBottom: spacing.lg, maxHeight: '88%' },
   grabber: { alignSelf: 'center', width: 40, height: 4, borderRadius: 999, backgroundColor: colors.faint, marginTop: spacing.md, marginBottom: spacing.base },
   closeX: { position: 'absolute', top: spacing.md, right: spacing.base, width: 32, height: 32, alignItems: 'center', justifyContent: 'center', zIndex: 2 },
   content: { paddingBottom: spacing.base },
@@ -301,16 +298,16 @@ const styles = StyleSheet.create({
   streakChipText: { color: colors.rankGold, fontSize: 9 },
   tierRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   tiles: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.lg },
-  fullProfileBtn: { alignItems: 'center', paddingVertical: spacing.md, marginTop: spacing.md, borderRadius: radius.tile, backgroundColor: colors.primaryTint },
+  fullProfileBtn: { alignItems: 'center', justifyContent: 'center', height: 46, marginTop: spacing.md, borderRadius: radius.button, borderWidth: 1, borderColor: colors.borderCard },
   sectionLabel: { marginTop: spacing.lg, marginBottom: spacing.sm },
   group: { backgroundColor: colors.surface2, borderRadius: radius.tile, paddingHorizontal: spacing.base },
   checkRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.md },
   checkDivider: { borderBottomWidth: 1, borderBottomColor: colors.divider },
-  checkDot: { width: 24, height: 24, borderRadius: 999, borderWidth: 1.5, borderColor: colors.faint, alignItems: 'center', justifyContent: 'center' },
+  checkDot: { width: 24, height: 24, borderRadius: 7, borderWidth: 1.5, borderColor: colors.faint, alignItems: 'center', justifyContent: 'center' },
   checkDotDone: { backgroundColor: colors.success, borderColor: colors.success },
   weekStrip: { flexDirection: 'row', justifyContent: 'space-between' },
   dayCell: { alignItems: 'center', gap: 6, flex: 1 },
-  dayBox: { width: 30, height: 30, borderRadius: 8, backgroundColor: colors.surface2 },
+  dayBox: { width: 30, height: 30, borderRadius: 6, backgroundColor: colors.surface2 },
   dayDone: { backgroundColor: colors.successTint, borderWidth: 1, borderColor: colors.success },
   dayToday: { borderWidth: 1.5, borderColor: colors.faint, borderStyle: 'dashed' },
   actions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.base },
@@ -319,5 +316,4 @@ const styles = StyleSheet.create({
   nudgeBtn: { height: 48, borderRadius: radius.button, backgroundColor: colors.surface2, alignItems: 'center', justifyContent: 'center', marginTop: spacing.md },
   nudgeBtnDone: { backgroundColor: colors.successTint },
   msgBtn: { flex: 1, height: 50, borderRadius: radius.button, backgroundColor: colors.surface2, alignItems: 'center', justifyContent: 'center' },
-  close: { alignItems: 'center', paddingVertical: spacing.md, marginTop: spacing.xs },
 });

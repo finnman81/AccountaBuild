@@ -59,7 +59,7 @@ export default function RankHeroCard({ mmrState, onPress, onViewLeaderboard }: P
 
   if (!mmrState) {
     return (
-      <Card>
+      <Card tier="hero" flush>
         <Card.Content>
           <Text variant="bodyMedium" style={{ color: colors.textMuted }}>
             Loading rank
@@ -70,7 +70,7 @@ export default function RankHeroCard({ mmrState, onPress, onViewLeaderboard }: P
   }
 
   return (
-    <Card tier="hero" style={{ paddingHorizontal: 0 }}>
+    <Card tier="hero" flush>
       <Card.Content>
         <TouchableOpacity
           onPress={onPress}

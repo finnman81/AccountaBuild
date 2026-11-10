@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { View, TouchableOpacity } from 'react-native';
-import { Card, Button } from 'react-native-paper';
+import { Button } from 'react-native-paper';
+import Card from '../ui/Card';
 import Text from '../ui/Text';
 import ProgressBar from '../ui/ProgressBar';
 import AnimatedNumber from '../ui/AnimatedNumber';
@@ -25,8 +26,8 @@ export default function WeeklyTrajectoryCard({ projection, dailyStreak = 0, onVi
         statusColor: colors.textMuted,
         statusText: 'No projection',
         weekCompletion: 0,
-        primaryParts: { sign: null as string | null, delta: null as number | null, suffix: '—' },
-        secondaryLine: '—',
+        primaryParts: { sign: null as string | null, delta: null as number | null, suffix: '-' },
+        secondaryLine: '-',
         hintLine: null as string | null,
       };
     }
@@ -133,7 +134,7 @@ export default function WeeklyTrajectoryCard({ projection, dailyStreak = 0, onVi
   }, [projection, dailyStreak]);
 
   return (
-    <Card>
+    <Card flush>
       <Card.Content>
         <View style={{ gap: spacing.md }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>

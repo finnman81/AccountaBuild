@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, TouchableOpacity } from 'react-native';
-import { Card, IconButton, Button } from 'react-native-paper';
+import { IconButton, Button } from 'react-native-paper';
+import Card from '../ui/Card';
 import Text from '../ui/Text';
 import { colors } from '../../theme/colors';
 import { spacing } from '../../theme/spacing';
@@ -19,7 +20,7 @@ export default function GoalSummaryRow({ label, met, total, dayDots, dayLabels, 
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <Card>
+    <Card flush>
       <Card.Content>
         <TouchableOpacity
           onPress={() => setExpanded(!expanded)}

@@ -142,7 +142,7 @@ export default function OnboardingFinishScreen({ navigation }: Props) {
   };
 
   const formatGoalMode = (mode?: string) => {
-    if (!mode) return '—';
+    if (!mode) return '-';
     return mode.charAt(0).toUpperCase() + mode.slice(1);
   };
 

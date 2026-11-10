@@ -136,7 +136,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 130,
     alignSelf: 'center',
-    backgroundColor: 'rgba(20,32,54,0.95)',
+    backgroundColor: 'rgba(27,31,42,0.97)',
     borderWidth: 1,
     borderRadius: 10,
     paddingHorizontal: 18,

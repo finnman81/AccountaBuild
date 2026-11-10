@@ -17,9 +17,11 @@ type CardProps = {
    * (The third tier is no card at all: rails and lists sit on the page.)
    */
   tier?: 'hero' | 'standard';
+  /** No side padding: for children that pad themselves (Card.Content). */
+  flush?: boolean;
 };
 
-export default function Card({ children, style, useShadow = false, useBorder = true, tier = 'standard' }: CardProps) {
+export default function Card({ children, style, useShadow = false, useBorder = true, tier = 'standard', flush = false }: CardProps) {
   const hero = tier === 'hero';
   const theme = useTheme();
 
@@ -27,6 +29,7 @@ export default function Card({ children, style, useShadow = false, useBorder = t
     backgroundColor: hero ? colors.surfaceHero : colors.surface,
     borderRadius: hero ? radius.card : radius.tile,
     padding: spacingDefaults.cardPadding,
+    ...(flush && { paddingHorizontal: 0 }),
     ...(useShadow && shadow),
     ...(useBorder && !hero && {
       borderWidth: 1,

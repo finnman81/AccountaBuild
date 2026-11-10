@@ -35,7 +35,7 @@ type Props = NativeStackScreenProps<HomeStackParamList, 'Leaderboard'>;
 const ROMAN = ['', 'I', 'II', 'III', 'IV'];
 
 function mmrText(mmr: number | null): string {
-  return mmr == null ? '—' : Math.round(mmr).toLocaleString();
+  return mmr == null ? '-' : Math.round(mmr).toLocaleString();
 }
 
 function PodiumColumn({ row, place, onPress, valueLabel }: { row?: LeaderboardRow; place: 1 | 2 | 3; onPress: () => void; valueLabel?: string }) {

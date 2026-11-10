@@ -42,7 +42,7 @@ export default function SimpleLineChart({
   values,
   height = 140,
   width: widthOverride,
-  color = '#2563EB',
+  color = '#F2EDE4',
   showPointLabels = false,
   formatPointLabel,
   pointLabelPlacement = 'auto',

@@ -437,7 +437,7 @@ export default function MyStatsScreen({ navigation, route }: Props) {
                   ) : (
                     <Stat label="Days logged" value={`${calories.days.length}`} />
                   )}
-                  <Stat label="Goal" value={calories.goal ? calories.goal.toLocaleString() : '—'} sub={calories.goal ? `${calories.avg <= calories.goal ? '-' : '+'}${Math.abs(calories.avg - calories.goal).toLocaleString()} avg` : 'not set'} />
+                  <Stat label="Goal" value={calories.goal ? calories.goal.toLocaleString() : 'None'} sub={calories.goal ? `${calories.avg <= calories.goal ? '-' : '+'}${Math.abs(calories.avg - calories.goal).toLocaleString()} avg` : 'not set'} />
                 </View>
                 <View style={{ height: spacing.base }} />
                 {chart(calories.series, calories.goalLine, calories.yMin, calories.yMax, calories.firstDate, calories.lastDate, (v) => `${Math.round(v / 100) / 10}k`)}

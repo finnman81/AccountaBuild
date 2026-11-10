@@ -174,7 +174,7 @@ export default function NotificationsScreen() {
     return (
       <View style={styles.container}>
         <View style={styles.centered}>
-          <AppText variant="body" color="secondary">Loading...</AppText>
+          <AppText variant="body" color="secondary">Loading</AppText>
         </View>
       </View>
     );

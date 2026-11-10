@@ -528,7 +528,7 @@ export default function ProgressScreen({ navigation }: Props) {
   useEased(`${matrix.rows.length}|${crewWeek.workouts}|${crewWeek.minutes}|${chart.realCount}`);
 
   const yTicks = useMemo(() => {
-    if (chart.realCount === 0) return { top: '—', mid: '—', bot: '—' };
+    if (chart.realCount === 0) return { top: '-', mid: '-', bot: '-' };
     const mid = (chart.yMin + chart.yMax) / 2;
     const fmt = (n: number) => (metric === 'weight' ? `${Math.round(n * 10) / 10}%` : `${Math.round(n)}`);
     return { top: fmt(chart.yMax), mid: fmt(mid), bot: fmt(chart.yMin) };

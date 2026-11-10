@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { Card, useTheme } from 'react-native-paper';
+import { useTheme } from 'react-native-paper';
+import Card from '../ui/Card';
 import Text from '../ui/Text';
 import Avatar from '../ui/Avatar';
 import RankBadge from '../mmr/RankBadge';
@@ -28,7 +29,7 @@ export default function MemberDetailCard({ item, mode }: MemberDetailCardProps) 
     if (mode === 'workout') {
       return {
         label: 'Minutes this week',
-        value: item.workoutMinutesThisWeek > 0 ? formatMinutesHM(item.workoutMinutesThisWeek) : '—',
+        value: item.workoutMinutesThisWeek > 0 ? formatMinutesHM(item.workoutMinutesThisWeek) : '-',
       };
     }
     if (mode === 'weight') {
@@ -40,7 +41,7 @@ export default function MemberDetailCard({ item, mode }: MemberDetailCardProps) 
     // calories
     return {
       label: 'Calories remaining',
-      value: item.caloriesRemaining == null ? '—' : String(item.caloriesRemaining),
+      value: item.caloriesRemaining == null ? '-' : String(item.caloriesRemaining),
     };
   }, [item.caloriesRemaining, item.weightDelta, item.workoutMinutesThisWeek, mode]);
 
@@ -51,7 +52,7 @@ export default function MemberDetailCard({ item, mode }: MemberDetailCardProps) 
   }, [item.loggedToday]);
 
   return (
-    <Card>
+    <Card flush>
       <Card.Content>
         <View style={styles.header}>
           <Avatar photoURL={item.photoURL} name={item.name} size={44} />
@@ -102,7 +103,7 @@ export default function MemberDetailCard({ item, mode }: MemberDetailCardProps) 
                 Minutes today
               </Text>
               <Text variant="bodyLarge" style={{ color: colors.textPrimary }}>
-                {item.workoutMinutesToday > 0 ? formatMinutesHM(item.workoutMinutesToday) : '—'}
+                {item.workoutMinutesToday > 0 ? formatMinutesHM(item.workoutMinutesToday) : '-'}
               </Text>
             </View>
           </View>
@@ -115,7 +116,7 @@ export default function MemberDetailCard({ item, mode }: MemberDetailCardProps) 
                 Minutes this week
               </Text>
               <Text variant="bodyLarge" style={{ color: colors.textPrimary }}>
-                {item.workoutMinutesThisWeek > 0 ? formatMinutesHM(item.workoutMinutesThisWeek) : '—'}
+                {item.workoutMinutesThisWeek > 0 ? formatMinutesHM(item.workoutMinutesThisWeek) : '-'}
               </Text>
             </View>
             <View style={styles.metricItem}>
@@ -123,7 +124,7 @@ export default function MemberDetailCard({ item, mode }: MemberDetailCardProps) 
                 Last weight
               </Text>
               <Text variant="bodyLarge" style={{ color: colors.textPrimary }}>
-                {item.lastWeight == null ? '—' : formatWeightLb(item.lastWeight)}
+                {item.lastWeight == null ? '-' : formatWeightLb(item.lastWeight)}
               </Text>
             </View>
           </View>

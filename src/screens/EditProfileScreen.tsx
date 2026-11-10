@@ -167,7 +167,7 @@ export default function EditProfileScreen({ navigation }: Props) {
               if (d.length > 1) setHeightIn(d.slice(1, 3));
             }} placeholder="5" suffix="ft" keyboardType="number-pad" />
             <EditRow label="Inches" value={heightIn} onChangeText={(t: string) => setHeightIn(t.replace(/[^0-9]/g, '').slice(0, 2))} placeholder="10" suffix="in" keyboardType="number-pad" />
-            <EditRow label="Age" value={age} onChangeText={setAge} placeholder="—" keyboardType="number-pad" showDivider={false} />
+            <EditRow label="Age" value={age} onChangeText={setAge} placeholder="Age" keyboardType="number-pad" showDivider={false} />
           </View>
 
           <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>Goals</AppText>

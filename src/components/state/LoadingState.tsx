@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, View, type DimensionValue } from 'react-native';
-import { ActivityIndicator, Card, useTheme } from 'react-native-paper';
+import { ActivityIndicator, useTheme } from 'react-native-paper';
+import Card from '../ui/Card';
 import Text from '../ui/Text';
 
 import { easing } from '../../theme/motion';
@@ -39,7 +40,7 @@ function SkeletonCard() {
   }, [pulse]);
 
   return (
-    <Card>
+    <Card flush>
       <Card.Content>
         <Animated.View style={{ opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 0.45] }) }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>

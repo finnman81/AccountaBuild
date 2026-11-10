@@ -293,7 +293,7 @@ export default function HealthSettingsScreen() {
           <AppText variant="body" color="secondary" style={styles.centeredText}>
             {user
               ? db
-                ? 'Loading...'
+                ? 'Loading'
                 : 'Health settings unavailable (database not initialized).'
               : 'Please log in to manage Health & Fitness settings.'}
           </AppText>
@@ -402,7 +402,7 @@ export default function HealthSettingsScreen() {
                 {(!permissions.workouts || !permissions.calories || !permissions.weight) && (
                   <View style={styles.noteBox}>
                     <AppText variant="rowSubtitle" color="secondary">
-                      <AppText variant="rowSubtitle" color="primary" style={styles.bold}>Permission Status: </AppText>
+                      <AppText variant="rowSubtitle" color="primary" style={styles.bold}>Permission status: </AppText>
                       Not all permissions are granted.
                     </AppText>
                     <AppText variant="rowSubtitle" color="secondary" style={styles.rowGap}>

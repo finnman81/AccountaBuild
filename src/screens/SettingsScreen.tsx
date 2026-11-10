@@ -61,7 +61,7 @@ export default function SettingsScreen() {
     void setAppNotificationSetting(user?.uid, key, v);
   };
 
-  const version = Constants.expoConfig?.version ?? '—';
+  const version = Constants.expoConfig?.version ?? '';
 
   const confirmSignOut = () =>
     Alert.alert('Sign out', 'Sign out of AccountaBuild?', [
@@ -147,7 +147,7 @@ export default function SettingsScreen() {
           <NavRow title="Vacation weeks" value="Up to 2 weeks" onPress={() => nav.navigate('Vacation')} />
           <NavRow title="Hibernation" value="Away a month or more" onPress={() => nav.navigate('Hibernation')} />
           <NavRow title="Blocked users" onPress={() => nav.navigate('BlockedUsers')} />
-          <NavRow title="Email" value={user?.email ?? '—'} divider={false} />
+          <NavRow title="Email" value={user?.email ?? ''} divider={false} />
         </View>
 
         <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>Support</AppText>

@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { Image, View } from 'react-native';
-import { Card, Chip, useTheme } from 'react-native-paper';
+import { Chip, useTheme } from 'react-native-paper';
+import Card from '../ui/Card';
 import Text from '../ui/Text';
 
 import { formatDeltaLb, formatMinutesHM, formatWeightLb } from '../../utils/formatters';
@@ -35,7 +36,7 @@ export default function MemberStatusCard({
     if (mode === 'workout') {
       return {
         label: 'Minutes this week',
-        value: item.workoutMinutesThisWeek > 0 ? formatMinutesHM(item.workoutMinutesThisWeek) : '—',
+        value: item.workoutMinutesThisWeek > 0 ? formatMinutesHM(item.workoutMinutesThisWeek) : '-',
       };
     }
     if (mode === 'weight') {
@@ -47,14 +48,14 @@ export default function MemberStatusCard({
     // calories
     return {
       label: 'Calories remaining',
-      value: item.caloriesRemaining == null ? '—' : String(item.caloriesRemaining),
+      value: item.caloriesRemaining == null ? '-' : String(item.caloriesRemaining),
     };
   }, [item.caloriesRemaining, item.weightDelta, item.workoutMinutesThisWeek, mode]);
 
   const statusPillLabel = item.loggedToday ? 'Logged' : 'No log';
 
   return (
-    <Card>
+    <Card flush>
       <Card.Content>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
           {item.photoURL ? (
@@ -134,7 +135,7 @@ export default function MemberStatusCard({
               <Text variant="labelSmall" style={{ opacity: 0.75 }}>
                 Minutes today
               </Text>
-              <Text variant="bodyLarge">{item.workoutMinutesToday > 0 ? formatMinutesHM(item.workoutMinutesToday) : '—'}</Text>
+              <Text variant="bodyLarge">{item.workoutMinutesToday > 0 ? formatMinutesHM(item.workoutMinutesToday) : '-'}</Text>
             </View>
           </View>
 
@@ -145,13 +146,13 @@ export default function MemberStatusCard({
               <Text variant="labelSmall" style={{ opacity: 0.75 }}>
                 Minutes this week
               </Text>
-              <Text variant="bodyLarge">{item.workoutMinutesThisWeek > 0 ? formatMinutesHM(item.workoutMinutesThisWeek) : '—'}</Text>
+              <Text variant="bodyLarge">{item.workoutMinutesThisWeek > 0 ? formatMinutesHM(item.workoutMinutesThisWeek) : '-'}</Text>
             </View>
             <View style={{ flex: 1 }}>
               <Text variant="labelSmall" style={{ opacity: 0.75 }}>
                 Last weight
               </Text>
-              <Text variant="bodyLarge">{item.lastWeight == null ? '—' : formatWeightLb(item.lastWeight)}</Text>
+              <Text variant="bodyLarge">{item.lastWeight == null ? '-' : formatWeightLb(item.lastWeight)}</Text>
             </View>
           </View>
         </View>

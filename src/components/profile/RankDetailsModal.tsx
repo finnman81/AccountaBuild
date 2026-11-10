@@ -71,7 +71,7 @@ export default function RankDetailsModal({ visible, mmrState, badges, onDismiss 
       >
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           <Card>
-            <Card.Title title="Rank Details" />
+            <Card.Title title="Rank" />
             <Card.Content>
               {rankDetails ? (
                 <View style={{ gap: spacing.md }}>

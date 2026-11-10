@@ -1,6 +1,6 @@
 import React from 'react';
 import { View } from 'react-native';
-import { Card } from 'react-native-paper';
+import Card from '../ui/Card';
 import Text from '../ui/Text';
 import { colors } from '../../theme/colors';
 import { spacing } from '../../theme/spacing';
@@ -43,7 +43,7 @@ export default function RiskBanner({ mmrState, latestWeekly, projection }: Props
     // Show shield badge if safe
     if (mmrState?.tierShieldWeeksRemaining && mmrState.tierShieldWeeksRemaining > 0) {
       return (
-        <Card>
+        <Card flush>
           <Card.Content>
             <View
               style={{
@@ -71,7 +71,7 @@ export default function RiskBanner({ mmrState, latestWeekly, projection }: Props
 
   // Show demotion risk warning
   return (
-    <Card>
+    <Card flush>
       <Card.Content>
         <View
           style={{

@@ -120,7 +120,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: 'rgba(20,32,54,0.97)',
+    backgroundColor: 'rgba(27,31,42,0.97)',
     borderWidth: 1,
     borderColor: 'rgba(233,181,66,0.5)',
     borderRadius: 10,

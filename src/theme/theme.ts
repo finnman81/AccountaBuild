@@ -28,6 +28,8 @@ const fontConfig = {
 
 export const appTheme = {
   ...MD3DarkTheme,
+  // Paper buttons use roundness * 5: this squares them to 10 like ours.
+  roundness: 2,
   colors: {
     ...MD3DarkTheme.colors,
     ...colors,

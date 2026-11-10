@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { View, TouchableOpacity } from 'react-native';
-import { Card } from 'react-native-paper';
+import Card from '../ui/Card';
 import Text from '../ui/Text';
 import SimpleLineChart from '../charts/SimpleLineChart';
 import { colors } from '../../theme/colors';
@@ -21,10 +21,10 @@ export default function TrendPreviewSparkline({ title, values, delta, onPress }:
     return values.slice(-7);
   }, [values]);
 
-  const deltaText = delta != null ? formatDeltaLb(delta) : '—';
+  const deltaText = delta != null ? formatDeltaLb(delta) : '-';
 
   return (
-    <Card>
+    <Card flush>
       <Card.Content>
         <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
           <View style={{ gap: spacing.md }}>

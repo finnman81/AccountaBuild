@@ -75,7 +75,7 @@ export default function CrewWeekCard({ stats }: { stats: CrewWeekStats }) {
         />
         <Tile
           emoji="⏱"
-          tint="#38BDF8"
+          tint="#F2EDE4"
           value={formatMinutesHM(stats.minutes)}
           label="TRAINED"
           delta={stats.deltas.minutes}
@@ -84,7 +84,7 @@ export default function CrewWeekCard({ stats }: { stats: CrewWeekStats }) {
         <Tile
           emoji="⚖️"
           tint="#E9B542"
-          value={stats.lbDropped > 0 ? `${Math.round(stats.lbDropped * 10) / 10} lb` : '—'}
+          value={stats.lbDropped > 0 ? `${Math.round(stats.lbDropped * 10) / 10} lb` : '-'}
           label="DROPPED"
         />
       </View>

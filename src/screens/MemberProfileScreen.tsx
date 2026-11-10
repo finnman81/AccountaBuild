@@ -170,10 +170,10 @@ export default function MemberProfileScreen({ route, navigation }: Props) {
         <View style={styles.tiles}>
           <StatTile label="Workouts" value={kpis.workouts28} unit={`~${kpis.workoutsPerWeekAvg}/wk`} style={styles.tile} />
           <StatTile label="Minutes" value={kpis.minutes28} unit={kpis.avgSession ? `${kpis.avgSession}m avg` : ''} style={styles.tile} />
-          <StatTile label="Favorite" value={kpis.topType ?? '—'} style={styles.tile} />
+          <StatTile label="Favorite" value={kpis.topType ?? '-'} style={styles.tile} />
         </View>
 
-        <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>Consistency & compliance</AppText>
+        <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>Consistency</AppText>
         <View style={styles.tiles}>
           <StatTile
             label="Streak"
@@ -199,11 +199,11 @@ export default function MemberProfileScreen({ route, navigation }: Props) {
           </View>
         </Card>
 
-        <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>Rank & achievements</AppText>
+        <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>Rank</AppText>
         <View style={styles.tiles}>
-          <StatTile label="Rank" value={tier ? `${tier[0]}${division ?? ''}` : '—'} style={styles.tile} />
-          <StatTile label="Weeks done" value={completedWeeks} unit={`of ${weeks.length || '—'}`} style={styles.tile} />
-          <StatTile label="Best week" value={bestWeek != null ? `+${bestWeek}` : '—'} unit={bestWeek != null ? 'FP' : ''} style={styles.tile} />
+          <StatTile label="Rank" value={tier ? `${tier[0]}${division ?? ''}` : '-'} style={styles.tile} />
+          <StatTile label="Weeks done" value={completedWeeks} unit={`of ${weeks.length}`} style={styles.tile} />
+          <StatTile label="Best week" value={bestWeek != null ? `+${bestWeek}` : '-'} unit={bestWeek != null ? 'FP' : ''} style={styles.tile} />
         </View>
         {pub?.badgesPublic && pub.badgesPublic.length > 0 ? (
           <View style={styles.badgeRow}>
