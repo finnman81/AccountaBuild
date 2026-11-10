@@ -24,8 +24,9 @@ import { todayYYYYMMDD } from '../utils/dates';
 import AppText from '../components/ui/AppText';
 import LogCard from '../components/chat/LogCard';
 import MilestoneCard from '../components/chat/MilestoneCard';
-import { slimLogs, useEased } from '../hooks/useCached';
+import { slimLogs } from '../hooks/useCached';
 import { colors, radius, spacing } from '../theme';
+import { useVisibleUids } from '../hooks/useVisibleUids';
 
 type FeedItem =
   | { kind: 'message'; id: string; ms: number; msg: GroupMessage }
@@ -117,14 +118,14 @@ export default function GroupChatScreen({ route }: Props) {
       setHydrated(`canSee:${user.uid}`, Array.from(set));
     });
   }, [user?.uid]);
+  const allowed = useVisibleUids(memberUids, canSee, user?.uid);
   useEffect(() => {
     if (!user?.uid) return;
-    const allowed = memberUids.filter((uid) => uid === user.uid || canSee.has(uid));
     return subscribePublicUsers(allowed, (map) => {
       setPublicUsers(map);
       setHydrated(`publicUsers:${groupId}`, map);
     });
-  }, [canSee, memberUids, user?.uid, groupId]);
+  }, [allowed, user?.uid, groupId]);
   // 100, not 200: the feed only renders the last 3 days of logs, so the extra
   // 100 docs were fetched and immediately filtered out on every open.
   useEffect(
@@ -136,7 +137,6 @@ export default function GroupChatScreen({ route }: Props) {
     [groupId],
   );
   // New messages ease in rather than snap.
-  useEased(`${messages.length}:${messages[0]?.id ?? ''}`);
   useEffect(() => {
     if (!user?.uid) return;
     return subscribeMyBlocks(user.uid, setBlocked);

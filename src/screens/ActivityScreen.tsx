@@ -9,7 +9,6 @@ import { AuthContext } from '../store/AuthContext';
 import { subscribeMyActivity, markAllActivityRead, type ActivityItem, type ActivityType } from '../services/activity';
 import AppText from '../components/ui/AppText';
 import { getHydrated, setHydrated } from '../services/hydrationCache';
-import { useEased } from '../hooks/useCached';
 import { colors, radius, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'Activity'>;
@@ -39,7 +38,6 @@ export default function ActivityScreen({ navigation }: Props) {
   const { user } = useContext(AuthContext);
   // Last-known feed paints instantly; new items ease in.
   const [items, setItems] = useState<ActivityItem[]>(() => (user?.uid ? getHydrated<ActivityItem[]>(`activity:${user.uid}`) ?? [] : []));
-  useEased(`${items.length}:${items[0]?.id ?? ''}`);
 
   useEffect(() => {
     if (!user?.uid) return;

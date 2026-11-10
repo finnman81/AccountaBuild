@@ -9,6 +9,7 @@ import { subscribeMyCanSeeUids } from '../services/visibility';
 import { subscribePublicUsers, type PublicUser } from '../services/publicUsers';
 import { subscribeGroupLogsSince, daysAgoYYYYMMDD, type GroupLog } from '../services/logs';
 import { getHydrated, setHydrated } from '../services/hydrationCache';
+import { useVisibleUids } from './useVisibleUids';
 
 export type TodayGroup = { name?: string; logoURL?: string | null; streakRule?: 'workout' | 'any' } | null;
 export type TodayProfile = { displayName?: string | null; dailyCalorieGoal?: number | null } | null;
@@ -80,14 +81,14 @@ export function useTodayData() {
     });
   }, [user?.uid]);
 
+  const allowed = useVisibleUids(memberUids, canSee, user?.uid);
   useEffect(() => {
     if (!user?.uid || !activeGroupId) return;
-    const allowed = memberUids.filter((m) => m === user.uid || canSee.has(m));
     return subscribePublicUsers(allowed, (map) => {
       setPublicUsers(map);
       setHydrated(`publicUsers:${activeGroupId}`, map);
     });
-  }, [memberUids, canSee, user?.uid, activeGroupId]);
+  }, [allowed, user?.uid, activeGroupId]);
 
   useEffect(() => {
     if (!activeGroupId) {

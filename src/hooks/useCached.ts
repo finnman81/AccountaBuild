@@ -42,13 +42,28 @@ export function useCachedSubscription<T>(
   return { value, live };
 }
 
-/** Ease the next layout pass whenever `signature` changes (skips the first render). */
+/** One soft preset for every eased data change. */
+const EASE = LayoutAnimation.create(220, LayoutAnimation.Types.easeInEaseOut, LayoutAnimation.Properties.opacity);
+
+/**
+ * Ease the layout change that `signature` describes (skips the first render).
+ *
+ * configureNext applies to the NEXT native layout commit, so it must run
+ * during render, before this render commits. It used to run in useEffect,
+ * after the commit: the intended change snapped, and the armed animation
+ * caught whatever moved next (a keyboard, a list insert, a navigation), which
+ * was the random wobble. Re-running the check on a repeat render is harmless:
+ * the ref already matches.
+ */
+export function easeIfChanged(prev: { current: string }, signature: string): void {
+  if (prev.current === signature) return;
+  prev.current = signature;
+  LayoutAnimation.configureNext(EASE);
+}
+
 export function useEased(signature: string): void {
   const prev = useRef(signature);
-  useEffect(() => {
-    if (prev.current !== signature) LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    prev.current = signature;
-  }, [signature]);
+  easeIfChanged(prev, signature);
 }
 
 /** Logs trimmed to what screens read, so a cached feed stays small. */

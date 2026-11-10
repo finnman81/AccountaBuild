@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { TouchableOpacity, View } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -53,6 +53,7 @@ import { colors } from '../theme/colors';
 import HomeTodayScreen from '../screens/HomeTodayScreen';
 import { appHeader } from '../components/ui/AppHeader';
 import ActivityScreen from '../screens/ActivityScreen';
+import { useActiveGroup } from '../store/ActiveGroupContext';
 
 const Tab = createBottomTabNavigator<TabsParamList>();
 const HomeStack = createNativeStackNavigator<HomeStackParamList>();
@@ -61,10 +62,15 @@ const ProgressStack = createNativeStackNavigator<ProgressStackParamList>();
 const ProfileStack = createNativeStackNavigator<ProfileStackParamList>();
 
 function HomeStackNavigator() {
+  // Cold start: with a cached group, open straight on Today. Going through
+  // Home first painted a blank frame and then animated Today in. Read once:
+  // initialRouteName only matters at mount.
+  const { activeGroupId } = useActiveGroup();
+  const [initialRoute] = useState<'Home' | 'Today'>(() => (activeGroupId ? 'Today' : 'Home'));
   return (
-    <HomeStack.Navigator screenOptions={{ header: appHeader }}>
+    <HomeStack.Navigator screenOptions={{ header: appHeader }} initialRouteName={initialRoute}>
       <HomeStack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
-      <HomeStack.Screen name="Today" component={HomeTodayScreen} options={{ headerShown: false }} />
+      <HomeStack.Screen name="Today" component={HomeTodayScreen} options={{ headerShown: false, animation: 'none' }} />
       <HomeStack.Screen name="Activity" component={ActivityScreen} options={{ headerShown: false }} />
       <HomeStack.Screen name="Challenge" component={ChallengeScreen} options={{ headerShown: false }} />
       <HomeStack.Screen name="Leaderboard" component={LeaderboardScreen} options={{ headerShown: false }} />

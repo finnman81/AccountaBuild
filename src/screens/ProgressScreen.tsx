@@ -33,6 +33,7 @@ import type { ProgressStackParamList } from '../navigation/types';
 import LoadingState from '../components/state/LoadingState';
 import { useEased } from '../hooks/useCached';
 import type { RootStackParamList } from '../navigation/types';
+import { useVisibleUids } from '../hooks/useVisibleUids';
 
 type Props = NativeStackScreenProps<ProgressStackParamList, 'Progress'>;
 
@@ -54,6 +55,7 @@ function toMillis(t: any | null) {
   try {
     if (typeof t?.toMillis === 'function') return t.toMillis();
   } catch {}
+  if (typeof t?.seconds === 'number') return t.seconds * 1000; // cached slim timestamp
   const d = t instanceof Date ? t : null;
   return d ? d.getTime() : null;
 }
@@ -80,15 +82,17 @@ export default function ProgressScreen({ navigation }: Props) {
   const units = useMyUnits();
 
   const [photoLogs, setPhotoLogs] = useState<GroupLog[]>([]);
-  const [groupLogs, setGroupLogs] = useState<GroupLog[]>([]);
+  // Seeded from Today's 14-day slim log cache (it covers this tab's two-week
+  // window), so the charts and goal board paint on open instead of empty.
+  const [groupLogs, setGroupLogs] = useState<GroupLog[]>(() => (activeGroupId ? getHydrated<GroupLog[]>(`groupLogs:${activeGroupId}`) ?? [] : []));
   const [viewerUri, setViewerUri] = useState<string | null>(null);
   // Seed the roster from the shared hydration cache (same keys Today/Leaderboard/
   // GroupChat maintain) so this tab paints known members instantly instead of
   // waiting on the chained members -> canSee -> publicUsers round-trips.
-  const [memberUids, setMemberUids] = useState<string[]>([]);
+  const [memberUids, setMemberUids] = useState<string[]>(() => (activeGroupId ? getHydrated<string[]>(`members:${activeGroupId}`) ?? [] : []));
   const [groupMeta, setGroupMeta] = useState<{ name?: string | null; memberCount?: number | null } | null>(null);
-  const [canSee, setCanSee] = useState<Set<string>>(new Set());
-  const [publicUsers, setPublicUsers] = useState<Record<string, any>>({});
+  const [canSee, setCanSee] = useState<Set<string>>(() => new Set(user?.uid ? getHydrated<string[]>(`canSee:${user.uid}`) ?? [] : []));
+  const [publicUsers, setPublicUsers] = useState<Record<string, any>>(() => (activeGroupId ? getHydrated<Record<string, any>>(`publicUsers:${activeGroupId}`) ?? {} : {}));
 
   // "Now", refreshed on resume and just after midnight. This tab stays mounted,
   // so every memo keyed to "this week" or "now" depends on it; without it a
@@ -143,6 +147,7 @@ export default function ProgressScreen({ navigation }: Props) {
     // a date range, and a count window silently truncates the older end of it
     // (see subscribeGroupLogsSince). Two weeks back covers this week plus the
     // same-point-last-week baseline.
+    setGroupLogs(getHydrated<GroupLog[]>(`groupLogs:${activeGroupId}`) ?? []);
     const prev = weekStartMondayLocal();
     prev.setDate(prev.getDate() - 7);
     return subscribeGroupLogsSince(activeGroupId, formatYYYYMMDD(prev), (items) => setGroupLogs(items));
@@ -153,6 +158,7 @@ export default function ProgressScreen({ navigation }: Props) {
       setMemberUids([]);
       return;
     }
+    setMemberUids(getHydrated<string[]>(`members:${activeGroupId}`) ?? []);
     return onSnapshot(collection(db, 'groups', activeGroupId, 'members'), (snap) => {
       const uids = snap.docs.map((d) => String((d.data() as any)?.uid ?? d.id)).filter(Boolean);
       setMemberUids(uids);
@@ -187,15 +193,15 @@ export default function ProgressScreen({ navigation }: Props) {
     });
   }, [user]);
 
+  const visible = useVisibleUids(memberUids, canSee, user?.uid);
   useEffect(() => {
     if (!user) return;
-    const visible = memberUids.filter((uid) => uid === user.uid || canSee.has(uid));
     if (visible.length === 0) { setPublicUsers({}); return; }
     return subscribePublicUsers(visible, (map) => {
       setPublicUsers(map);
       if (activeGroupId) setHydrated(`publicUsers:${activeGroupId}`, map);
     });
-  }, [canSee, memberUids, user, activeGroupId]);
+  }, [visible, user, activeGroupId]);
 
   const photoStrip = useMemo(() => photoLogs.slice(0, 12), [photoLogs]);
 

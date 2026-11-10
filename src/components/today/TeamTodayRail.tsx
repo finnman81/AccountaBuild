@@ -1,5 +1,7 @@
-import React, { useEffect, useRef } from 'react';
-import { LayoutAnimation, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import React, { useRef } from 'react';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+
+import { easeIfChanged } from '../../hooks/useCached';
 import { Text } from 'react-native-paper';
 
 import Avatar, { type AvatarStatus } from '../ui/Avatar';
@@ -46,10 +48,7 @@ export default function TeamTodayRail({ team, onMemberPress, onMemberLongPress }
   // Ease status changes (someone's ring filling in) instead of snapping.
   const sig = team.members.map((m) => `${m.uid}:${m.status}:${m.streakDays}`).join('|');
   const prevSig = useRef(sig);
-  useEffect(() => {
-    if (prevSig.current !== sig) LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    prevSig.current = sig;
-  }, [sig]);
+  easeIfChanged(prevSig, sig);
   return (
     <View style={{ marginTop: 20 }}>
       <View style={styles.header}>

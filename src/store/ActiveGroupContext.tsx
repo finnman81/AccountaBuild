@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { AuthContext } from './AuthContext';
@@ -24,9 +24,13 @@ function storageKeyFor(uid: string) {
 
 export function ActiveGroupProvider({ children }: { children: React.ReactNode }) {
   const { user } = useContext(AuthContext);
-  const [groups, setGroups] = useState<UserGroupListItem[]>([]);
-  const [activeGroupId, setActiveGroupIdState] = useState<string | null>(null);
-  const [isReady, setIsReady] = useState(false);
+  // Seed synchronously on the first render (lazy initializers), not in an
+  // effect: an effect let the whole tree render once with no group, so the
+  // tab stack couldn't open on Today and Today couldn't paint its cache.
+  const seedUid = useRef(user?.uid ?? null);
+  const [groups, setGroups] = useState<UserGroupListItem[]>(() => (user?.uid ? getHydrated<UserGroupListItem[]>(`myGroups:${user.uid}`) ?? [] : []));
+  const [activeGroupId, setActiveGroupIdState] = useState<string | null>(() => (user?.uid ? getHydrated<string | null>(`activeGroup:${user.uid}`) ?? null : null));
+  const [isReady, setIsReady] = useState(() => !!activeGroupId);
   const [groupsLoaded, setGroupsLoaded] = useState(false);
 
   // Seed from the hydration cache (primed during the splash) so Today can
@@ -34,15 +38,18 @@ export function ActiveGroupProvider({ children }: { children: React.ReactNode })
   // from an async AsyncStorage read after mount, so the first frames had no
   // group and Today's cache couldn't be used (TTID p50 1.3s, Sentry 10/12).
   // The live subscription and validation below still correct everything.
-  useEffect(() => {
-    const uid = user?.uid;
+  // A different user (sign-in, sign-out): re-seed during render, the React
+  // "adjust state when a prop changes" pattern, so children never render a
+  // frame with the old user's group.
+  if ((user?.uid ?? null) !== seedUid.current) {
+    const uid = user?.uid ?? null;
+    seedUid.current = uid;
     const cachedId = uid ? getHydrated<string | null>(`activeGroup:${uid}`) ?? null : null;
-    const cachedGroups = uid ? getHydrated<UserGroupListItem[]>(`myGroups:${uid}`) ?? [] : [];
-    setGroups(cachedGroups);
+    setGroups(uid ? getHydrated<UserGroupListItem[]>(`myGroups:${uid}`) ?? [] : []);
     setActiveGroupIdState(cachedId);
     setIsReady(!!cachedId);
     setGroupsLoaded(false);
-  }, [user?.uid]);
+  }
 
   // Subscribe to groups and reconcile activeGroupId.
   useEffect(() => {

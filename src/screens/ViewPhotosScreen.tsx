@@ -18,8 +18,8 @@ import { blockUser, reportContent, subscribeMyBlocks } from '../services/moderat
 import Card from '../components/ui/Card';
 import AppText from '../components/ui/AppText';
 import { getHydrated, setHydrated } from '../services/hydrationCache';
-import { useEased } from '../hooks/useCached';
 import { colors, radius, spacing } from '../theme';
+import { useVisibleUids } from '../hooks/useVisibleUids';
 
 // ViewPhotos is in the Home stack but navigates to the root-level AddPhoto modal.
 type Props = CompositeScreenProps<
@@ -37,7 +37,6 @@ export default function ViewPhotosScreen({ route, navigation }: Props) {
   const [memberUids, setMemberUids] = useState<string[]>(() => getHydrated<string[]>(`members:${groupId}`) ?? []);
   const [publicUsers, setPublicUsers] = useState<Record<string, PublicUser>>(() => getHydrated<Record<string, PublicUser>>(`publicUsers:${groupId}`) ?? {});
   const [canSee, setCanSee] = useState<Set<string>>(() => new Set(user?.uid ? getHydrated<string[]>(`canSee:${user.uid}`) ?? [] : []));
-  useEased(`${photos.length}:${photos[0]?.id ?? ''}`);
 
   useEffect(
     () =>
@@ -74,14 +73,14 @@ export default function ViewPhotosScreen({ route, navigation }: Props) {
     return subscribeMyCanSeeUids(user.uid, setCanSee);
   }, [user?.uid]);
 
+  const allowed = useVisibleUids(memberUids, canSee, user?.uid);
   useEffect(() => {
     if (!user?.uid) return;
-    const allowed = memberUids.filter((uid) => uid === user.uid || canSee.has(uid));
     return subscribePublicUsers(allowed, (m) => {
       setPublicUsers(m);
       setHydrated(`publicUsers:${groupId}`, m);
     });
-  }, [canSee, memberUids, user?.uid]);
+  }, [allowed, user?.uid, groupId]);
 
   useEffect(() => {
     if (!user?.uid) return;

@@ -26,6 +26,7 @@ import RankEmblem from '../components/ui/RankEmblem';
 import type { HomeStackParamList, RootStackParamList } from '../navigation/types';
 import { useEased } from '../hooks/useCached';
 import { colors, radius, spacing } from '../theme';
+import { useVisibleUids } from '../hooks/useVisibleUids';
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'Leaderboard'>;
 
@@ -83,11 +84,11 @@ export default function LeaderboardScreen({ route }: Props) {
     if (!user?.uid) return;
     return subscribeMyCanSeeUids(user.uid, (s) => { setCanSee(s); setHydrated(`canSee:${user.uid}`, Array.from(s)); });
   }, [user?.uid]);
+  const allowed = useVisibleUids(memberUids, canSee, user?.uid);
   useEffect(() => {
     if (!user?.uid) return;
-    const allowed = memberUids.filter((uid) => uid === user.uid || canSee.has(uid));
     return subscribePublicUsers(allowed, (map) => { setPublicUsers(map); setHydrated(`publicUsers:${groupId}`, map); });
-  }, [canSee, memberUids, user?.uid, groupId]);
+  }, [allowed, user?.uid, groupId]);
   useEffect(() => subscribeGroupLogsSince(groupId, daysAgoYYYYMMDD(14), setLogs), [groupId]);
 
   const { rows, gapToTop, rival, chaser } = useMemo(() => {

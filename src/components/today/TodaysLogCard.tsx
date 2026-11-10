@@ -1,5 +1,7 @@
-import React, { useEffect, useRef } from 'react';
-import { LayoutAnimation, Pressable, StyleSheet, View } from 'react-native';
+import React, { useRef } from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
+
+import { easeIfChanged } from '../../hooks/useCached';
 import { Text } from 'react-native-paper';
 
 import Card from '../ui/Card';
@@ -64,10 +66,7 @@ export default function TodaysLogCard({ checklist, onLog, onOpenEntries, aside }
   // of snapping: the reshuffle-on-open was the visible part of sync lag.
   const sig = checklist.items.map((i) => `${i.type}:${i.logged ? 1 : 0}:${i.valueLine}`).join('|');
   const prevSig = useRef(sig);
-  useEffect(() => {
-    if (prevSig.current !== sig) LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    prevSig.current = sig;
-  }, [sig]);
+  easeIfChanged(prevSig, sig);
   return (
     <Card>
       <View style={styles.header}>

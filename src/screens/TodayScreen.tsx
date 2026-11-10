@@ -432,9 +432,24 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
         onExplainFp={() => setFpExplainer(true)}
       />
       <FpExplainerSheet visible={fpExplainer} onClose={() => setFpExplainer(false)} />
+      <FullDisplay ready={homeFresh} />
+      <View style={{ height: 20 }} />
+      {fpTrend ? (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10, paddingHorizontal: 2 }}>
+          <Icon source={fpTrend.value > 0 ? 'trending-up' : 'trending-down'} size={16} color={fpTrend.value > 0 ? colors.rankGold : colors.danger} />
+          <Text style={{ fontSize: 13, fontWeight: '600', color: fpTrend.value > 0 ? colors.rankGold : colors.danger }}>
+            {`${fpTrend.label}: ${fpTrend.value > 0 ? '+' : ''}${fpTrend.value} FP`}
+          </Text>
+        </View>
+      ) : null}
+      <TodaysLogCard checklist={checklist} onLog={onOpenLog ?? (() => {})} onOpenEntries={setEntriesItem} aside={<SyncStatus uid={myUid} />} />
+      <TeamTodayRail team={team} onMemberPress={onOpenMember ?? (() => {})} onMemberLongPress={onCheer} />
+      {/* Prompts and promos sit below the log card and team rail. Each loads
+          on its own and mounts late; above the log card, every one that
+          appeared shoved it down a step. */}
+      <View style={{ height: 20 }} />
       <WeeklyRecapBanner onOpen={onOpenWeeklyRecap ?? (() => {})} />
       <UpdateBanner />
-      <FullDisplay ready={homeFresh} />
       <NotificationPromptCard />
       <SetupChecklistCard />
       {/* Growth: a solo group gets an invite card; a real group with no
@@ -489,18 +504,7 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
         </Pressable>
       ) : null}
 
-      <View style={{ height: 20 }} />
       <VacationCard uid={myUid} myLogDates={myLogs.map((l) => l.date)} />
-      {fpTrend ? (
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10, paddingHorizontal: 2 }}>
-          <Icon source={fpTrend.value > 0 ? 'trending-up' : 'trending-down'} size={16} color={fpTrend.value > 0 ? colors.rankGold : colors.danger} />
-          <Text style={{ fontSize: 13, fontWeight: '600', color: fpTrend.value > 0 ? colors.rankGold : colors.danger }}>
-            {`${fpTrend.label}: ${fpTrend.value > 0 ? '+' : ''}${fpTrend.value} FP`}
-          </Text>
-        </View>
-      ) : null}
-      <TodaysLogCard checklist={checklist} onLog={onOpenLog ?? (() => {})} onOpenEntries={setEntriesItem} aside={<SyncStatus uid={myUid} />} />
-      <TeamTodayRail team={team} onMemberPress={onOpenMember ?? (() => {})} onMemberLongPress={onCheer} />
       <LeaderboardPreviewCard rows={preview} onViewAll={onViewLeaderboard ?? (() => {})} />
 
       <TodayEntriesSheet

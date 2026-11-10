@@ -138,9 +138,18 @@ export function subscribePublicUsers(uids: string[], onChange: (map: Record<stri
   let latest: Record<string, PublicUser> = {};
   const unsubs: Array<() => void> = [];
 
-  const emit = () => onChange({ ...latest });
+  // Hold the first emit until every 10-uid batch has answered. Emitting per
+  // batch showed a partial roster (teammates vanished, then came back) in any
+  // group over 10, and wrote that partial map into the hydration cache.
+  const batches = chunk(uniq, 10);
+  const answered = new Set<number>();
+  const emit = (batchIndex: number) => {
+    answered.add(batchIndex);
+    if (answered.size < batches.length) return;
+    onChange({ ...latest });
+  };
 
-  for (const batch of chunk(uniq, 10)) {
+  batches.forEach((batch, batchIndex) => {
     const ref = query(collection(db, 'publicUsers'), where(documentId(), 'in', batch));
     const unsub = onSnapshot(
       ref,
@@ -189,17 +198,17 @@ export function subscribePublicUsers(uids: string[], onChange: (map: Record<stri
           badgesPublic: Array.isArray(data?.badgesPublic) ? data.badgesPublic : undefined,
         };
       }
-      emit();
+      emit(batchIndex);
       },
       () => {
         // Safety net: if a batch contains any uid the viewer can't read yet, Firestore can throw
         // permission-denied for the whole query. We rely on the visibility index to prevent that,
         // but this keeps the app from crashing if it happens.
-        emit();
+        emit(batchIndex);
       },
     );
     unsubs.push(unsub);
-  }
+  });
 
   return () => unsubs.forEach((u) => u());
 }
