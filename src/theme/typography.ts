@@ -39,6 +39,7 @@ export const typography = {
   // --- scale ---
   pageTitle: {
     fontSize: 32,
+    lineHeight: 34,
     fontFamily: display.extrabold,
     letterSpacing: 0.2,
     textTransform: 'uppercase' as const,

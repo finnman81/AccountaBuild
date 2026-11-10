@@ -26,6 +26,8 @@ import RankEmblem from '../components/ui/RankEmblem';
 import type { HomeStackParamList, RootStackParamList } from '../navigation/types';
 import { useEased } from '../hooks/useCached';
 import { colors, radius, spacing } from '../theme';
+import PressableScale from '../components/ui/PressableScale';
+import { typography } from '../theme/typography';
 import { useVisibleUids } from '../hooks/useVisibleUids';
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'Leaderboard'>;
@@ -198,15 +200,15 @@ export default function LeaderboardScreen({ route }: Props) {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void onPullRefresh()} tintColor={colors.textSecondary} />}
       >
         {rows.length === 0 ? (
-          <AppText variant="body" color="secondary" style={{ textAlign: 'center', marginTop: spacing.xxl }}>No ranked members yet.</AppText>
+          <AppText variant="body" color="secondary" style={{ textAlign: 'center', marginTop: spacing.xxl }}>Nobody ranked yet.</AppText>
         ) : (
           <>
             <SegmentedControl
               value={board}
               onChange={(v) => setBoard(v as 'week' | 'alltime')}
               options={[
-                { value: 'week', label: 'This Week' },
-                { value: 'alltime', label: 'All-Time' },
+                { value: 'week', label: 'This week' },
+                { value: 'alltime', label: 'All time' },
               ]}
               style={{ marginBottom: 16 }}
             />
@@ -219,7 +221,7 @@ export default function LeaderboardScreen({ route }: Props) {
             {listRows.length > 0 && (
               <View style={styles.list}>
                 {listRows.map((r) => (
-                  <TouchableOpacity key={r.uid} style={[styles.row, r.isMe && styles.rowMe]} activeOpacity={0.85} onPress={() => openMember(r.uid)}>
+                  <PressableScale key={r.uid} style={[styles.row, r.isMe && styles.rowMe]} onPress={() => openMember(r.uid)}>
                     <AppText variant="rowSubtitle" color="muted" style={styles.rank}>{r.isTied ? `T-${r.rank}` : r.rank}</AppText>
                     <Avatar photoURL={r.photoURL} name={r.name} size={34} hibernating={r.hibernating} />
                     <View style={styles.rowInfo}>
@@ -239,7 +241,7 @@ export default function LeaderboardScreen({ route }: Props) {
                       <Icon source={r.movement === 'up' ? 'arrow-up' : 'arrow-down'} size={16} color={r.movement === 'up' ? colors.success : colors.danger} />
                     ) : null}
                     <AppText variant="rowTitle" color="primary" style={styles.rowMmr}>{valueText(r)}</AppText>
-                  </TouchableOpacity>
+                  </PressableScale>
                 ))}
               </View>
             )}
@@ -268,7 +270,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
   back: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 26, fontWeight: '700', flex: 1 },
+  title: { flex: 1 },
   headerRight: { maxWidth: 120, textAlign: 'right' },
   content: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl },
 
@@ -295,10 +297,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.base,
   },
   rowMe: { borderColor: 'rgba(242,237,228,0.35)' },
-  rank: { width: 26, textAlign: 'center' },
+  rank: { ...typography.stat, width: 30, textAlign: 'center' },
   rowInfo: { flex: 1, gap: 2 },
-  rowMmr: { minWidth: 48, textAlign: 'right' },
-  riskTag: { backgroundColor: colors.dangerTint, borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 3 },
+  rowMmr: { ...typography.stat, fontSize: 21, lineHeight: 24, minWidth: 48, textAlign: 'right' },
+  riskTag: { backgroundColor: colors.dangerTint, borderRadius: radius.chip, paddingHorizontal: 8, paddingVertical: 3 },
   riskText: { color: colors.danger, fontSize: 9 },
 
   coachCard: {
@@ -307,10 +309,10 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     marginTop: spacing.lg,
     backgroundColor: colors.primaryTint,
-    borderRadius: radius.card,
+    borderRadius: radius.tile,
     borderWidth: 1,
     borderColor: 'rgba(242,237,228,0.35)',
     padding: spacing.base,
   },
-  planPill: { backgroundColor: colors.surface, borderRadius: radius.pill, paddingHorizontal: spacing.base, paddingVertical: spacing.sm },
+  planPill: { backgroundColor: colors.surface, borderRadius: radius.button, paddingHorizontal: spacing.base, paddingVertical: spacing.sm },
 });

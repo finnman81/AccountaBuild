@@ -100,7 +100,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.base, paddingVertical: spacing.md },
   back: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 26, fontWeight: '700' },
+  title: {},
   content: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl },
   group: { backgroundColor: colors.surface, borderRadius: radius.listGroup, borderWidth: 1, borderColor: colors.borderCard, paddingHorizontal: spacing.base },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.md, minHeight: 60 },

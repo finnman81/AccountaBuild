@@ -68,9 +68,9 @@ export default function MMRHistoryScreen() {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Card>
           <AppText variant="cardLabel" color="primary">FP history</AppText>
-          <AppText variant="rowSubtitle" color="muted" style={styles.subLine}>Weekly (global)</AppText>
+          <AppText variant="rowSubtitle" color="muted" style={styles.subLine}>Week by week</AppText>
           <AppText variant="rowSubtitle" color="secondary" style={styles.blurb}>
-            Shows your end-of-week Fitness Points after scoring. Pull-to-refresh on Profile updates the latest week.
+            Your Fitness Points at the end of each scored week.
           </AppText>
           {series.length === 0 ? (
             <PlaceholderLineChart height={160} />

@@ -220,7 +220,7 @@ const styles = StyleSheet.create({
   rowText: { flex: 1 },
   rowTitle: { color: colors.textPrimary, fontSize: 14, fontWeight: '700' },
   rowSub: { color: colors.textSecondary, fontSize: 12, marginTop: 2, lineHeight: 16 },
-  btn: { backgroundColor: colors.primary, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 },
+  btn: { backgroundColor: colors.primary, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 },
   btnHealth: { backgroundColor: colors.success },
   btnWeight: { backgroundColor: colors.rankGold },
   btnText: { color: colors.onPrimary, fontSize: 13, fontWeight: '700' },

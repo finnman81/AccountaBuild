@@ -15,6 +15,8 @@ import { fetchGroupWeekDeltas } from '../services/publicUsers';
 import { friendlyNameFromDisplayName } from '../utils/formatters';
 import RankEmblem from '../components/ui/RankEmblem';
 import { colors, radius, spacing } from '../theme';
+import { display } from '../theme/fonts';
+import { typography } from '../theme/typography';
 import { duration } from '../theme/motion';
 import { useCountTo } from '../components/ui/AnimatedNumber';
 import type { RootStackParamList } from '../navigation/types';
@@ -308,12 +310,12 @@ export default function WeekReviewScreen({ route, navigation }: Props) {
             {team.slice(0, 8).map((t, i) => {
               const isMe = t.uid === myUid;
               return (
-                <View key={t.uid} style={styles.crewRow}>
-                  <Text style={[styles.crewRank, i === 0 ? { color: colors.rankGold } : null]}>{i === 0 ? '🏆' : `${i + 1}`}</Text>
-                  <Text style={[styles.crewName, isMe ? { color: colors.primary, fontWeight: '700' } : null]} numberOfLines={1}>
+                <View key={t.uid} style={styles.teamRow}>
+                  <Text style={[styles.teamRank, i === 0 ? { color: colors.rankGold } : null]}>{i === 0 ? '🏆' : `${i + 1}`}</Text>
+                  <Text style={[styles.teamName, isMe ? { color: colors.primary, fontWeight: '700' } : null]} numberOfLines={1}>
                     {isMe ? 'You' : friendlyNameFromDisplayName(t.name, t.uid)}
                   </Text>
-                  <Text style={[styles.crewDelta, { color: t.delta >= 0 ? colors.success : colors.danger }]}>
+                  <Text style={[styles.teamDelta, { color: t.delta >= 0 ? colors.success : colors.danger }]}>
                     {t.delta >= 0 ? '+' : ''}
                     {t.delta} FP
                   </Text>
@@ -321,11 +323,11 @@ export default function WeekReviewScreen({ route, navigation }: Props) {
               );
             })}
             {myTeamRank && winner && winner.uid !== myUid ? (
-              <Text style={styles.crewFoot}>
+              <Text style={styles.teamFoot}>
                 You finished #{myTeamRank} of {team.length}.
               </Text>
             ) : winner && winner.uid === myUid && team.length > 1 ? (
-              <Text style={styles.crewFoot}>Top of {team.length}. Defend it.</Text>
+              <Text style={styles.teamFoot}>Top of {team.length}. Defend it.</Text>
             ) : null}
           </Section>
         ) : null}
@@ -359,20 +361,20 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.sm,
   },
   eyebrow: { fontSize: 11, fontWeight: '700', letterSpacing: 0.8, color: colors.textMuted },
-  headerTitle: { fontSize: 24, fontWeight: '800', color: colors.textPrimary, marginTop: 2 },
+  headerTitle: { ...typography.pageTitle, fontSize: 28, lineHeight: 30, color: colors.textPrimary, marginTop: 2 },
   closeBtn: { width: 34, height: 34, borderRadius: 999, backgroundColor: colors.surface2, alignItems: 'center', justifyContent: 'center' },
   content: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl },
 
   hero: { alignItems: 'center', paddingVertical: spacing.lg },
-  bigNumber: { fontSize: 60, fontWeight: '900', fontVariant: ['tabular-nums'], letterSpacing: -1 },
-  bigNumberUnit: { fontSize: 24, fontWeight: '800' },
-  statusPill: { marginTop: spacing.sm, borderWidth: 1, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 5 },
+  bigNumber: { ...typography.heroNumeral, fontSize: 76, lineHeight: 78, letterSpacing: 0 },
+  bigNumberUnit: { fontSize: 28, fontFamily: display.bold },
+  statusPill: { marginTop: spacing.sm, borderWidth: 1, borderRadius: 6, paddingHorizontal: 14, paddingVertical: 5 },
   statusText: { fontSize: 13, fontWeight: '700' },
   heroSub: { color: colors.textSecondary, fontSize: 14, marginTop: spacing.sm, fontVariant: ['tabular-nums'] },
 
   section: {
     backgroundColor: colors.surface,
-    borderRadius: radius.card,
+    borderRadius: radius.tile,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.06)',
     padding: spacing.base,
@@ -388,7 +390,7 @@ const styles = StyleSheet.create({
   },
 
   rankRow: { flexDirection: 'row', alignItems: 'center' },
-  rankLabel: { fontSize: 20, fontWeight: '800', color: colors.textPrimary },
+  rankLabel: { ...typography.cardTitle, color: colors.textPrimary },
   rankSub: { fontSize: 13, color: colors.textSecondary, marginTop: 2 },
 
   goalRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },
@@ -396,11 +398,11 @@ const styles = StyleSheet.create({
   goalSub: { fontSize: 12, color: colors.textMuted, marginTop: 1 },
   barTrack: { height: 5, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.08)', marginTop: 7, overflow: 'hidden' },
   barFill: { height: 5, borderRadius: 999 },
-  goalPct: { fontSize: 17, fontWeight: '800', fontVariant: ['tabular-nums'], marginLeft: spacing.base },
+  goalPct: { ...typography.stat, marginLeft: spacing.base },
 
   tileRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.sm },
   tile: { flex: 1, backgroundColor: colors.surface2, borderRadius: 12, paddingVertical: spacing.base, alignItems: 'center' },
-  tileValue: { fontSize: 24, fontWeight: '800', color: colors.textPrimary, fontVariant: ['tabular-nums'] },
+  tileValue: { ...typography.numberMd, color: colors.textPrimary },
   tileLabel: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
 
   mathRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 },
@@ -408,18 +410,18 @@ const styles = StyleSheet.create({
   mathValue: { fontSize: 14, fontWeight: '600', color: colors.textPrimary, fontVariant: ['tabular-nums'] },
   mathTotal: { borderTopWidth: 1, borderTopColor: colors.divider, marginTop: 4, paddingTop: 10 },
   mathTotalLabel: { fontSize: 15, fontWeight: '700', color: colors.textPrimary },
-  mathTotalValue: { fontSize: 17, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  mathTotalValue: { ...typography.stat },
   streakLine: { fontSize: 13, color: colors.textSecondary, marginTop: spacing.sm },
 
-  crewRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8 },
-  crewRank: { width: 26, fontSize: 14, fontWeight: '700', color: colors.textMuted },
-  crewName: { flex: 1, fontSize: 15, color: colors.textPrimary },
-  crewDelta: { fontSize: 14, fontWeight: '700', fontVariant: ['tabular-nums'] },
-  crewFoot: { fontSize: 13, color: colors.textMuted, marginTop: spacing.sm },
+  teamRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8 },
+  teamRank: { width: 26, fontSize: 14, fontWeight: '700', color: colors.textMuted },
+  teamName: { flex: 1, fontSize: 15, color: colors.textPrimary },
+  teamDelta: { ...typography.chip },
+  teamFoot: { fontSize: 13, color: colors.textMuted, marginTop: spacing.sm },
 
   takeawayCard: {
     backgroundColor: colors.surface,
-    borderRadius: radius.card,
+    borderRadius: radius.tile,
     borderWidth: 1,
     borderColor: 'rgba(233,181,66,0.35)',
     padding: spacing.base,

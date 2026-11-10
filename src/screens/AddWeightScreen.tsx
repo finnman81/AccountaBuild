@@ -177,7 +177,7 @@ const styles = StyleSheet.create({
   dateChip: {
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.sm,
-    borderRadius: radius.pill,
+    borderRadius: radius.chip,
     backgroundColor: colors.surface2,
     borderWidth: 1,
     borderColor: colors.borderCard,

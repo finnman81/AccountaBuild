@@ -74,7 +74,7 @@ export default function ProjectionDetailsModal({ visible, projection, onDismiss 
       >
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           <Card>
-            <Card.Title title="Weekly Projection Details" />
+            <Card.Title title="This week's projection" />
             <Card.Content>
               {details ? (
                 <View style={{ gap: spacing.md }}>
@@ -92,7 +92,7 @@ export default function ProjectionDetailsModal({ visible, projection, onDismiss 
                             alignItems: 'center',
                             justifyContent: 'space-between',
                             padding: spacing.sm,
-                            borderRadius: radius.card,
+                            borderRadius: radius.tile,
                             backgroundColor: colors.surface2,
                             borderWidth: 1,
                             borderColor: r.fp > 0 ? colors.rankGold + '40' : 'rgba(255,255,255,0.04)',
@@ -119,12 +119,12 @@ export default function ProjectionDetailsModal({ visible, projection, onDismiss 
 
                   <View style={{ gap: spacing.sm }}>
                     <Text variant="titleSmall" style={{ color: colors.textPrimary, fontWeight: '600' }}>
-                      Projected Outcome
+                      Where the week lands
                     </Text>
                     <View
                       style={{
                         padding: spacing.sm,
-                        borderRadius: radius.card,
+                        borderRadius: radius.tile,
                         backgroundColor: details.missedIfEndedNow
                           ? colors.danger + '15'
                           : details.completedIfEndedNow
@@ -153,7 +153,7 @@ export default function ProjectionDetailsModal({ visible, projection, onDismiss 
 
                   <View style={{ gap: spacing.sm }}>
                     <Text variant="titleSmall" style={{ color: colors.textPrimary, fontWeight: '600' }}>
-                      FP Projection
+                      Fitness Points
                     </Text>
                     <View style={{ gap: spacing.xs }}>
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
@@ -175,7 +175,7 @@ export default function ProjectionDetailsModal({ visible, projection, onDismiss 
                       </View>
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                         <Text variant="bodySmall" style={{ color: colors.textSecondary }}>
-                          Projected Rank:
+                          Projected rank:
                         </Text>
                         <Text variant="bodySmall" style={{ color: colors.textPrimary }}>
                           {details.projectedRankLabel}
@@ -186,7 +186,7 @@ export default function ProjectionDetailsModal({ visible, projection, onDismiss 
 
                   <View style={{ gap: spacing.sm }}>
                     <Text variant="titleSmall" style={{ color: colors.textPrimary, fontWeight: '600' }}>
-                      Calculation Breakdown
+                      The math
                     </Text>
                     <View style={{ gap: spacing.xs }}>
                       {details.perGoal.map((g) => (
@@ -212,7 +212,7 @@ export default function ProjectionDetailsModal({ visible, projection, onDismiss 
                       </View>
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                         <Text variant="bodySmall" style={{ color: colors.textSecondary }}>
-                          Streak Multiplier:
+                          Streak multiplier:
                         </Text>
                         <Text variant="bodySmall" style={{ color: colors.textPrimary }}>
                           {details.streakMultiplier.toFixed(2)}x
@@ -238,7 +238,7 @@ export default function ProjectionDetailsModal({ visible, projection, onDismiss 
                       >
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                           <Text variant="bodyMedium" style={{ color: colors.textPrimary, fontWeight: '600' }}>
-                            Delta FP:
+                            Change:
                           </Text>
                           <Text variant="bodyMedium" style={{ color: colors.textPrimary, fontWeight: '600' }}>
                             {details.deltaMMR >= 0 ? '+' : ''}
@@ -251,7 +251,7 @@ export default function ProjectionDetailsModal({ visible, projection, onDismiss 
 
                   <View style={{ gap: spacing.sm }}>
                     <Text variant="titleSmall" style={{ color: colors.textPrimary, fontWeight: '600' }}>
-                      How Scoring Works
+                      How scoring works
                     </Text>
                     <Text variant="bodySmall" style={{ color: colors.textSecondary }}>
                       Your weekly score is calculated from your active goals (workouts, minutes, weight, calories). The score is then multiplied by your streak bonus and reduced by any penalties for missed or partial weeks.
@@ -268,7 +268,7 @@ export default function ProjectionDetailsModal({ visible, projection, onDismiss 
                 </View>
               ) : (
                 <Text variant="bodyMedium" style={{ color: colors.textMuted }}>
-                  No projection data available
+                  No projection yet.
                 </Text>
               )}
             </Card.Content>

@@ -201,7 +201,7 @@ Code: ${code}`;
         ]);
       }
     } catch (e) {
-      setSnack(e instanceof Error ? e.message : 'Failed to save challenge');
+      setSnack(e instanceof Error ? e.message : "Couldn't save the challenge. Try again.");
     } finally {
       setSaving(false);
     }
@@ -411,14 +411,14 @@ const styles = StyleSheet.create({
   back: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   content: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl },
   group: { backgroundColor: colors.surface, borderRadius: radius.listGroup, borderWidth: 1, borderColor: colors.borderCard, padding: spacing.base },
-  heroCard: { backgroundColor: colors.surface, borderRadius: radius.card, borderWidth: 1, borderColor: colors.borderCard, padding: spacing.base, marginTop: spacing.sm },
+  heroCard: { backgroundColor: colors.surfaceHero, borderRadius: 20, padding: spacing.base, marginTop: spacing.sm },
   winnerCard: {
     alignItems: 'center',
     gap: spacing.sm,
     backgroundColor: 'rgba(233,181,66,0.10)',
     borderWidth: 1,
     borderColor: 'rgba(233,181,66,0.4)',
-    borderRadius: radius.card,
+    borderRadius: radius.tile,
     padding: spacing.lg,
     marginTop: spacing.sm,
   },
@@ -433,12 +433,12 @@ const styles = StyleSheet.create({
   emptyText: { textAlign: 'center', marginTop: spacing.xs, lineHeight: 18 },
   editLabel: { marginTop: spacing.base, marginBottom: spacing.sm },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  chip: { paddingHorizontal: spacing.base, paddingVertical: spacing.sm, borderRadius: radius.pill, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.borderCard },
+  chip: { paddingHorizontal: spacing.base, paddingVertical: spacing.sm, borderRadius: radius.chip, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.borderCard },
   chipFlex: { flex: 1, alignItems: 'center', minWidth: 56 },
   chipActive: { backgroundColor: colors.primaryTint, borderColor: 'rgba(242,237,228,0.5)' },
   customDateWrap: { marginTop: spacing.md },
   customDateHint: { marginTop: spacing.xs, lineHeight: 16 },
   cancelBtn: { alignItems: 'center', paddingVertical: spacing.md, marginTop: spacing.xs },
   ownerActions: { marginTop: spacing.lg, gap: spacing.sm },
-  ownerBtn: { alignItems: 'center', paddingVertical: spacing.md, backgroundColor: colors.surface, borderRadius: radius.card, borderWidth: 1, borderColor: colors.borderCard },
+  ownerBtn: { alignItems: 'center', paddingVertical: spacing.md, backgroundColor: colors.surface, borderRadius: radius.tile, borderWidth: 1, borderColor: colors.borderCard },
 });

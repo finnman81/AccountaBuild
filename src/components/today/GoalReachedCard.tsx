@@ -95,7 +95,7 @@ export default function GoalReachedCard() {
 const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.surface2,
-    borderRadius: radius.card,
+    borderRadius: radius.tile,
     borderWidth: 1,
     borderColor: colors.rankGold,
     padding: spacing.base,

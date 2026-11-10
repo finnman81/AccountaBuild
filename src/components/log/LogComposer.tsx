@@ -16,6 +16,7 @@ import { useMyUnits } from '../../hooks/useMyUnits';
 import { kgToLb, lbToKg } from '../../utils/formatters';
 import { todayYYYYMMDD, yesterdayYYYYMMDD } from '../../utils/dates';
 import { colors } from '../../theme/colors';
+import { display } from '../../theme/fonts';
 import { radius } from '../../theme/radius';
 import { spacing } from '../../theme/spacing';
 import PrimaryButton from '../ui/PrimaryButton';
@@ -413,15 +414,15 @@ const styles = StyleSheet.create({
   body: { minHeight: 180, justifyContent: 'center' },
   heroRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'center', marginBottom: 8 },
   heroRowWithSteppers: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  stepBtn: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.surface2, alignItems: 'center', justifyContent: 'center' },
+  stepBtn: { width: 48, height: 48, borderRadius: 10, backgroundColor: colors.surface2, alignItems: 'center', justifyContent: 'center' },
   stepGlyph: { fontSize: 26, fontWeight: '700', color: colors.textPrimary, lineHeight: 28 },
-  heroInt: { fontSize: 72, fontWeight: '800', letterSpacing: -2, color: colors.textPrimary, fontVariant: ['tabular-nums'] },
-  heroDec: { fontSize: 72, fontWeight: '800', letterSpacing: -2, color: colors.faint, fontVariant: ['tabular-nums'] },
-  heroUnit: { fontSize: 20, fontWeight: '600', color: colors.textSecondary },
+  heroInt: { fontSize: 84, fontFamily: display.extrabold, color: colors.textPrimary, fontVariant: ['tabular-nums'] },
+  heroDec: { fontSize: 84, fontFamily: display.extrabold, color: colors.faint, fontVariant: ['tabular-nums'] },
+  heroUnit: { fontSize: 22, fontFamily: display.semibold, color: colors.textSecondary },
   heroHint: { fontSize: 11, color: colors.textMuted, textAlign: 'center', marginTop: 4 },
-  heroInput: { fontSize: 72, fontWeight: '800', color: colors.textPrimary, minWidth: 160, textAlign: 'center', padding: 0 },
+  heroInput: { fontSize: 84, fontFamily: display.extrabold, color: colors.textPrimary, minWidth: 160, textAlign: 'center', padding: 0 },
   chipRow: { gap: 10, paddingHorizontal: 2 },
-  chip: { height: 40, paddingHorizontal: 18, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
+  chip: { height: 40, paddingHorizontal: 18, borderRadius: radius.chip, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
   chipActive: { backgroundColor: colors.primaryTint, borderColor: 'rgba(242,237,228,0.5)' },
   chipIdle: { backgroundColor: colors.surface2, borderColor: 'transparent' },
   footer: { paddingBottom: 28, paddingTop: 8 },
@@ -439,6 +440,6 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   dateToggle: { flexDirection: 'row', gap: 6 },
-  dateChip: { height: 32, paddingHorizontal: 12, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface2 },
+  dateChip: { height: 32, paddingHorizontal: 12, borderRadius: radius.chip, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface2 },
   dateChipActive: { backgroundColor: colors.primary },
 });

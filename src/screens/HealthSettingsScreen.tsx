@@ -318,7 +318,7 @@ export default function HealthSettingsScreen() {
           <Card>
             <View style={styles.cardHeader}>
               <View style={styles.cardHeaderText}>
-                <AppText variant="cardLabel" color="primary">Health & Fitness Integration</AppText>
+                <AppText variant="cardLabel" color="primary">Health sync</AppText>
                 <AppText variant="rowSubtitle" color="muted" style={styles.subLine}>{`Connect with ${platformName}`}</AppText>
               </View>
               <TouchableOpacity onPress={refreshPermissions} disabled={!isAvailable} hitSlop={8} style={styles.iconBtn}>
@@ -339,7 +339,7 @@ export default function HealthSettingsScreen() {
                   {!permissions.workouts && !permissions.calories && !permissions.weight && (
                     <>
                       <PrimaryButton onPress={handleRequestPermissions} style={styles.requestBtn}>
-                        Request Permissions
+                        Allow access
                       </PrimaryButton>
                       <AppText variant="rowSubtitle" color="muted" style={styles.centerNote}>
                         If no dialog appears, permissions were already requested. Enable them in iOS Settings → Privacy & Security → Health → AccountaBuild
@@ -351,8 +351,8 @@ export default function HealthSettingsScreen() {
                 <AppText variant="eyebrow" color="muted" style={styles.eyebrow}>Sync options</AppText>
                 <View style={styles.group}>
                   <ToggleRow
-                    title="Sync Workouts"
-                    subtitle={`Automatically sync workouts from ${platformName}`}
+                    title="Sync workouts"
+                    subtitle={`Pull workouts from ${platformName}`}
                     warning={
                       !permissions.workouts
                         ? settings.syncWorkouts
@@ -364,8 +364,8 @@ export default function HealthSettingsScreen() {
                     onValueChange={() => handleToggle('syncWorkouts')}
                   />
                   <ToggleRow
-                    title="Sync Calories"
-                    subtitle={`Sync dietary energy (calories consumed) from ${platformName}`}
+                    title="Sync calories"
+                    subtitle={`Pull calories eaten from ${platformName}`}
                     extra={`Works with apps like MyFitnessPal that sync to ${platformName}`}
                     warning={
                       !permissions.calories
@@ -378,8 +378,8 @@ export default function HealthSettingsScreen() {
                     onValueChange={() => handleToggle('syncCalories')}
                   />
                   <ToggleRow
-                    title="Sync Weight"
-                    subtitle={`Automatically sync weight entries from ${platformName}`}
+                    title="Sync weight"
+                    subtitle={`Pull weigh-ins from ${platformName}`}
                     warning={
                       !permissions.weight
                         ? settings.syncWeight
@@ -420,7 +420,7 @@ export default function HealthSettingsScreen() {
                   disabled={syncing || !activeGroupId}
                   style={styles.syncBtn}
                 >
-                  Sync Now
+                  Sync now
                 </PrimaryButton>
 
                 {settings.lastSyncAt && (

@@ -376,7 +376,7 @@ const styles = StyleSheet.create({
   sub: { marginTop: 6, textAlign: 'center', paddingHorizontal: spacing.base },
   weekCard: {
     alignSelf: 'stretch', marginTop: spacing.xl, backgroundColor: colors.surface,
-    borderRadius: radius.card, borderWidth: 1, borderColor: colors.borderCard, padding: spacing.base,
+    borderRadius: radius.tile, borderWidth: 1, borderColor: colors.borderCard, padding: spacing.base,
   },
   weekRow: { flexDirection: 'row', justifyContent: 'space-between' },
   dayCol: { alignItems: 'center', flex: 1 },

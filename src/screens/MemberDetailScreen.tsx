@@ -224,7 +224,7 @@ export default function MemberDetailScreen({ route, navigation }: Props) {
             activeOpacity={0.85}
             onPress={() => (navigation as any).replace('MemberProfile', { groupId, uid })}
           >
-            <AppText variant="rowTitle" color="accent">View full profile & KPIs</AppText>
+            <AppText variant="rowTitle" color="accent">Full profile</AppText>
           </TouchableOpacity>
 
           <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>Today</AppText>
@@ -297,7 +297,7 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.base },
   headerInfo: { flex: 1, gap: 4 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  streakChip: { backgroundColor: 'rgba(233,181,66,0.14)', borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 2 },
+  streakChip: { backgroundColor: 'rgba(233,181,66,0.14)', borderRadius: radius.chip, paddingHorizontal: 8, paddingVertical: 2 },
   streakChipText: { color: colors.rankGold, fontSize: 9 },
   tierRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   tiles: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.lg },

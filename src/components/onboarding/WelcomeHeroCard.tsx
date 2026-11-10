@@ -52,7 +52,7 @@ export default function WelcomeHeroCard({ rankLabel, workouts, calories, weightL
         
         <View style={styles.rightSection}>
           <Text variant="labelMedium" style={[styles.weeklyScoreTitle, { color: theme.colors.onSurfaceVariant }]}>
-            Weekly Score
+            Weekly score
           </Text>
           
           <Animated.View style={[styles.scoreRow, row1Style]}>

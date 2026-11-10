@@ -396,7 +396,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   flex: { flex: 1 },
   content: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.base },
-  headline: { fontSize: 26, fontWeight: '800' },
+  headline: {},
   subtext: { marginTop: spacing.sm, lineHeight: 21 },
   sectionLabel: { marginTop: spacing.xl, marginBottom: spacing.sm },
   chips: { flexDirection: 'row', gap: spacing.sm },

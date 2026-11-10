@@ -118,7 +118,7 @@ export default function EditProfileScreen({ navigation }: Props) {
       await syncMyMemberProfileToAllGroups(user.uid);
       navigation.goBack();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Save failed.');
+      setError(e instanceof Error ? e.message : "Couldn't save. Try again.");
     } finally {
       setIsSaving(false);
     }

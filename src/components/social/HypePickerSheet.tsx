@@ -106,7 +106,7 @@ const styles = StyleSheet.create({
   chip: {
     width: '31%',
     backgroundColor: colors.surface2,
-    borderRadius: radius.card,
+    borderRadius: radius.tile,
     paddingVertical: spacing.base,
     alignItems: 'center',
   },

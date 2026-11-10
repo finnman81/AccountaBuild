@@ -91,7 +91,7 @@ export default function GroupListScreen({ navigation }: Props) {
       if (activeGroupId === leavingGroupId) void setActiveGroupId(null);
       setLeavingGroupId(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to leave group.');
+      setError(e instanceof Error ? e.message : "Couldn't leave the group. Try again.");
     } finally {
       setIsLeaving(false);
     }
@@ -222,7 +222,7 @@ export default function GroupListScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   content: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.xxl },
-  title: { fontSize: 26, fontWeight: '700', marginBottom: spacing.base },
+  title: { marginBottom: spacing.base },
   actions: { flexDirection: 'row', gap: spacing.md, marginBottom: spacing.lg },
   actionBtn: { flex: 1 },
   stateWrap: { paddingVertical: spacing.lg },
@@ -232,7 +232,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: colors.dashedBorder,
     borderStyle: 'dashed',
-    borderRadius: radius.card,
+    borderRadius: radius.tile,
     padding: spacing.base,
     alignItems: 'center',
     gap: spacing.sm,
@@ -243,7 +243,7 @@ const styles = StyleSheet.create({
     maxWidth: '100%',
     paddingHorizontal: spacing.md,
     paddingVertical: 6,
-    borderRadius: 999,
+    borderRadius: 6,
     borderWidth: 1,
     borderColor: colors.divider,
     backgroundColor: colors.surface2,
@@ -254,7 +254,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
     backgroundColor: colors.surface2,
-    borderRadius: radius.pill,
+    borderRadius: radius.chip,
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.sm,
     marginTop: spacing.xs,
@@ -267,7 +267,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     alignSelf: 'stretch',
     backgroundColor: colors.primary,
-    borderRadius: radius.pill,
+    borderRadius: radius.button,
     paddingVertical: spacing.md,
     marginTop: spacing.sm,
   },

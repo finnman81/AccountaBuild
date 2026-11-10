@@ -32,7 +32,7 @@ export default function LogActionSheet(props: Props) {
         }}
       >
         <Card>
-          <Card.Title title="Quick log" subtitle="Choose an action" />
+          <Card.Title title="Quick log" subtitle="What did you do?" />
           <Card.Content>
             {!gid ? (
               <>

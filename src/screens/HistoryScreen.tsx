@@ -320,7 +320,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
   back: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 26, fontWeight: '700', flex: 1 },
+  title: { flex: 1 },
   content: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl },
 
   monthRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.xs, marginBottom: spacing.md },

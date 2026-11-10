@@ -166,7 +166,7 @@ export default function OnboardingFinishScreen({ navigation }: Props) {
 
         <Card style={styles.summaryCard}>
           <AppText variant="rowTitle" color="primary" style={styles.summaryTitle}>
-            Your Goals
+            Your goals
           </AppText>
           <View style={styles.summaryRow}>
             <AppText variant="body" color="muted">

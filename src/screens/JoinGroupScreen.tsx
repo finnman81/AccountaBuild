@@ -87,7 +87,7 @@ export default function JoinGroupScreen({ navigation, route }: Props) {
       }, 800);
     } catch (e) {
       console.error('[JoinGroup] Error joining group:', e);
-      const errorMessage = e instanceof Error ? e.message : 'Invalid code or join failed.';
+      const errorMessage = e instanceof Error ? e.message : "That code didn't work. Check it and try again.";
       setError(errorMessage);
     } finally {
       setIsSubmitting(false);
@@ -143,7 +143,7 @@ export default function JoinGroupScreen({ navigation, route }: Props) {
         style={{ backgroundColor: colors.success }}
         theme={{ colors: { onSurface: '#FFFFFF' } }}
       >
-        Successfully joined group!
+        You're in.
       </Snackbar>
     </View>
   );

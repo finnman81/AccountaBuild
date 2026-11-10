@@ -16,7 +16,7 @@ export default function AuthHeader({ title, subline, markSize = 56 }: Props) {
   return (
     <View style={styles.header}>
       <AppMark size={markSize} glyph="dumbbell" />
-      <AppText style={styles.title}>{title}</AppText>
+      <AppText variant="pageTitle" style={styles.title}>{title}</AppText>
       {subline ? (
         <AppText variant="rowSubtitle" color="secondary" style={styles.subline}>
           {subline}
@@ -28,6 +28,6 @@ export default function AuthHeader({ title, subline, markSize = 56 }: Props) {
 
 const styles = StyleSheet.create({
   header: { alignItems: 'center', marginBottom: spacing.xl },
-  title: { fontSize: 26, fontWeight: '700', color: colors.textPrimary, marginTop: spacing.base },
+  title: { color: colors.textPrimary, marginTop: spacing.base },
   subline: { textAlign: 'center', marginTop: spacing.xs, paddingHorizontal: spacing.md },
 });

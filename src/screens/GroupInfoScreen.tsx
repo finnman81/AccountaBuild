@@ -103,7 +103,7 @@ export default function GroupInfoScreen({ route, navigation }: Props) {
             await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             setSnack(`Removed ${name}`);
           } catch (e) {
-            setSnack(e instanceof Error ? e.message : 'Failed to remove member');
+            setSnack(e instanceof Error ? e.message : "Couldn't remove them. Try again.");
           }
         },
       },
@@ -123,7 +123,7 @@ export default function GroupInfoScreen({ route, navigation }: Props) {
             await setActiveGroupId(null);
             navigation.popToTop();
           } catch (e) {
-            setSnack(e instanceof Error ? e.message : 'Failed to leave group');
+            setSnack(e instanceof Error ? e.message : "Couldn't leave the group. Try again.");
           }
         },
       },
@@ -181,7 +181,7 @@ export default function GroupInfoScreen({ route, navigation }: Props) {
           <NavRow icon="chat-outline" title="Chat" onPress={() => navigation.navigate('GroupChat', { groupId })} />
           <NavRow
             icon="chart-box-outline"
-            title="Compliance charts"
+            title="Progress charts"
             onPress={() => {
               void setActiveGroupId(groupId);
               (navigation as any).navigate('MainTabs', { screen: 'ProgressTab', params: { screen: 'Progress' } });
@@ -235,7 +235,7 @@ const styles = StyleSheet.create({
   back: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   content: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl },
   hero: { alignItems: 'center', gap: 4, paddingVertical: spacing.md },
-  heroLogo: { width: 72, height: 72, borderRadius: radius.card, backgroundColor: colors.surface2, marginBottom: spacing.sm },
+  heroLogo: { width: 72, height: 72, borderRadius: radius.tile, backgroundColor: colors.surface2, marginBottom: spacing.sm },
   heroLogoPlaceholder: { alignItems: 'center', justifyContent: 'center' },
   heroName: { textAlign: 'center' },
   codeActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.base },
@@ -247,7 +247,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.borderCard,
-    borderRadius: radius.card,
+    borderRadius: radius.tile,
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
     marginTop: spacing.sm,

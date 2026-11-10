@@ -3,6 +3,7 @@ import { View, StyleSheet, TextInput, KeyboardTypeOptions } from 'react-native';
 
 import AppText from './AppText';
 import { colors, spacing } from '../../theme';
+import { inter } from '../../theme/fonts';
 
 type Props = {
   label: string;
@@ -64,7 +65,7 @@ const styles = StyleSheet.create({
   left: { flex: 1, gap: 2 },
   subline: { paddingRight: spacing.sm },
   right: { flexDirection: 'row', alignItems: 'center', gap: 4, maxWidth: '46%' },
-  input: { color: colors.textPrimary, fontSize: 15, fontWeight: '600', paddingVertical: 0, minWidth: 60, flexShrink: 1 },
+  input: { color: colors.textPrimary, fontSize: 15, fontFamily: inter.semibold, paddingVertical: 0, minWidth: 60, flexShrink: 1 },
   suffix: {},
   divider: { height: 1, backgroundColor: colors.divider },
 });

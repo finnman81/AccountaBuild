@@ -128,7 +128,7 @@ export default function VacationCard({ uid, myLogDates }: Props) {
 const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
-    borderRadius: radius.card,
+    borderRadius: radius.tile,
     borderWidth: 1,
     borderColor: 'rgba(103,183,220,0.35)',
     padding: spacing.base,

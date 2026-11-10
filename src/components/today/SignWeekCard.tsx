@@ -214,7 +214,7 @@ export default function SignWeekCard({ memberUids, publicUsers, canSee }: Props)
 const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.surface2,
-    borderRadius: radius.card,
+    borderRadius: radius.tile,
     borderWidth: 1,
     borderColor: colors.divider,
     padding: spacing.base,
@@ -248,7 +248,7 @@ const styles = StyleSheet.create({
   holdLabel: { color: colors.textPrimary },
   strip: {
     backgroundColor: colors.surface2,
-    borderRadius: radius.card,
+    borderRadius: radius.tile,
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
     marginTop: spacing.base,

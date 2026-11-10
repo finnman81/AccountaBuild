@@ -152,7 +152,7 @@ export default function NotificationsScreen() {
       setSaved('Settings saved.');
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
-      const message = e instanceof Error ? e.message : 'Failed to save settings.';
+      const message = e instanceof Error ? e.message : "Couldn't save. Try again.";
       setError(message);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
@@ -198,8 +198,8 @@ export default function NotificationsScreen() {
             contentContainerStyle={[styles.content, { paddingBottom: spacing.xxl + insets.bottom }]}
           >
             <Card>
-              <AppText variant="cardLabel" color="primary">Notification Settings</AppText>
-              <AppText variant="rowSubtitle" color="muted" style={styles.subLine}>Get reminders to log your workouts</AppText>
+              <AppText variant="cardLabel" color="primary">Reminders</AppText>
+              <AppText variant="rowSubtitle" color="muted" style={styles.subLine}>A push when it is time to log.</AppText>
 
               <View style={styles.toggleRow}>
                 <AppText variant="rowTitle" color="primary">Enable notifications</AppText>
@@ -216,7 +216,7 @@ export default function NotificationsScreen() {
               {permissionDenied && enabled && (
                 <View style={styles.warnBox}>
                   <AppText variant="rowSubtitle" color="danger">
-                    Notification permissions are denied. Please enable them in your device settings to receive reminders.
+                    Notifications are off for this app. Turn them on in your phone settings.
                   </AppText>
                 </View>
               )}
@@ -296,7 +296,7 @@ export default function NotificationsScreen() {
             <Card style={styles.spacedCard}>
               <AppText variant="cardLabel" color="primary">About</AppText>
               <AppText variant="rowSubtitle" color="secondary" style={styles.aboutText}>
-                You'll receive reminders at the times you set to log your workouts. If you don't log anything after the first reminder, a badge will appear on the app icon.
+                Reminders arrive at the times you set. Skip the first one and a badge shows on the app icon.
               </AppText>
             </Card>
           </ScrollView>
@@ -408,7 +408,7 @@ const styles = StyleSheet.create({
   aboutText: { marginTop: spacing.sm, lineHeight: 18 },
   modalCard: {
     margin: spacing.lg,
-    borderRadius: radius.card,
+    borderRadius: radius.tile,
     padding: spacing.lg,
     backgroundColor: colors.surface,
     borderWidth: 1,

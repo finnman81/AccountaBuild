@@ -8,6 +8,7 @@ import { AuthContext } from '../../store/AuthContext';
 import { subscribeMmrWeeklyHistory, type MmrWeeklySummary } from '../../services/mmrWeekly';
 import { DEFAULT_TZ, isoWeekIdInTz, prevIsoWeekId } from '../../mmr/time';
 import { colors } from '../../theme/colors';
+import { display } from '../../theme/fonts';
 import PressableScale from '../ui/PressableScale';
 
 const ROMAN = ['', 'I', 'II', 'III', 'IV'];
@@ -112,6 +113,6 @@ const styles = StyleSheet.create({
   iconWrap: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   title: { color: colors.textPrimary, fontSize: 14, fontWeight: '700' },
   body: { color: colors.textSecondary, fontSize: 12, marginTop: 1 },
-  deltaChip: { fontSize: 13, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  deltaChip: { fontSize: 16, fontFamily: display.bold, fontVariant: ['tabular-nums'] },
   closeBtn: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
 });

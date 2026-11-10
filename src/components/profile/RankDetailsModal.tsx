@@ -89,7 +89,7 @@ export default function RankDetailsModal({ visible, mmrState, badges, onDismiss 
 
                   <View style={{ gap: spacing.sm }}>
                     <Text variant="titleSmall" style={{ color: colors.textPrimary, fontWeight: '600' }}>
-                      Rank Calculation
+                      How rank works
                     </Text>
                     <Text variant="bodySmall" style={{ color: colors.textSecondary }}>
                       Your Fitness Points (FP) determine your rank. Each tier is divided into divisions (IV, III, II, I), and Master Points (MP) show your progress within your current division.
@@ -108,7 +108,7 @@ export default function RankDetailsModal({ visible, mmrState, badges, onDismiss 
                     <View
                       style={{
                         padding: spacing.sm,
-                        borderRadius: radius.card,
+                        borderRadius: radius.tile,
                         backgroundColor: colors.surface2,
                         borderWidth: 1,
                         borderColor: 'rgba(255, 255, 255, 0.04)',
@@ -122,7 +122,7 @@ export default function RankDetailsModal({ visible, mmrState, badges, onDismiss 
                 </View>
               ) : (
                 <Text variant="bodyMedium" style={{ color: colors.textMuted }}>
-                  No rank data available
+                  No rank yet.
                 </Text>
               )}
             </Card.Content>
@@ -138,7 +138,7 @@ export default function RankDetailsModal({ visible, mmrState, badges, onDismiss 
                     {badges.filter(isSeasonBadge).length > 0 && (
                       <View>
                         <Text variant="labelMedium" style={{ color: colors.textSecondary, marginBottom: spacing.sm }}>
-                          Season Achievements
+                          This season
                         </Text>
                         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md }}>
                           {badges.filter(isSeasonBadge).map((b) => (

@@ -3,6 +3,7 @@ import { Image, View, StyleSheet } from 'react-native';
 import Text from './Text';
 import { requireOptionalNativeModule } from 'expo-modules-core';
 import { colors } from '../../theme/colors';
+import { display } from '../../theme/fonts';
 import HibernationPod from './HibernationPod';
 
 /**
@@ -59,7 +60,7 @@ export default function Avatar({ photoURL, name, size = 40, status, atRisk, hibe
     )
   ) : (
     <View style={[styles.avatar, { width: size, height: size, borderRadius: size / 2, backgroundColor: colors.surface2 }]}>
-      <Text style={{ fontSize: size * 0.4, color: colors.textSecondary, fontWeight: '600' }}>{initialsFromName(name).slice(0, 2)}</Text>
+      <Text style={{ fontSize: size * 0.44, color: colors.textSecondary, fontFamily: display.bold }}>{initialsFromName(name).slice(0, 2)}</Text>
     </View>
   );
 

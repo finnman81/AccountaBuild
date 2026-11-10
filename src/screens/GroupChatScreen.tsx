@@ -26,6 +26,7 @@ import LogCard from '../components/chat/LogCard';
 import MilestoneCard from '../components/chat/MilestoneCard';
 import { slimLogs } from '../hooks/useCached';
 import { colors, radius, spacing } from '../theme';
+import { inter } from '../theme/fonts';
 import { useVisibleUids } from '../hooks/useVisibleUids';
 
 type FeedItem =
@@ -486,11 +487,12 @@ const styles = StyleSheet.create({
     minHeight: 38,
     maxHeight: 120,
     backgroundColor: colors.surface2,
-    borderRadius: radius.pill,
+    borderRadius: radius.button,
     paddingHorizontal: spacing.base,
     paddingTop: Platform.OS === 'ios' ? 10 : 6,
     paddingBottom: Platform.OS === 'ios' ? 10 : 6,
     color: colors.textPrimary,
+    fontFamily: inter.regular,
     fontSize: 15,
   },
   sendCircle: { width: 38, height: 38, borderRadius: 999, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },

@@ -187,7 +187,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
   back: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 26, fontWeight: '700' },
+  title: {},
   content: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl },
   sectionLabel: { marginTop: spacing.lg, marginBottom: spacing.sm, marginLeft: spacing.xs },
   group: { backgroundColor: colors.surface, borderRadius: radius.listGroup, borderWidth: 1, borderColor: colors.borderCard, paddingHorizontal: spacing.base },
@@ -195,6 +195,6 @@ const styles = StyleSheet.create({
   rowLeft: { flex: 1, gap: 2 },
   divider: { height: 1, backgroundColor: colors.divider },
   deleteRow: { marginTop: spacing.md, alignItems: 'center', paddingVertical: spacing.md },
-  signOutCard: { marginTop: spacing.xl, backgroundColor: colors.surface, borderRadius: radius.card, borderWidth: 1, borderColor: colors.borderCard, paddingVertical: spacing.base, alignItems: 'center' },
+  signOutCard: { marginTop: spacing.xl, backgroundColor: colors.surface, borderRadius: radius.tile, borderWidth: 1, borderColor: colors.borderCard, paddingVertical: spacing.base, alignItems: 'center' },
   version: { textAlign: 'center', marginTop: spacing.lg },
 });

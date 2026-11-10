@@ -79,7 +79,7 @@ export default function MilestoneCard({ msg, myUid, onToggleReaction }: Props) {
 const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.surface2,
-    borderRadius: radius.card,
+    borderRadius: radius.tile,
     borderWidth: 1,
     borderColor: colors.rankGold,
     padding: spacing.base,
@@ -91,7 +91,7 @@ const styles = StyleSheet.create({
   pill: {
     paddingHorizontal: 10,
     paddingVertical: 5,
-    borderRadius: radius.pill,
+    borderRadius: radius.chip,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.divider,

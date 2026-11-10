@@ -382,7 +382,7 @@ export default function MMRGoalsScreen() {
 
       setSaved(inFirstWeek ? 'Saved. It counts right away this first week.' : 'Saved. Changes apply from next week.');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Save failed.');
+      setError(e instanceof Error ? e.message : "Couldn't save. Try again.");
     } finally {
       setSaving(false);
     }
@@ -656,7 +656,7 @@ const styles = StyleSheet.create({
   workoutChip: {
     flex: 1,
     height: 36,
-    borderRadius: radius.pill,
+    borderRadius: radius.chip,
     backgroundColor: colors.surface2,
     borderWidth: 1,
     borderColor: colors.borderCard,
@@ -667,7 +667,7 @@ const styles = StyleSheet.create({
   dateChip: {
     paddingHorizontal: 14,
     height: 34,
-    borderRadius: radius.pill,
+    borderRadius: radius.chip,
     backgroundColor: colors.surface2,
     borderWidth: 1,
     borderColor: colors.borderCard,
@@ -683,7 +683,7 @@ const styles = StyleSheet.create({
   message: { marginTop: spacing.base, textAlign: 'center' },
   lockCard: {
     backgroundColor: colors.surface,
-    borderRadius: radius.card,
+    borderRadius: radius.tile,
     borderWidth: 1,
     borderColor: 'rgba(233,181,66,0.4)',
     padding: spacing.base,

@@ -119,7 +119,7 @@ export default function OnboardingGoalsScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   content: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.base },
-  headline: { fontSize: 26, fontWeight: '800' },
+  headline: {},
   subtext: { marginTop: spacing.sm, lineHeight: 20 },
   cards: { marginTop: spacing.xl, gap: spacing.md },
   card: {

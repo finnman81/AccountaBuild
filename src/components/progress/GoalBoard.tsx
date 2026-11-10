@@ -151,7 +151,7 @@ const styles = StyleSheet.create({
     gap: 3,
     paddingHorizontal: 7,
     paddingVertical: 3,
-    borderRadius: radius.pill,
+    borderRadius: radius.chip,
     backgroundColor: colors.surface2,
   },
   chipHit: { backgroundColor: colors.successTint },

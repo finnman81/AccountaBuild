@@ -51,7 +51,7 @@ export default function RiskBanner({ mmrState, latestWeekly, projection }: Props
                 alignItems: 'center',
                 gap: spacing.sm,
                 padding: spacing.sm,
-                borderRadius: radius.card,
+                borderRadius: radius.tile,
                 backgroundColor: colors.surface2,
                 borderWidth: 1,
                 borderColor: 'rgba(255, 255, 255, 0.04)',
@@ -76,7 +76,7 @@ export default function RiskBanner({ mmrState, latestWeekly, projection }: Props
         <View
           style={{
             padding: spacing.md,
-            borderRadius: radius.card,
+            borderRadius: radius.tile,
             backgroundColor: colors.danger + '15',
             borderWidth: 1,
             borderColor: colors.danger + '40',

@@ -106,7 +106,7 @@ export default function GoalDeadlineCard() {
 const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.surface2,
-    borderRadius: radius.card,
+    borderRadius: radius.tile,
     borderWidth: 1,
     borderColor: colors.primary,
     padding: spacing.base,

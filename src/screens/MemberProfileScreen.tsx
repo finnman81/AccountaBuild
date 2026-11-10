@@ -254,7 +254,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
   back: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 26, fontWeight: '700', flex: 1 },
+  title: { flex: 1 },
   content: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl },
   hero: { alignItems: 'center', marginTop: spacing.sm },
   heroName: { marginTop: spacing.md },
@@ -265,6 +265,6 @@ const styles = StyleSheet.create({
   weekCard: { marginTop: spacing.md },
   badgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.md },
   weekRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: spacing.sm },
-  chartCard: { marginTop: spacing.md, borderRadius: radius.card },
+  chartCard: { marginTop: spacing.md, borderRadius: radius.tile },
   axisRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: spacing.sm, paddingHorizontal: spacing.xs },
 });

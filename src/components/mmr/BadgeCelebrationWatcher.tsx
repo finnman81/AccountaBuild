@@ -7,6 +7,7 @@ import { db } from '../../firebase/firebase';
 import { AuthContext } from '../../store/AuthContext';
 import { subscribeMyBadges, type EarnedBadge } from '../../services/mmrBadges';
 import { colors } from '../../theme/colors';
+import { inter } from '../../theme/fonts';
 import { duration, easing } from '../../theme/motion';
 import { enqueueCelebration } from '../../services/celebrationQueue';
 
@@ -122,7 +123,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(20,32,54,0.97)',
     borderWidth: 1,
     borderColor: 'rgba(233,181,66,0.5)',
-    borderRadius: 999,
+    borderRadius: 10,
     paddingHorizontal: 16,
     paddingVertical: 10,
     shadowColor: '#000',
@@ -131,5 +132,5 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   emoji: { fontSize: 16 },
-  text: { color: colors.textPrimary, fontSize: 14, fontWeight: '700' },
+  text: { color: colors.textPrimary, fontSize: 14, fontFamily: inter.bold },
 });

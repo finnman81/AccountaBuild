@@ -99,14 +99,14 @@ export default function OnboardingMMRScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   content: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.base },
-  headline: { fontSize: 26, fontWeight: '800' },
+  headline: {},
   subtext: { marginTop: spacing.sm, lineHeight: 21 },
   ladder: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'space-between',
     backgroundColor: colors.surface,
-    borderRadius: radius.card,
+    borderRadius: radius.tile,
     borderWidth: 1,
     borderColor: colors.borderCard,
     paddingVertical: spacing.lg,

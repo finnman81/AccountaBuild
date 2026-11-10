@@ -70,9 +70,9 @@ export default function SeasonHistoryScreen() {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Card>
           <AppText variant="cardLabel" color="primary">Season history</AppText>
-          <AppText variant="rowSubtitle" color="muted" style={styles.subLine}>Quarterly snapshots</AppText>
+          <AppText variant="rowSubtitle" color="muted" style={styles.subLine}>One per quarter</AppText>
           <AppText variant="rowSubtitle" color="secondary" style={styles.blurb}>
-            Each season awards a badge and applies a soft reset at rollover.
+            Each season ends with a badge and a soft reset.
           </AppText>
         </Card>
 
@@ -104,7 +104,7 @@ export default function SeasonHistoryScreen() {
                       <View style={styles.rowText}>
                         <AppText variant="rowTitle" color="primary">{r.seasonId}</AppText>
                         <AppText variant="rowSubtitle" color="secondary" style={styles.rowMeta}>
-                          {tier ? `Final: ${rankLabel(tier, division ?? undefined, mp ?? undefined)}` : 'Final: —'}
+                          {tier ? `Final: ${rankLabel(tier, division ?? undefined, mp ?? undefined)}` : 'Final: unranked'}
                         </AppText>
                         {mmr != null ? (
                           <AppText variant="rowSubtitle" color="muted">{`FP: ${Math.round(mmr)}`}</AppText>

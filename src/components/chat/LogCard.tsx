@@ -98,6 +98,6 @@ const styles = StyleSheet.create({
   head: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   iconTile: { width: 38, height: 38, borderRadius: radius.tile, backgroundColor: colors.primaryTint, alignItems: 'center', justifyContent: 'center' },
   pills: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  pill: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface2, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: 5 },
+  pill: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface2, borderRadius: radius.chip, paddingHorizontal: spacing.md, paddingVertical: 5 },
   pillMine: { backgroundColor: colors.primaryTint },
 });

@@ -59,8 +59,8 @@ export default function CrewWeekCard({ stats }: { stats: CrewWeekStats }) {
   if (stats.mostConsistent) records.push(`📆 Most days logged: ${stats.mostConsistent.name} (${stats.mostConsistent.days})`);
 
   return (
-    <Card>
-      <AppText variant="rowTitle" color="primary">Your group this week</AppText>
+    <Card tier="hero">
+      <AppText variant="cardTitle" color="primary">Your group this week</AppText>
       <AppText variant="rowSubtitle" color="secondary" style={{ marginTop: 2, marginBottom: spacing.md }}>
         Combined totals · ▲▼ vs last week at this point
       </AppText>

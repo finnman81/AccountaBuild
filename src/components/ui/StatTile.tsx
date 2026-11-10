@@ -3,6 +3,7 @@ import { StyleSheet, View, ViewStyle } from 'react-native';
 import Text from './Text';
 
 import { colors } from '../../theme/colors';
+import { typography } from '../../theme/typography';
 import { radius } from '../../theme/radius';
 
 type Props = {
@@ -57,10 +58,8 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   value: {
-    fontSize: 24,
-    fontWeight: '700',
+    ...typography.numberMd,
     color: colors.textPrimary,
-    fontVariant: ['tabular-nums'],
     flexShrink: 1,
   },
   unit: {

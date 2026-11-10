@@ -620,7 +620,7 @@ export default function ProgressScreen({ navigation }: Props) {
                 onPress={() => void setActiveGroupId(g.groupId)}
                 activeOpacity={0.85}
                 style={{
-                  borderRadius: radius.pill,
+                  borderRadius: radius.chip,
                   paddingHorizontal: spacing.base,
                   paddingVertical: spacing.sm,
                   backgroundColor: active ? colors.primary : 'transparent',
@@ -714,7 +714,7 @@ export default function ProgressScreen({ navigation }: Props) {
 
           <View
             style={{
-              borderRadius: radius.card,
+              borderRadius: radius.tile,
               padding: spacing.md,
               backgroundColor: colors.surface2,
               borderWidth: 1,
@@ -810,7 +810,7 @@ export default function ProgressScreen({ navigation }: Props) {
 
       <Card>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.md }}>
-          <AppText variant="rowTitle" color="primary">Progress pictures</AppText>
+          <AppText variant="rowTitle" color="primary">Progress photos</AppText>
           <TouchableOpacity
             onPress={() =>
               rootNav.navigate(

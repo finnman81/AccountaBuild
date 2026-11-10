@@ -4,6 +4,7 @@ import Text from './Text';
 import Svg, { Circle } from 'react-native-svg';
 
 import { colors } from '../../theme/colors';
+import { display } from '../../theme/fonts';
 import { duration, easing } from '../../theme/motion';
 import { useCountTo } from './AnimatedNumber';
 
@@ -64,7 +65,7 @@ export default function ComplianceRing({ pct, size = 64, strokeWidth = 6, showLa
       </Svg>
       {showLabel && (
         <View style={{ position: 'absolute', alignItems: 'center', justifyContent: 'center' }}>
-          <Text style={{ fontSize: size * 0.24, fontWeight: '700', color: colors.textPrimary, fontVariant: ['tabular-nums'] }}>
+          <Text style={{ fontSize: size * 0.28, fontFamily: display.bold, color: colors.textPrimary, fontVariant: ['tabular-nums'] }}>
             {label}%
           </Text>
         </View>

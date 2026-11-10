@@ -66,7 +66,7 @@ const styles = StyleSheet.create({
   tag: {
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
-    borderRadius: radius.pill,
+    borderRadius: radius.chip,
     alignSelf: 'flex-start',
   },
 });

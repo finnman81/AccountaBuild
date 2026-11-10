@@ -1,11 +1,13 @@
 import React, { useMemo } from 'react';
 import { View, TouchableOpacity } from 'react-native';
-import { Card, Button } from 'react-native-paper';
+import { Button } from 'react-native-paper';
+import Card from '../ui/Card';
 import Text from '../ui/Text';
 import RankBadge from '../mmr/RankBadge';
 import ProgressBar from '../ui/ProgressBar';
 import AnimatedNumber from '../ui/AnimatedNumber';
 import { colors } from '../../theme/colors';
+import { typography } from '../../theme/typography';
 import { spacing } from '../../theme/spacing';
 import { radius } from '../../theme/radius';
 import type { MmrState } from '../../services/mmrState';
@@ -60,7 +62,7 @@ export default function RankHeroCard({ mmrState, onPress, onViewLeaderboard }: P
       <Card>
         <Card.Content>
           <Text variant="bodyMedium" style={{ color: colors.textMuted }}>
-            Loading rank...
+            Loading rank
           </Text>
         </Card.Content>
       </Card>
@@ -68,7 +70,7 @@ export default function RankHeroCard({ mmrState, onPress, onViewLeaderboard }: P
   }
 
   return (
-    <Card>
+    <Card tier="hero" style={{ paddingHorizontal: 0 }}>
       <Card.Content>
         <TouchableOpacity
           onPress={onPress}
@@ -81,7 +83,7 @@ export default function RankHeroCard({ mmrState, onPress, onViewLeaderboard }: P
 
           {/* Center: Rank Info */}
           <View style={{ flex: 1, gap: spacing.xs }}>
-            <Text variant="titleLarge" style={{ color: colors.textPrimary, fontWeight: '600' }}>
+            <Text style={{ ...typography.cardTitle, fontSize: 28, lineHeight: 30, color: colors.textPrimary }}>
               {rankLabel}
             </Text>
             <Text variant="bodySmall" style={{ color: colors.textSecondary }}>

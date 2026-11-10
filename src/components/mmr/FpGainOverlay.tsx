@@ -6,6 +6,7 @@ import { subscribeMyMmrProjection } from '../../services/mmrProjection';
 import { subscribeLogSaved, type SavedLogInfo } from '../../services/fpEvents';
 import { setLogFpDelta } from '../../services/logs';
 import { colors } from '../../theme/colors';
+import { display } from '../../theme/fonts';
 import { duration, easing, toastHold } from '../../theme/motion';
 import { enqueueCelebration } from '../../services/celebrationQueue';
 
@@ -137,7 +138,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     backgroundColor: 'rgba(20,32,54,0.95)',
     borderWidth: 1,
-    borderRadius: 999,
+    borderRadius: 10,
     paddingHorizontal: 18,
     paddingVertical: 10,
     shadowColor: '#000',
@@ -148,8 +149,9 @@ const styles = StyleSheet.create({
   wrapGain: { borderColor: 'rgba(233,181,66,0.5)' },
   wrapLogged: { borderColor: 'rgba(74,222,128,0.45)' },
   text: {
-    fontSize: 20,
-    fontWeight: '800',
+    fontSize: 22,
+    fontFamily: display.bold,
+    letterSpacing: 0.5,
     fontVariant: ['tabular-nums'],
   },
 });

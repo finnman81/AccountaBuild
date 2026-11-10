@@ -15,6 +15,7 @@ import { updateOnboardingStep } from '../../services/onboarding';
 import { onboardingAnalytics } from '../../services/analytics';
 import { onboardingCopy } from '../../constants/onboardingCopy';
 import { colors, spacing, radius } from '../../theme';
+import { typography } from '../../theme/typography';
 
 type Props = NativeStackScreenProps<OnboardingStackParamList, 'Welcome'>;
 
@@ -102,9 +103,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xl,
   },
   headline: {
-    fontSize: 30,
-    fontWeight: '800',
-    letterSpacing: -0.5,
+    ...typography.displayTitle,
     color: colors.textPrimary,
     textAlign: 'center',
     marginTop: spacing.xl,

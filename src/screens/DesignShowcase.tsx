@@ -133,7 +133,7 @@ export default function DesignShowcase() {
       <Section title="Card + CTA">
         <Card>
           <Text style={{ fontSize: 13, fontWeight: '600', color: colors.textSecondary, marginBottom: 8 }}>Today's log</Text>
-          <Text style={{ fontSize: 15, color: colors.textPrimary, marginBottom: 16 }}>2 of 3 done — weight still to log.</Text>
+          <Text style={{ fontSize: 15, color: colors.textPrimary, marginBottom: 16 }}>2 of 3 done. Weight still open.</Text>
           <PrimaryButton onPress={() => {}}>Log weight</PrimaryButton>
           <View style={{ height: 10 }} />
           <PrimaryButton secondary mode="outlined" onPress={() => {}}>Skip for now</PrimaryButton>

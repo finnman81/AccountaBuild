@@ -48,13 +48,13 @@ const styles = StyleSheet.create({
   track: {
     flexDirection: 'row',
     backgroundColor: colors.surface2,
-    borderRadius: radius.pill,
+    borderRadius: radius.button,
     padding: 4,
   },
   segment: {
     flex: 1,
     height: 36,
-    borderRadius: radius.pill,
+    borderRadius: radius.chip,
     alignItems: 'center',
     justifyContent: 'center',
   },

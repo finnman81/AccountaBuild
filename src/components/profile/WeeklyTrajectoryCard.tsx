@@ -138,7 +138,7 @@ export default function WeeklyTrajectoryCard({ projection, dailyStreak = 0, onVi
         <View style={{ gap: spacing.md }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
             <Text variant="titleMedium" style={{ color: colors.textPrimary, fontWeight: '600' }}>
-              This Week
+              This week
             </Text>
             {onViewDetails && (
               <Button

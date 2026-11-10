@@ -7,6 +7,7 @@ import Avatar from '../ui/Avatar';
 import ComplianceRing from '../ui/ComplianceRing';
 import RankEmblem from '../ui/RankEmblem';
 import { colors, radius, spacing } from '../../theme';
+import PressableScale from '../ui/PressableScale';
 import type { UserGroupListItem } from '../../services/groups';
 import type { GroupOverview } from '../../viewmodels/groups';
 
@@ -30,7 +31,7 @@ export default function GroupCard({ group, overview, isActive, onPress, onInfo }
   const loggedColor = members > 0 && loggedToday >= Math.ceil(members * 0.6) ? colors.success : colors.warning;
 
   return (
-    <TouchableOpacity activeOpacity={0.85} onPress={onPress} style={[styles.card, isActive && styles.cardActive]}>
+    <PressableScale onPress={onPress} style={[styles.card, isActive && styles.cardActive]}>
       <View style={styles.top}>
         <ComplianceRing pct={pct} size={64} strokeWidth={6} />
         <View style={styles.info}>
@@ -51,7 +52,7 @@ export default function GroupCard({ group, overview, isActive, onPress, onInfo }
               <RankEmblem tier={overview.myTier} inline size={12} />
               <AppText variant="rowSubtitle" color="secondary">
                 {overview.myTier}{overview.myDivision ? ` ${ROMAN[overview.myDivision]}` : ''}
-                {overview.streakDays > 0 ? ` · ${overview.streakDays}d streak` : ''}
+                {overview.streakDays > 0 ? ` · ${overview.streakDays} ${overview.streakDays === 1 ? 'day' : 'days'}` : ''}
               </AppText>
             </View>
           ) : null}
@@ -86,14 +87,14 @@ export default function GroupCard({ group, overview, isActive, onPress, onInfo }
           </View>
         </>
       )}
-    </TouchableOpacity>
+    </PressableScale>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
-    borderRadius: radius.card,
+    borderRadius: radius.tile,
     borderWidth: 1,
     borderColor: colors.borderCard,
     padding: spacing.base,
@@ -105,7 +106,7 @@ const styles = StyleSheet.create({
   logo: { width: 22, height: 22, borderRadius: 6, backgroundColor: colors.surface2 },
   name: { flexShrink: 1 },
   gearBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
-  roleChip: { backgroundColor: colors.primaryTint, borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 2 },
+  roleChip: { backgroundColor: colors.primaryTint, borderRadius: radius.chip, paddingHorizontal: 8, paddingVertical: 2 },
   roleText: { color: colors.primaryOnDark, fontSize: 9 },
   metaLine: {},
   stakeRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },

@@ -4,6 +4,7 @@ import { Icon } from 'react-native-paper';
 
 import AppText from './AppText';
 import { colors, radius, spacing } from '../../theme';
+import { inter } from '../../theme/fonts';
 
 type Props = TextInputProps & {
   /** Optional label rendered above the field. */
@@ -82,6 +83,7 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     color: colors.textPrimary,
+    fontFamily: inter.regular,
     fontSize: 15,
     paddingVertical: spacing.md,
   },

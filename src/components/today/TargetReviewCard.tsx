@@ -170,7 +170,7 @@ const styles = StyleSheet.create({
   title: { color: colors.textPrimary, fontSize: 14, fontWeight: '700' },
   body: { color: colors.textSecondary, fontSize: 12, marginTop: 2, lineHeight: 16 },
   actions: { alignItems: 'center', gap: 6 },
-  raiseBtn: { backgroundColor: colors.rankGold, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
+  raiseBtn: { backgroundColor: colors.rankGold, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7 },
   raiseText: { color: '#1A1A0E', fontSize: 13, fontWeight: '800' },
   dismissBtn: { paddingHorizontal: 4 },
   dismissText: { color: colors.textMuted, fontSize: 11 },

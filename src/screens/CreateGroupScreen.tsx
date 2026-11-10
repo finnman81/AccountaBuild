@@ -64,7 +64,7 @@ export default function CreateGroupScreen({ navigation }: Props) {
           <Card>
             <AppText variant="pageTitle" color="primary">Create a group</AppText>
             <AppText variant="rowSubtitle" color="muted" style={styles.subtitle}>
-              Invite friends with a join code
+              Bring people in with a join code.
             </AppText>
 
             <View style={styles.form}>

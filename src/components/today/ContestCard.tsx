@@ -8,6 +8,7 @@ import { subscribeActiveContest, subscribeContestTop, subscribeMyStanding, type 
 import { buildInviteMessage, inviteLink } from '../../services/groups';
 import { todayYYYYMMDD } from '../../utils/dates';
 import { colors } from '../../theme/colors';
+import { display } from '../../theme/fonts';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 function daysBetween(a: string, b: string) {
@@ -131,7 +132,7 @@ const styles = StyleSheet.create({
   linkText: { color: colors.textPrimary, fontSize: 14, fontWeight: '600', flex: 1 },
   linkSub: { color: colors.textMuted, fontSize: 12, marginTop: 6 },
   mine: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 12, padding: 12, borderRadius: 12, backgroundColor: colors.surface2 },
-  mineBig: { color: colors.rankGold, fontSize: 32, fontWeight: '800', minWidth: 36, textAlign: 'center' },
+  mineBig: { color: colors.rankGold, fontSize: 38, fontFamily: display.extrabold, minWidth: 36, textAlign: 'center' },
   mineLabel: { color: colors.textPrimary, fontSize: 14, fontWeight: '700' },
   mineSub: { color: colors.textMuted, fontSize: 12, lineHeight: 16, marginTop: 2 },
   board: { marginTop: 12, gap: 6 },

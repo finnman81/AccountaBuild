@@ -4,6 +4,7 @@ import { Platform, Share, StyleSheet, View } from 'react-native';
 import AppText from '../ui/AppText';
 import AppMark from '../ui/AppMark';
 import { colors } from '../../theme';
+import { display } from '../../theme/fonts';
 
 /**
  * Shareable story card: a branded 9:16 image of a moment (streak, rank-up),
@@ -98,7 +99,7 @@ const styles = StyleSheet.create({
   center: { alignItems: 'center' },
   eyebrow: { fontSize: 14, fontWeight: '800', letterSpacing: 3 },
   big: { fontSize: 120, lineHeight: 132, fontWeight: '800', marginTop: 8 },
-  title: { color: colors.textPrimary, fontSize: 30, fontWeight: '800', marginTop: 6, textAlign: 'center' },
+  title: { color: colors.textPrimary, fontSize: 38, lineHeight: 40, fontFamily: display.extrabold, textTransform: 'uppercase', marginTop: 6, textAlign: 'center' },
   sub: { color: colors.textSecondary, fontSize: 16, lineHeight: 22, marginTop: 10, textAlign: 'center' },
   bottom: { alignItems: 'center', gap: 6 },
   group: { color: colors.textSecondary, fontSize: 15, fontWeight: '600' },

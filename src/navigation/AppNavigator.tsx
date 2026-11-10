@@ -152,10 +152,10 @@ export default function AppNavigator() {
           <>
             <Stack.Screen name="MainTabs" component={TabsNavigator} options={{ headerShown: false }} />
 
-            <Stack.Screen name="AddCalories" component={AddCaloriesScreen} options={{ title: 'Log Calories', header: appHeader }} />
-            <Stack.Screen name="AddWorkout" component={AddWorkoutScreen} options={{ title: 'Log Workout', header: appHeader }} />
-            <Stack.Screen name="AddWeight" component={AddWeightScreen} options={{ title: 'Log Weight', header: appHeader }} />
-            <Stack.Screen name="AddPhoto" component={AddPhotoScreen} options={{ title: 'Upload Photo', header: appHeader }} />
+            <Stack.Screen name="AddCalories" component={AddCaloriesScreen} options={{ title: 'Log calories', header: appHeader }} />
+            <Stack.Screen name="AddWorkout" component={AddWorkoutScreen} options={{ title: 'Log workout', header: appHeader }} />
+            <Stack.Screen name="AddWeight" component={AddWeightScreen} options={{ title: 'Log weight', header: appHeader }} />
+            <Stack.Screen name="AddPhoto" component={AddPhotoScreen} options={{ title: 'Add photo', header: appHeader }} />
             <Stack.Screen
               name="EditProfile"
               component={EditProfileScreen}

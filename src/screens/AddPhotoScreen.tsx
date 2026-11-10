@@ -103,8 +103,8 @@ export default function AddPhotoScreen({ route, navigation }: Props) {
           contentContainerStyle={[styles.content, { paddingBottom: spacing.base + insets.bottom }]}
         >
           <Card>
-            <AppText variant="rowTitle" color="primary">Upload a photo</AppText>
-            <AppText variant="rowSubtitle" color="muted" style={styles.subtitle}>Share with your group</AppText>
+            <AppText variant="rowTitle" color="primary">Add a photo</AppText>
+            <AppText variant="rowSubtitle" color="muted" style={styles.subtitle}>Your group sees it.</AppText>
 
             <AppText variant="eyebrow" color="muted" style={styles.fieldLabel}>Log date</AppText>
             <TextField
@@ -175,7 +175,7 @@ const styles = StyleSheet.create({
   dateChip: {
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.sm,
-    borderRadius: radius.pill,
+    borderRadius: radius.chip,
     backgroundColor: colors.surface2,
     borderWidth: 1,
     borderColor: colors.borderCard,

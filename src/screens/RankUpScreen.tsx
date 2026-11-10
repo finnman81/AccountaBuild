@@ -9,6 +9,7 @@ import { RootStackParamList } from '../navigation/types';
 import AppText from '../components/ui/AppText';
 import RankEmblem from '../components/ui/RankEmblem';
 import { colors, radius, spacing } from '../theme';
+import { display } from '../theme/fonts';
 import { duration, easing, spring } from '../theme/motion';
 import ShareCardHost, { type ShareCardHandle } from '../components/share/ShareCard';
 import { useActiveGroup } from '../store/ActiveGroupContext';
@@ -139,7 +140,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, paddingHorizontal: spacing.xl },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   eyebrow: { letterSpacing: 2, fontSize: 12 },
-  rankText: { fontSize: 32, fontWeight: '800', color: colors.textPrimary, letterSpacing: -0.5 },
+  rankText: { fontSize: 44, lineHeight: 46, fontFamily: display.extrabold, textTransform: 'uppercase', color: colors.textPrimary },
   subcopy: { textAlign: 'center', marginTop: spacing.md, lineHeight: 21, paddingHorizontal: spacing.base },
   recap: {
     marginTop: spacing.xxl,

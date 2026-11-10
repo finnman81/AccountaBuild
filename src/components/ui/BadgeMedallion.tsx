@@ -42,7 +42,7 @@ const styles = StyleSheet.create({
     width: '31%',
     minWidth: 96,
     backgroundColor: colors.surface2,
-    borderRadius: radius.card,
+    borderRadius: radius.tile,
     borderWidth: 1,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.sm,
