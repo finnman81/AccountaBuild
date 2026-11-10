@@ -1,8 +1,7 @@
 import React, { useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { Animated, AppState, Easing, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Animated, AppState, StyleSheet, TouchableOpacity, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
-import Svg, { Circle } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AuthContext } from '../../store/AuthContext';
@@ -23,6 +22,7 @@ import { enqueueCelebration } from '../../services/celebrationQueue';
 import ShareCardHost, { type ShareCardHandle } from '../share/ShareCard';
 import { APP_STORE_URL, inviteUrl } from '../../constants/links';
 import AppText from '../ui/AppText';
+import ProgressBar from '../ui/ProgressBar';
 
 /**
  * The daily streak moment.
@@ -37,11 +37,10 @@ import AppText from '../ui/AppText';
  *
  * Skipped on someone's first log ever: FirstLogCelebration owns that moment.
  */
-const RING = 184;
-const STROKE = 10;
-const R = (RING - STROKE) / 2;
-const CIRC = 2 * Math.PI * R;
-const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+/** Height of one number in the roll (also its line height). */
+const NUM_H = 108;
+/** Most numbers a milestone rolls through. */
+const MAX_ROLL = 12;
 
 const seenKey = (uid: string) => `streakCelebrated:${uid}`;
 // Highest milestone THIS streak has celebrated. Seeded silently the first time
@@ -55,8 +54,9 @@ const ENDED_MIN = 3;
 
 /**
  * Three modes on one screen:
- *  daily      calm: ring breathes, count ticks up from yesterday
- *  milestone  7/14/30/50/100...: full ring, gold burst, the group is told
+ *  daily      the count rolls from yesterday's number to today's and lands
+ *             with a thump; then the week stamps in, today last
+ *  milestone  7/14/30/50/100...: a longer roll, gold, a burst, the group is told
  *  ended      the streak broke: no red, no guilt, best streak on record
  */
 type Mode = { kind: 'daily' } | { kind: 'milestone'; m: number } | { kind: 'ended'; was: number };
@@ -93,13 +93,14 @@ export default function StreakCelebration() {
   const insets = useSafeAreaInsets();
   const [moment, setMoment] = useState<MyStreakMoment | null>(null);
   const [mode, setMode] = useState<Mode>({ kind: 'daily' });
-  const [shown, setShown] = useState(0); // the number on screen (counts up)
-  const pulse = useRef(new Animated.Value(0)).current;
+  const [barTo, setBarTo] = useState(0); // milestone bar target (glides after the roll lands)
+  const roll = useRef(new Animated.Value(0)).current; // 0 = yesterday's number, 1 = today's
+  const thump = useRef(new Animated.Value(1)).current;
+  const textIn = useRef(new Animated.Value(0)).current;
+  const days = useRef(Array.from({ length: 7 }, () => new Animated.Value(0))).current;
   const burst = useRef(new Animated.Value(0)).current;
   const queued = useRef<MyStreakMoment | null>(null); // a Day 1 waiting behind an "ended" screen
   const fade = useRef(new Animated.Value(0)).current;
-  const pop = useRef(new Animated.Value(0.8)).current;
-  const ring = useRef(new Animated.Value(0)).current;
   const busy = useRef(false);
   const suppressToday = useRef(false);
 
@@ -178,36 +179,56 @@ export default function StreakCelebration() {
 
   useEffect(() => {
     if (!moment) return;
-    fade.setValue(0); pop.setValue(0.8); ring.setValue(0); pulse.setValue(0); burst.setValue(0);
     const big = mode.kind === 'milestone';
-    if (mode.kind !== 'ended') {
-      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-      if (big) setTimeout(() => void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {}), 900);
-    }
-    // The count ticks up from yesterday's number: you watch today get added.
-    const target = mode.kind === 'ended' ? mode.was : moment.streak;
-    const from = mode.kind === 'ended' ? target : Math.max(0, target - (big ? Math.min(target, 12) : 1));
-    setShown(from);
-    const steps = target - from;
+    const ended = mode.kind === 'ended';
+    fade.setValue(0); roll.setValue(0); thump.setValue(1); burst.setValue(0);
+    textIn.setValue(ended ? 1 : 0);
+    days.forEach((d) => d.setValue(0));
+
     const timers: Array<ReturnType<typeof setTimeout>> = [];
-    for (let i = 1; i <= steps; i += 1) timers.push(setTimeout(() => setShown(from + i), 450 + (i * (big ? 700 : 350)) / steps));
-    // The ring breathes for as long as the screen is up (bigger on milestones).
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, { toValue: 1, duration: 1400, easing: easing.breathe, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 0, duration: 1400, easing: easing.breathe, useNativeDriver: true }),
-      ]),
-    );
-    if (mode.kind !== 'ended') loop.start();
-    if (big) Animated.timing(burst, { toValue: 1, duration: duration.celebrate, delay: 700, easing: easing.enter, useNativeDriver: true }).start();
-    const cleanup = () => { loop.stop(); timers.forEach(clearTimeout); };
-    Animated.parallel([
-      Animated.timing(fade, { toValue: 1, duration: duration.base, easing: easing.enter, useNativeDriver: true }),
-      Animated.spring(pop, { toValue: 1, ...spring.pop, useNativeDriver: true }),
-      Animated.timing(ring, { toValue: 1, duration: duration.celebrate, delay: 200, easing: easing.enter, useNativeDriver: false }),
-    ]).start();
+    const anims: Animated.CompositeAnimation[] = [];
+    const run = (a: Animated.CompositeAnimation) => { anims.push(a); a.start(); };
+    const cleanup = () => { timers.forEach(clearTimeout); anims.forEach((a) => a.stop()); };
+
+    run(Animated.timing(fade, { toValue: 1, duration: duration.base, easing: easing.enter, useNativeDriver: true }));
+    if (ended) return cleanup; // a quiet screen: no roll, no stamps
+
+    // The bar starts where yesterday left it and glides once the number lands.
+    setBarTo(big ? 1 : nextStreakMilestone(Math.max(0, moment.streak - 1)).progress);
+
+    // 1. The number rolls from yesterday's count to today's (further on a milestone).
+    const rollMs = big ? duration.celebrate : duration.count;
+    const landAt = 350 + rollMs;
+    run(Animated.timing(roll, { toValue: 1, duration: rollMs, delay: 350, easing: easing.standard, useNativeDriver: true }));
+
+    // 2. It lands: a thump you can feel.
+    timers.push(setTimeout(() => {
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {});
+      run(Animated.sequence([
+        Animated.timing(thump, { toValue: big ? 1.14 : 1.08, duration: duration.instant, easing: easing.enter, useNativeDriver: true }),
+        Animated.spring(thump, { toValue: 1, ...spring.pop, useNativeDriver: true }),
+      ]));
+      run(Animated.timing(textIn, { toValue: 1, duration: duration.base, easing: easing.enter, useNativeDriver: true }));
+      if (big) run(Animated.timing(burst, { toValue: 1, duration: duration.celebrate, easing: easing.enter, useNativeDriver: true }));
+      setBarTo(big ? 1 : Math.max(0.04, nextStreakMilestone(moment.streak).progress));
+    }, landAt));
+
+    // 3. The week stamps in, in order, with today last and hardest.
+    const todayYmd = yyyyMmDdInTz(new Date(), DEFAULT_TZ);
+    const todayIdx = moment.week.findIndex((d) => d.date === todayYmd);
+    const order = moment.week.map((_, i) => i).filter((i) => i !== todayIdx);
+    order.forEach((i, n) => {
+      run(Animated.timing(days[i], { toValue: 1, duration: duration.fast, delay: landAt + 250 + n * 90, easing: easing.enter, useNativeDriver: true }));
+    });
+    if (todayIdx >= 0) {
+      const stampAt = landAt + 250 + order.length * 90 + 120;
+      timers.push(setTimeout(() => {
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+        run(Animated.spring(days[todayIdx], { toValue: 1, ...spring.pop, useNativeDriver: true }));
+      }, stampAt));
+    }
     return cleanup;
-  }, [moment, mode, fade, pop, ring, pulse, burst]);
+  }, [moment, mode, fade, roll, thump, textIn, days, burst]);
 
   if (!moment) return null;
 
@@ -228,11 +249,13 @@ export default function StreakCelebration() {
 
   const ended = mode.kind === 'ended';
   const big = mode.kind === 'milestone';
-  const { progress } = nextStreakMilestone(moment.streak);
-  const fill = ended ? 0 : big ? 1 : Math.max(0.04, progress);
-  const dash = ring.interpolate({ inputRange: [0, 1], outputRange: [CIRC, CIRC * (1 - fill)] });
-  const breathe = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, big ? 1.06 : 1.025] });
-  const glow = pulse.interpolate({ inputRange: [0, 1], outputRange: [big ? 0.55 : 0.25, 1] });
+  // The numbers the roll passes through: yesterday's, then today's (a
+  // milestone spins through up to MAX_ROLL of them).
+  const target = mode.kind === 'ended' ? mode.was : moment.streak;
+  const rollFrom = ended ? target : Math.max(0, target - (big ? Math.min(target, MAX_ROLL) : 1));
+  const numbers = Array.from({ length: target - rollFrom + 1 }, (_, i) => rollFrom + i);
+  const rollY = roll.interpolate({ inputRange: [0, 1], outputRange: [0, -NUM_H * (numbers.length - 1)] });
+  const todayYmd = yyyyMmDdInTz(new Date(), DEFAULT_TZ);
   const copy =
     mode.kind === 'ended'
       ? { title: `Streak ended at ${mode.was}.`, sub: `Your best: ${Math.max(moment.best, mode.was)}. Day 1 starts with your next log.` }
@@ -257,7 +280,6 @@ export default function StreakCelebration() {
       `${moment.streak}-day streak on AccountaBuild.${g?.name ? ` Join ${g.name}:` : ''} ${link}`,
     );
   };
-  const ringColor = ended ? colors.textMuted : colors.ringStreakLeader;
 
   return (
     <Animated.View style={[styles.backdrop, { opacity: fade, paddingTop: insets.top, paddingBottom: insets.bottom + spacing.base }]}>
@@ -275,40 +297,46 @@ export default function StreakCelebration() {
           </View>
         ) : null}
 
-        <Animated.View style={{ transform: [{ scale: pop }] }}>
-          <Animated.View style={[styles.ringWrap, { transform: [{ scale: breathe }] }]}>
-            <Animated.View style={{ opacity: ended ? 1 : glow }}>
-              <Svg width={RING} height={RING}>
-                <Circle cx={RING / 2} cy={RING / 2} r={R} stroke={colors.surface2} strokeWidth={STROKE} fill="none" />
-                <AnimatedCircle
-                  cx={RING / 2} cy={RING / 2} r={R}
-                  stroke={ringColor} strokeWidth={STROKE} strokeLinecap="round" fill="none"
-                  strokeDasharray={`${CIRC} ${CIRC}`} strokeDashoffset={dash}
-                  transform={`rotate(-90 ${RING / 2} ${RING / 2})`}
-                />
-              </Svg>
-            </Animated.View>
-            <View style={styles.ringCenter}>
-              <AppText variant="pageTitle" style={[styles.count, big && styles.countBig, ended && { color: colors.textMuted }]}>{shown}</AppText>
-              <AppText variant="eyebrow" color="muted">{ended ? 'DAYS' : 'DAY STREAK'}</AppText>
-            </View>
+        <AppText variant="eyebrow" color="muted">{ended ? 'DAYS' : 'DAY STREAK'}</AppText>
+        <Animated.View style={[styles.rollClip, { transform: [{ scale: thump }] }]}>
+          <Animated.View style={{ transform: [{ translateY: rollY }] }}>
+            {numbers.map((n) => (
+              <AppText key={n} variant="pageTitle" style={[styles.count, big && { color: colors.ringStreakLeader }, ended && { color: colors.textMuted }]}>
+                {n}
+              </AppText>
+            ))}
           </Animated.View>
         </Animated.View>
 
+        <Animated.View style={{ alignSelf: 'stretch', alignItems: 'center', opacity: textIn, transform: [{ translateY: textIn.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }] }}>
         <AppText variant="pageTitle" color="primary" style={[styles.title, big && { color: colors.ringStreakLeader }]}>{copy.title}</AppText>
         <AppText variant="rowSubtitle" color="secondary" style={styles.sub}>{copy.sub}</AppText>
+        {ended ? null : (
+          <View style={styles.barWrap}>
+            <ProgressBar progress={barTo} height={6} color={colors.ringStreakLeader} backgroundColor={colors.surface2} />
+          </View>
+        )}
         {mode.kind === 'milestone' ? (
           <AppText variant="cardLabel" color="muted" style={{ marginTop: spacing.md }}>
             {mode.m >= 30 ? 'Badge earned. Your group has been told.' : 'Your group has been told.'}
           </AppText>
         ) : null}
+        </Animated.View>
 
         {ended ? null : (
           <View style={styles.weekCard}>
             <View style={styles.weekRow}>
-              {moment.week.map((d) => (
+              {moment.week.map((d, i) => (
                 <View key={d.date} style={styles.dayCol}>
-                  <Dot state={d.state} />
+                  {/* Each day pops in; today drops in from large, like a stamp. */}
+                  <Animated.View
+                    style={{
+                      opacity: days[i].interpolate({ inputRange: [0, 0.4, 1], outputRange: [0, 1, 1], extrapolate: 'clamp' }),
+                      transform: [{ scale: days[i].interpolate({ inputRange: [0, 1], outputRange: [d.date === todayYmd ? 2.2 : 0.5, 1] }) }],
+                    }}
+                  >
+                    <Dot state={d.state} />
+                  </Animated.View>
                   <AppText variant="cardLabel" style={{ color: d.state === 'logged' ? colors.textPrimary : colors.textMuted, marginTop: 6 }}>
                     {d.label}
                   </AppText>
@@ -338,14 +366,13 @@ export default function StreakCelebration() {
 const styles = StyleSheet.create({
   backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: colors.background, paddingHorizontal: spacing.base, zIndex: 50, elevation: 50 },
   body: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  ringWrap: { width: RING, height: RING, alignItems: 'center', justifyContent: 'center' },
-  ringCenter: { position: 'absolute', alignItems: 'center' },
-  count: { fontSize: 64, lineHeight: 70, fontWeight: '800', color: colors.textPrimary },
-  countBig: { fontSize: 76, lineHeight: 82, color: colors.ringStreakLeader },
+  rollClip: { height: NUM_H, overflow: 'hidden', alignItems: 'center', marginTop: 4, alignSelf: 'stretch' },
+  count: { fontSize: 96, lineHeight: NUM_H, height: NUM_H, fontWeight: '800', letterSpacing: -2, color: colors.textPrimary, textAlign: 'center', fontVariant: ['tabular-nums'] },
+  barWrap: { alignSelf: 'stretch', marginTop: spacing.base, marginHorizontal: spacing.xl },
   burstLayer: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
   spark: { position: 'absolute', width: 10, height: 10, borderRadius: 5, backgroundColor: colors.ringStreakLeader },
   sparkSmall: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#F5D98A' },
-  title: { marginTop: spacing.xl, textAlign: 'center' },
+  title: { marginTop: spacing.md, textAlign: 'center' },
   sub: { marginTop: 6, textAlign: 'center', paddingHorizontal: spacing.base },
   weekCard: {
     alignSelf: 'stretch', marginTop: spacing.xl, backgroundColor: colors.surface,
