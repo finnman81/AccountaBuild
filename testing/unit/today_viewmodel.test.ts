@@ -47,7 +47,7 @@ describe('today viewmodel · buildTodayChecklist', () => {
     expect(byType.workout.logged).toBe(true);
     expect(byType.workout.valueLine).toContain('52m');
     expect(byType.weight.logged).toBe(false);
-    expect(byType.weight.valueLine).toBe('Not logged yet');
+    expect(byType.weight.valueLine).toBe('Still open');
   });
 });
 

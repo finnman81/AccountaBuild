@@ -201,8 +201,8 @@ export default function GroupListScreen({ navigation }: Props) {
               <Icon source="content-copy" size={16} color={colors.textSecondary} />
             </TouchableOpacity>
             <TouchableOpacity onPress={shareInvite} activeOpacity={0.85} style={styles.shareBtn}>
-              <Icon source="share-variant" size={16} color="#FFFFFF" />
-              <AppText variant="rowSubtitle" style={{ color: '#FFFFFF', fontWeight: '700' }}>Share invite</AppText>
+              <Icon source="share-variant" size={16} color={colors.onPrimary} />
+              <AppText variant="rowSubtitle" style={{ color: colors.onPrimary, fontWeight: '700' }}>Share invite</AppText>
             </TouchableOpacity>
           </View>
         ) : null}

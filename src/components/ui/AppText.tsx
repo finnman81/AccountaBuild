@@ -1,6 +1,7 @@
 import React from 'react';
 import { TextStyle } from 'react-native';
-import { Text, TextProps, useTheme } from 'react-native-paper';
+import { TextProps, useTheme } from 'react-native-paper';
+import Text from './Text';
 import { typography } from '../../theme/typography';
 import { colors } from '../../theme/colors';
 
@@ -23,7 +24,7 @@ const COLOR_MAP: Record<Exclude<Color, 'default'>, string> = {
 };
 
 /**
- * Themed Text. `variant` maps to any key of the Midnight Blue typography scale
+ * Themed Text. `variant` maps to any key of the typography scale
  * (the full token object is spread, so letterSpacing / textTransform /
  * tabular-nums carry through). `color` covers the common semantic text colors;
  * anything else can still be overridden via `style`.

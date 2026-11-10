@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { Image, View } from 'react-native';
-import { Card, Chip, Text, useTheme } from 'react-native-paper';
+import { Card, Chip, useTheme } from 'react-native-paper';
+import Text from '../ui/Text';
 
 import { formatDeltaLb, formatMinutesHM, formatWeightLb } from '../../utils/formatters';
 import type { MemberSummary } from '../../viewmodels/memberSummary';

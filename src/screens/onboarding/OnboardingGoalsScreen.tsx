@@ -99,7 +99,7 @@ export default function OnboardingGoalsScreen({ navigation }: Props) {
                   <AppText variant="rowSubtitle" color="muted">{opt.subtitle}</AppText>
                 </View>
                 <View style={[styles.radio, isSel && styles.radioSelected]}>
-                  {isSel && <Icon source="check" size={14} color="#FFFFFF" />}
+                  {isSel && <Icon source="check" size={14} color={colors.onPrimary} />}
                 </View>
               </TouchableOpacity>
             );
@@ -134,7 +134,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   cardSelected: {
-    borderColor: 'rgba(62,139,255,0.5)',
+    borderColor: 'rgba(242,237,228,0.5)',
     backgroundColor: colors.surface2,
   },
   iconTile: {

@@ -149,7 +149,7 @@ export default function EditProfileScreen({ navigation }: Props) {
             <View>
               {photoURL ? <Image source={{ uri: photoURL }} style={styles.avatar} /> : <Avatar photoURL={null} name={displayName || 'U'} size={84} />}
               <TouchableOpacity onPress={changePhoto} disabled={isUploadingPhoto} style={styles.cameraBadge}>
-                <Icon source="camera" size={14} color="#FFFFFF" />
+                <Icon source="camera" size={14} color={colors.onPrimary} />
               </TouchableOpacity>
             </View>
             <TouchableOpacity onPress={changePhoto} disabled={isUploadingPhoto}>

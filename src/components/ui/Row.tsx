@@ -1,6 +1,7 @@
 import React from 'react';
 import { TouchableOpacity, View, StyleSheet } from 'react-native';
-import { IconButton, Text } from 'react-native-paper';
+import { IconButton } from 'react-native-paper';
+import Text from './Text';
 import { colors } from '../../theme/colors';
 import { spacing } from '../../theme/spacing';
 

@@ -351,7 +351,7 @@ export default function StreakCelebration() {
       </View>
 
       <TouchableOpacity onPress={close} activeOpacity={0.85} style={styles.button} accessibilityRole="button">
-        <AppText variant="rowTitle" style={{ color: '#FFFFFF' }}>{ended ? 'Start again' : 'Continue'}</AppText>
+        <AppText variant="rowTitle" style={{ color: colors.onPrimary }}>{ended ? 'Start again' : 'Continue'}</AppText>
       </TouchableOpacity>
       {ended ? null : (
         <TouchableOpacity onPress={shareStreak} activeOpacity={0.7} style={styles.shareBtn} accessibilityRole="button">

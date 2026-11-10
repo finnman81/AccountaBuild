@@ -231,7 +231,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.tile,
     backgroundColor: colors.primaryTint,
     borderWidth: 1,
-    borderColor: 'rgba(62,139,255,0.28)',
+    borderColor: 'rgba(242,237,228,0.28)',
   },
   holdBtn: {
     height: 52,

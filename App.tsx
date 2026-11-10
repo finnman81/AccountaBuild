@@ -2,7 +2,8 @@ import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
 import { PaperProvider } from 'react-native-paper';
 import { useFonts } from 'expo-font';
-import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold } from '@expo-google-fonts/inter';
+import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold } from '@expo-google-fonts/inter';
+import { BarlowCondensed_600SemiBold, BarlowCondensed_700Bold, BarlowCondensed_800ExtraBold } from '@expo-google-fonts/barlow-condensed';
 import * as SplashScreen from 'expo-splash-screen';
 
 import AppNavigator from './src/navigation/AppNavigator';
@@ -31,11 +32,19 @@ installErrorReporter();
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function App() {
-  const [loaded] = useFonts({
+  // A font that fails to load must not hold the splash forever: carry on
+  // with the system font.
+  const [fontsLoaded, fontError] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
     Inter_600SemiBold,
+    Inter_700Bold,
+    Inter_800ExtraBold,
+    BarlowCondensed_600SemiBold,
+    BarlowCondensed_700Bold,
+    BarlowCondensed_800ExtraBold,
   });
+  const loaded = fontsLoaded || fontError != null;
 
   // Load the disk caches into memory BEFORE first render so screens paint
   // last-known data synchronously (the whole point of cache-then-network —

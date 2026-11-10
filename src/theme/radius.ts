@@ -7,6 +7,6 @@ export const radius = {
   tile: 14, // inner tiles / inputs
   card: 20, // cards
   listGroup: 18, // grouped list containers
-  button: 16, // CTA buttons
+  button: 10, // CTA buttons (squared, not pills)
   pill: 999, // pills / segments
 } as const;

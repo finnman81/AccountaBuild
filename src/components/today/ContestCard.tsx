@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import * as Clipboard from 'expo-clipboard';
 import { Linking, Share, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { Icon, Text } from 'react-native-paper';
+import { Icon } from 'react-native-paper';
+import Text from '../ui/Text';
 
 import { subscribeActiveContest, subscribeContestTop, subscribeMyStanding, type Contest, type Standing } from '../../services/contest';
 import { buildInviteMessage, inviteLink } from '../../services/groups';
@@ -143,6 +144,6 @@ const styles = StyleSheet.create({
   rules: { paddingHorizontal: 8, paddingVertical: 9, marginRight: 'auto' },
   rulesText: { color: colors.textSecondary, fontSize: 13, fontWeight: '600', textDecorationLine: 'underline' },
   btn: { backgroundColor: colors.primary, borderRadius: 10, paddingHorizontal: 18, paddingVertical: 9 },
-  btnText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
+  btnText: { color: colors.onPrimary, fontSize: 14, fontWeight: '700' },
   apple: { color: colors.textMuted, fontSize: 10, marginTop: 10, textAlign: 'center' },
 });

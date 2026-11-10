@@ -119,7 +119,7 @@ export default function VacationCard({ uid, myLogDates }: Props) {
         counts. {state.remaining} of {2} vacation weeks left this season.
       </AppText>
       <TouchableOpacity onPress={() => void toggle(true)} style={styles.cta} activeOpacity={0.85} disabled={busy}>
-        <AppText variant="rowSubtitle" style={{ color: '#FFFFFF', fontWeight: '700' }}>Turn on vacation mode</AppText>
+        <AppText variant="rowSubtitle" style={{ color: colors.onPrimary, fontWeight: '700' }}>Turn on vacation mode</AppText>
       </TouchableOpacity>
     </View>
   );

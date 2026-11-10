@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Share, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { Icon, Text } from 'react-native-paper';
+import { Icon } from 'react-native-paper';
+import Text from '../ui/Text';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
@@ -104,7 +105,7 @@ const styles = StyleSheet.create({
   code: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: colors.surface2, marginRight: 'auto' },
   codeText: { color: colors.textPrimary, fontSize: 14, fontWeight: '700', letterSpacing: 2 },
   btn: { backgroundColor: colors.primary, borderRadius: 10, paddingHorizontal: 18, paddingVertical: 9 },
-  btnText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
+  btnText: { color: colors.onPrimary, fontSize: 14, fontWeight: '700' },
   later: { paddingHorizontal: 12, paddingVertical: 9 },
   laterText: { color: colors.textMuted, fontSize: 14, fontWeight: '600' },
 });

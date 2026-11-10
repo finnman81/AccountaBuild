@@ -2,6 +2,7 @@ import React from 'react';
 import { Button } from 'react-native-paper';
 
 import { radius } from '../../theme/radius';
+import { typography } from '../../theme/typography';
 import { primaryButtonShadow } from '../../theme/shadows';
 
 type Props = React.ComponentProps<typeof Button> & {
@@ -14,7 +15,7 @@ export default function PrimaryButton({ secondary = false, style, ...props }: Pr
     <Button
       mode="contained"
       uppercase={false}
-      labelStyle={{ fontSize: 16, fontWeight: '600' }}
+      labelStyle={{ ...typography.button, marginVertical: 0 }}
       contentStyle={{ height: secondary ? 48 : 54, justifyContent: 'center' }}
       style={[{ borderRadius: radius.button }, secondary ? null : primaryButtonShadow, style]}
       {...props}

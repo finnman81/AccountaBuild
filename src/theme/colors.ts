@@ -14,6 +14,7 @@ export const colors = {
   // Background stays near-black; each layer above it jumps harder.
   background: '#0B0C10', // darkest base
   surface: '#15181F', // cards
+  surfaceHero: '#1B1F2A', // the one hero card on a screen
   surface2: '#242936', // inner panels, inputs, inactive segments
   tabBar: '#101218',
   divider: 'rgba(255,255,255,0.09)', // hairline dividers
@@ -29,10 +30,12 @@ export const colors = {
   textMuted: '#7A8498',
   faint: '#3A4152', // faint/disabled text + inactive marks
 
-  // Accent (single blue)
-  primary: '#3E8BFF',
-  primaryTint: 'rgba(62,139,255,0.14)', // tinted accent background
-  primaryOnDark: '#7FB0FF', // lighter blue text on dark (e.g. "You" row)
+  // Accent: bone. Buttons and "you". Color is kept for meaning
+  // (green done, gold rank, red at risk), so the accent has no hue.
+  primary: '#F2EDE4',
+  onPrimary: '#0B0C10', // text and icons on the accent
+  primaryTint: 'rgba(242,237,228,0.12)', // tinted accent background
+  primaryOnDark: '#F2EDE4', // accent text on dark (e.g. "You" row)
 
   // Status colors
   success: '#33D573',
@@ -43,7 +46,7 @@ export const colors = {
   dangerTint: 'rgba(255,93,93,0.14)',
 
   // Avatar ring / status colors (Team Today)
-  ringLogged: '#3E8BFF', // blue — logged today, no active streak
+  ringLogged: '#F2EDE4', // bone — logged today, no active streak
   ringNotLogged: '#2A2E38', // neutral gray
   ringStreakLeader: '#E9B542', // gold — group's #1 streak
   ringStreak: '#33D573', // green — on an active streak

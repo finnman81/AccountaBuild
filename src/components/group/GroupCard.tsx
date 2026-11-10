@@ -98,7 +98,7 @@ const styles = StyleSheet.create({
     borderColor: colors.borderCard,
     padding: spacing.base,
   },
-  cardActive: { borderColor: 'rgba(62,139,255,0.35)' },
+  cardActive: { borderColor: 'rgba(242,237,228,0.35)' },
   top: { flexDirection: 'row', alignItems: 'center', gap: spacing.base },
   info: { flex: 1, gap: 3 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },

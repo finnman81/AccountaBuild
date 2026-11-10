@@ -46,7 +46,7 @@ function CategoryHeader({ title, subtitle, value, onValueChange, disabled }: { t
         value={value}
         onValueChange={onValueChange}
         disabled={disabled}
-        trackColor={{ false: colors.ringNotLogged, true: colors.primary }}
+        trackColor={{ false: colors.ringNotLogged, true: colors.success }}
         thumbColor="#FFFFFF"
         ios_backgroundColor={colors.ringNotLogged}
       />
@@ -674,7 +674,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  chipActive: { backgroundColor: colors.primaryTint, borderColor: 'rgba(62,139,255,0.5)' },
+  chipActive: { backgroundColor: colors.primaryTint, borderColor: 'rgba(242,237,228,0.5)' },
   segmented: { marginTop: spacing.sm },
   dateField: { marginTop: spacing.md },
   resetCard: { paddingVertical: spacing.base, gap: spacing.md },

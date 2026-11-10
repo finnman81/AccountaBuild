@@ -1,6 +1,7 @@
 import React from 'react';
 import { View } from 'react-native';
-import { Button, Card, Modal, Portal, Text, useTheme } from 'react-native-paper';
+import { Button, Card, Modal, Portal, useTheme } from 'react-native-paper';
+import Text from './Text';
 
 type Props = {
   visible: boolean;

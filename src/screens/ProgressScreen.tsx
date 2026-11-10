@@ -628,7 +628,7 @@ export default function ProgressScreen({ navigation }: Props) {
                   borderColor: colors.divider,
                 }}
               >
-                <AppText variant="rowSubtitle" style={{ color: active ? '#FFFFFF' : colors.textSecondary, fontWeight: '600' }}>
+                <AppText variant="rowSubtitle" style={{ color: active ? colors.onPrimary : colors.textSecondary, fontWeight: '600' }}>
                   {g.name}
                 </AppText>
               </TouchableOpacity>

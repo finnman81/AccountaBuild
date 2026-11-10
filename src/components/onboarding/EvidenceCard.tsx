@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { Text, useTheme, Card } from 'react-native-paper';
+import { useTheme, Card } from 'react-native-paper';
+import Text from '../ui/Text';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, withDelay } from 'react-native-reanimated';
 
 type EvidenceCardProps = {

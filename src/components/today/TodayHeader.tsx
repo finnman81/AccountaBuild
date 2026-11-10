@@ -1,10 +1,11 @@
 import React from 'react';
 import { Image, StyleSheet, View } from 'react-native';
-import { Text } from 'react-native-paper';
+import Text from '../ui/Text';
 import { Icon } from 'react-native-paper';
 
 import RankEmblem from '../ui/RankEmblem';
 import { colors } from '../../theme/colors';
+import { typography } from '../../theme/typography';
 import type { Tier } from '../../mmr/types';
 import PressableScale from '../ui/PressableScale';
 
@@ -38,7 +39,7 @@ function GroupTile({ name, logoURL }: { name: string; logoURL?: string | null })
   const initials = name.trim().slice(0, 2).toUpperCase();
   return (
     <View style={[styles.tileImg, styles.tilePlaceholder]}>
-      <Text style={{ color: colors.textSecondary, fontSize: 13, fontWeight: '700' }}>{initials}</Text>
+      <Text style={[typography.chip, { color: colors.textSecondary }]}>{initials}</Text>
     </View>
   );
 }
@@ -50,7 +51,7 @@ function StreakChip({ days, atRisk }: { days: number; atRisk: boolean }) {
       accessibilityLabel={atRisk ? `${days} day streak, log today to keep it` : `${days} day streak`}
     >
       <Icon source="fire" size={15} color={atRisk ? colors.danger : colors.success} />
-      <Text style={[styles.streakChipText, { color: atRisk ? colors.danger : colors.success }]}>{days}d</Text>
+      <Text style={[styles.streakChipText, { color: atRisk ? colors.danger : colors.success }]}>{days}</Text>
     </View>
   );
 }
@@ -127,8 +128,8 @@ export default function TodayHeader({
         </View>
       </View>
       <Text style={styles.dateEyebrow}>{dateLabel.toUpperCase()}</Text>
-      <Text style={styles.greeting}>
-        {greeting}, {userName}
+      <Text style={styles.greeting} numberOfLines={1} adjustsFontSizeToFit>
+        {userName ? `${greeting}, ${userName}.` : `${greeting}.`}
       </Text>
     </View>
   );
@@ -139,7 +140,7 @@ const styles = StyleSheet.create({
   // The name gives way (ellipsis) before the chips do: a fixed-width name
   // used to run under the streak chip once streak + rank + icons shared the row.
   groupChip: { flexDirection: 'row', alignItems: 'center', flexShrink: 1, minWidth: 0, marginRight: 6 },
-  tileImg: { width: 34, height: 34, borderRadius: 10, backgroundColor: colors.surface2 },
+  tileImg: { width: 34, height: 34, borderRadius: 8, backgroundColor: colors.surface2 },
   tilePlaceholder: { alignItems: 'center', justifyContent: 'center' },
   groupName: { fontSize: 15, fontWeight: '600', color: colors.textPrimary, marginLeft: 10, flexShrink: 1, maxWidth: 140 },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 2, flexShrink: 0 },
@@ -148,7 +149,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     backgroundColor: colors.surface2,
-    borderRadius: 999,
+    borderRadius: 6,
     paddingLeft: 5,
     paddingRight: 9,
     paddingVertical: 4,
@@ -160,19 +161,19 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginLeft: 1,
   },
-  rankChipText: { fontSize: 12, fontWeight: '700', color: colors.textSecondary },
+  rankChipText: { ...typography.chip, color: colors.textPrimary },
   streakChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
-    borderRadius: 999,
+    borderRadius: 6,
     paddingHorizontal: 8,
     paddingVertical: 4,
     marginRight: 4,
   },
   streakChipSafe: { backgroundColor: colors.successTint },
   streakChipRisk: { backgroundColor: colors.dangerTint },
-  streakChipText: { fontSize: 12, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  streakChipText: { ...typography.chip },
   iconBtn: { width: 42, height: 42, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
   iconBtnHighlight: { backgroundColor: colors.primaryTint },
   dot: { position: 'absolute', top: 7, right: 7, width: 9, height: 9, borderRadius: 5, backgroundColor: colors.primary, borderWidth: 1.5, borderColor: colors.background },
@@ -182,6 +183,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 3, borderWidth: 1.5, borderColor: colors.background,
   },
   countBadgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '800' },
-  dateEyebrow: { fontSize: 11, fontWeight: '700', letterSpacing: 0.8, color: colors.textMuted, marginTop: 18 },
-  greeting: { fontSize: 26, fontWeight: '700', letterSpacing: -0.4, color: colors.textPrimary, marginTop: 4 },
+  dateEyebrow: { ...typography.eyebrow, color: colors.textMuted, marginTop: 18 },
+  greeting: { ...typography.displayTitle, color: colors.textPrimary, marginTop: 2 },
 });

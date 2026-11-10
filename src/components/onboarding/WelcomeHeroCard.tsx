@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { Text, useTheme } from 'react-native-paper';
+import { useTheme } from 'react-native-paper';
+import Text from '../ui/Text';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, withDelay, FadeInDown } from 'react-native-reanimated';
 import RankBadge from '../mmr/RankBadge';
 import type { Tier } from '../../mmr/types';

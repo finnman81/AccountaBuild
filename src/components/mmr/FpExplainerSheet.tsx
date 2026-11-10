@@ -77,7 +77,7 @@ export default function FpExplainerSheet({ visible, onClose }: { visible: boolea
         </ScrollView>
 
         <PressableScale onPress={onClose} style={styles.cta} accessibilityRole="button">
-          <AppText variant="rowTitle" style={{ color: '#FFFFFF' }}>Got it</AppText>
+          <AppText variant="rowTitle" style={{ color: colors.onPrimary }}>Got it</AppText>
         </PressableScale>
       </SlideUp>
     </Modal>

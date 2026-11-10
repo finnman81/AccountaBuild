@@ -2,10 +2,11 @@ import React, { useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { easeIfChanged } from '../../hooks/useCached';
-import { Text } from 'react-native-paper';
+import Text from '../ui/Text';
 
 import Card from '../ui/Card';
 import { colors } from '../../theme/colors';
+import { typography } from '../../theme/typography';
 import type { ChecklistItem, ChecklistType, TodayChecklist } from '../../viewmodels/today';
 import PressableScale from '../ui/PressableScale';
 
@@ -41,10 +42,10 @@ function Row({ item, onLog, onOpenEntries }: { item: ChecklistItem; onLog: (t: C
       {item.logged ? (
         <View style={styles.loggedRight}>
           <Text style={styles.time}>{fmtTime(item.loggedAtMs)}</Text>
-          <Text style={styles.editHint}>Edit ›</Text>
+          <Text style={styles.editHint}>Edit</Text>
         </View>
       ) : (
-        <PressableScale onPress={() => onLog(item.type)} style={styles.logBtn} accessibilityRole="button">
+        <PressableScale onPress={() => onLog(item.type)} hitSlop={6} style={styles.logBtn} accessibilityRole="button" accessibilityLabel={`Log ${item.title}`}>
           <Text style={styles.logBtnText}>Log</Text>
         </PressableScale>
       )}
@@ -69,12 +70,12 @@ export default function TodaysLogCard({ checklist, onLog, onOpenEntries, aside }
   const prevSig = useRef(sig);
   easeIfChanged(prevSig, sig);
   return (
-    <Card>
+    <Card tier="hero">
       <View style={styles.header}>
-        <Text style={styles.cardLabel}>Today's log</Text>
+        <Text style={styles.cardLabel}>Today</Text>
         {aside ? <View style={{ flex: 1, alignItems: 'center' }}>{aside}</View> : null}
         <Text style={styles.doneLabel}>
-          {checklist.doneCount} of {checklist.total} done
+          {checklist.doneCount} of {checklist.total}
         </Text>
       </View>
       <View style={{ marginTop: 6 }}>
@@ -91,17 +92,17 @@ export default function TodaysLogCard({ checklist, onLog, onOpenEntries, aside }
 
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  cardLabel: { fontSize: 13, fontWeight: '600', color: colors.textSecondary },
-  doneLabel: { fontSize: 13, fontWeight: '600', color: colors.primary },
+  cardLabel: { ...typography.cardTitle, color: colors.textPrimary },
+  doneLabel: { ...typography.stat, color: colors.primary },
   row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12 },
   divider: { height: 1, backgroundColor: colors.divider },
-  circle: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
-  dashed: { borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.dashedBorder },
+  circle: { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  dashed: { borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#56607A' },
   rowTitle: { fontSize: 15, fontWeight: '600', color: colors.textPrimary },
-  rowSub: { fontSize: 12.5, color: colors.textMuted, marginTop: 2 },
-  time: { fontSize: 12.5, color: colors.textMuted },
+  rowSub: { fontSize: 12.5, color: colors.textSecondary, marginTop: 2 },
+  time: { fontSize: 12.5, color: colors.textSecondary },
   loggedRight: { alignItems: 'flex-end' },
-  editHint: { fontSize: 11, color: colors.primary, fontWeight: '600', marginTop: 2 },
-  logBtn: { backgroundColor: colors.primary, borderRadius: 999, paddingHorizontal: 18, height: 32, alignItems: 'center', justifyContent: 'center' },
-  logBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '600' },
+  editHint: { fontSize: 11, color: colors.textSecondary, fontWeight: '600', marginTop: 2 },
+  logBtn: { backgroundColor: colors.primary, borderRadius: 10, paddingHorizontal: 20, height: 40, alignItems: 'center', justifyContent: 'center' },
+  logBtnText: { ...typography.button, color: colors.onPrimary },
 });

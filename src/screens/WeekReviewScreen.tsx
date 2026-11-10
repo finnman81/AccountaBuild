@@ -1,7 +1,8 @@
 import React, { useContext, useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Icon, Text } from 'react-native-paper';
+import { Icon } from 'react-native-paper';
+import Text from '../components/ui/Text';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { initialWindowMetrics, useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -426,5 +427,5 @@ const styles = StyleSheet.create({
   },
   takeawayText: { fontSize: 15, color: colors.textPrimary, lineHeight: 21 },
   ctaBtn: { marginTop: spacing.base, backgroundColor: colors.primary, borderRadius: 12, paddingVertical: 13, alignItems: 'center' },
-  ctaText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+  ctaText: { color: colors.onPrimary, fontSize: 15, fontWeight: '700' },
 });

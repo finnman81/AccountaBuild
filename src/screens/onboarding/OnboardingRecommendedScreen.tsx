@@ -66,7 +66,7 @@ function CategoryToggle({ title, subtitle, value, onValueChange }: { title: stri
       <Switch
         value={value}
         onValueChange={(v) => { onValueChange(v); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
-        trackColor={{ false: colors.ringNotLogged, true: colors.primary }}
+        trackColor={{ false: colors.ringNotLogged, true: colors.success }}
         thumbColor="#FFFFFF"
         ios_backgroundColor={colors.ringNotLogged}
       />
@@ -410,7 +410,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  chipSelected: { backgroundColor: colors.primaryTint, borderColor: 'rgba(62,139,255,0.5)' },
+  chipSelected: { backgroundColor: colors.primaryTint, borderColor: 'rgba(242,237,228,0.5)' },
   group: {
     backgroundColor: colors.surface,
     borderRadius: radius.listGroup,

@@ -129,11 +129,11 @@ export default function IssuesScreen({ route }: Props) {
               : mine
                 ? colors.primary
                 : colors.surface2;
-            const nameColor = item.resolved || !mine ? colors.textSecondary : '#FFFFFF';
+            const nameColor = item.resolved || !mine ? colors.textSecondary : colors.onPrimary;
             const textColor = item.resolved
               ? colors.textSecondary
               : mine
-                ? '#FFFFFF'
+                ? colors.onPrimary
                 : colors.textPrimary;
             const opacity = item.resolved ? 0.6 : 1;
 

@@ -331,7 +331,7 @@ const styles = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
   dayCell: { width: `${100 / 7}%`, alignItems: 'center', paddingVertical: 3 },
   dayInner: { width: 40, height: 44, borderRadius: 10, alignItems: 'center', justifyContent: 'center', gap: 2 },
-  daySelected: { backgroundColor: colors.primaryTint, borderWidth: 1, borderColor: 'rgba(62,139,255,0.45)' },
+  daySelected: { backgroundColor: colors.primaryTint, borderWidth: 1, borderColor: 'rgba(242,237,228,0.45)' },
   dayToday: { borderWidth: 1, borderColor: colors.faint, borderStyle: 'dashed' },
   dotRow: { flexDirection: 'row', gap: 2, height: 5 },
   dot: { width: 5, height: 5, borderRadius: 3 },

@@ -1,71 +1,118 @@
 /**
- * Typography scale and variants ("Midnight Blue").
+ * Typography scale.
  *
- * The original five variants (title/body/label/numberLg/numberMd) are preserved for
- * AppText and existing screens; the rest are the revamp scale. Numbers should always
- * carry `fontVariant: ['tabular-nums']` (see numeric variants below).
+ * Two faces (see fonts.ts): Inter for reading, the display face for numbers,
+ * ranks, screen titles and buttons. Variants name a family, never a weight.
+ * Numbers carry `fontVariant: ['tabular-nums']`.
  */
+import type { FontVariant } from 'react-native';
 
-const tabularNums = ['tabular-nums'] as const;
+import { display, inter } from './fonts';
+
+const tabularNums: FontVariant[] = ['tabular-nums'];
 
 export const typography = {
   // --- original variants (kept for back-compat) ---
   title: {
     fontSize: 18,
-    fontWeight: '600' as const,
+    fontFamily: inter.semibold,
   },
   body: {
     fontSize: 15,
-    fontWeight: '400' as const,
+    fontFamily: inter.regular,
   },
   label: {
     fontSize: 12,
-    fontWeight: '400' as const,
+    fontFamily: inter.regular,
   },
   numberLg: {
-    fontSize: 32,
-    fontWeight: '700' as const,
+    fontSize: 38,
+    fontFamily: display.extrabold,
     fontVariant: tabularNums,
   },
   numberMd: {
-    fontSize: 22,
-    fontWeight: '600' as const,
+    fontSize: 26,
+    fontFamily: display.bold,
     fontVariant: tabularNums,
   },
 
-  // --- Midnight Blue scale ---
+  // --- scale ---
   pageTitle: {
-    fontSize: 26,
-    fontWeight: '700' as const,
-    letterSpacing: -0.4,
+    fontSize: 32,
+    fontFamily: display.extrabold,
+    letterSpacing: 0.2,
+    textTransform: 'uppercase' as const,
   },
   cardLabel: {
     fontSize: 13,
-    fontWeight: '600' as const,
+    fontFamily: inter.semibold,
   },
   eyebrow: {
     fontSize: 11,
-    fontWeight: '700' as const,
-    letterSpacing: 0.8,
+    fontFamily: inter.bold,
+    letterSpacing: 1.1,
     textTransform: 'uppercase' as const,
   },
   rowTitle: {
     fontSize: 15,
-    fontWeight: '600' as const,
+    fontFamily: inter.semibold,
   },
   rowSubtitle: {
     fontSize: 12,
-    fontWeight: '400' as const,
+    fontFamily: inter.regular,
   },
   statBig: {
-    fontSize: 32,
-    fontWeight: '700' as const,
+    fontSize: 38,
+    fontFamily: display.extrabold,
     fontVariant: tabularNums,
   },
   heroNumeral: {
-    fontSize: 74,
-    fontWeight: '800' as const,
-    letterSpacing: -2,
+    fontSize: 84,
+    fontFamily: display.extrabold,
+    letterSpacing: -1,
     fontVariant: tabularNums,
+  },
+
+  // --- display face ---
+  /** Screen greeting / big headline. */
+  displayTitle: {
+    fontSize: 44,
+    lineHeight: 46,
+    fontFamily: display.extrabold,
+    textTransform: 'uppercase' as const,
+  },
+  /** Hero card title. */
+  cardTitle: {
+    fontSize: 24,
+    lineHeight: 26,
+    fontFamily: display.extrabold,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase' as const,
+  },
+  /** Inline stat: "+186 FP", "5 OF 8 IN". */
+  stat: {
+    fontSize: 19,
+    lineHeight: 22,
+    fontFamily: display.bold,
+    letterSpacing: 0.3,
+    textTransform: 'uppercase' as const,
+    fontVariant: tabularNums,
+  },
+  /** Chip label: "12 DAYS", "GOLD II". */
+  chip: {
+    fontSize: 15,
+    lineHeight: 18,
+    fontFamily: display.bold,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase' as const,
+    fontVariant: tabularNums,
+  },
+  /** Button label. */
+  button: {
+    fontSize: 18,
+    lineHeight: 22,
+    fontFamily: display.bold,
+    letterSpacing: 1,
+    textTransform: 'uppercase' as const,
   },
 } as const;

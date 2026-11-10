@@ -348,7 +348,7 @@ export default function WhatsNewModal() {
         {checkIn ? (
           <View style={{ marginTop: spacing.lg, gap: spacing.sm }}>
             <TouchableOpacity style={[styles.cta, { marginTop: 0 }]} onPress={() => void textThem()} activeOpacity={0.85} accessibilityRole="button">
-              <AppText variant="rowTitle" style={{ color: '#FFFFFF' }}>💬  Text {checkIn.name}</AppText>
+              <AppText variant="rowTitle" style={{ color: colors.onPrimary }}>💬  Text {checkIn.name}</AppText>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.secondary, sentEmoji === '👋' && styles.hypeBtnSent]}
@@ -369,7 +369,7 @@ export default function WhatsNewModal() {
           </View>
         ) : (
           <TouchableOpacity style={styles.cta} onPress={dismiss} activeOpacity={0.85}>
-            <AppText variant="rowTitle" style={{ color: '#FFFFFF' }}>
+            <AppText variant="rowTitle" style={{ color: colors.onPrimary }}>
               {sentEmoji || pickedOption ? 'Done' : poll ? 'Skip' : 'Got it'}
             </AppText>
           </TouchableOpacity>

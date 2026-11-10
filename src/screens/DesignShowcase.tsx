@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ScrollView, View } from 'react-native';
-import { Text } from 'react-native-paper';
+import Text from '../components/ui/Text';
 
 import { colors } from '../theme/colors';
 import { spacing } from '../theme/spacing';

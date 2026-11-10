@@ -1,6 +1,7 @@
 import React, { useContext, useEffect, useState } from 'react';
 import { Linking, Platform, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { Icon, Text } from 'react-native-paper';
+import { Icon } from 'react-native-paper';
+import Text from '../ui/Text';
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -222,5 +223,5 @@ const styles = StyleSheet.create({
   btn: { backgroundColor: colors.primary, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 },
   btnHealth: { backgroundColor: colors.success },
   btnWeight: { backgroundColor: colors.rankGold },
-  btnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
+  btnText: { color: colors.onPrimary, fontSize: 13, fontWeight: '700' },
 });

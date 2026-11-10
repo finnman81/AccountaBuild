@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, View, type DimensionValue } from 'react-native';
-import { ActivityIndicator, Card, Text, useTheme } from 'react-native-paper';
+import { ActivityIndicator, Card, useTheme } from 'react-native-paper';
+import Text from '../ui/Text';
 
 import { easing } from '../../theme/motion';
 

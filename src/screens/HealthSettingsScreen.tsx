@@ -47,7 +47,7 @@ function ToggleRow({
         <Switch
           value={value}
           onValueChange={onValueChange}
-          trackColor={{ false: colors.ringNotLogged, true: colors.primary }}
+          trackColor={{ false: colors.ringNotLogged, true: colors.success }}
           thumbColor="#FFFFFF"
           ios_backgroundColor={colors.ringNotLogged}
         />

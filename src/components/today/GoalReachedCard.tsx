@@ -82,7 +82,7 @@ export default function GoalReachedCard() {
           onPress={() => { hide(); nav.navigate('MMRGoals'); }}
           accessibilityRole="button"
         >
-          <AppText variant="rowTitle" style={{ color: '#FFFFFF' }}>Set a new goal</AppText>
+          <AppText variant="rowTitle" style={{ color: colors.onPrimary }}>Set a new goal</AppText>
         </TouchableOpacity>
         <TouchableOpacity style={styles.secondary} activeOpacity={0.85} onPress={hide} accessibilityRole="button">
           <AppText variant="rowSubtitle" color="muted">Not now</AppText>

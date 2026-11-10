@@ -1,6 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { RefreshControl, ScrollView, View } from 'react-native';
-import { Icon, Snackbar, Text } from 'react-native-paper';
+import { Icon, Snackbar } from 'react-native-paper';
+import Text from '../components/ui/Text';
+import AnimatedNumber from '../components/ui/AnimatedNumber';
+import { typography } from '../theme/typography';
 import { useIsFocused } from '@react-navigation/native';
 
 import { colors } from '../theme/colors';
@@ -74,9 +77,9 @@ const TIERS: Tier[] = ['Iron', 'Bronze', 'Silver', 'Gold', 'Platinum', 'Diamond'
 const asTier = (x: unknown): Tier | null => (TIERS as string[]).includes(String(x ?? '').trim()) ? (String(x).trim() as Tier) : null;
 
 function greetingFor(hour: number): string {
-  if (hour < 12) return 'Good morning';
-  if (hour < 18) return 'Good afternoon';
-  return 'Good evening';
+  if (hour < 12) return 'Morning';
+  if (hour < 18) return 'Afternoon';
+  return 'Evening';
 }
 
 function dateLabel(d: Date): string {
@@ -294,7 +297,9 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
   const resolvedName = liveName ?? getCachedDisplayName(myUid);
   const userName = resolvedName ? friendlyNameFromDisplayName(resolvedName, undefined) : '';
   const greeting = greetingFor(now.getHours());
-  const greetingLine = userName ? `${greeting}, ${userName}` : greeting;
+  const greetingLine = userName ? `${greeting}, ${userName}.` : `${greeting}.`;
+  const myFpRaw = publicUsers[myUid]?.mmrPublic;
+  const myFp = typeof myFpRaw === 'number' ? Math.round(myFpRaw) : null;
 
   // No active group: the checklist/log flow can't work (logs live under a
   // group), so show a "find your crew" state instead of dead buttons.
@@ -303,8 +308,8 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
   if (!activeGroupId && (!activeGroupReady || !groupsLoaded)) {
     return (
       <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ padding: spacing.lg, paddingTop: 56, paddingBottom: 32 }}>
-        <Text style={{ fontSize: 11, fontWeight: '700', letterSpacing: 0.8, color: colors.textMuted }}>{dateLabel(now).toUpperCase()}</Text>
-        <Text style={{ fontSize: 26, fontWeight: '700', letterSpacing: -0.4, color: colors.textPrimary, marginTop: 4 }}>
+        <Text style={[typography.eyebrow, { color: colors.textMuted }]}>{dateLabel(now).toUpperCase()}</Text>
+        <Text numberOfLines={1} adjustsFontSizeToFit style={[typography.displayTitle, { color: colors.textPrimary, marginTop: 2 }]}>
           {greetingLine}
         </Text>
       </ScrollView>
@@ -313,8 +318,8 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
   if (!activeGroupId) {
     return (
       <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ padding: spacing.lg, paddingTop: 56, paddingBottom: 32 }}>
-        <Text style={{ fontSize: 11, fontWeight: '700', letterSpacing: 0.8, color: colors.textMuted }}>{dateLabel(now).toUpperCase()}</Text>
-        <Text style={{ fontSize: 26, fontWeight: '700', letterSpacing: -0.4, color: colors.textPrimary, marginTop: 4 }}>
+        <Text style={[typography.eyebrow, { color: colors.textMuted }]}>{dateLabel(now).toUpperCase()}</Text>
+        <Text numberOfLines={1} adjustsFontSizeToFit style={[typography.displayTitle, { color: colors.textPrimary, marginTop: 2 }]}>
           {greetingLine}
         </Text>
         {/* No group yet: notifications are how the daily "start a group"
@@ -343,7 +348,7 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
             accessibilityRole="button"
             style={{ alignSelf: 'stretch', marginTop: 18, height: 48, borderRadius: 12, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' }}
           >
-            <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '700' }}>Join with a code</Text>
+            <Text style={{ color: colors.onPrimary, fontSize: 15, fontWeight: '700' }}>Join with a code</Text>
           </PressableScale>
           <PressableScale
             onPress={onCreateGroup ?? (() => {})}
@@ -362,8 +367,8 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
   if (!group || memberUids.length === 0) {
     return (
       <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ padding: spacing.lg, paddingTop: 56, paddingBottom: 32 }}>
-        <Text style={{ fontSize: 11, fontWeight: '700', letterSpacing: 0.8, color: colors.textMuted }}>{dateLabel(now).toUpperCase()}</Text>
-        <Text style={{ fontSize: 26, fontWeight: '700', letterSpacing: -0.4, color: colors.textPrimary, marginTop: 4 }}>
+        <Text style={[typography.eyebrow, { color: colors.textMuted }]}>{dateLabel(now).toUpperCase()}</Text>
+        <Text numberOfLines={1} adjustsFontSizeToFit style={[typography.displayTitle, { color: colors.textPrimary, marginTop: 2 }]}>
           {greetingLine}
         </Text>
       </ScrollView>
@@ -434,13 +439,21 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
       />
       <FpExplainerSheet visible={fpExplainer} onClose={() => setFpExplainer(false)} />
       <FullDisplay ready={homeFresh} />
-      <View style={{ height: 20 }} />
-      {fpTrend ? (
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10, paddingHorizontal: 2 }}>
-          <Icon source={fpTrend.value > 0 ? 'trending-up' : 'trending-down'} size={16} color={fpTrend.value > 0 ? colors.rankGold : colors.danger} />
-          <Text style={{ fontSize: 13, fontWeight: '600', color: fpTrend.value > 0 ? colors.rankGold : colors.danger }}>
-            {`${fpTrend.label}: ${fpTrend.value > 0 ? '+' : ''}${fpTrend.value} FP`}
-          </Text>
+      <View style={{ height: 14 }} />
+      {/* FP strip: my number, and how it moved. Flat tier, no card. */}
+      {myFp != null || fpTrend ? (
+        <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', paddingBottom: 12, marginBottom: 16, borderBottomWidth: 1, borderBottomColor: colors.divider }}>
+          {myFp != null ? (
+            <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
+              <AnimatedNumber value={myFp} style={[typography.heroNumeral, { fontSize: 56, lineHeight: 58, color: colors.textPrimary }]} />
+              <Text style={[typography.stat, { color: colors.textSecondary }]}>FP</Text>
+            </View>
+          ) : <View />}
+          {fpTrend ? (
+            <Text style={[typography.stat, { marginBottom: 8, color: fpTrend.value > 0 ? colors.success : colors.danger }]}>
+              {`${fpTrend.value > 0 ? '+' : ''}${fpTrend.value} ${fpTrend.label}`}
+            </Text>
+          ) : null}
         </View>
       ) : null}
       <TodaysLogCard checklist={checklist} onLog={onOpenLog ?? (() => {})} onOpenEntries={setEntriesItem} aside={<SyncStatus uid={myUid} />} />

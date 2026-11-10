@@ -111,7 +111,7 @@ export default function HibernationScreen() {
                   activeOpacity={0.85}
                   style={[styles.preset, on && { backgroundColor: colors.primary, borderColor: colors.primary }]}
                 >
-                  <AppText variant="rowSubtitle" style={{ color: on ? '#FFFFFF' : colors.textSecondary, fontWeight: '700' }}>
+                  <AppText variant="rowSubtitle" style={{ color: on ? colors.onPrimary : colors.textSecondary, fontWeight: '700' }}>
                     {w}w
                   </AppText>
                 </TouchableOpacity>

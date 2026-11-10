@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { ScrollView, View, StyleSheet } from 'react-native';
-import { Card, Text, Button, Modal, Portal, useTheme } from 'react-native-paper';
+import { Card, Button, Modal, Portal, useTheme } from 'react-native-paper';
+import Text from '../ui/Text';
 import RankBadge from '../mmr/RankBadge';
 import BadgeMedallion from '../ui/BadgeMedallion';
 import { badgeLook } from '../../services/badgeCatalog';

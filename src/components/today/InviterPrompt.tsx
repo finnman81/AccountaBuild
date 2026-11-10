@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { Modal, Portal, Text } from 'react-native-paper';
+import { Modal, Portal } from 'react-native-paper';
+import Text from '../ui/Text';
 import * as Haptics from 'expo-haptics';
 
 import Avatar from '../ui/Avatar';

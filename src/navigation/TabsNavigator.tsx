@@ -51,6 +51,7 @@ import MyStatsScreen from '../screens/MyStatsScreen';
 import HomeScreen from '../screens/HomeScreen';
 import LeaderboardScreen from '../screens/LeaderboardScreen';
 import { colors } from '../theme/colors';
+import { inter } from '../theme/fonts';
 import HomeTodayScreen from '../screens/HomeTodayScreen';
 import { appHeader } from '../components/ui/AppHeader';
 import ActivityScreen from '../screens/ActivityScreen';
@@ -159,6 +160,7 @@ export default function TabsNavigator() {
           tabBarStyle,
           tabBarActiveTintColor: theme.colors.primary,
           tabBarInactiveTintColor: colors.textMuted,
+          tabBarLabelStyle: { fontFamily: inter.semibold },
         }}
       >
         <Tab.Screen
@@ -198,7 +200,7 @@ export default function TabsNavigator() {
                   marginTop: -18,
                   width: 64,
                   height: 64,
-                  borderRadius: 999,
+                  borderRadius: 18,
                   backgroundColor: theme.colors.primary,
                   justifyContent: 'center',
                   alignItems: 'center',

@@ -116,7 +116,7 @@ export default function VacationScreen() {
                   activeOpacity={0.85}
                   style={[styles.chip, startNext === next && styles.chipOn]}
                 >
-                  <AppText variant="rowSubtitle" style={{ color: startNext === next ? '#FFFFFF' : colors.textSecondary, fontWeight: '700' }}>
+                  <AppText variant="rowSubtitle" style={{ color: startNext === next ? colors.onPrimary : colors.textSecondary, fontWeight: '700' }}>
                     {next ? 'Next week' : 'This week'}
                   </AppText>
                 </TouchableOpacity>
@@ -132,7 +132,7 @@ export default function VacationScreen() {
                   activeOpacity={0.85}
                   style={[styles.chip, weeks === n && styles.chipOn]}
                 >
-                  <AppText variant="rowSubtitle" style={{ color: weeks === n ? '#FFFFFF' : colors.textSecondary, fontWeight: '700' }}>
+                  <AppText variant="rowSubtitle" style={{ color: weeks === n ? colors.onPrimary : colors.textSecondary, fontWeight: '700' }}>
                     {n}
                   </AppText>
                 </TouchableOpacity>

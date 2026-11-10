@@ -2,10 +2,11 @@ import React, { useRef } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { easeIfChanged } from '../../hooks/useCached';
-import { Text } from 'react-native-paper';
+import Text from '../ui/Text';
 
 import Avatar, { type AvatarStatus } from '../ui/Avatar';
 import { colors } from '../../theme/colors';
+import { typography } from '../../theme/typography';
 import type { TeamMemberToday, TeamToday } from '../../viewmodels/today';
 import PressableScale from '../ui/PressableScale';
 
@@ -39,7 +40,7 @@ function MemberCell({ member, onPress, onLongPress }: { member: TeamMemberToday;
           {member.valueLine}
         </Text>
       ) : (
-        <View style={{ height: 12 }} />
+        <View style={{ height: 16 }} />
       )}
     </PressableScale>
   );
@@ -55,7 +56,7 @@ export default function TeamTodayRail({ team, onMemberPress, onMemberLongPress }
       <View style={styles.header}>
         <Text style={styles.eyebrow}>TEAM TODAY</Text>
         <Text style={styles.count}>
-          {team.loggedCount}/{team.total} logged
+          {team.loggedCount} of {team.total} in
         </Text>
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 16, paddingVertical: 4 }}>
@@ -69,9 +70,9 @@ export default function TeamTodayRail({ team, onMemberPress, onMemberLongPress }
 
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  eyebrow: { fontSize: 11, fontWeight: '700', letterSpacing: 0.8, color: colors.textMuted },
-  count: { fontSize: 12, fontWeight: '600', color: colors.success },
+  eyebrow: { ...typography.eyebrow, color: colors.textMuted },
+  count: { ...typography.chip, color: colors.success },
   cell: { width: 64, alignItems: 'center' },
   name: { fontSize: 11, fontWeight: '600', color: colors.textPrimary, marginTop: 6 },
-  value: { fontSize: 10, marginTop: 1 },
+  value: { ...typography.chip, fontSize: 13, lineHeight: 15, marginTop: 1 },
 });

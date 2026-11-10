@@ -1,6 +1,7 @@
 import React, { useContext, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { Icon, Text } from 'react-native-paper';
+import { Icon } from 'react-native-paper';
+import Text from '../ui/Text';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { AuthContext } from '../../store/AuthContext';
@@ -103,7 +104,7 @@ const styles = StyleSheet.create({
     marginTop: 18,
     backgroundColor: colors.primaryTint,
     borderWidth: 1,
-    borderColor: 'rgba(62,139,255,0.35)',
+    borderColor: 'rgba(242,237,228,0.35)',
     borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 12,

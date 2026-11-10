@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Platform, StyleSheet, View } from 'react-native';
-import { Text } from 'react-native-paper';
+import Text from '../ui/Text';
 
 import { subscribeHealthSettings } from '../../services/healthSettings';
 import { subscribeSyncState, type SyncState } from '../../services/syncEvents';

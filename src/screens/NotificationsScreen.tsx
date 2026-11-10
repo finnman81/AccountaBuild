@@ -207,7 +207,7 @@ export default function NotificationsScreen() {
                   value={enabled}
                   onValueChange={setEnabled}
                   disabled={saving || permissionDenied}
-                  trackColor={{ false: colors.ringNotLogged, true: colors.primary }}
+                  trackColor={{ false: colors.ringNotLogged, true: colors.success }}
                   thumbColor="#FFFFFF"
                   ios_backgroundColor={colors.ringNotLogged}
                 />

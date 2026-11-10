@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { Card, Text, useTheme } from 'react-native-paper';
+import { Card, useTheme } from 'react-native-paper';
+import Text from '../ui/Text';
 import Avatar from '../ui/Avatar';
 import RankBadge from '../mmr/RankBadge';
 import Tag from '../ui/Tag';

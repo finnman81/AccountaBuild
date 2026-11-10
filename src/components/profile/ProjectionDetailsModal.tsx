@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { ScrollView, View, StyleSheet } from 'react-native';
-import { Card, Text, Button, Modal, Portal, useTheme } from 'react-native-paper';
+import { Card, Button, Modal, Portal, useTheme } from 'react-native-paper';
+import Text from '../ui/Text';
 import { colors } from '../../theme/colors';
 import { spacing } from '../../theme/spacing';
 import { radius } from '../../theme/radius';

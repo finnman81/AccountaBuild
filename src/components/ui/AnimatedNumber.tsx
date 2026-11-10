@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Text, type StyleProp, type TextStyle } from 'react-native';
+import { Animated, type StyleProp, type TextStyle } from 'react-native';
 
 import { duration as motionDuration, easing } from '../../theme/motion';
+import Text from './Text';
 
 /**
  * Count a number toward `to` and return the whole number to show.

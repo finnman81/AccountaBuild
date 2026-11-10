@@ -11,17 +11,24 @@ type CardProps = {
   style?: ViewStyle;
   useShadow?: boolean;
   useBorder?: boolean;
+  /**
+   * hero: the one card a screen is about. Lighter, no border, big radius.
+   * standard: supporting content. Hairline border.
+   * (The third tier is no card at all: rails and lists sit on the page.)
+   */
+  tier?: 'hero' | 'standard';
 };
 
-export default function Card({ children, style, useShadow = false, useBorder = true }: CardProps) {
+export default function Card({ children, style, useShadow = false, useBorder = true, tier = 'standard' }: CardProps) {
+  const hero = tier === 'hero';
   const theme = useTheme();
 
   const cardStyle: ViewStyle = {
-    backgroundColor: colors.surface,
-    borderRadius: radius.card,
+    backgroundColor: hero ? colors.surfaceHero : colors.surface,
+    borderRadius: hero ? radius.card : radius.tile,
     padding: spacingDefaults.cardPadding,
     ...(useShadow && shadow),
-    ...(useBorder && {
+    ...(useBorder && !hero && {
       borderWidth: 1,
       borderColor: colors.borderCard,
     }),

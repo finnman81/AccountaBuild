@@ -1,6 +1,7 @@
 import React, { useCallback, useContext, useEffect, useState } from 'react';
 import { AppState, Linking, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { Icon, Text } from 'react-native-paper';
+import { Icon } from 'react-native-paper';
+import Text from '../ui/Text';
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -129,5 +130,5 @@ const styles = StyleSheet.create({
   later: { paddingHorizontal: 12, paddingVertical: 9 },
   laterText: { color: colors.textMuted, fontSize: 14, fontWeight: '600' },
   btn: { backgroundColor: colors.primary, borderRadius: 10, paddingHorizontal: 18, paddingVertical: 9 },
-  btnText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
+  btnText: { color: colors.onPrimary, fontSize: 14, fontWeight: '700' },
 });

@@ -255,7 +255,7 @@ export default function MemberDetailScreen({ route, navigation }: Props) {
           <>
             <View style={styles.actions}>
               <TouchableOpacity style={[styles.cheerBtn, cheered && styles.cheerBtnDone]} onPress={() => setHypeOpen('cheer')} activeOpacity={0.85}>
-                <AppText variant="rowTitle" style={{ color: '#FFFFFF' }}>{cheered ? '💪 Cheered' : '💪 Cheer'}</AppText>
+                <AppText variant="rowTitle" style={{ color: colors.onPrimary }}>{cheered ? '💪 Cheered' : '💪 Cheer'}</AppText>
               </TouchableOpacity>
               <TouchableOpacity style={styles.msgBtn} onPress={message} activeOpacity={0.85}>
                 <AppText variant="rowTitle" color="primary">Message</AppText>

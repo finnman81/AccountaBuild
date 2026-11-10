@@ -9,7 +9,7 @@ const colors = {
   surface: themeColors.surface,
   surfaceVariant: themeColors.surface2,
   outline: themeColors.divider,
-  onPrimary: '#0B1020',
+  onPrimary: themeColors.onPrimary,
   onSecondary: '#1A0B0B',
   onBackground: themeColors.textPrimary,
   onSurface: themeColors.textPrimary,

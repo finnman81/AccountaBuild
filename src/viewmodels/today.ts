@@ -140,7 +140,7 @@ export function buildTodayChecklist(params: {
     const entries: TodayLogEntry[] = ofType
       .map((l) => ({ logId: l.id, type, date: l.date, loggedAtMs: logTsMs(l), valueLine: entryValueLine(type, l), payload: l.payload, fpDelta: typeof (l as any).fpDelta === 'number' ? (l as any).fpDelta : null, groupId: (l as any).groupId }))
       .sort((a, b) => (b.loggedAtMs ?? 0) - (a.loggedAtMs ?? 0));
-    if (ofType.length === 0) return { type, title, logged: false, loggedAtMs: null, valueLine: 'Not logged yet', entries: [] };
+    if (ofType.length === 0) return { type, title, logged: false, loggedAtMs: null, valueLine: 'Still open', entries: [] };
 
     const loggedAtMs = ofType.reduce<number | null>((max, l) => {
       const ms = logTsMs(l);
@@ -431,7 +431,7 @@ export function buildTeamToday(params: {
     const streakDays = streaks[uid] ?? 0;
     const streakLeader = uid === leaderUid && leaderStreak > 0;
     const atRisk = !logged && params.pastCutoff;
-    const valueLine = streakDays > 0 ? `${streakDays}d streak` : atRisk ? 'at risk' : '';
+    const valueLine = streakDays > 0 ? `${streakDays} ${streakDays === 1 ? 'day' : 'days'}` : atRisk ? 'at risk' : '';
     return {
       uid,
       name: friendlyNameFromDisplayName(p?.displayName ?? null, uid),

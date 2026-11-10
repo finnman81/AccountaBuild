@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { View, TouchableOpacity } from 'react-native';
-import { Card, Text } from 'react-native-paper';
+import { Card } from 'react-native-paper';
+import Text from '../ui/Text';
 import SimpleLineChart from '../charts/SimpleLineChart';
 import { colors } from '../../theme/colors';
 import { spacing } from '../../theme/spacing';

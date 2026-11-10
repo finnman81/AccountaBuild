@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, TouchableOpacity } from 'react-native';
-import { Card, Text, IconButton, Button } from 'react-native-paper';
+import { Card, IconButton, Button } from 'react-native-paper';
+import Text from '../ui/Text';
 import { colors } from '../../theme/colors';
 import { spacing } from '../../theme/spacing';
 import { radius } from '../../theme/radius';

@@ -385,7 +385,7 @@ export default function GroupChatScreen({ route }: Props) {
                     { borderTopLeftRadius: mine ? 18 : 6, borderTopRightRadius: mine ? 6 : 18 },
                   ]}
                 >
-                  <AppText variant="body" style={{ color: mine ? '#FFFFFF' : colors.textPrimary }}>{item.msg.text}</AppText>
+                  <AppText variant="body" style={{ color: mine ? colors.onPrimary : colors.textPrimary }}>{item.msg.text}</AppText>
                 </View>
                 {mine && <AppText variant="label" color="muted" style={styles.mineTime}>{timeLabel(item.ms)}</AppText>}
               </TouchableOpacity>
@@ -418,7 +418,7 @@ export default function GroupChatScreen({ route }: Props) {
             editable={!isSending}
           />
           <TouchableOpacity onPress={send} disabled={!text.trim() || isSending} style={[styles.sendCircle, (!text.trim() || isSending) && styles.sendDisabled]}>
-            <Icon source="arrow-up" size={20} color="#FFFFFF" />
+            <Icon source="arrow-up" size={20} color={colors.onPrimary} />
           </TouchableOpacity>
         </View>
       </View>

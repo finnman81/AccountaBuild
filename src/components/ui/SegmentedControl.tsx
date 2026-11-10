@@ -1,7 +1,7 @@
 import React from 'react';
 import * as Haptics from 'expo-haptics';
 import { StyleSheet, View, ViewStyle } from 'react-native';
-import { Text } from 'react-native-paper';
+import Text from './Text';
 
 import { colors } from '../../theme/colors';
 import { radius } from '../../theme/radius';
@@ -24,7 +24,7 @@ export default function SegmentedControl<T extends string>({ options, value, onC
       {options.map((opt) => {
         const active = opt.value === value;
         const activeStyle = active ? (variant === 'primary' ? styles.activePrimary : styles.activeSurface) : null;
-        const textColor = active ? (variant === 'primary' ? '#FFFFFF' : colors.textPrimary) : colors.textSecondary;
+        const textColor = active ? (variant === 'primary' ? colors.onPrimary : colors.textPrimary) : colors.textSecondary;
         return (
           <PressableScale
             key={opt.value}

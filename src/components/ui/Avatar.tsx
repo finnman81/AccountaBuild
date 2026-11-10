@@ -1,6 +1,6 @@
 import React from 'react';
 import { Image, View, StyleSheet } from 'react-native';
-import { Text } from 'react-native-paper';
+import Text from './Text';
 import { requireOptionalNativeModule } from 'expo-modules-core';
 import { colors } from '../../theme/colors';
 import HibernationPod from './HibernationPod';

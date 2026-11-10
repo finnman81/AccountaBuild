@@ -30,6 +30,7 @@ import OnboardingNavigator from './OnboardingNavigator';
 import { navigationRef, flushPendingNavigation, navigateToJoinGroup } from './navigationRef';
 import { registerSentryNavigation } from '../services/sentry';
 import { appHeader } from '../components/ui/AppHeader';
+import { inter } from '../theme/fonts';
 import {
   clearPendingJoinCode,
   consumePendingJoinCode,
@@ -136,7 +137,7 @@ export default function AppNavigator() {
           contentStyle: { backgroundColor: theme.colors.background },
           headerStyle: { backgroundColor: theme.colors.surface },
           headerTintColor: theme.colors.onSurface,
-          headerTitleStyle: { color: theme.colors.onSurface },
+          headerTitleStyle: { color: theme.colors.onSurface, fontFamily: inter.semibold },
         }}
       >
         {!user ? (

@@ -1,7 +1,7 @@
 import * as Haptics from 'expo-haptics';
 import React, { useContext, useEffect, useRef, useState } from 'react';
 import { Alert, Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TextInput, TouchableWithoutFeedback, View } from 'react-native';
-import { Text } from 'react-native-paper';
+import Text from '../ui/Text';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { doc, getDoc } from 'firebase/firestore';
 
@@ -380,7 +380,7 @@ export default function LogComposer({ initialType = 'weight', onClose, onSaved, 
                   accessibilityState={{ selected: active }}
                   style={[styles.dateChip, active && styles.dateChipActive]}
                 >
-                  <Text style={{ fontSize: 13, fontWeight: '600', color: active ? colors.primaryOnDark : colors.textSecondary }}>
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: active ? colors.onPrimary : colors.textSecondary }}>
                     {d === 'today' ? 'Today' : 'Yesterday'}
                   </Text>
                 </PressableScale>
@@ -422,7 +422,7 @@ const styles = StyleSheet.create({
   heroInput: { fontSize: 72, fontWeight: '800', color: colors.textPrimary, minWidth: 160, textAlign: 'center', padding: 0 },
   chipRow: { gap: 10, paddingHorizontal: 2 },
   chip: { height: 40, paddingHorizontal: 18, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
-  chipActive: { backgroundColor: colors.primaryTint, borderColor: 'rgba(62,139,255,0.5)' },
+  chipActive: { backgroundColor: colors.primaryTint, borderColor: 'rgba(242,237,228,0.5)' },
   chipIdle: { backgroundColor: colors.surface2, borderColor: 'transparent' },
   footer: { paddingBottom: 28, paddingTop: 8 },
   dateRow: {

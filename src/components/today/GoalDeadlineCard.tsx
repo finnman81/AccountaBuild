@@ -93,7 +93,7 @@ export default function GoalDeadlineCard() {
           onPress={() => nav.navigate('MMRGoals', { focus: 'weight' })}
           accessibilityRole="button"
         >
-          <AppText variant="rowTitle" style={{ color: '#FFFFFF' }}>Update goal</AppText>
+          <AppText variant="rowTitle" style={{ color: colors.onPrimary }}>Update goal</AppText>
         </TouchableOpacity>
         <TouchableOpacity style={styles.secondary} activeOpacity={0.85} onPress={snooze} accessibilityRole="button">
           <AppText variant="rowSubtitle" color="muted">Not now</AppText>

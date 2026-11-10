@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { Button, Modal, Portal, Text, useTheme } from 'react-native-paper';
+import { Button, Modal, Portal, useTheme } from 'react-native-paper';
+import Text from './Text';
 
 const ITEM_HEIGHT = 44;
 const VISIBLE_ITEMS = 5;

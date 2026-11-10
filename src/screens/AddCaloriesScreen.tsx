@@ -198,7 +198,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1,
   },
-  chipActive: { backgroundColor: colors.primaryTint, borderColor: 'rgba(62,139,255,0.5)' },
+  chipActive: { backgroundColor: colors.primaryTint, borderColor: 'rgba(242,237,228,0.5)' },
   chipIdle: { backgroundColor: colors.surface2, borderColor: 'transparent' },
   error: { marginTop: spacing.md },
   submit: { marginTop: spacing.lg },

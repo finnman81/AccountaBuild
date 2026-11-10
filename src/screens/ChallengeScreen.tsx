@@ -435,7 +435,7 @@ const styles = StyleSheet.create({
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   chip: { paddingHorizontal: spacing.base, paddingVertical: spacing.sm, borderRadius: radius.pill, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.borderCard },
   chipFlex: { flex: 1, alignItems: 'center', minWidth: 56 },
-  chipActive: { backgroundColor: colors.primaryTint, borderColor: 'rgba(62,139,255,0.5)' },
+  chipActive: { backgroundColor: colors.primaryTint, borderColor: 'rgba(242,237,228,0.5)' },
   customDateWrap: { marginTop: spacing.md },
   customDateHint: { marginTop: spacing.xs, lineHeight: 16 },
   cancelBtn: { alignItems: 'center', paddingVertical: spacing.md, marginTop: spacing.xs },

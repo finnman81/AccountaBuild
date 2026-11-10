@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Linking, Platform, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { Icon, Text } from 'react-native-paper';
+import { Icon } from 'react-native-paper';
+import Text from '../ui/Text';
 import { doc, onSnapshot } from 'firebase/firestore';
 
 import { db } from '../../firebase/firebase';
@@ -79,7 +80,7 @@ const styles = StyleSheet.create({
     marginTop: 18,
     backgroundColor: colors.primaryTint,
     borderWidth: 1,
-    borderColor: 'rgba(62,139,255,0.35)',
+    borderColor: 'rgba(242,237,228,0.35)',
     borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 12,

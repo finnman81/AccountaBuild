@@ -13,11 +13,11 @@ export const shadow = {
   ...(Platform.OS === 'android' && { elevation: 2 }),
 } as const;
 
-// Primary CTA glow: 0 8px 22px rgba(62,139,255,0.35).
+// Primary CTA: a plain drop shadow (the blue glow went with the blue accent).
 export const primaryButtonShadow = {
-  shadowColor: '#3E8BFF',
-  shadowOpacity: 0.35,
-  shadowRadius: 22,
+  shadowColor: '#000',
+  shadowOpacity: 0.3,
+  shadowRadius: 12,
   shadowOffset: { width: 0, height: 8 },
   ...(Platform.OS === 'android' && { elevation: 8 }),
 } as const;

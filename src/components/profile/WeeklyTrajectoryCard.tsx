@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { View, TouchableOpacity } from 'react-native';
-import { Card, Text, Button } from 'react-native-paper';
+import { Card, Button } from 'react-native-paper';
+import Text from '../ui/Text';
 import ProgressBar from '../ui/ProgressBar';
 import AnimatedNumber from '../ui/AnimatedNumber';
 import { colors } from '../../theme/colors';
