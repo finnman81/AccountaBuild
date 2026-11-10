@@ -58,6 +58,7 @@ const SIGNING_ENABLED = false;
 import SyncStatus from '../components/today/SyncStatus';
 import type { Tier } from '../mmr/types';
 import PressableScale from '../components/ui/PressableScale';
+import RankEmblem from '../components/ui/RankEmblem';
 
 type Props = {
   onOpenLog?: (type: ChecklistType) => void;
@@ -85,6 +86,8 @@ function greetingFor(hour: number): string {
 function dateLabel(d: Date): string {
   return d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
 }
+
+const ROMAN_DIV = ['', 'I', 'II', 'III', 'IV'];
 
 export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember, onSwitchGroup, onChat, onBell, onOpenChallenge, onOpenWeeklyRecap, onEditEntry, onJoinGroup, onCreateGroup }: Props) {
   const { user, group, memberUids, canSee, publicUsers, logs, myProfile, logsLive } = useTodayData();
@@ -426,36 +429,68 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
         userName={userName}
         dateLabel={dateLabel(now)}
         greeting={greetingFor(now.getHours())}
-        rankTier={rankTier}
-        rankDivision={rankDivision}
-        streakDays={myStreak}
-        streakAtRisk={myMember?.atRisk ?? false}
         unreadChat={hasUnreadChat ? 1 : 0}
         unreadCount={unreadActivity}
         onSwitchGroup={onSwitchGroup ?? (() => {})}
         onChat={onChat ?? (() => {})}
         onBell={onBell ?? (() => {})}
-        onExplainFp={() => setFpExplainer(true)}
       />
       <FpExplainerSheet visible={fpExplainer} onClose={() => setFpExplainer(false)} />
       <FullDisplay ready={homeFresh} />
       <View style={{ height: 14 }} />
-      {/* FP strip: my number, and how it moved. Flat tier, no card. */}
-      {myFp != null || fpTrend ? (
-        <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', paddingBottom: 12, marginBottom: 16, borderBottomWidth: 1, borderBottomColor: colors.divider }}>
-          {myFp != null ? (
-            <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
-              <AnimatedNumber value={myFp} style={[typography.heroNumeral, { fontSize: 56, lineHeight: 58, color: colors.textPrimary }]} />
-              <Text style={[typography.stat, { color: colors.textSecondary }]}>FP</Text>
-            </View>
-          ) : <View />}
-          {fpTrend ? (
-            <Text style={[typography.stat, { marginBottom: 8, color: fpTrend.value > 0 ? colors.success : colors.danger }]}>
-              {`${fpTrend.value > 0 ? '+' : ''}${fpTrend.value} ${fpTrend.label}`}
+      {/* Standing strip: rank leads, FP supports it, streak sits opposite.
+          Flat tier, no card. Tap the rank side for the FP explainer. */}
+      <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, paddingBottom: 12, marginBottom: 16, borderBottomWidth: 1, borderBottomColor: colors.divider }}>
+        <PressableScale
+          onPress={() => setFpExplainer(true)}
+          style={{ flex: 1, minWidth: 0 }}
+          accessibilityRole="button"
+          accessibilityLabel="How Fitness Points work"
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            {rankTier ? <RankEmblem tier={rankTier} inline size={30} /> : null}
+            <Text
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.6}
+              style={[typography.displayTitle, { flexShrink: 1, color: rankTier ? colors.textPrimary : colors.textMuted }]}
+            >
+              {rankTier ? `${rankTier}${rankDivision ? ` ${ROMAN_DIV[rankDivision]}` : ''}` : 'Unranked'}
             </Text>
-          ) : null}
-        </View>
-      ) : null}
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 5, marginTop: 2 }}>
+            {myFp != null ? (
+              <>
+                <AnimatedNumber value={myFp} style={[typography.stat, { color: colors.textSecondary }]} />
+                <Text style={[typography.stat, { color: colors.textSecondary }]}>FP</Text>
+              </>
+            ) : null}
+            {fpTrend ? (
+              <Text style={[typography.stat, { marginLeft: 6, color: fpTrend.value > 0 ? colors.success : colors.danger }]}>
+                {`${fpTrend.value > 0 ? '+' : ''}${fpTrend.value} ${fpTrend.label}`}
+              </Text>
+            ) : null}
+          </View>
+        </PressableScale>
+        {(() => {
+          const atRisk = (myMember?.atRisk ?? false) && myStreak > 0;
+          const streakColor = myStreak === 0 ? colors.textMuted : atRisk ? colors.danger : colors.success;
+          return (
+            <View
+              style={{ alignItems: 'flex-end' }}
+              accessibilityLabel={atRisk ? `${myStreak} day streak, log today to keep it` : `${myStreak} day streak`}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                <Icon source="fire" size={30} color={streakColor} />
+                <AnimatedNumber value={myStreak} style={[typography.displayTitle, { color: streakColor }]} />
+              </View>
+              <Text style={[typography.stat, { marginTop: 2, color: atRisk ? colors.danger : colors.textSecondary }]}>
+                {atRisk ? 'Log to keep it' : 'Day streak'}
+              </Text>
+            </View>
+          );
+        })()}
+      </View>
       <TodaysLogCard checklist={checklist} onLog={onOpenLog ?? (() => {})} onOpenEntries={setEntriesItem} aside={<SyncStatus uid={myUid} />} />
       <TeamTodayRail team={team} onMemberPress={onOpenMember ?? (() => {})} onMemberLongPress={onCheer} />
       {/* Prompts and promos sit below the log card and team rail. Each loads
