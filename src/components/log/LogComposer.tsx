@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import React, { useContext, useEffect, useRef, useState } from 'react';
-import { Alert, Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TextInput, TouchableWithoutFeedback, View } from 'react-native';
+import { Alert, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import Text from '../ui/Text';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { doc, getDoc } from 'firebase/firestore';
@@ -101,7 +101,8 @@ function Hero({
 
   if (typing) {
     return (
-      <View style={styles.heroRow}>
+      <View style={{ alignItems: 'center' }}>
+        <View style={styles.heroRow}>
         <TextInput
           autoFocus
           keyboardType="decimal-pad"
@@ -126,10 +127,16 @@ function Hero({
             setTyping(false);
           }}
           style={styles.heroInput}
+          selectionColor={colors.primary}
           placeholder={value.toFixed(decimals)}
           placeholderTextColor={colors.faint}
         />
         <Text style={styles.heroUnit}> {unit}</Text>
+        </View>
+        {/* The number pad has no return key: this is the way out. */}
+        <PressableScale onPress={Keyboard.dismiss} style={styles.doneBtn} accessibilityRole="button" accessibilityLabel="Done typing">
+          <Text style={styles.doneText}>Done</Text>
+        </PressableScale>
       </View>
     );
   }
@@ -163,7 +170,7 @@ function Hero({
           </PressableScale>
         )}
       </View>
-      <Text style={styles.heroHint}>Tap the number to type it, drag the ruler, or use −/+</Text>
+      <Text style={styles.heroHint}>Tap the number to type it, or slide the tape</Text>
     </View>
   );
 }
@@ -302,8 +309,10 @@ export default function LogComposer({ initialType = 'weight', onClose, onSaved, 
           keyboard once it was up (reported 2026-08-25: "the keyboard doesn't go
           away when plugging in weight"). AddWeightScreen already did this; the
           composer, which is the main + flow, did not. */}
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-      <ScrollView contentContainerStyle={{ paddingVertical: 28 }} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+      {/* The press target sits inside the scroll view. Wrapped around it, the
+          scroll view took the touch and the keyboard never closed. */}
+      <Pressable onPress={Keyboard.dismiss} accessible={false} style={{ flexGrow: 1, paddingVertical: 28 }}>
         {mode === 'weight' && (
           <View style={styles.body}>
             <Hero
@@ -363,8 +372,8 @@ export default function LogComposer({ initialType = 'weight', onClose, onSaved, 
             <PrimaryButton onPress={onOpenPhoto ?? (() => {})}>Choose photo</PrimaryButton>
           </View>
         )}
+      </Pressable>
       </ScrollView>
-      </TouchableWithoutFeedback>
 
       <View style={styles.footer}>
         {mode !== 'photo' && (
@@ -420,7 +429,9 @@ const styles = StyleSheet.create({
   heroDec: { fontSize: 84, fontFamily: display.extrabold, color: colors.faint, fontVariant: ['tabular-nums'] },
   heroUnit: { fontSize: 22, fontFamily: display.semibold, color: colors.textSecondary },
   heroHint: { fontSize: 11, color: colors.textMuted, textAlign: 'center', marginTop: 4 },
-  heroInput: { fontSize: 84, fontFamily: display.extrabold, color: colors.textPrimary, minWidth: 160, textAlign: 'center', padding: 0 },
+  heroInput: { fontSize: 84, fontFamily: display.extrabold, color: colors.textPrimary, minWidth: 90, textAlign: 'center', padding: 0 },
+  doneBtn: { height: 40, paddingHorizontal: 28, borderRadius: radius.button, borderWidth: 1, borderColor: 'rgba(242,237,228,0.5)', alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
+  doneText: { fontSize: 18, lineHeight: 22, fontFamily: display.bold, letterSpacing: 1, textTransform: 'uppercase', color: colors.primary },
   chipRow: { gap: 10, paddingHorizontal: 2 },
   chip: { height: 40, paddingHorizontal: 18, borderRadius: radius.chip, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
   chipActive: { backgroundColor: colors.primaryTint, borderColor: 'rgba(242,237,228,0.5)' },
