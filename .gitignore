@@ -76,3 +76,6 @@ store-screenshots/
 /*-1284x2778.png
 firestore-debug.log
 ui-debug.log
+
+# emulator throwaway login (scripts/_seed-test-account.js)
+.emu-test-account.json

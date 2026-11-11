@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import React, { useContext, useEffect, useRef, useState } from 'react';
-import { Alert, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Alert, Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import Text from '../ui/Text';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { doc, getDoc } from 'firebase/firestore';
@@ -105,6 +105,9 @@ function Hero({
         <View style={styles.heroRow}>
         <TextInput
           autoFocus
+          // The old value is selected, so the first key replaces it. Without
+          // this, typing 60 over 45 gave 4560 (seen on the emulator 2026-11-11).
+          selectTextOnFocus
           keyboardType="decimal-pad"
           value={draft}
           onChangeText={(t) => {
@@ -312,7 +315,17 @@ export default function LogComposer({ initialType = 'weight', onClose, onSaved, 
       <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
       {/* The press target sits inside the scroll view. Wrapped around it, the
           scroll view took the touch and the keyboard never closed. */}
-      <Pressable onPress={Keyboard.dismiss} accessible={false} style={{ flexGrow: 1, paddingVertical: 28 }}>
+      {/* It claims the touch ONLY while the keyboard is up. A Pressable here
+          claimed every touch, and on Android a claimed touch blocks the native
+          scroll views inside: the tape and the chip rows moved on a fast flick
+          but never on a slow drag (found on the emulator 2026-11-11). */}
+      <View
+        accessible={false}
+        onStartShouldSetResponder={() => Keyboard.isVisible()}
+        onResponderTerminationRequest={() => true}
+        onResponderRelease={() => Keyboard.dismiss()}
+        style={{ flexGrow: 1, paddingVertical: 28 }}
+      >
         {mode === 'weight' && (
           <View style={styles.body}>
             <Hero
@@ -372,7 +385,7 @@ export default function LogComposer({ initialType = 'weight', onClose, onSaved, 
             <PrimaryButton onPress={onOpenPhoto ?? (() => {})}>Choose photo</PrimaryButton>
           </View>
         )}
-      </Pressable>
+      </View>
       </ScrollView>
 
       <View style={styles.footer}>
