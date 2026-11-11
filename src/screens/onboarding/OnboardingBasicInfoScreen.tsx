@@ -1,5 +1,5 @@
-import React, { useContext, useEffect, useState, useRef } from 'react';
-import { View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, Dimensions, Keyboard } from 'react-native';
+import React, { useContext, useEffect, useState } from 'react';
+import { View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, Keyboard } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as Haptics from 'expo-haptics';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -8,67 +8,48 @@ import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { AuthContext } from '../../store/AuthContext';
 import { OnboardingStackParamList } from '../../navigation/types';
 import OnboardingHeader from '../../components/onboarding/OnboardingHeader';
-import OnboardingSection from '../../components/onboarding/OnboardingSection';
-import ReadOnlyRow from '../../components/onboarding/ReadOnlyRow';
 import PrimaryButton from '../../components/ui/PrimaryButton';
 import AppText from '../../components/ui/AppText';
 import TextField from '../../components/ui/TextField';
 import SegmentedControl from '../../components/ui/SegmentedControl';
 import { updateOnboardingStep } from '../../services/onboarding';
-import { updateMyProfile } from '../../services/profile';
+import { updateMyProfile, subscribeMyProfile } from '../../services/profile';
 import { onboardingAnalytics } from '../../services/analytics';
 import { onboardingCopy } from '../../constants/onboardingCopy';
-import { subscribeMyProfile } from '../../services/profile';
 import { db } from '../../firebase/firebase';
-import { colors } from '../../theme';
-import { feetInchesError, joinFeetInches, splitInches } from '../../utils/height';
-
-const SCREEN_WIDTH = Dimensions.get('window').width;
-const IS_SMALL_SCREEN = SCREEN_WIDTH < 360;
+import { colors, spacing } from '../../theme';
 
 type Props = NativeStackScreenProps<OnboardingStackParamList, 'BasicInfo'>;
 
+/**
+ * Three things: a name, units, and a starting weight (optional).
+ *
+ * It used to ask for sex, age and height too, on one long page, and it was
+ * the only step anyone quit on (2 of 17 signups after the App Store launch).
+ * Those three only feed the calorie estimate, so they moved to the targets
+ * step, where they are optional and sit next to the number they change.
+ */
 export default function OnboardingBasicInfoScreen({ navigation }: Props) {
   const { user } = useContext(AuthContext);
 
   const [displayName, setDisplayName] = useState('');
-  const [sex, setSex] = useState<'male' | 'female' | 'other' | ''>('');
-  const [age, setAge] = useState('');
   const [units, setUnits] = useState<'imperial' | 'metric'>('imperial');
-  const [height, setHeight] = useState(''); // cm (metric only)
-  const [heightFt, setHeightFt] = useState('');
-  const [heightIn, setHeightIn] = useState('');
   const [weightCurrent, setWeightCurrent] = useState('');
-
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Refs for keyboard navigation
-  const ageInputRef = useRef<any>(null);
-  const heightInputRef = useRef<any>(null);
-  const heightInInputRef = useRef<any>(null);
-  const weightInputRef = useRef<any>(null);
-
-  // Prefill from existing profile
+  // Prefill from an existing profile (re-onboarding).
   useEffect(() => {
     if (!user?.uid) return;
-
     return subscribeMyProfile(user.uid, (profile) => {
-      if (profile) {
-        if (profile.displayName) setDisplayName(profile.displayName);
-        if (profile.age != null) setAge(String(profile.age));
-        if (profile.height != null) {
-          // Stored in inches. Fill both forms so a units switch keeps it.
-          const sp = splitInches(profile.height);
-          setHeightFt(sp.ft);
-          setHeightIn(sp.inches);
-          setHeight(String(Math.round(Number(profile.height) * 2.54)));
-        }
-        if (profile.weightCurrent != null) setWeightCurrent(String(profile.weightCurrent));
-        // @ts-ignore - units might exist
-        if (profile.units) setUnits(profile.units);
-        // @ts-ignore - sex might exist
-        if (profile.sex) setSex(profile.sex);
+      if (!profile) return;
+      if (profile.displayName) setDisplayName(profile.displayName);
+      const u = (profile as any).units === 'metric' ? 'metric' : 'imperial';
+      setUnits(u);
+      // Stored in pounds.
+      if (profile.weightCurrent != null) {
+        const lb = Number(profile.weightCurrent);
+        setWeightCurrent(String(u === 'metric' ? Math.round((lb / 2.20462) * 10) / 10 : Math.round(lb * 10) / 10));
       }
     });
   }, [user?.uid]);
@@ -77,118 +58,36 @@ export default function OnboardingBasicInfoScreen({ navigation }: Props) {
     onboardingAnalytics.screenView(2, 'BasicInfo', 1);
   }, []);
 
-  const validateDisplayName = (value: string): string | null => {
-    const trimmed = value.trim();
-    if (!trimmed) return 'Display name is required';
-    if (trimmed.length < 2) return 'Display name must be at least 2 characters';
-    if (trimmed.length > 32) return 'Display name must be 32 characters or less';
-    return null;
-  };
-
-  const validateAge = (value: string): string | null => {
-    const num = Number(value);
-    if (!value.trim()) return 'Age is required';
-    if (!Number.isFinite(num) || num < 13 || num > 99) return 'Age must be between 13 and 99';
-    return null;
-  };
-
-  const validateHeight = (value: string): string | null => {
-    if (units === 'imperial') return feetInchesError(heightFt, heightIn);
-    const num = Number(value);
-    if (!value.trim()) return 'Height is required';
-    if (!Number.isFinite(num)) return 'Height must be a valid number';
-
-    if (num < 120 || num > 230) return 'Height must be between 120 and 230 cm';
-    return null;
-  };
-
-  const validateWeightCurrent = (value: string): string | null => {
-    if (!value.trim()) return null; // Optional
-    const num = Number(value);
-    if (!Number.isFinite(num)) return 'Weight must be a valid number';
-
-    if (units === 'imperial') {
-      if (num < 80 || num > 450) return 'Weight must be between 80 and 450 lbs';
-    } else {
-      if (num < 35 || num > 205) return 'Weight must be between 35 and 205 kg';
-    }
-    return null;
-  };
-
   const handleContinue = async () => {
     if (!user?.uid) return;
-
-    // Dismiss keyboard
     Keyboard.dismiss();
 
-    const newErrors: Record<string, string> = {};
+    const next: Record<string, string> = {};
+    const name = displayName.trim();
+    if (!name) next.displayName = 'Add a name your group will know you by.';
+    else if (name.length < 2) next.displayName = 'Use at least 2 characters.';
+    else if (name.length > 32) next.displayName = 'Use 32 characters or fewer.';
 
-    // Validate all fields
-    const displayNameError = validateDisplayName(displayName);
-    if (displayNameError) newErrors.displayName = displayNameError;
-
-    // sex is optional — it isn't consumed by any calculation, so it shouldn't
-    // block a returning (re-onboarded) user who never set it before.
-
-    const ageError = validateAge(age);
-    if (ageError) newErrors.age = ageError;
-
-    const heightError = validateHeight(height);
-    if (heightError) newErrors.height = heightError;
-
-    const weightError = validateWeightCurrent(weightCurrent);
-    if (weightError) newErrors.weightCurrent = weightError;
-
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      Object.keys(newErrors).forEach((field) => {
-        onboardingAnalytics.validationError(field);
-      });
+    const w = Number(weightCurrent);
+    if (weightCurrent.trim()) {
+      if (!Number.isFinite(w)) next.weightCurrent = 'Enter a number.';
+      else if (units === 'imperial' && (w < 80 || w > 450)) next.weightCurrent = 'Enter a weight from 80 to 450 lbs.';
+      else if (units === 'metric' && (w < 35 || w > 205)) next.weightCurrent = 'Enter a weight from 35 to 205 kg.';
+    }
+    if (Object.keys(next).length) {
+      setErrors(next);
       return;
     }
 
     setIsSubmitting(true);
     setErrors({});
-
     try {
-      // Convert height to inches if metric
-      let heightInches = joinFeetInches(heightFt, heightIn) ?? 0;
-      if (units === 'metric') {
-        // Convert cm to inches: 1 cm = 0.393701 inches
-        heightInches = Number(height) * 0.393701;
-      }
-
-      // Convert weight to pounds if metric
-      let weightLb: number | null = null;
-      if (weightCurrent.trim()) {
-        weightLb = Number(weightCurrent);
-        if (units === 'metric') {
-          // Convert kg to lbs: 1 kg = 2.20462 lbs
-          weightLb = Number(weightCurrent) * 2.20462;
-        }
-      }
-
-      // Update profile
       await updateMyProfile({
         uid: user.uid,
-        displayName: displayName.trim(),
-        age: Number(age),
-        height: heightInches,
-        weightCurrent: weightLb,
+        displayName: name,
+        ...(weightCurrent.trim() ? { weightCurrent: units === 'metric' ? w * 2.20462 : w } : {}),
       });
-
-      // Update additional fields directly (not in updateMyProfile yet)
-      if (db) {
-        await setDoc(
-          doc(db, 'users', user.uid),
-          {
-            sex,
-            units,
-            updatedAt: serverTimestamp(),
-          },
-          { merge: true }
-        );
-      }
+      if (db) await setDoc(doc(db, 'users', user.uid), { units, updatedAt: serverTimestamp() }, { merge: true });
 
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       await updateOnboardingStep(user.uid, 2);
@@ -197,295 +96,80 @@ export default function OnboardingBasicInfoScreen({ navigation }: Props) {
       navigation.navigate('Recommended');
     } catch (error) {
       console.error('[Onboarding] Error saving basic info:', error);
-      setErrors({ general: 'Failed to save. Please try again.' });
+      setErrors({ general: "Couldn't save. Try again." });
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleBack = () => {
-    navigation.goBack();
-  };
-
-  const clearHeightError = () => {
-    if (errors.height) setErrors({ ...errors, height: '' });
-  };
-
-  // Imperial: Feet + Inches side by side. Metric: one cm box.
-  const renderHeight = () =>
-    units === 'imperial' ? (
-      <View>
-        <View style={styles.twoColumnRow}>
-          <View style={styles.column}>
-            <TextField
-              label="Height (feet)"
-              value={heightFt}
-              onChangeText={(text) => {
-                // One digit is feet; anything typed after it is inches. iOS can
-                // ignore a focus jump made mid-keystroke, and the old slice(0,1)
-                // then threw away every digit after the "5" ("only lets me
-                // enter 5"). Spill-over means "510" still reads 5 ft 10 in.
-                const digits = text.replace(/[^0-9]/g, '');
-                setHeightFt(digits.slice(0, 1));
-                if (digits.length > 1) setHeightIn(digits.slice(1, 3));
-                clearHeightError();
-                // Defer the jump so iOS actually moves the cursor.
-                if (digits) setTimeout(() => heightInInputRef.current?.focus(), 60);
-              }}
-              editable={!isSubmitting}
-              keyboardType="number-pad"
-              returnKeyType="next"
-              placeholder="5"
-              ref={heightInputRef}
-              onSubmitEditing={() => heightInInputRef.current?.focus()}
-              containerStyle={styles.input}
-            />
-          </View>
-          <View style={styles.column}>
-            <TextField
-              label="Inches"
-              value={heightIn}
-              onChangeText={(text) => {
-                setHeightIn(text.replace(/[^0-9]/g, '').slice(0, 2));
-                clearHeightError();
-              }}
-              editable={!isSubmitting}
-              keyboardType="number-pad"
-              returnKeyType="next"
-              placeholder="10"
-              ref={heightInInputRef}
-              onSubmitEditing={() => weightInputRef.current?.focus()}
-              containerStyle={styles.input}
-            />
-          </View>
-        </View>
-        {errors.height ? (
-          <AppText variant="rowSubtitle" color="danger" style={styles.error}>
-            {errors.height}
-          </AppText>
-        ) : null}
-      </View>
-    ) : (
-      <View>
-        <TextField
-          label="Height"
-          value={height}
-          onChangeText={(text) => {
-            setHeight(text.replace(/[^0-9.]/g, ''));
-            clearHeightError();
-          }}
-          error={errors.height || undefined}
-          editable={!isSubmitting}
-          keyboardType="decimal-pad"
-          returnKeyType="next"
-          ref={heightInputRef}
-          onSubmitEditing={() => weightInputRef.current?.focus()}
-          containerStyle={styles.input}
-        />
-        <AppText variant="rowSubtitle" color="muted" style={styles.unitText}>
-          cm
-        </AppText>
-      </View>
-    );
-
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <OnboardingHeader currentStep={3} totalSteps={7} showBack={true} onBack={handleBack} />
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={0}
-      >
-        <ScrollView
-          contentContainerStyle={styles.content}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          <View style={styles.textContainer}>
-            <AppText variant="pageTitle" color="primary" style={styles.headline}>
-              {onboardingCopy.basicInfo.headline}
-            </AppText>
-            <AppText variant="body" color="secondary" style={styles.subtext}>
-              {onboardingCopy.basicInfo.subtext}
-            </AppText>
-          </View>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+      <OnboardingHeader currentStep={3} totalSteps={7} showBack onBack={() => navigation.goBack()} />
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          <AppText variant="pageTitle" color="primary">{onboardingCopy.basicInfo.headline}</AppText>
+          <AppText variant="body" color="secondary" style={styles.subtext}>{onboardingCopy.basicInfo.subtext}</AppText>
 
           <View style={styles.form}>
-            {/* Account Section */}
-            <OnboardingSection title="Account" showDivider={true}>
-              <TextField
-                label="Display name"
-                value={displayName}
-                onChangeText={(text) => {
-                  setDisplayName(text);
-                  if (errors.displayName) setErrors({ ...errors, displayName: '' });
+            <TextField
+              label="Name"
+              value={displayName}
+              onChangeText={(t) => {
+                setDisplayName(t);
+                if (errors.displayName) setErrors({ ...errors, displayName: '' });
+              }}
+              error={errors.displayName || undefined}
+              editable={!isSubmitting}
+              returnKeyType="done"
+              onSubmitEditing={() => Keyboard.dismiss()}
+            />
+
+            <View>
+              <AppText variant="eyebrow" color="muted" style={styles.label}>Units</AppText>
+              <SegmentedControl
+                variant="primary"
+                value={units}
+                onChange={(u) => {
+                  if (u === units) return;
+                  // Keep the weight they typed, in the new unit.
+                  const n = Number(weightCurrent);
+                  if (weightCurrent.trim() && Number.isFinite(n)) {
+                    setWeightCurrent(String(Math.round((u === 'metric' ? n / 2.20462 : n * 2.20462) * 10) / 10));
+                  }
+                  setUnits(u);
                 }}
-                error={errors.displayName || undefined}
-                editable={!isSubmitting}
-                returnKeyType="next"
-                onSubmitEditing={() => Keyboard.dismiss()}
-                containerStyle={styles.input}
+                options={[
+                  { value: 'imperial', label: 'Pounds' },
+                  { value: 'metric', label: 'Kilograms' },
+                ]}
               />
+            </View>
 
-              <ReadOnlyRow label="Email" value={user?.email || ''} />
-            </OnboardingSection>
+            <View>
+              <TextField
+                label={`Current weight (${units === 'imperial' ? 'lbs' : 'kg'})`}
+                value={weightCurrent}
+                onChangeText={(t) => {
+                  setWeightCurrent(t.replace(/[^0-9.]/g, ''));
+                  if (errors.weightCurrent) setErrors({ ...errors, weightCurrent: '' });
+                }}
+                error={errors.weightCurrent || undefined}
+                editable={!isSubmitting}
+                keyboardType="decimal-pad"
+                returnKeyType="done"
+                onSubmitEditing={handleContinue}
+              />
+              <AppText variant="rowSubtitle" color="muted" style={styles.hint}>
+                Optional. It is your starting point, and only you see the number.
+              </AppText>
+            </View>
 
-            {/* Preferences Section */}
-            <OnboardingSection title="Preferences" showDivider={true}>
-              <View style={styles.segmentedContainer}>
-                <AppText variant="label" color="primary" style={styles.segmentedLabel}>
-                  Sex
-                </AppText>
-                <SegmentedControl
-                  variant="primary"
-                  value={sex}
-                  onChange={(value) => {
-                    setSex(value as any);
-                    if (errors.sex) setErrors({ ...errors, sex: '' });
-                  }}
-                  options={[
-                    { value: 'male', label: 'Male' },
-                    { value: 'female', label: 'Female' },
-                    { value: 'other', label: 'Other' },
-                  ]}
-                  style={styles.segmented}
-                />
-                {errors.sex ? (
-                  <AppText variant="rowSubtitle" color="danger" style={styles.error}>
-                    {errors.sex}
-                  </AppText>
-                ) : null}
-              </View>
-
-              <View style={styles.segmentedContainer}>
-                <AppText variant="label" color="primary" style={styles.segmentedLabel}>
-                  Units
-                </AppText>
-                <SegmentedControl
-                  variant="primary"
-                  value={units}
-                  onChange={setUnits}
-                  options={[
-                    { value: 'imperial', label: 'Imperial' },
-                    { value: 'metric', label: 'Metric' },
-                  ]}
-                  style={styles.segmented}
-                />
-              </View>
-            </OnboardingSection>
-
-            {/* Body Section */}
-            <OnboardingSection title="Body" showDivider={false}>
-              {IS_SMALL_SCREEN ? (
-                // Single column for small screens
-                <>
-                  <TextField
-                    label="Age"
-                    value={age}
-                    onChangeText={(text) => {
-                      setAge(text.replace(/[^0-9]/g, ''));
-                      if (errors.age) setErrors({ ...errors, age: '' });
-                    }}
-                    error={errors.age || undefined}
-                    editable={!isSubmitting}
-                    keyboardType="number-pad"
-                    returnKeyType="next"
-                    ref={ageInputRef}
-                    onSubmitEditing={() => heightInputRef.current?.focus()}
-                    containerStyle={styles.input}
-                  />
-
-                  {renderHeight()}
-
-                  <View>
-                    <TextField
-                      label="Current weight"
-                      value={weightCurrent}
-                      onChangeText={(text) => {
-                        setWeightCurrent(text.replace(/[^0-9.]/g, ''));
-                        if (errors.weightCurrent) setErrors({ ...errors, weightCurrent: '' });
-                      }}
-                      error={errors.weightCurrent || undefined}
-                      editable={!isSubmitting}
-                      keyboardType="decimal-pad"
-                      returnKeyType="done"
-                      ref={weightInputRef}
-                      onSubmitEditing={handleContinue}
-                      containerStyle={styles.input}
-                    />
-                    <AppText variant="rowSubtitle" color="muted" style={styles.unitText}>
-                      {units === 'imperial' ? 'lbs' : 'kg'} • Optional, helps tailor targets
-                    </AppText>
-                  </View>
-                </>
-              ) : (
-                // Two column layout for larger screens
-                <>
-                  <View style={styles.twoColumnRow}>
-                    <View style={styles.column}>
-                      <TextField
-                        label="Age"
-                        value={age}
-                        onChangeText={(text) => {
-                          setAge(text.replace(/[^0-9]/g, ''));
-                          if (errors.age) setErrors({ ...errors, age: '' });
-                        }}
-                        error={errors.age || undefined}
-                        editable={!isSubmitting}
-                        keyboardType="number-pad"
-                        returnKeyType="next"
-                        ref={ageInputRef}
-                        onSubmitEditing={() => heightInputRef.current?.focus()}
-                        containerStyle={styles.input}
-                      />
-                    </View>
-
-                    {units === 'metric' ? <View style={styles.column}>{renderHeight()}</View> : null}
-                  </View>
-
-                  {units === 'imperial' ? renderHeight() : null}
-
-                  <View>
-                    <TextField
-                      label="Current weight"
-                      value={weightCurrent}
-                      onChangeText={(text) => {
-                        setWeightCurrent(text.replace(/[^0-9.]/g, ''));
-                        if (errors.weightCurrent) setErrors({ ...errors, weightCurrent: '' });
-                      }}
-                      error={errors.weightCurrent || undefined}
-                      editable={!isSubmitting}
-                      keyboardType="decimal-pad"
-                      returnKeyType="done"
-                      ref={weightInputRef}
-                      onSubmitEditing={handleContinue}
-                      containerStyle={styles.input}
-                    />
-                    <AppText variant="rowSubtitle" color="muted" style={styles.unitText}>
-                      {units === 'imperial' ? 'lbs' : 'kg'} • Optional, helps tailor targets
-                    </AppText>
-                  </View>
-                </>
-              )}
-
-              {errors.general ? (
-                <AppText variant="rowSubtitle" color="danger" style={styles.error}>
-                  {errors.general}
-                </AppText>
-              ) : null}
-            </OnboardingSection>
+            {errors.general ? <AppText variant="rowSubtitle" color="danger">{errors.general}</AppText> : null}
           </View>
         </ScrollView>
 
         <View style={styles.footer}>
-          <PrimaryButton
-            onPress={handleContinue}
-            style={styles.button}
-            loading={isSubmitting}
-            disabled={isSubmitting}
-          >
-            Continue
-          </PrimaryButton>
+          <PrimaryButton onPress={handleContinue} loading={isSubmitting} disabled={isSubmitting}>Continue</PrimaryButton>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -493,66 +177,11 @@ export default function OnboardingBasicInfoScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  content: {
-    // flexGrow (not flex:1) so the ScrollView content can exceed the viewport
-    // and actually scroll — flex:1 pinned it to screen height and blocked scroll.
-    flexGrow: 1,
-    paddingHorizontal: 24,
-    paddingTop: 32,
-    paddingBottom: 48,
-  },
-  textContainer: {
-    marginBottom: 32,
-  },
-  headline: {
-    marginBottom: 12,
-  },
-  subtext: {
-    lineHeight: 24,
-  },
-  form: {
-    gap: 0,
-  },
-  input: {
-    marginBottom: 4,
-  },
-  segmentedContainer: {
-    marginBottom: 0,
-  },
-  segmentedLabel: {
-    marginBottom: 6,
-    fontWeight: '500',
-  },
-  segmented: {
-    marginBottom: 0,
-  },
-  error: {
-    marginTop: 4,
-    marginBottom: 0,
-  },
-  unitText: {
-    marginTop: 4,
-    fontSize: 12,
-    opacity: 0.6,
-  },
-  twoColumnRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  column: {
-    flex: 1,
-  },
-  footer: {
-    paddingHorizontal: 24,
-    paddingBottom: 24,
-    paddingTop: 16,
-    backgroundColor: colors.background,
-  },
-  button: {
-    minHeight: 48,
-  },
+  container: { flex: 1, backgroundColor: colors.background },
+  content: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.base },
+  subtext: { marginTop: spacing.sm, lineHeight: 21 },
+  form: { marginTop: spacing.xl, gap: spacing.lg },
+  label: { marginBottom: spacing.sm },
+  hint: { marginTop: spacing.xs, lineHeight: 18 },
+  footer: { paddingHorizontal: spacing.lg, paddingBottom: spacing.base, paddingTop: spacing.md },
 });

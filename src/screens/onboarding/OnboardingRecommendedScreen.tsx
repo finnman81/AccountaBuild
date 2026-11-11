@@ -3,7 +3,7 @@ import { View, StyleSheet, ScrollView, Switch, TouchableOpacity, KeyboardAvoidin
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as Haptics from 'expo-haptics';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 
 import { AuthContext } from '../../store/AuthContext';
 import { OnboardingStackParamList } from '../../navigation/types';
@@ -11,6 +11,7 @@ import OnboardingHeader from '../../components/onboarding/OnboardingHeader';
 import PrimaryButton from '../../components/ui/PrimaryButton';
 import AppText from '../../components/ui/AppText';
 import EditRow from '../../components/ui/EditRow';
+import PersonalEstimate, { type EstimateStats } from '../../components/onboarding/PersonalEstimate';
 import { updateOnboardingStep } from '../../services/onboarding';
 import { updateMyProfile } from '../../services/profile';
 import { upsertGoal } from '../../services/mmrGoals';
@@ -102,6 +103,10 @@ export default function OnboardingRecommendedScreen({ navigation }: Props) {
   const [personalized, setPersonalized] = useState(false);
   const [hadExisting, setHadExisting] = useState(false);
   const [loading, setLoading] = useState(true);
+  // What the estimate works from (pounds / inches), and the picked units.
+  const [stats, setStats] = useState<{ units: 'imperial' | 'metric'; goalMode: GoalMode; sex: any; age: number | null; heightIn: number | null; weightLb: number | null }>({
+    units: 'imperial', goalMode: 'maintenance', sex: null, age: null, heightIn: null, weightLb: null,
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -129,6 +134,14 @@ export default function OnboardingRecommendedScreen({ navigation }: Props) {
         });
 
         if (cancelled) return;
+        setStats({
+          units: d?.units === 'metric' ? 'metric' : 'imperial',
+          goalMode,
+          sex: d?.sex ?? null,
+          age: typeof d?.age === 'number' ? d.age : null,
+          heightIn: typeof d?.height === 'number' && d.height > 0 ? d.height : null,
+          weightLb: typeof d?.weightCurrent === 'number' && d.weightCurrent > 0 ? d.weightCurrent : null,
+        });
         // Re-onboarding safety: existing calibrated goals win over the recommendation.
         const existingCal = typeof d?.dailyCalorieGoal === 'number' ? d.dailyCalorieGoal : null;
         const existingWk = typeof d?.workoutsPerWeek === 'number' ? d.workoutsPerWeek : null;
@@ -171,6 +184,18 @@ export default function OnboardingRecommendedScreen({ navigation }: Props) {
   }, [user?.uid]);
 
   const anyCategoryOn = workoutsOn || caloriesOn || weightOn;
+
+  // Optional: sex, age and height turn the starter number into an estimate.
+  const applyEstimate = (e: EstimateStats) => {
+    const rec = recommendTargets({ goalMode: stats.goalMode, workoutsPerWeek: workouts, weightLb: e.weightLb, heightIn: e.heightIn, age: e.age, sex: e.sex });
+    setCalories(String(rec.dailyCalorieGoal));
+    setPersonalized(true);
+    setHadExisting(false);
+    setStats((s) => ({ ...s, sex: e.sex, age: e.age, heightIn: e.heightIn, weightLb: e.weightLb }));
+    if (!user?.uid) return;
+    void updateMyProfile({ uid: user.uid, age: e.age, height: e.heightIn, weightCurrent: e.weightLb }).catch(() => {});
+    if (db && e.sex) void setDoc(doc(db, 'users', user.uid), { sex: e.sex, updatedAt: serverTimestamp() }, { merge: true }).catch(() => {});
+  };
 
   const handleContinue = async () => {
     if (!user?.uid || !anyCategoryOn) return;
@@ -286,12 +311,19 @@ export default function OnboardingRecommendedScreen({ navigation }: Props) {
                     label="Calorie target"
                     value={calories}
                     onChangeText={(t) => setCalories(t.replace(/[^0-9]/g, ''))}
-                    subline={personalized && !hadExisting ? 'Estimated from your stats and goal' : undefined}
+                    subline={personalized && !hadExisting ? 'Estimated from your stats and goal' : !hadExisting ? 'A common starting point for your goal' : undefined}
                     suffix="kcal"
                     keyboardType="number-pad"
                     showDivider={false}
                   />
                 </View>
+              ) : null}
+              {caloriesOn && !personalized ? (
+                <PersonalEstimate
+                  units={stats.units}
+                  initial={{ sex: stats.sex, age: stats.age, heightIn: stats.heightIn, weightLb: stats.weightLb }}
+                  onEstimate={applyEstimate}
+                />
               ) : null}
 
               <CategoryToggle

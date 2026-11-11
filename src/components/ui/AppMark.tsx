@@ -28,7 +28,7 @@ export default function AppMark({ size = 84, glyph = 'dumbbell' }: Props) {
         alignItems: 'center',
         justifyContent: 'center',
         shadowColor: colors.primary,
-        shadowOpacity: 0.4,
+        shadowOpacity: 0.18,
         shadowRadius: 26,
         shadowOffset: { width: 0, height: 12 },
         elevation: 12,
@@ -37,8 +37,8 @@ export default function AppMark({ size = 84, glyph = 'dumbbell' }: Props) {
       <Svg width={size} height={size} viewBox="0 0 100 100" style={{ position: 'absolute' }}>
         <Defs>
           <LinearGradient id="appmark" x1="0" y1="0" x2="1" y2="1">
-            <Stop offset="0" stopColor="#4E97FF" />
-            <Stop offset="1" stopColor="#2F6FD6" />
+            <Stop offset="0" stopColor="#F7F3EC" />
+            <Stop offset="1" stopColor="#DCD5C8" />
           </LinearGradient>
         </Defs>
         <Rect
@@ -53,7 +53,7 @@ export default function AppMark({ size = 84, glyph = 'dumbbell' }: Props) {
           transform="rotate(45 50 50)"
         />
       </Svg>
-      <Icon source={glyph} size={glyphSize} color="#FFFFFF" />
+      <Icon source={glyph} size={glyphSize} color={colors.onPrimary} />
     </View>
   );
 }

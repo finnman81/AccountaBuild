@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useState } from 'react';
-import { View, StyleSheet, ScrollView, Platform } from 'react-native';
+import { View, StyleSheet, ScrollView, Platform, TouchableOpacity } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as Haptics from 'expo-haptics';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -88,7 +88,7 @@ export default function OnboardingFinishScreen({}: Props) {
     return unsubscribe;
   }, [user?.uid]);
 
-  const handleFinish = async () => {
+  const handleFinish = async (thenLog: boolean) => {
     if (!user?.uid) return;
     setIsSubmitting(true);
 
@@ -144,8 +144,13 @@ export default function OnboardingFinishScreen({}: Props) {
       const nav = rootNav.getParent() ?? rootNav;
       nav.dispatch(
         CommonActions.reset({
-          index: 0,
-          routes: [{ name: 'MainTabs', params: { screen: 'HomeTab', params: { screen: 'Today' } } }],
+            // The first log is where the app pays off, so the main button opens
+          // the log screen on top of Today.
+          index: thenLog ? 1 : 0,
+          routes: [
+            { name: 'MainTabs', params: { screen: 'HomeTab', params: { screen: 'Today' } } },
+            ...(thenLog ? [{ name: 'LogComposer', params: { initialType: 'workout' } }] : []),
+          ],
         }),
       );
       setIsSubmitting(false);
@@ -177,6 +182,7 @@ export default function OnboardingFinishScreen({}: Props) {
         <View style={styles.levelNote}>
           <AppText variant="stat" color="accent">{picked.count}</AppText>
           <AppText variant="rowSubtitle" color="secondary" style={styles.levelBody}>{picked.body}</AppText>
+          <AppText variant="rowSubtitle" color="primary" style={styles.allowNote}>{onboardingCopy.finish.allowNote}</AppText>
         </View>
 
         {rows.length ? (
@@ -198,9 +204,12 @@ export default function OnboardingFinishScreen({}: Props) {
         <AppText variant="rowSubtitle" color="muted" style={styles.permsNote}>
           {onboardingCopy.finish.permsNote}
         </AppText>
-        <PrimaryButton onPress={handleFinish} loading={isSubmitting} disabled={isSubmitting}>
+        <PrimaryButton onPress={() => void handleFinish(true)} loading={isSubmitting} disabled={isSubmitting}>
           {onboardingCopy.finish.cta}
         </PrimaryButton>
+        <TouchableOpacity onPress={() => void handleFinish(false)} disabled={isSubmitting} style={styles.later} accessibilityRole="button">
+          <AppText variant="rowSubtitle" color="muted">{onboardingCopy.finish.later}</AppText>
+        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
@@ -213,6 +222,8 @@ const styles = StyleSheet.create({
   sectionLabel: { marginTop: spacing.xl, marginBottom: spacing.sm, marginLeft: spacing.xs },
   levelNote: { marginTop: spacing.md, gap: 4, marginLeft: spacing.xs },
   levelBody: { lineHeight: 18 },
+  allowNote: { lineHeight: 18, marginTop: spacing.sm },
+  later: { alignItems: 'center', paddingTop: spacing.md, paddingBottom: spacing.xs },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: spacing.md },
   footer: { paddingHorizontal: spacing.lg, paddingBottom: spacing.base, paddingTop: spacing.md },
   permsNote: { textAlign: 'center', lineHeight: 18, marginBottom: spacing.md },

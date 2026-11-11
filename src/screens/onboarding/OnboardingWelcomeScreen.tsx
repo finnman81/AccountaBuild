@@ -1,4 +1,4 @@
-import React, { useContext, useEffect } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { View, StyleSheet, ScrollView } from 'react-native';
 import { Icon } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -14,6 +14,7 @@ import GlowBackground from '../../components/ui/GlowBackground';
 import { updateOnboardingStep } from '../../services/onboarding';
 import { onboardingAnalytics } from '../../services/analytics';
 import { onboardingCopy } from '../../constants/onboardingCopy';
+import { fetchJoinPreview, peekPendingJoinCode } from '../../services/inviteLinks';
 import { colors, spacing, radius } from '../../theme';
 import { typography } from '../../theme/typography';
 
@@ -29,8 +30,19 @@ export default function OnboardingWelcomeScreen({ navigation }: Props) {
   const { user } = useContext(AuthContext);
   const { welcome } = onboardingCopy;
 
+  // Arrived from a friend's invite: say whose group it is, right away.
+  const [invitedTo, setInvitedTo] = useState<string | null>(null);
+
   useEffect(() => {
     onboardingAnalytics.screenView(1, 'Welcome', 1);
+    let live = true;
+    void peekPendingJoinCode()
+      .then((code) => (code ? fetchJoinPreview(code) : null))
+      .then((p) => live && p && setInvitedTo(p.name))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
   }, []);
 
   const handleContinue = async () => {
@@ -51,9 +63,15 @@ export default function OnboardingWelcomeScreen({ navigation }: Props) {
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <AppMark size={84} glyph="dumbbell" />
 
+          {invitedTo ? (
+            <View style={styles.invite}>
+              <AppText variant="eyebrow" color="accent">You're invited</AppText>
+              <AppText variant="cardTitle" color="primary" style={{ textAlign: 'center' }}>{invitedTo}</AppText>
+            </View>
+          ) : null}
           <AppText style={styles.headline}>{welcome.headline}</AppText>
           <AppText variant="body" color="secondary" style={styles.subtext}>
-            {welcome.subtext}
+            {invitedTo ? `${invitedTo} is waiting. Set your goals and you're in.` : welcome.subtext}
           </AppText>
 
           <View style={styles.valueRows}>
@@ -73,11 +91,6 @@ export default function OnboardingWelcomeScreen({ navigation }: Props) {
             })}
           </View>
 
-          <View style={styles.dots}>
-            {[0, 1, 2, 3].map((i) => (
-              <View key={i} style={[styles.dot, i === 0 && styles.dotActive]} />
-            ))}
-          </View>
         </ScrollView>
 
         <View style={styles.footer}>
@@ -132,20 +145,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   valueText: { flex: 1, gap: 2 },
-  dots: {
-    flexDirection: 'row',
-    gap: 6,
-    marginTop: spacing.xxl,
-  },
-  dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 999,
-    backgroundColor: colors.faint,
-  },
-  dotActive: {
-    width: 18,
-    backgroundColor: colors.primary,
+  invite: {
+    alignItems: 'center',
+    gap: 4,
+    marginTop: spacing.xl,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radius.tile,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    backgroundColor: colors.surfaceHero,
   },
   footer: {
     paddingHorizontal: spacing.xl,

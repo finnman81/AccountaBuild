@@ -54,6 +54,13 @@ function parseStored(raw: string | null): Pending | null {
   }
 }
 
+/** Read WITHOUT clearing: lets Welcome greet an invited person by group name. */
+export async function peekPendingJoinCode(): Promise<string | null> {
+  const pending = pendingInMemory ?? parseStored(await AsyncStorage.getItem(STORAGE_KEY).catch(() => null));
+  if (!pending || Date.now() - pending.at > PENDING_TTL_MS) return null;
+  return pending.code;
+}
+
 /** Read-and-clear. Disk fallback covers a cold start that killed the JS heap. */
 export async function consumePendingJoinCode(): Promise<string | null> {
   const pending = pendingInMemory ?? parseStored(await AsyncStorage.getItem(STORAGE_KEY).catch(() => null));

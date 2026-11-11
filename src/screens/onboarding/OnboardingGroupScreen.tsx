@@ -107,9 +107,13 @@ export default function OnboardingGroupScreen({ navigation }: Props) {
       <OnboardingHeader currentStep={6} totalSteps={7} showBack onBack={() => (mode === 'choose' ? navigation.goBack() : setMode('choose'))} />
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-          <AppText variant="pageTitle" color="primary" style={styles.headline}>Find your people</AppText>
+          <AppText variant="pageTitle" color="primary" style={styles.headline}>
+            {mode === 'join' && preview ? `Join ${preview.name}` : 'Find your people'}
+          </AppText>
           <AppText variant="body" color="secondary" style={styles.subtext}>
-            Join with a code from a friend, or start a group and bring them in.
+            {mode === 'join' && preview
+              ? 'Your invite is ready. One tap and you are in.'
+              : 'Join with a code from a friend, or start a group and bring them in.'}
           </AppText>
 
           {mode === 'choose' ? (

@@ -52,8 +52,8 @@ export const onboardingCopy = {
 
   // Screen 2: Basic Info
   basicInfo: {
-    headline: "Basic info",
-    subtext: "Your targets get built from this.",
+    headline: "The basics",
+    subtext: "Who you are to your group, and where you start.",
   },
 
   // Recommended targets — computed from intent + basic info, user can tweak.
@@ -86,7 +86,9 @@ export const onboardingCopy = {
   finish: {
     headline: "You're set.",
     subtext: "Goals locked. Last thing: how much should the app talk to you?",
-    permsNote: "Next, your phone asks about notifications and your health app. Change either anytime in Profile.",
-    cta: "Finish",
+    allowNote: "Your phone asks next. Say yes, or none of this can reach you.",
+    permsNote: "It also asks about your health app, so workouts can log themselves.",
+    cta: "Log your first one",
+    later: "Later, take me to Today",
   },
 };
