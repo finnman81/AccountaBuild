@@ -563,6 +563,7 @@ export default function ProfileScreen() {
             items={[
               { title: 'My stats', icon: 'chart-line', onPress: () => (nav as any).navigate('MainTabs', { screen: 'ProgressTab', params: { screen: 'MyStats' } }) },
               { title: 'Goals', icon: 'target', onPress: () => nav.navigate('MMRGoals') },
+              { title: 'Notifications', icon: 'bell-outline', onPress: () => (nav as any).navigate('Notifications') },
               { title: 'Season history', icon: 'trophy', onPress: () => (nav as any).navigate('SeasonHistory') },
               { title: 'FP history', icon: 'chart-line', onPress: () => (nav as any).navigate('MMRHistory') },
               { title: 'Health sync', icon: 'heart-pulse', onPress: () => (nav as any).navigate('HealthSettings') },

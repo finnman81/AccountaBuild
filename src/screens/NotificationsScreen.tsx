@@ -1,10 +1,12 @@
-import React, { useContext, useEffect, useState } from 'react';
-import { Platform, ScrollView, StyleSheet, Switch, TouchableOpacity, View } from 'react-native';
+import React, { useContext, useEffect, useRef, useState } from 'react';
+import { Alert, Platform, ScrollView, StyleSheet, Switch, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 
 import AppText from '../components/ui/AppText';
 import PressableScale from '../components/ui/PressableScale';
+import PrimaryButton from '../components/ui/PrimaryButton';
 import TimePicker from '../components/ui/TimePicker';
 import { AuthContext } from '../store/AuthContext';
 import {
@@ -25,7 +27,8 @@ import { colors, radius, spacing } from '../theme';
  * One screen for every push. The member picks a level first; each level says
  * how many pushes a day it means, and the server holds it to that
  * (functions/notif-level.js). Custom opens the six kinds for the few who want
- * them. Every change saves at once: there is no Save button.
+ * them. Changes wait for Save (Jake, 2026-11-11: saving on every tap gave
+ * no sign that anything was saved); leaving with unsaved changes asks first.
  */
 const LEVELS: Array<{ value: Exclude<NotifLevel, 'custom'>; label: string; count: string; body: string }> = [
   { value: 'quiet', label: 'Quiet', count: '0 to 1 a day', body: 'Only what is sent to you: cheers, reactions, chat. Plus the Monday recap.' },
@@ -56,12 +59,21 @@ export default function NotificationsScreen() {
   const [style, setStyle] = useState<ReminderStyle>('friendly');
   const [nudges, setNudges] = useState(false);
   const [denied, setDenied] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [status, setStatus] = useState<'saved' | 'error' | null>(null);
+  // What is saved now. The screen edits a draft until Save.
+  const [savedSnap, setSavedSnap] = useState<string | null>(null);
+  const nav = useNavigation<any>();
 
   useEffect(() => {
     let live = true;
-    void getNotifLevelSettings(user?.uid).then((s) => live && setSettings(s));
-    void getLocalReminderStyle().then((s) => live && setStyle(s));
-    void getAppNotificationSettings().then((s) => live && setNudges(s.nudgesAllowed));
+    void Promise.all([getNotifLevelSettings(user?.uid), getLocalReminderStyle(), getAppNotificationSettings()]).then(([s, st, app]) => {
+      if (!live) return;
+      setSettings(s);
+      setStyle(st);
+      setNudges(app.nudgesAllowed);
+      setSavedSnap(JSON.stringify([s, st, app.nudgesAllowed]));
+    });
     // Android reports "denied" (and "can't ask again") before it has ever
     // asked, so on Android the banner waits for a request that fails. iOS
     // reports the truth up front.
@@ -77,20 +89,59 @@ export default function NotificationsScreen() {
 
   const apply = (next: NotifLevelSettings) => {
     setSettings(next);
+    setStatus(null);
     void Haptics.selectionAsync().catch(() => {});
-    void saveNotifLevelSettings(user?.uid, next).catch(() => {});
-    // First choice on a phone that was never asked: ask now.
-    void requestNotificationPermissions()
-      .then((ok) => setDenied(!ok))
-      .catch(() => {});
   };
 
   const pickStyle = (next: ReminderStyle) => {
     if (next === style) return;
     setStyle(next);
+    setStatus(null);
     void Haptics.selectionAsync().catch(() => {});
-    if (user?.uid) void saveReminderStyle(user.uid, next);
   };
+
+  const dirty = !!settings && savedSnap !== null && JSON.stringify([settings, style, nudges]) !== savedSnap;
+  const dirtyRef = useRef(dirty);
+  dirtyRef.current = dirty;
+
+  const save = async () => {
+    if (!settings || !settings.level) return;
+    setSaving(true);
+    setStatus(null);
+    try {
+      await saveNotifLevelSettings(user?.uid, settings);
+      if (user?.uid) await saveReminderStyle(user.uid, style);
+      await setAppNotificationSetting(user?.uid, 'nudgesAllowed', nudges);
+      setSavedSnap(JSON.stringify([settings, style, nudges]));
+      setStatus('saved');
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      // A phone that was never asked gets asked now.
+      if (settings.level !== 'quiet') {
+        void requestNotificationPermissions()
+          .then((ok) => setDenied(!ok))
+          .catch(() => {});
+      }
+    } catch {
+      setStatus('error');
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Leaving with unsaved changes asks first.
+  useEffect(
+    () =>
+      nav.addListener('beforeRemove', (e: any) => {
+        if (!dirtyRef.current) return;
+        e.preventDefault();
+        Alert.alert('Save your changes?', 'Your notification changes are not saved yet.', [
+          { text: 'Keep editing', style: 'cancel' },
+          { text: 'Discard', style: 'destructive', onPress: () => nav.dispatch(e.data.action) },
+        ]);
+      }),
+    [nav],
+  );
 
   if (!settings) return <View style={styles.container} />;
 
@@ -100,7 +151,7 @@ export default function NotificationsScreen() {
 
   return (
     <View style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.content, { paddingBottom: spacing.xxl + insets.bottom }]}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.content, { paddingBottom: spacing.xl }]}>
         {denied ? (
           <View style={styles.warnBox}>
             <AppText variant="rowSubtitle" color="danger">Notifications are off for this app. Turn them on in your phone settings.</AppText>
@@ -212,7 +263,7 @@ export default function NotificationsScreen() {
               value={nudges}
               onValueChange={(v) => {
                 setNudges(v);
-                void setAppNotificationSetting(user?.uid, 'nudgesAllowed', v);
+                setStatus(null);
               }}
               trackColor={{ false: colors.ringNotLogged, true: colors.success }}
               thumbColor="#FFFFFF"
@@ -221,6 +272,19 @@ export default function NotificationsScreen() {
           </View>
         </View>
       </ScrollView>
+      {/* Save sits above the tab bar's raised + button. */}
+      <View style={[styles.footer, { paddingBottom: spacing.md + 56 }]}>
+        {status ? (
+          <AppText variant="rowSubtitle" color={status === 'saved' ? 'success' : 'danger'} style={styles.status}>
+            {status === 'saved' ? 'Saved. Your notifications follow these settings now.' : "Couldn't save. Try again."}
+          </AppText>
+        ) : !settings.level ? (
+          <AppText variant="rowSubtitle" color="muted" style={styles.status}>Pick a level to save.</AppText>
+        ) : null}
+        <PrimaryButton onPress={() => void save()} loading={saving} disabled={saving || !dirty || !settings.level}>
+          {status === 'saved' && !dirty ? 'Saved' : 'Save'}
+        </PrimaryButton>
+      </View>
     </View>
   );
 }
@@ -259,6 +323,8 @@ const styles = StyleSheet.create({
     borderColor: colors.borderCard,
     backgroundColor: colors.surface,
   },
+  footer: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.divider, backgroundColor: colors.background },
+  status: { textAlign: 'center', marginBottom: spacing.sm },
   radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: colors.textMuted },
   radioOn: { borderColor: colors.primary, backgroundColor: colors.primary },
 });
