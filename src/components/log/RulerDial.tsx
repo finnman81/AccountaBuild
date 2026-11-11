@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, Keyboard, Platform, StyleSheet, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
+import { Keyboard, Platform, ScrollView, StyleSheet, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import * as Haptics from 'expo-haptics';
 
 import Text from '../ui/Text';
@@ -19,12 +19,15 @@ type Props = {
 const PX = 10; // one step
 const HEIGHT = 78;
 const HAPTIC_GAP_MS = 45;
+const BUFFER_GROUPS = 10; // drawn on each side of the needle
 
 /**
- * A measuring tape you flick. It is a native horizontal scroll list, so the
- * drag, the glide and the snap all run off the JS thread. Ticks are grouped
- * (one list row per `majorEvery` steps) so a 4,500-step weight range mounts
- * only what is on screen. Major ticks carry their number; the needle is fixed.
+ * A measuring tape you flick. It is a plain native horizontal ScrollView, so
+ * the drag, the glide and the snap all run off the JS thread. The content is
+ * one empty strip as wide as the whole range; only the tick groups near the
+ * needle are drawn, placed at their true position. (A FlatList was tried
+ * first: opened 13,000 px in, it painted late or not at all, and ran out of
+ * rows mid-flick.) Major ticks carry their number; the needle is fixed.
  *
  * The parent owns the value. While a finger or a glide is moving the tape,
  * the tape is the source of truth; when it is at rest it follows the prop
@@ -32,7 +35,7 @@ const HAPTIC_GAP_MS = 45;
  */
 export default function RulerDial({ value, onChange, min, max, step, majorEvery = 10 }: Props) {
   const [width, setWidth] = useState(0);
-  const listRef = useRef<FlatList<number>>(null);
+  const listRef = useRef<ScrollView>(null);
   const moving = useRef(false);
   const emitted = useRef(value);
   const lastHaptic = useRef(0);
@@ -43,8 +46,12 @@ export default function RulerDial({ value, onChange, min, max, step, majorEvery 
   const decimals = step < 1 ? Math.max(1, Math.round(-Math.log10(step))) : 0;
   const steps = Math.round((max - min) / step);
   const groupW = majorEvery * PX;
-  const groups = useMemo(() => Array.from({ length: Math.floor(steps / majorEvery) + 1 }, (_v, i) => i), [steps, majorEvery]);
+  const lastGroup = Math.floor(steps / majorEvery);
   const pad = Math.max(0, width / 2 - PX / 2);
+
+  const groupOf = (v: number) => Math.floor(Math.max(0, Math.min(steps, Math.round((v - min) / step))) / majorEvery);
+  // The group under the needle. Changes once per major tick, not per frame.
+  const [centerGroup, setCenterGroup] = useState(() => groupOf(value));
 
   const toOffset = useCallback((v: number) => Math.max(0, Math.min(steps, Math.round((v - min) / step))) * PX, [min, step, steps]);
 
@@ -52,11 +59,16 @@ export default function RulerDial({ value, onChange, min, max, step, majorEvery 
   // a new contentOffset on every value change re-positions the list under
   // the finger and kills the drag.
   const initialOffset = useRef({ x: toOffset(value), y: 0 }).current;
+  // Until the tape mounts (it waits for a width), keep the start position current:
+  // the saved last value often arrives in that gap.
+  if (!width) initialOffset.x = toOffset(value);
 
   // Android can ignore the initial contentOffset: place the tape once it has a width.
   useEffect(() => {
     if (!width) return;
-    const id = requestAnimationFrame(() => listRef.current?.scrollToOffset({ offset: toOffset(valueRef.current), animated: false }));
+    emitted.current = valueRef.current;
+    setCenterGroup(groupOf(valueRef.current));
+    const id = requestAnimationFrame(() => listRef.current?.scrollTo({ x: toOffset(valueRef.current), animated: false }));
     return () => cancelAnimationFrame(id);
   }, [width, toOffset]);
   useEffect(() => () => { if (restTimer.current) clearTimeout(restTimer.current); }, []);
@@ -66,12 +78,15 @@ export default function RulerDial({ value, onChange, min, max, step, majorEvery 
     if (!width || moving.current) return;
     if (Math.abs(value - emitted.current) < step / 2) return;
     emitted.current = value;
-    listRef.current?.scrollToOffset({ offset: toOffset(value), animated: false });
+    setCenterGroup(groupOf(value));
+    listRef.current?.scrollTo({ x: toOffset(value), animated: false });
   }, [value, width, step, toOffset]);
 
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    if (!moving.current) return; // a programmatic scroll: the parent already has this value
     const k = Math.max(0, Math.min(steps, Math.round(e.nativeEvent.contentOffset.x / PX)));
+    const g = Math.floor(k / majorEvery);
+    setCenterGroup((prev) => (prev === g ? prev : g));
+    if (!moving.current) return; // a programmatic scroll: the parent already has this value
     const v = Number((min + k * step).toFixed(decimals));
     if (v === emitted.current) return;
     emitted.current = v;
@@ -88,12 +103,15 @@ export default function RulerDial({ value, onChange, min, max, step, majorEvery 
     // The parent may round what we sent (kg to lb and back): line up with it.
     if (Math.abs(valueRef.current - emitted.current) >= step / 2) {
       emitted.current = valueRef.current;
-      listRef.current?.scrollToOffset({ offset: toOffset(valueRef.current), animated: true });
+      listRef.current?.scrollTo({ x: toOffset(valueRef.current), animated: true });
     }
   };
 
-  const renderGroup = useCallback(
-    ({ item: g }: { item: number }) => {
+  const drawn = useMemo(() => {
+    const out: React.ReactNode[] = [];
+    const from = Math.max(0, centerGroup - BUFFER_GROUPS);
+    const to = Math.min(lastGroup, centerGroup + BUFFER_GROUPS);
+    for (let g = from; g <= to; g += 1) {
       const ticks: React.ReactNode[] = [];
       for (let i = 0; i < majorEvery; i += 1) {
         const k = g * majorEvery + i;
@@ -112,24 +130,22 @@ export default function RulerDial({ value, onChange, min, max, step, majorEvery 
           </View>,
         );
       }
-      return <View style={{ width: groupW, height: HEIGHT }}>{ticks}</View>;
-    },
-    [majorEvery, steps, min, step, decimals, groupW],
-  );
+      out.push(
+        <View key={g} pointerEvents="none" style={{ position: 'absolute', top: 0, left: pad + g * groupW, width: groupW, height: HEIGHT }}>
+          {ticks}
+        </View>,
+      );
+    }
+    return out;
+  }, [centerGroup, lastGroup, majorEvery, steps, min, step, decimals, groupW, pad]);
 
   return (
     <View style={styles.wrap} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
       {width > 0 ? (
-        <FlatList
+        <ScrollView
           ref={listRef}
-          data={groups}
-          keyExtractor={(g) => String(g)}
-          renderItem={renderGroup}
           horizontal
           showsHorizontalScrollIndicator={false}
-          getItemLayout={(_d, index) => ({ length: groupW, offset: pad + index * groupW, index })}
-          ListHeaderComponent={<View style={{ width: pad }} />}
-          ListFooterComponent={<View style={{ width: pad }} />}
           contentOffset={initialOffset}
           snapToInterval={PX}
           decelerationRate="normal"
@@ -151,12 +167,10 @@ export default function RulerDial({ value, onChange, min, max, step, majorEvery 
             moving.current = true;
           }}
           onMomentumScrollEnd={settle}
-          initialNumToRender={Math.ceil(width / groupW) + 4}
-          windowSize={7}
-          maxToRenderPerBatch={8}
-          removeClippedSubviews={false}
           nestedScrollEnabled
-        />
+        >
+          <View style={{ width: pad * 2 + (steps + 1) * PX, height: HEIGHT }}>{drawn}</View>
+        </ScrollView>
       ) : null}
       {/* Fixed needle with a notch on top, in the accent. */}
       <View pointerEvents="none" style={[styles.needle, { left: width / 2 - 1.5 }]} />
