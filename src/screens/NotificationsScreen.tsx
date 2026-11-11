@@ -164,7 +164,7 @@ export default function NotificationsScreen() {
             <View style={styles.row}>
               <AppText variant="rowTitle" color="primary" style={{ flex: 1 }}>Reminder</AppText>
               <AppText variant="rowSubtitle" color="muted">
-                {level === 'allin' ? ['09:00', '12:00', '21:00'].map(clock).join(', ') : 'Off'}
+                {level === 'allin' ? ['09:00', '12:00', '21:00'].map(clock).join(', ') : level ? 'Off' : 'Pick a level first'}
               </AppText>
             </View>
           )}
