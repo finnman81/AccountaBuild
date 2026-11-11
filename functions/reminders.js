@@ -19,6 +19,7 @@ const core = require('./mmr-core');
 const { getGroupIds } = require('./mmr-compute');
 const { isExpoToken, prefEnabled } = require('./push-helper');
 const { isShielded } = require('./notif-logic');
+const { getNotifConfig, effectiveLevel, reminderTimesFor } = require('./notif-level');
 
 const DEFAULT_TZ = core.DEFAULT_TZ;
 const WINDOW_MIN = 6; // cron is every 5 min; a slot fires once in the run after its time
@@ -113,6 +114,30 @@ function parseSlot(s) {
   return { hour, minute, key: `${String(hour).padStart(2, '0')}:${m[2]}` };
 }
 
+/**
+ * How many teammates trained today, across the member's groups. On a level
+ * the single reminder carries the team news, so "X logged a workout" does not
+ * have to arrive as its own push all day.
+ */
+async function teammatesTrained(db, uid, groupIds, ymd, cache) {
+  const mates = new Set();
+  for (const gid of groupIds) {
+    const key = `${gid}|${ymd}`;
+    if (!cache.has(key)) {
+      const snap = await db.collection('groups').doc(gid).collection('logs')
+        .where('date', '==', ymd).where('type', '==', 'workout').get();
+      cache.set(key, new Set(snap.docs.map((d) => String(d.get('uid') || '')).filter(Boolean)));
+    }
+    for (const u of cache.get(key)) if (u !== uid) mates.add(u);
+  }
+  return mates.size;
+}
+
+function teamNewsBody(style, n) {
+  const who = n === 1 ? '1 teammate' : `${n} teammates`;
+  return style === 'savage' ? `${who} trained today. You?` : `${who} trained today. You have not logged yet.`;
+}
+
 async function loggedToday(db, uid, groupIds, ymd) {
   for (const gid of groupIds) {
     const snap = await db.collection('groups').doc(gid).collection('logs')
@@ -128,6 +153,8 @@ async function loggedToday(db, uid, groupIds, ymd) {
  */
 async function evaluateReminderSlots(db, now = new Date(), { apply = true } = {}) {
   const usersSnap = await db.collection('users').get();
+  const cfg = await getNotifConfig(db);
+  const trainedCache = new Map();
   const items = [];
   const report = [];
   let evaluated = 0;
@@ -138,7 +165,10 @@ async function evaluateReminderSlots(db, now = new Date(), { apply = true } = {}
     if (prefs.reminderSource !== 'server') continue;
     if (!isExpoToken(data.expoPushToken)) continue;
     if (!prefEnabled(data, 'streakReminder') || prefs.reminderEnabled === false) continue;
-    const slots = Array.isArray(prefs.reminderTimes) ? prefs.reminderTimes.map(parseSlot).filter(Boolean) : [];
+    // On a level, the level sets the slots (Standard: one, default 18:00).
+    const level = effectiveLevel(data, u.id, cfg);
+    const slotSource = level ? reminderTimesFor(level, data) : Array.isArray(prefs.reminderTimes) ? prefs.reminderTimes : [];
+    const slots = slotSource.map(parseSlot).filter(Boolean);
     if (!slots.length) continue;
     evaluated += 1;
 
@@ -171,7 +201,10 @@ async function evaluateReminderSlots(db, now = new Date(), { apply = true } = {}
         } else if (await loggedToday(db, u.id, groupIds, clock.ymd)) {
           kind = 'logged';
         } else {
-          body = reminderBodyFor(styleOf(data), dueSlots[0].hour, dayIndexOf(clock.ymd));
+          const trained = level && level !== 'allin' ? await teammatesTrained(db, u.id, groupIds, clock.ymd, trainedCache) : 0;
+          body = trained > 0
+            ? teamNewsBody(styleOf(data), trained)
+            : reminderBodyFor(styleOf(data), dueSlots[0].hour, dayIndexOf(clock.ymd));
         }
       }
       report.push({ uid: u.id, name: data.displayName || u.id, slot: dueSlots[0].key, tz: clock.tz, kind, body });

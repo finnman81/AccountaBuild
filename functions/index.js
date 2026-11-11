@@ -43,6 +43,7 @@ const { renderHype } = require('./hype-catalog');
 initializeApp();
 const db = getFirestore();
 
+const { getNotifConfig, effectiveLevel, reminderTimesFor } = require('./notif-level');
 const TZ = core.DEFAULT_TZ; // America/New_York
 const CHAT_THROTTLE_MS = 10 * 60 * 1000; // one chat push per recipient per group per 10 min
 
@@ -343,7 +344,17 @@ exports.streakRiskReminder = onSchedule(
     const vac = await evaluateVacationPrompt(db, now);
     const vacUids = new Set(vac.items.map((i) => i.uid));
     const { items, evaluated } = await evaluateStreakRisk(db, now);
-    const riskItems = items.filter((i) => !vacUids.has(i.uid));
+    // On a level with a reminder, the 6 PM reminder already says "you have
+    // not logged". A streak warning the same evening would be the second push
+    // about the same thing.
+    const lvlCfg = await getNotifConfig(db);
+    const riskUsers = await getUsers(items.map((i) => i.uid));
+    const hasLevelReminder = (uid) => {
+      const u = riskUsers.get(uid) || {};
+      const level = effectiveLevel(u, uid, lvlCfg);
+      return !!level && reminderTimesFor(level, u).length > 0;
+    };
+    const riskItems = items.filter((i) => !vacUids.has(i.uid) && !hasLevelReminder(i.uid));
 
     // Sign nudge (Mondays only, and only for people who have NEVER signed).
     // Lowest priority of the three: anyone already receiving a vacation prompt
@@ -773,6 +784,7 @@ exports.dailyChampion = onSchedule(
   { schedule: '0 8 * * *', timeZone: TZ, timeoutSeconds: 540, memory: '256MiB' },
   async () => {
     const { results, yDay } = await evaluateDailyChampion(db, new Date());
+    const champCfg = await getNotifConfig(db);
     let sent = 0;
 
     // ONE champion push per member per day. Someone in two groups got two
@@ -808,7 +820,9 @@ exports.dailyChampion = onSchedule(
             title: isChamp ? '👑 You were yesterday\'s champion!' : '🌅 Yesterday\'s Champion',
             body: isChamp
               ? `${r.line}. Defend the crown today.`
-              : `${champLabel} owned yesterday: ${r.line}. Your move.`,
+              : effectiveLevel(u, uid, champCfg) && r.loggedCount
+                ? `${champLabel} owned yesterday: ${r.line}. ${r.loggedCount} of ${r.memberUids.length} logged. Your move.`
+                : `${champLabel} owned yesterday: ${r.line}. Your move.`,
             data: { type: 'dailyChampion', screen: 'Today' },
           });
         }

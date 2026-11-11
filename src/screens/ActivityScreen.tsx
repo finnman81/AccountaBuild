@@ -61,6 +61,15 @@ export default function ActivityScreen({ navigation }: Props) {
           <Icon source="chevron-left" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
         <AppText variant="pageTitle" color="primary" style={styles.title}>Activity</AppText>
+        <TouchableOpacity
+          onPress={() => navigation.navigate('Notifications')}
+          style={styles.back}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Notification settings"
+        >
+          <Icon source="cog-outline" size={22} color={colors.textSecondary} />
+        </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -100,7 +109,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.base, paddingVertical: spacing.md },
   back: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
-  title: {},
+  title: { flex: 1 },
   content: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl },
   group: { backgroundColor: colors.surface, borderRadius: radius.listGroup, borderWidth: 1, borderColor: colors.borderCard, paddingHorizontal: spacing.base },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.md, minHeight: 60 },

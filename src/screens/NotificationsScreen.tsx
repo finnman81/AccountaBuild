@@ -1,429 +1,254 @@
-import React, { useContext, useEffect, useRef, useState } from 'react';
-import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, Switch, TouchableOpacity, TouchableWithoutFeedback, View, StyleSheet } from 'react-native';
-import { Modal, Portal } from 'react-native-paper';
-import { useHeaderHeight } from '@react-navigation/elements';
+import React, { useContext, useEffect, useState } from 'react';
+import { ScrollView, StyleSheet, Switch, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 
 import AppText from '../components/ui/AppText';
-import Card from '../components/ui/Card';
-import PrimaryButton from '../components/ui/PrimaryButton';
+import PressableScale from '../components/ui/PressableScale';
 import TimePicker from '../components/ui/TimePicker';
 import { AuthContext } from '../store/AuthContext';
-import { getNotificationPreferences, saveNotificationPreferences, type NotificationPreferences } from '../services/notificationPreferences';
-import { scheduleNotifications, cancelAllNotifications, requestNotificationPermissions, getNotificationPermissionsStatus } from '../services/notifications';
-import { colors, radius, spacing } from '../theme';
+import {
+  getAppNotificationSettings,
+  getNotifLevelSettings,
+  saveNotifLevelSettings,
+  setAppNotificationSetting,
+  type NotifGroup,
+  type NotifLevel,
+  type NotifLevelSettings,
+} from '../services/appSettings';
+import { getNotificationPermissionsStatus, requestNotificationPermissions } from '../services/notifications';
 import { getLocalReminderStyle, REMINDER_STYLES, saveReminderStyle, type ReminderStyle } from '../services/reminderStyle';
+import { colors, radius, spacing } from '../theme';
 
-function isValidTime(timeStr: string): boolean {
-  const match = /^([0-1]?[0-9]|2[0-3]):([0-5][0-9])$/.exec(timeStr);
-  return match !== null;
+/**
+ * One screen for every push. The member picks a level first; each level says
+ * how many pushes a day it means, and the server holds it to that
+ * (functions/notif-level.js). Custom opens the six kinds for the few who want
+ * them. Every change saves at once: there is no Save button.
+ */
+const LEVELS: Array<{ value: Exclude<NotifLevel, 'custom'>; label: string; count: string; body: string }> = [
+  { value: 'quiet', label: 'Quiet', count: '0 to 1 a day', body: 'Only what is sent to you: cheers, reactions, chat. Plus the Monday recap.' },
+  { value: 'standard', label: 'Standard', count: 'About 2 a day', body: 'A morning line. One reminder if you have not logged. Anything sent to you.' },
+  { value: 'allin', label: 'All in', count: '5 or more a day', body: 'Everything in Standard, plus a push each time a teammate trains, and three reminders.' },
+];
+
+// Rough pushes a day per kind, from the week of 2026-11-04.
+const GROUPS: Array<{ key: NotifGroup; title: string; subtitle: string; perDay: number }> = [
+  { key: 'direct', title: 'Sent to you', subtitle: 'Cheers, reactions, nudges, chat', perDay: 0.2 },
+  { key: 'reminder', title: 'Your reminder', subtitle: 'Once a day, only if nothing is logged', perDay: 0.7 },
+  { key: 'progress', title: 'Your progress', subtitle: 'Rank changes, streak at risk, weekly recap', perDay: 0.2 },
+  { key: 'morning', title: 'Morning line', subtitle: "Yesterday's champion and who logged", perDay: 1 },
+  { key: 'teammate', title: "Each teammate's workout", subtitle: 'A push every time someone trains', perDay: 3 },
+  { key: 'events', title: 'Events', subtitle: 'Challenges, contests, milestones', perDay: 0.2 },
+];
+
+function clock(hhmm: string): string {
+  const [h, m] = hhmm.split(':').map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return hhmm;
+  return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
 }
 
 export default function NotificationsScreen() {
   const { user } = useContext(AuthContext);
-  const headerHeight = useHeaderHeight();
   const insets = useSafeAreaInsets();
-
-  const [enabled, setEnabled] = useState(true);
-  const [count, setCount] = useState<1 | 2 | 3 | 4 | 5>(3);
-  const [times, setTimes] = useState<string[]>(['09:00', '12:00', '21:00']);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState<string | null>(null);
-  const [permissionStatus, setPermissionStatus] = useState<string>('undetermined');
-  const [loading, setLoading] = useState(true);
+  const [settings, setSettings] = useState<NotifLevelSettings | null>(null);
   const [style, setStyle] = useState<ReminderStyle>('friendly');
+  const [nudges, setNudges] = useState(false);
+  const [denied, setDenied] = useState(false);
+
   useEffect(() => {
-    void getLocalReminderStyle().then(setStyle);
-  }, []);
-  const pickStyle = async (next: ReminderStyle) => {
+    let live = true;
+    void getNotifLevelSettings(user?.uid).then((s) => live && setSettings(s));
+    void getLocalReminderStyle().then((s) => live && setStyle(s));
+    void getAppNotificationSettings().then((s) => live && setNudges(s.nudgesAllowed));
+    void getNotificationPermissionsStatus().then((s) => live && setDenied(s === 'denied')).catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [user?.uid]);
+
+  const apply = (next: NotifLevelSettings) => {
+    setSettings(next);
+    void Haptics.selectionAsync().catch(() => {});
+    void saveNotifLevelSettings(user?.uid, next).catch(() => {});
+    // First choice on a phone that was never asked: ask now.
+    void requestNotificationPermissions().then((ok) => setDenied(!ok)).catch(() => {});
+  };
+
+  const pickStyle = (next: ReminderStyle) => {
     if (next === style) return;
     setStyle(next);
     void Haptics.selectionAsync().catch(() => {});
-    if (user?.uid) await saveReminderStyle(user.uid, next);
-    // Re-arm in the new tone (from tomorrow: never revives today's reminders
-    // for someone who already logged).
-    await scheduleNotifications({ force: true, startFromTomorrow: true }).catch(() => {});
-  };
-  const [countModalVisible, setCountModalVisible] = useState(false);
-  const [tempCount, setTempCount] = useState<1 | 2 | 3 | 4 | 5>(3);
-  const countScrollRef = useRef<ScrollView>(null);
-
-  const countOptions: Array<1 | 2 | 3 | 4 | 5> = [1, 2, 3, 4, 5];
-  const COUNT_ITEM_HEIGHT = 44;
-
-  const getDefaultTimes = (nextCount: number) => {
-    if (nextCount === 1) return ['09:00'];
-    if (nextCount === 2) return ['09:00', '21:00'];
-    if (nextCount === 3) return ['09:00', '12:00', '21:00'];
-    // Evenly distribute between 09:00 and 21:00 (inclusive)
-    const startHour = 9;
-    const endHour = 21;
-    const interval = (endHour - startHour) / (nextCount - 1);
-    const out: string[] = [];
-    for (let i = 0; i < nextCount; i += 1) {
-      const hour = Math.round(startHour + interval * i);
-      out.push(`${String(hour).padStart(2, '0')}:00`);
-    }
-    return out;
+    if (user?.uid) void saveReminderStyle(user.uid, next);
   };
 
-  useEffect(() => {
-    if (!user) return;
-    void (async () => {
-      try {
-        const prefs = await getNotificationPreferences();
-        setEnabled(prefs.enabled);
-        setCount(prefs.count);
-        setTimes([...prefs.times]);
-        const status = await getNotificationPermissionsStatus();
-        setPermissionStatus(status);
-      } catch (e) {
-        console.error('Failed to load notification preferences:', e);
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [user]);
+  if (!settings) return <View style={styles.container} />;
 
-  const updateTime = (index: number, value: string) => {
-    const newTimes = [...times];
-    newTimes[index] = value;
-    setTimes(newTimes);
-  };
-
-  const applyCountChange = (nextCount: 1 | 2 | 3 | 4 | 5) => {
-    setCount(nextCount);
-    if (nextCount >= 4) {
-      setTimes(getDefaultTimes(nextCount));
-      return;
-    }
-    // Keep existing times where possible
-    const newTimes = [...times];
-    while (newTimes.length < nextCount) {
-      const defaults = getDefaultTimes(nextCount);
-      newTimes.push(defaults[newTimes.length] ?? '09:00');
-    }
-    setTimes(newTimes.slice(0, nextCount));
-  };
-
-  const save = async () => {
-    if (!user) return;
-    setError(null);
-    setSaved(null);
-    setSaving(true);
-
-    try {
-      // Validate times
-      for (let i = 0; i < count; i++) {
-        const timeStr = times[i]?.trim();
-        if (!timeStr || !isValidTime(timeStr)) {
-          throw new Error(`Time ${i + 1} must be in HH:mm format (e.g., 09:00)`);
-        }
-      }
-
-      const prefs: NotificationPreferences = {
-        enabled,
-        count,
-        times: times.slice(0, count),
-      };
-
-      await saveNotificationPreferences(prefs);
-
-      if (enabled) {
-        // Request permissions if needed
-        const hasPermission = await requestNotificationPermissions();
-        if (!hasPermission) {
-          setError('Notification permissions are required. Please enable them in your device settings.');
-          setSaving(false);
-          return;
-        }
-        // Schedule notifications (force re-schedule on save)
-        // Allow later-today notifications, but avoid immediate bursts.
-        await scheduleNotifications({ force: true, startFromTomorrow: false, minLeadSeconds: 300 });
-      } else {
-        // Cancel all notifications
-        await cancelAllNotifications();
-      }
-
-      const status = await getNotificationPermissionsStatus();
-      setPermissionStatus(status);
-      setSaved('Settings saved.');
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (e) {
-      const message = e instanceof Error ? e.message : "Couldn't save. Try again.";
-      setError(message);
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  if (!user) {
-    return (
-      <View style={styles.container}>
-        <View style={styles.centered}>
-          <AppText variant="body" color="secondary">You must be signed in.</AppText>
-        </View>
-      </View>
-    );
-  }
-
-  if (loading) {
-    return (
-      <View style={styles.container}>
-        <View style={styles.centered}>
-          <AppText variant="body" color="secondary">Loading</AppText>
-        </View>
-      </View>
-    );
-  }
-
-  const permissionDenied = permissionStatus === 'denied';
-  const canEdit = !permissionDenied || !enabled;
+  const level = settings.level;
+  const customCount = Math.round(GROUPS.reduce((sum, g) => sum + (settings.groups[g.key] ? g.perDay : 0), 0));
+  const hasReminder = level === 'standard' || (level === 'custom' && settings.groups.reminder);
 
   return (
     <View style={styles.container}>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={headerHeight}
-      >
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-          <ScrollView
-            keyboardShouldPersistTaps="handled"
-            keyboardDismissMode={Platform.OS === 'ios' ? 'on-drag' : 'none'}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={[styles.content, { paddingBottom: spacing.xxl + insets.bottom }]}
-          >
-            <Card>
-              <AppText variant="cardLabel" color="primary">Reminders</AppText>
-              <AppText variant="rowSubtitle" color="muted" style={styles.subLine}>A push when it is time to log.</AppText>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.content, { paddingBottom: spacing.xxl + insets.bottom }]}>
+        {denied ? (
+          <View style={styles.warnBox}>
+            <AppText variant="rowSubtitle" color="danger">Notifications are off for this app. Turn them on in your phone settings.</AppText>
+          </View>
+        ) : null}
 
-              <View style={styles.toggleRow}>
-                <AppText variant="rowTitle" color="primary">Enable notifications</AppText>
-                <Switch
-                  value={enabled}
-                  onValueChange={setEnabled}
-                  disabled={saving || permissionDenied}
-                  trackColor={{ false: colors.ringNotLogged, true: colors.success }}
-                  thumbColor="#FFFFFF"
-                  ios_backgroundColor={colors.ringNotLogged}
-                />
+        <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>How much</AppText>
+        {LEVELS.map((l) => {
+          const on = level === l.value;
+          return (
+            <PressableScale
+              key={l.value}
+              onPress={() => apply({ ...settings, level: l.value })}
+              style={[styles.level, on && styles.levelOn]}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: on }}
+              accessibilityLabel={`${l.label}, ${l.count}`}
+            >
+              <View style={styles.levelTop}>
+                <AppText variant="cardTitle" color="primary">{l.label}</AppText>
+                <AppText variant="stat" color={on ? 'accent' : 'secondary'}>{l.count}</AppText>
               </View>
+              <AppText variant="rowSubtitle" color="secondary" style={styles.levelBody}>{l.body}</AppText>
+            </PressableScale>
+          );
+        })}
 
-              {permissionDenied && enabled && (
-                <View style={styles.warnBox}>
-                  <AppText variant="rowSubtitle" color="danger">
-                    Notifications are off for this app. Turn them on in your phone settings.
-                  </AppText>
-                </View>
-              )}
-
-              {enabled && (
-                <>
-                  <AppText variant="eyebrow" color="muted" style={styles.fieldLabel}>Notifications per day</AppText>
-                  <TouchableOpacity
-                    onPress={() => {
-                      setTempCount(count);
-                      setCountModalVisible(true);
-                      requestAnimationFrame(() => {
-                        const idx = countOptions.indexOf(count);
-                        if (countScrollRef.current && idx >= 0) {
-                          countScrollRef.current.scrollTo({ y: idx * COUNT_ITEM_HEIGHT, animated: false });
-                        }
-                      });
-                    }}
-                    disabled={saving || !canEdit}
-                    activeOpacity={0.7}
-                    style={styles.selectBox}
-                  >
-                    <AppText variant="rowTitle" color="primary">{count}</AppText>
-                  </TouchableOpacity>
-
-                  {Array.from({ length: count }).map((_, index) => (
-                    <View key={index} style={styles.timeBlock}>
-                      <AppText variant="eyebrow" color="muted" style={styles.fieldLabel}>
-                        Notification {index + 1} time
-                      </AppText>
-                      <TimePicker
-                        value={times[index] ?? '09:00'}
-                        onChange={(v) => updateTime(index, v)}
-                        disabled={saving || !canEdit}
-                      />
-                    </View>
-                  ))}
-                </>
-              )}
-
-              {error ? (
-                <AppText variant="rowSubtitle" color="danger" style={styles.feedback}>{error}</AppText>
-              ) : null}
-              {saved ? (
-                <AppText variant="rowSubtitle" color="success" style={styles.feedback}>{saved}</AppText>
-              ) : null}
-
-              <PrimaryButton onPress={save} disabled={saving || !canEdit} loading={saving} style={styles.saveBtn}>
-                Save settings
-              </PrimaryButton>
-            </Card>
-
-            <Card style={styles.spacedCard}>
-              <AppText variant="cardLabel" color="primary">Reminder style</AppText>
-              <AppText variant="rowSubtitle" color="muted" style={styles.subLine}>How your daily reminders talk to you</AppText>
-              {REMINDER_STYLES.map((o) => {
-                const on = o.value === style;
-                return (
-                  <TouchableOpacity
-                    key={o.value}
-                    onPress={() => void pickStyle(o.value)}
-                    activeOpacity={0.8}
-                    style={[styles.styleRow, on && styles.styleRowOn]}
-                    accessibilityRole="radio"
-                    accessibilityState={{ selected: on }}
-                  >
-                    <View style={{ flex: 1 }}>
-                      <AppText variant="rowTitle" color={on ? 'accent' : 'primary'}>{o.label}</AppText>
-                      <AppText variant="rowSubtitle" color="secondary" style={{ marginTop: 2 }}>"{o.sample}"</AppText>
-                    </View>
-                    <View style={[styles.radio, on && styles.radioOn]} />
-                  </TouchableOpacity>
-                );
-              })}
-            </Card>
-
-            <Card style={styles.spacedCard}>
-              <AppText variant="cardLabel" color="primary">About</AppText>
-              <AppText variant="rowSubtitle" color="secondary" style={styles.aboutText}>
-                Reminders arrive at the times you set. Skip the first one and a badge shows on the app icon.
-              </AppText>
-            </Card>
-          </ScrollView>
-        </TouchableWithoutFeedback>
-      </KeyboardAvoidingView>
-      <Portal>
-        <Modal
-          visible={countModalVisible}
-          onDismiss={() => setCountModalVisible(false)}
-          contentContainerStyle={styles.modalCard}
+        <PressableScale
+          onPress={() => apply({ ...settings, level: 'custom' })}
+          style={[styles.level, level === 'custom' && styles.levelOn]}
+          accessibilityRole="radio"
+          accessibilityState={{ selected: level === 'custom' }}
+          accessibilityLabel="Custom, pick each kind yourself"
         >
-          <AppText variant="cardLabel" color="primary" style={styles.modalTitle}>
-            Notifications per day
-          </AppText>
-          <View style={[styles.pickerFrame, { height: COUNT_ITEM_HEIGHT * 5 }]}>
-            <ScrollView
-              ref={countScrollRef}
-              showsVerticalScrollIndicator={false}
-              snapToInterval={COUNT_ITEM_HEIGHT}
-              decelerationRate="fast"
-              contentContainerStyle={{
-                paddingVertical: COUNT_ITEM_HEIGHT * 2,
-              }}
-              onMomentumScrollEnd={(e) => {
-                const offsetY = e?.nativeEvent?.contentOffset?.y ?? 0;
-                const idx = Math.round(offsetY / COUNT_ITEM_HEIGHT);
-                const clampedIdx = Math.max(0, Math.min(idx, countOptions.length - 1));
-                const next = countOptions[clampedIdx] ?? 3;
-                setTempCount(next);
-                countScrollRef.current?.scrollTo({ y: clampedIdx * COUNT_ITEM_HEIGHT, animated: true });
-              }}
-            >
-              {countOptions.map((opt) => {
-                const isSelected = opt === tempCount;
-                return (
-                  <TouchableOpacity
-                    key={opt}
-                    onPress={() => setTempCount(opt)}
-                    style={[
-                      styles.pickerItem,
-                      { height: COUNT_ITEM_HEIGHT },
-                      isSelected ? styles.pickerItemActive : null,
-                    ]}
-                  >
-                    <AppText variant="numberMd" color={isSelected ? 'accent' : 'secondary'}>
-                      {opt}
-                    </AppText>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
+          <View style={styles.levelTop}>
+            <AppText variant="cardTitle" color="primary">Custom</AppText>
+            <AppText variant="stat" color={level === 'custom' ? 'accent' : 'secondary'}>
+              {level === 'custom' ? `About ${customCount} a day` : 'Pick each kind'}
+            </AppText>
           </View>
-          <View style={styles.modalActions}>
-            <PrimaryButton secondary onPress={() => setCountModalVisible(false)} style={styles.modalBtn}>
-              Cancel
-            </PrimaryButton>
-            <PrimaryButton
-              secondary
-              onPress={() => {
-                applyCountChange(tempCount);
-                setCountModalVisible(false);
-              }}
-              style={styles.modalBtn}
+          {level === 'custom' ? (
+            <View style={styles.groupList}>
+              {GROUPS.map((g) => (
+                <View key={g.key} style={styles.groupRow}>
+                  <View style={styles.rowLeft}>
+                    <AppText variant="rowTitle" color="primary">{g.title}</AppText>
+                    <AppText variant="rowSubtitle" color="muted">{g.subtitle}</AppText>
+                  </View>
+                  <Switch
+                    value={settings.groups[g.key]}
+                    onValueChange={(v) => apply({ ...settings, groups: { ...settings.groups, [g.key]: v } })}
+                    trackColor={{ false: colors.ringNotLogged, true: colors.success }}
+                    thumbColor="#FFFFFF"
+                    ios_backgroundColor={colors.ringNotLogged}
+                  />
+                </View>
+              ))}
+            </View>
+          ) : null}
+        </PressableScale>
+
+        <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>Reminder</AppText>
+        <View style={styles.group}>
+          {hasReminder ? (
+            <View style={styles.timeBlock}>
+              <AppText variant="rowTitle" color="primary">Reminder time</AppText>
+              <AppText variant="rowSubtitle" color="muted" style={styles.timeHint}>It only arrives if nothing is logged that day.</AppText>
+              <TimePicker value={settings.reminderTime} onChange={(v) => apply({ ...settings, reminderTime: v })} />
+            </View>
+          ) : (
+            <View style={styles.row}>
+              <AppText variant="rowTitle" color="primary" style={{ flex: 1 }}>Reminder</AppText>
+              <AppText variant="rowSubtitle" color="muted">
+                {level === 'allin' ? ['09:00', '12:00', '21:00'].map(clock).join(', ') : 'Off'}
+              </AppText>
+            </View>
+          )}
+        </View>
+
+        <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>How it talks</AppText>
+        {REMINDER_STYLES.map((o) => {
+          const on = o.value === style;
+          return (
+            <TouchableOpacity
+              key={o.value}
+              onPress={() => pickStyle(o.value)}
+              activeOpacity={0.8}
+              style={[styles.styleRow, on && styles.levelOn]}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: on }}
             >
-              Done
-            </PrimaryButton>
+              <View style={{ flex: 1 }}>
+                <AppText variant="rowTitle" color="primary">{o.label}</AppText>
+                <AppText variant="rowSubtitle" color="secondary" style={{ marginTop: 2 }}>"{o.sample}"</AppText>
+              </View>
+              <View style={[styles.radio, on && styles.radioOn]} />
+            </TouchableOpacity>
+          );
+        })}
+
+        <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>Teammates</AppText>
+        <View style={styles.group}>
+          <View style={styles.row}>
+            <View style={styles.rowLeft}>
+              <AppText variant="rowTitle" color="primary">Let teammates nudge me</AppText>
+              <AppText variant="rowSubtitle" color="muted">They can poke you to log</AppText>
+            </View>
+            <Switch
+              value={nudges}
+              onValueChange={(v) => {
+                setNudges(v);
+                void setAppNotificationSetting(user?.uid, 'nudgesAllowed', v);
+              }}
+              trackColor={{ false: colors.ringNotLogged, true: colors.success }}
+              thumbColor="#FFFFFF"
+              ios_backgroundColor={colors.ringNotLogged}
+            />
           </View>
-        </Modal>
-      </Portal>
+        </View>
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  content: { flexGrow: 1, paddingHorizontal: spacing.lg, paddingTop: spacing.xs },
+  sectionLabel: { marginTop: spacing.lg, marginBottom: spacing.sm, marginLeft: spacing.xs },
+  warnBox: { marginTop: spacing.md, padding: spacing.md, backgroundColor: colors.dangerTint, borderRadius: radius.tile },
+  level: {
+    marginBottom: spacing.sm,
+    padding: spacing.base,
+    borderRadius: radius.tile,
+    borderWidth: 1,
+    borderColor: colors.borderCard,
+    backgroundColor: colors.surface,
+  },
+  levelOn: { borderColor: colors.primary, backgroundColor: colors.surfaceHero },
+  levelTop: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: spacing.md },
+  levelBody: { marginTop: spacing.xs, lineHeight: 18 },
+  groupList: { marginTop: spacing.sm },
+  groupRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.sm, borderTopWidth: 1, borderTopColor: colors.divider },
+  group: { backgroundColor: colors.surface, borderRadius: radius.listGroup, borderWidth: 1, borderColor: colors.borderCard, paddingHorizontal: spacing.base },
+  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.md, gap: spacing.md, minHeight: 52 },
+  rowLeft: { flex: 1, gap: 2 },
+  timeBlock: { paddingVertical: spacing.md },
+  timeHint: { marginTop: 2, marginBottom: spacing.md },
   styleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
-    marginTop: spacing.sm,
+    marginBottom: spacing.sm,
     padding: spacing.md,
     borderRadius: radius.tile,
     borderWidth: 1,
-    borderColor: colors.divider,
-    backgroundColor: colors.surface2,
+    borderColor: colors.borderCard,
+    backgroundColor: colors.surface,
   },
-  styleRowOn: { borderColor: colors.primary, backgroundColor: colors.primaryTint },
   radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: colors.textMuted },
   radioOn: { borderColor: colors.primary, backgroundColor: colors.primary },
-  container: { flex: 1, backgroundColor: colors.background },
-  flex: { flex: 1 },
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.lg },
-  content: { flexGrow: 1, paddingHorizontal: spacing.lg, paddingTop: spacing.base },
-  subLine: { marginTop: 2, marginBottom: spacing.base },
-  toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: spacing.sm },
-  warnBox: { marginTop: spacing.md, padding: spacing.md, backgroundColor: colors.dangerTint, borderRadius: radius.tile },
-  fieldLabel: { marginTop: spacing.base, marginBottom: spacing.sm },
-  selectBox: {
-    backgroundColor: colors.surface2,
-    borderColor: colors.borderCard,
-    borderWidth: 1,
-    borderRadius: radius.tile,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.base,
-  },
-  timeBlock: { marginTop: spacing.md },
-  feedback: { marginTop: spacing.md },
-  saveBtn: { marginTop: spacing.lg },
-  spacedCard: { marginTop: spacing.md },
-  aboutText: { marginTop: spacing.sm, lineHeight: 18 },
-  modalCard: {
-    margin: spacing.lg,
-    borderRadius: radius.tile,
-    padding: spacing.lg,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.borderCard,
-  },
-  modalTitle: { marginBottom: spacing.base },
-  pickerFrame: {
-    borderRadius: radius.tile,
-    borderWidth: 1,
-    borderColor: colors.borderCard,
-    overflow: 'hidden',
-    backgroundColor: colors.surface2,
-  },
-  pickerItem: { justifyContent: 'center', alignItems: 'center' },
-  pickerItemActive: { backgroundColor: colors.primaryTint },
-  modalActions: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: spacing.base, gap: spacing.md },
-  modalBtn: { minWidth: 100 },
 });

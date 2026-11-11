@@ -7,6 +7,7 @@
  * to Expo's 100-message limit.
  */
 const { FieldValue } = require('firebase-admin/firestore');
+const { DAILY_CAP, getNotifConfig, effectiveLevel, groupOf, levelAllows } = require('./notif-level');
 
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 
@@ -32,6 +33,70 @@ function inQuietHours(date, timeZone) {
   return hour >= 22 || hour < 8;
 }
 
+function ymdIn(date, timeZone) {
+  try {
+    return new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
+  } catch {
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
+  }
+}
+
+/**
+ * The one place levels are enforced (see notif-level.js): drop what the
+ * member's level does not carry, hold Standard to its daily cap, and keep a
+ * per-day tally at pushLog/{ymd}_{uid} ({sent, dropped} by kind). Until this
+ * tally existed nobody could say how many pushes a member got. A member with
+ * no level passes straight through. Any failure here sends the push anyway.
+ */
+async function applyLevels(db, items) {
+  if (!items.length) return items;
+  let cfg = {};
+  try {
+    cfg = await getNotifConfig(db);
+  } catch {
+    return items;
+  }
+  const now = new Date();
+  const users = new Map();
+  const used = new Map(); // uid -> capped pushes already counted today
+  const out = [];
+  for (const item of items) {
+    const type = String((item.data && item.data.type) || 'unknown');
+    let keep = true;
+    let ymd = ymdIn(now, 'America/New_York');
+    try {
+      if (!users.has(item.uid)) {
+        const snap = await db.doc(`users/${item.uid}`).get();
+        users.set(item.uid, snap.exists ? snap.data() || {} : {});
+      }
+      const user = users.get(item.uid);
+      ymd = ymdIn(now, (user.notifPrefs && user.notifPrefs.reminderTz) || 'America/New_York');
+      const level = effectiveLevel(user, item.uid, cfg);
+      const group = groupOf(type);
+      if (level && !levelAllows(level, user, group)) keep = false;
+      const cap = level ? DAILY_CAP[level] : undefined;
+      if (keep && cap && group && group !== 'direct') {
+        if (!used.has(item.uid)) used.set(item.uid, user.pushDay && user.pushDay.ymd === ymd ? Number(user.pushDay.n) || 0 : 0);
+        const n = used.get(item.uid);
+        if (n >= cap) {
+          keep = false;
+        } else {
+          used.set(item.uid, n + 1);
+          await db.doc(`users/${item.uid}`).set({ pushDay: { ymd, n: n + 1 } }, { merge: true }).catch(() => {});
+        }
+      }
+    } catch (e) {
+      console.warn('[push] level check failed, sending anyway', item.uid, e && e.message);
+      keep = true;
+    }
+    db.doc(`pushLog/${ymd}_${item.uid}`)
+      .set({ uid: item.uid, ymd, [keep ? 'sent' : 'dropped']: { [type]: FieldValue.increment(1) } }, { merge: true })
+      .catch(() => {});
+    if (keep) out.push(item);
+  }
+  return out;
+}
+
 /**
  * Send pushes and reconcile tickets.
  * @param {FirebaseFirestore.Firestore} db
@@ -39,7 +104,7 @@ function inQuietHours(date, timeZone) {
  * @returns {Promise<{sent: number, errors: number, deadTokensCleared: number}>}
  */
 async function sendExpoPushes(db, items) {
-  const valid = items.filter((m) => isExpoToken(m.token));
+  const valid = await applyLevels(db, items.filter((m) => isExpoToken(m.token)));
   let sent = 0;
   let errors = 0;
   let deadTokensCleared = 0;

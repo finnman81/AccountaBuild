@@ -74,6 +74,7 @@ function HomeStackNavigator() {
       <HomeStack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
       <HomeStack.Screen name="Today" component={HomeTodayScreen} options={{ headerShown: false, animation: 'none' }} />
       <HomeStack.Screen name="Activity" component={ActivityScreen} options={{ headerShown: false }} />
+      <HomeStack.Screen name="Notifications" component={NotificationsScreen} options={{ title: 'Notifications' }} />
       <HomeStack.Screen name="Challenge" component={ChallengeScreen} options={{ headerShown: false }} />
       <HomeStack.Screen name="Leaderboard" component={LeaderboardScreen} options={{ headerShown: false }} />
       <HomeStack.Screen name="GroupChat" component={GroupChatScreen} options={{ title: 'Chat' }} />

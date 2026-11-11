@@ -47,6 +47,7 @@ export type HomeStackParamList = {
   Today: undefined;
   Challenge: { groupId: string };
   Activity: undefined;
+  Notifications: undefined;
   Leaderboard: { groupId: string };
   GroupChat: { groupId: string };
   ViewPhotos: { groupId: string };

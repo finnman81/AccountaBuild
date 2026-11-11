@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 
 import { db } from '../firebase/firebase';
 import { getNotificationPreferences, saveNotificationPreferences } from './notificationPreferences';
@@ -126,4 +126,104 @@ export async function syncNotifPrefsToServer(uid: string): Promise<void> {
   } catch {
     /* non-fatal */
   }
+}
+
+// ---------------------------------------------------------------------------
+// Notification levels (2026-11-11). One choice instead of a list of toggles;
+// the server enforces it (functions/notif-level.js). The older toggles above
+// still exist server-side but the level screen sets them all on.
+// ---------------------------------------------------------------------------
+export type NotifLevel = 'quiet' | 'standard' | 'allin' | 'custom';
+export type NotifGroup = 'direct' | 'reminder' | 'progress' | 'morning' | 'teammate' | 'events';
+export type NotifLevelSettings = {
+  /** null = this account has no level yet (the old toggles still apply). */
+  level: NotifLevel | null;
+  groups: Record<NotifGroup, boolean>;
+  reminderTime: string; // HH:mm, the member's own time zone
+};
+
+export const DEFAULT_NOTIF_GROUPS: Record<NotifGroup, boolean> = {
+  direct: true,
+  reminder: true,
+  progress: true,
+  morning: true,
+  teammate: false,
+  events: true,
+};
+const LEVEL_KEY = 'notif_level_settings';
+const isLevel = (v: unknown): v is NotifLevel => v === 'quiet' || v === 'standard' || v === 'allin' || v === 'custom';
+
+/**
+ * The member's level. Order: what this phone saved, then the server copy
+ * (another phone, or a reinstall), then the app-wide default
+ * (config/app.notifDefaultLevel; preview-lane accounts get Standard early).
+ */
+export async function getNotifLevelSettings(uid: string | undefined): Promise<NotifLevelSettings> {
+  const base: NotifLevelSettings = { level: null, groups: { ...DEFAULT_NOTIF_GROUPS }, reminderTime: '18:00' };
+  try {
+    const raw = await AsyncStorage.getItem(LEVEL_KEY);
+    if (raw) {
+      const p = JSON.parse(raw) as Partial<NotifLevelSettings>;
+      if (isLevel(p.level)) return { level: p.level, groups: { ...DEFAULT_NOTIF_GROUPS, ...(p.groups ?? {}) }, reminderTime: p.reminderTime || '18:00' };
+    }
+  } catch {
+    /* fall through to the server copy */
+  }
+  if (!uid || !db) return base;
+  try {
+    const [userSnap, cfgSnap] = await Promise.all([getDoc(doc(db, 'users', uid)), getDoc(doc(db, 'config', 'app'))]);
+    const prefs = (userSnap.data() as any)?.notifPrefs ?? {};
+    const cfg = (cfgSnap.data() as any) ?? {};
+    const fallback = isLevel(cfg.notifDefaultLevel)
+      ? cfg.notifDefaultLevel
+      : Array.isArray(cfg.previewUids) && cfg.previewUids.includes(uid)
+        ? 'standard'
+        : null;
+    return {
+      level: isLevel(prefs.level) ? prefs.level : fallback,
+      groups: { ...DEFAULT_NOTIF_GROUPS, ...(prefs.groups ?? {}) },
+      reminderTime: typeof prefs.reminderTime === 'string' && /^\d{1,2}:\d{2}$/.test(prefs.reminderTime) ? prefs.reminderTime : '18:00',
+    };
+  } catch {
+    return base;
+  }
+}
+
+/**
+ * Save the level here and on the server. Picking a level turns the older
+ * toggles back on (locally too, or the sign-in mirror would switch them off
+ * again): from here the level decides, and the server enforces it.
+ */
+export async function saveNotifLevelSettings(uid: string | undefined, next: NotifLevelSettings): Promise<void> {
+  if (!next.level) return;
+  await AsyncStorage.setItem(LEVEL_KEY, JSON.stringify(next)).catch(() => {});
+  try {
+    const current = await getAppNotificationSettings();
+    await AsyncStorage.setItem(KEY, JSON.stringify({ ...current, streakReminder: true, teamActivity: true, milestones: true, chatMessages: true, weeklyRecap: true }));
+    const reminders = await getNotificationPreferences();
+    if (!reminders.enabled) await saveNotificationPreferences({ ...reminders, enabled: true });
+  } catch {
+    /* non-fatal */
+  }
+  if (!uid || !db) return;
+  await setDoc(
+    doc(db, 'users', uid),
+    {
+      notifPrefs: {
+        level: next.level,
+        groups: next.groups,
+        reminderTime: next.reminderTime,
+        reminderTz: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York',
+        reminderSource: 'server',
+        reminderEnabled: true,
+        streakReminder: true,
+        teamActivity: true,
+        milestones: true,
+        chatMessages: true,
+        weeklyRecap: true,
+      },
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true },
+  );
 }

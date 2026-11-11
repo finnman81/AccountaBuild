@@ -1,37 +1,16 @@
 import React, { useContext, useEffect, useState } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Switch, Alert, Linking } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Alert, Linking } from 'react-native';
 import { Icon } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import Constants from 'expo-constants';
 
 import { AuthContext } from '../store/AuthContext';
-import { getAppNotificationSettings, setAppNotificationSetting, type AppNotificationSettings } from '../services/appSettings';
+import { getNotifLevelSettings } from '../services/appSettings';
 import { deleteMyAccount } from '../services/accountDeletion';
 import { SUPPORT_EMAIL } from './LegalScreen';
 import AppText from '../components/ui/AppText';
 import { colors, radius, spacing } from '../theme';
-
-function ToggleRow({ title, subtitle, value, onValueChange, divider = true }: { title: string; subtitle?: string; value: boolean; onValueChange: (v: boolean) => void; divider?: boolean }) {
-  return (
-    <>
-      <View style={styles.row}>
-        <View style={styles.rowLeft}>
-          <AppText variant="rowTitle" color="primary">{title}</AppText>
-          {subtitle ? <AppText variant="rowSubtitle" color="muted">{subtitle}</AppText> : null}
-        </View>
-        <Switch
-          value={value}
-          onValueChange={onValueChange}
-          trackColor={{ false: colors.ringNotLogged, true: colors.success }}
-          thumbColor="#FFFFFF"
-          ios_backgroundColor={colors.ringNotLogged}
-        />
-      </View>
-      {divider ? <View style={styles.divider} /> : null}
-    </>
-  );
-}
 
 function NavRow({ title, value, onPress, divider = true }: { title: string; value?: string; onPress?: () => void; divider?: boolean }) {
   return (
@@ -50,16 +29,17 @@ export default function SettingsScreen() {
   const { user, logout } = useContext(AuthContext);
   const [deleting, setDeleting] = useState(false);
   const nav = useNavigation<any>();
-  const [prefs, setPrefs] = useState<AppNotificationSettings | null>(null);
+  const [levelLabel, setLevelLabel] = useState('');
 
+  // Re-read on focus: the level changes on the screen this row opens.
   useEffect(() => {
-    getAppNotificationSettings().then(setPrefs);
-  }, []);
-
-  const toggle = (key: keyof AppNotificationSettings) => (v: boolean) => {
-    setPrefs((p) => (p ? { ...p, [key]: v } : p));
-    void setAppNotificationSetting(user?.uid, key, v);
-  };
+    const read = () =>
+      void getNotifLevelSettings(user?.uid).then((s) =>
+        setLevelLabel(s.level === 'quiet' ? 'Quiet' : s.level === 'standard' ? 'Standard' : s.level === 'allin' ? 'All in' : s.level === 'custom' ? 'Custom' : 'Choose a level'),
+      );
+    read();
+    return nav.addListener('focus', read);
+  }, [nav, user?.uid]);
 
   const version = Constants.expoConfig?.version ?? '';
 
@@ -126,13 +106,7 @@ export default function SettingsScreen() {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>Notifications</AppText>
         <View style={styles.group}>
-          <ToggleRow title="Streak reminder" subtitle="Daily at 6:00 PM if you haven't logged" value={!!prefs?.streakReminder} onValueChange={toggle('streakReminder')} />
-          <ToggleRow title="Team activity" subtitle="Each day, when your group logs" value={!!prefs?.teamActivity} onValueChange={toggle('teamActivity')} />
-          <ToggleRow title="Milestones" subtitle="Goals reached, rank-ups, challenges (rare)" value={!!prefs?.milestones} onValueChange={toggle('milestones')} />
-          <ToggleRow title="Nudges" subtitle="Let teammates nudge you when at risk" value={!!prefs?.nudgesAllowed} onValueChange={toggle('nudgesAllowed')} />
-          <ToggleRow title="Chat messages" value={!!prefs?.chatMessages} onValueChange={toggle('chatMessages')} />
-          <ToggleRow title="Weekly recap" subtitle="Monday summary + rank changes" value={!!prefs?.weeklyRecap} onValueChange={toggle('weeklyRecap')} />
-          <NavRow title="Reminders" value="Times and style" onPress={() => nav.navigate('Notifications')} divider={false} />
+          <NavRow title="Notifications" value={levelLabel} onPress={() => nav.navigate('Notifications')} divider={false} />
         </View>
 
         <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>Health</AppText>
@@ -192,7 +166,6 @@ const styles = StyleSheet.create({
   sectionLabel: { marginTop: spacing.lg, marginBottom: spacing.sm, marginLeft: spacing.xs },
   group: { backgroundColor: colors.surface, borderRadius: radius.listGroup, borderWidth: 1, borderColor: colors.borderCard, paddingHorizontal: spacing.base },
   row: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.md, gap: spacing.md, minHeight: 52 },
-  rowLeft: { flex: 1, gap: 2 },
   divider: { height: 1, backgroundColor: colors.divider },
   deleteRow: { marginTop: spacing.md, alignItems: 'center', paddingVertical: spacing.md },
   signOutCard: { marginTop: spacing.xl, backgroundColor: colors.surface, borderRadius: radius.tile, borderWidth: 1, borderColor: colors.borderCard, paddingVertical: spacing.base, alignItems: 'center' },

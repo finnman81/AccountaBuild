@@ -282,6 +282,7 @@ async function evaluateDailyChampion(db, now) {
         coChampUid: coChamp ? coChamp.uid : null,
         coChampName,
         line,
+        loggedCount: ranked.length,
         memberUids,
       });
     } catch (e) {
