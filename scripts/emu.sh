@@ -21,9 +21,10 @@ PKG=com.munitor.accountabuild
 AVD="${AVD:-Pixel_6}"
 
 case "${1:-}" in
-  boot) "$SDK/emulator/emulator.exe" -avd "$AVD" -no-snapshot-save -no-boot-anim ;;
+  boot) "$SDK/emulator/emulator.exe" -avd "$AVD" -no-boot-anim ;; # snapshot saves on exit, so the installed app survives
   run) ANDROID_HOME="$SDK" npx expo run:android --device "$AVD" ;;
-  open) "$ADB" reverse tcp:8081 tcp:8081 && "$ADB" shell monkey -p "$PKG" -c android.intent.category.LAUNCHER 1 >/dev/null ;;
+  install) "$ADB" install -r android/app/build/outputs/apk/debug/app-debug.apk ;;
+  open) "$ADB" reverse tcp:8081 tcp:8081 && "$ADB" shell am start -a android.intent.action.VIEW -d "accountabuild://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8081" >/dev/null ;;
   reload) "$ADB" shell input keyevent 82 ;; # opens the dev menu; "Reload" is the first row
   shot) "$ADB" exec-out screencap -p > "${2:?file}" ;;
   tap) "$ADB" shell input tap "$2" "$3" ;;

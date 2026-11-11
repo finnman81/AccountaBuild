@@ -1,7 +1,5 @@
 import React, { useContext, useEffect } from 'react';
 import { View, StyleSheet, ScrollView } from 'react-native';
-import { useTheme } from 'react-native-paper';
-import Text from '../../components/ui/Text';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as Haptics from 'expo-haptics';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -11,15 +9,18 @@ import { OnboardingStackParamList } from '../../navigation/types';
 import OnboardingHeader from '../../components/onboarding/OnboardingHeader';
 import EvidenceCard from '../../components/onboarding/EvidenceCard';
 import PrimaryButton from '../../components/ui/PrimaryButton';
+import AppText from '../../components/ui/AppText';
 import { updateOnboardingStep } from '../../services/onboarding';
 import { onboardingAnalytics } from '../../services/analytics';
 import { onboardingCopy } from '../../constants/onboardingCopy';
+import { colors, spacing } from '../../theme';
 
 type Props = NativeStackScreenProps<OnboardingStackParamList, 'Accountability'>;
 
+/** Why a group: the one study number, then on to joining or starting one. */
 export default function OnboardingAccountabilityScreen({ navigation }: Props) {
-  const theme = useTheme();
   const { user } = useContext(AuthContext);
+  const copy = onboardingCopy.accountability;
 
   useEffect(() => {
     onboardingAnalytics.screenView(3, 'Accountability', 1);
@@ -28,7 +29,6 @@ export default function OnboardingAccountabilityScreen({ navigation }: Props) {
 
   const handleContinue = async () => {
     if (!user?.uid) return;
-
     try {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       await updateOnboardingStep(user.uid, 3);
@@ -39,86 +39,31 @@ export default function OnboardingAccountabilityScreen({ navigation }: Props) {
     }
   };
 
-  const handleBack = () => {
-    navigation.goBack();
-  };
-
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={['top']}>
-      <OnboardingHeader currentStep={6} totalSteps={6} showBack={true} onBack={handleBack} />
-      <ScrollView
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.textContainer}>
-          <Text variant="headlineLarge" style={[styles.headline, { color: theme.colors.onSurface }]}>
-            {onboardingCopy.accountability.headline}
-          </Text>
-          <Text variant="bodyLarge" style={[styles.subtext, { color: theme.colors.onSurfaceVariant }]}>
-            {onboardingCopy.accountability.subtext}
-          </Text>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+      <OnboardingHeader currentStep={5} totalSteps={7} showBack onBack={() => navigation.goBack()} />
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <AppText variant="pageTitle" color="primary">{copy.headline}</AppText>
+        <AppText variant="body" color="secondary" style={styles.subtext}>{copy.subtext}</AppText>
+
+        <View style={styles.evidence}>
+          <EvidenceCard win={copy.win} lose={copy.lose} citation={copy.citation} />
         </View>
 
-        <View style={styles.evidenceContainer}>
-          <EvidenceCard
-            primaryStat={onboardingCopy.accountability.primaryStat}
-            statHighlight={onboardingCopy.accountability.statHighlight}
-            citation={onboardingCopy.accountability.citation}
-            supportingLine={onboardingCopy.accountability.supportingLine}
-          />
-        </View>
-
-        {onboardingCopy.accountability.productTieIn ? (
-          <Text variant="bodyMedium" style={[styles.productTieIn, { color: theme.colors.onSurfaceVariant }]}>
-            {onboardingCopy.accountability.productTieIn}
-          </Text>
-        ) : null}
+        <AppText variant="body" color="secondary" style={styles.subtext}>{copy.supportingLine}</AppText>
       </ScrollView>
 
-      <View style={[styles.footer, { backgroundColor: theme.colors.background }]}>
-        <PrimaryButton onPress={handleContinue} style={styles.button}>
-          Continue
-        </PrimaryButton>
+      <View style={styles.footer}>
+        <PrimaryButton onPress={handleContinue}>{copy.cta}</PrimaryButton>
       </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  content: {
-    flexGrow: 1,
-    paddingHorizontal: 24,
-    paddingTop: 32,
-    paddingBottom: 16,
-  },
-  textContainer: {
-    marginBottom: 24,
-  },
-  headline: {
-    marginBottom: 12,
-    fontWeight: '600',
-  },
-  subtext: {
-    lineHeight: 24,
-  },
-  evidenceContainer: {
-    marginVertical: 24,
-  },
-  productTieIn: {
-    marginTop: 16,
-    textAlign: 'center',
-    lineHeight: 22,
-    opacity: 0.8,
-  },
-  footer: {
-    paddingHorizontal: 24,
-    paddingBottom: 24,
-    paddingTop: 16,
-  },
-  button: {
-    minHeight: 48,
-  },
+  container: { flex: 1, backgroundColor: colors.background },
+  content: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.base },
+  subtext: { marginTop: spacing.sm, lineHeight: 21 },
+  evidence: { marginTop: spacing.xl, marginBottom: spacing.base },
+  footer: { paddingHorizontal: spacing.lg, paddingBottom: spacing.base, paddingTop: spacing.md },
 });

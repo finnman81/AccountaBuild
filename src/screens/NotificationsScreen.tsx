@@ -12,10 +12,10 @@ import { AuthContext } from '../store/AuthContext';
 import {
   getAppNotificationSettings,
   getNotifLevelSettings,
+  NOTIF_LEVELS,
   saveNotifLevelSettings,
   setAppNotificationSetting,
   type NotifGroup,
-  type NotifLevel,
   type NotifLevelSettings,
 } from '../services/appSettings';
 import * as Notifications from 'expo-notifications';
@@ -30,11 +30,7 @@ import { colors, radius, spacing } from '../theme';
  * them. Changes wait for Save (Jake, 2026-11-11: saving on every tap gave
  * no sign that anything was saved); leaving with unsaved changes asks first.
  */
-const LEVELS: Array<{ value: Exclude<NotifLevel, 'custom'>; label: string; count: string; body: string }> = [
-  { value: 'quiet', label: 'Quiet', count: '0 to 1 a day', body: 'Only what is sent to you: cheers, reactions, chat. Plus the Monday recap.' },
-  { value: 'standard', label: 'Standard', count: 'About 2 a day', body: 'A morning line. One reminder if you have not logged. Anything sent to you.' },
-  { value: 'allin', label: 'All in', count: '5 or more a day', body: 'Everything in Standard, plus a push each time a teammate trains, and three reminders.' },
-];
+const LEVELS = NOTIF_LEVELS;
 
 // Rough pushes a day per kind, from the week of 2026-11-04.
 const GROUPS: Array<{ key: NotifGroup; title: string; subtitle: string; perDay: number }> = [

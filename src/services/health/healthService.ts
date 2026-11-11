@@ -1,3 +1,4 @@
+import { requireOptionalNativeModule } from 'expo-modules-core';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 
@@ -89,6 +90,19 @@ export async function isHealthAvailable(): Promise<boolean> {
 }
 
 /**
+ * True on Android builds that register the Health Connect permission
+ * delegate. Those builds are the first to ship the ExpoApplication native
+ * module, so its presence is the marker (an OTA cannot add a native module).
+ */
+export function androidHealthPromptSafe(): boolean {
+  try {
+    return requireOptionalNativeModule('ExpoApplication') != null;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Request health permissions
  */
 export async function requestHealthPermissions(): Promise<{ success: boolean; dialogShown: boolean; error?: string }> {
@@ -99,6 +113,11 @@ export async function requestHealthPermissions(): Promise<{ success: boolean; di
     }
     return await service.requestHealthKitPermissions();
   } else if (Platform.OS === 'android') {
+    // Builds up to Android 21 crash inside this prompt (see
+    // plugins/withHealthConnectDelegate.js). Never open it there.
+    if (!androidHealthPromptSafe()) {
+      return { success: false, dialogShown: false, error: 'Health Connect sync needs the next app update from the Play Store.' };
+    }
     const service = await getGoogleFitService();
     if (!service) {
       return { success: false, dialogShown: false, error: 'Google Fit service not available' };

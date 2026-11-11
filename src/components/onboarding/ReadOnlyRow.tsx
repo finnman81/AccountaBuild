@@ -27,7 +27,7 @@ export default function ReadOnlyRow({ label, value }: ReadOnlyRowProps) {
 
 const styles = StyleSheet.create({
   container: {
-    borderRadius: 4,
+    borderRadius: 10,
     paddingVertical: 16,
     paddingHorizontal: 16,
   },

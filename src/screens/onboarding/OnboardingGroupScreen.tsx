@@ -1,7 +1,6 @@
 import React, { useContext, useEffect, useState } from 'react';
 import { View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, TouchableOpacity } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useNavigation, CommonActions } from '@react-navigation/native';
 import { Icon } from 'react-native-paper';
 import * as Haptics from 'expo-haptics';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -13,10 +12,8 @@ import OnboardingHeader from '../../components/onboarding/OnboardingHeader';
 import PrimaryButton from '../../components/ui/PrimaryButton';
 import AppText from '../../components/ui/AppText';
 import TextField from '../../components/ui/TextField';
-import { completeOnboarding } from '../../services/onboarding';
 import { createGroup, joinGroupByCode } from '../../services/groups';
 import { consumePendingJoinCode, fetchJoinPreview, type JoinPreview } from '../../services/inviteLinks';
-import { onboardingAnalytics } from '../../services/analytics';
 import { friendlyNameFromDisplayName } from '../../utils/formatters';
 import { colors, radius, spacing } from '../../theme';
 
@@ -25,14 +22,12 @@ type Props = NativeStackScreenProps<OnboardingStackParamList, 'Group'>;
 type Mode = 'choose' | 'join' | 'create';
 
 /**
- * Final onboarding step: get the new user into a group so the app isn't a dead
- * empty state on first open. Join with a code / create one / skip — any path
- * completes onboarding and lands them on Today.
+ * Get the new user into a group so the app isn't a dead empty state on first
+ * open. Join with a code, create one, or skip: every path goes on to Finish.
  */
 export default function OnboardingGroupScreen({ navigation }: Props) {
   const { user } = useContext(AuthContext);
   const { setActiveGroupId } = useActiveGroup();
-  const rootNav = useNavigation();
 
   const [mode, setMode] = useState<Mode>('choose');
   const [joinCode, setJoinCode] = useState('');
@@ -62,19 +57,13 @@ export default function OnboardingGroupScreen({ navigation }: Props) {
     if (!user?.uid) return;
     try {
       if (groupId) await setActiveGroupId(groupId);
-      await completeOnboarding(user.uid);
-      onboardingAnalytics.completed();
     } catch (e) {
-      console.warn('[Onboarding] completeOnboarding failed', e);
+      console.warn('[Onboarding] setting the active group failed', e);
     }
-    // Land on Today. AppNavigator swaps to MainTabs now that onboarding is done.
-    const nav = rootNav.getParent() ?? rootNav;
-    nav.dispatch(
-      CommonActions.reset({
-        index: 0,
-        routes: [{ name: 'MainTabs', params: { screen: 'HomeTab', params: { screen: 'Today' } } }],
-      }),
-    );
+    // On to the last step. Onboarding completes there, not here: marking it
+    // complete swaps the whole app to the main tabs at once.
+    setBusy(false);
+    navigation.navigate('Finish');
   };
 
   const onJoin = async () => {
@@ -115,7 +104,7 @@ export default function OnboardingGroupScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      <OnboardingHeader currentStep={6} totalSteps={6} showBack={mode !== 'choose'} onBack={() => (mode === 'choose' ? navigation.goBack() : setMode('choose'))} />
+      <OnboardingHeader currentStep={6} totalSteps={7} showBack onBack={() => (mode === 'choose' ? navigation.goBack() : setMode('choose'))} />
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           <AppText variant="pageTitle" color="primary" style={styles.headline}>Find your people</AppText>

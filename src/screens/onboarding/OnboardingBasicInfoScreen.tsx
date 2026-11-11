@@ -290,7 +290,7 @@ export default function OnboardingBasicInfoScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <OnboardingHeader currentStep={3} totalSteps={6} showBack={true} onBack={handleBack} />
+      <OnboardingHeader currentStep={3} totalSteps={7} showBack={true} onBack={handleBack} />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -337,6 +337,7 @@ export default function OnboardingBasicInfoScreen({ navigation }: Props) {
                   Sex
                 </AppText>
                 <SegmentedControl
+                  variant="primary"
                   value={sex}
                   onChange={(value) => {
                     setSex(value as any);
@@ -347,7 +348,6 @@ export default function OnboardingBasicInfoScreen({ navigation }: Props) {
                     { value: 'female', label: 'Female' },
                     { value: 'other', label: 'Other' },
                   ]}
-                  variant="surface"
                   style={styles.segmented}
                 />
                 {errors.sex ? (
@@ -362,13 +362,13 @@ export default function OnboardingBasicInfoScreen({ navigation }: Props) {
                   Units
                 </AppText>
                 <SegmentedControl
+                  variant="primary"
                   value={units}
                   onChange={setUnits}
                   options={[
                     { value: 'imperial', label: 'Imperial' },
                     { value: 'metric', label: 'Metric' },
                   ]}
-                  variant="surface"
                   style={styles.segmented}
                 />
               </View>
@@ -510,7 +510,6 @@ const styles = StyleSheet.create({
   },
   headline: {
     marginBottom: 12,
-    fontWeight: '600',
   },
   subtext: {
     lineHeight: 24,

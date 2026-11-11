@@ -150,6 +150,12 @@ export const DEFAULT_NOTIF_GROUPS: Record<NotifGroup, boolean> = {
   teammate: false,
   events: true,
 };
+/** The three ready-made levels, with the pushes a day each one means. */
+export const NOTIF_LEVELS: Array<{ value: Exclude<NotifLevel, 'custom'>; label: string; count: string; body: string }> = [
+  { value: 'quiet', label: 'Quiet', count: '0 to 1 a day', body: 'Only what is sent to you: cheers, reactions, chat. Plus the Monday recap.' },
+  { value: 'standard', label: 'Standard', count: 'About 2 a day', body: 'A morning line. One reminder if you have not logged. Anything sent to you.' },
+  { value: 'allin', label: 'All in', count: '5 or more a day', body: 'Everything in Standard, plus a push each time a teammate trains, and three reminders.' },
+];
 const LEVEL_KEY = 'notif_level_settings';
 const isLevel = (v: unknown): v is NotifLevel => v === 'quiet' || v === 'standard' || v === 'allin' || v === 'custom';
 

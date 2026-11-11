@@ -12,20 +12,31 @@ import OnboardingHeader from '../../components/onboarding/OnboardingHeader';
 import PrimaryButton from '../../components/ui/PrimaryButton';
 import AppText from '../../components/ui/AppText';
 import Card from '../../components/ui/Card';
+import SegmentedControl from '../../components/ui/SegmentedControl';
 import { completeOnboarding } from '../../services/onboarding';
 import { requestNotificationPermissions } from '../../services/notifications';
 import { requestHealthPermissions } from '../../services/health/healthService';
 import { updateHealthSettings } from '../../services/healthSettings';
+import { DEFAULT_NOTIF_GROUPS, NOTIF_LEVELS, saveNotifLevelSettings, type NotifLevel } from '../../services/appSettings';
 import { onboardingAnalytics } from '../../services/analytics';
 import { onboardingCopy } from '../../constants/onboardingCopy';
 import { subscribeMyProfile } from '../../services/profile';
 import { formatWeightForUnits } from '../../utils/formatters';
 import { db } from '../../firebase/firebase';
-import { colors } from '../../theme';
+import { colors, spacing } from '../../theme';
 
 type Props = NativeStackScreenProps<OnboardingStackParamList, 'Finish'>;
 
-export default function OnboardingFinishScreen({ navigation }: Props) {
+/**
+ * Last onboarding step: the goals they set, how much the app should talk to
+ * them (the notification level), then the phone's own permission prompts.
+ *
+ * It is LAST on purpose. It used to sit before the accountability and group
+ * steps and marked onboarding complete before its prompts (so a crash in a
+ * native prompt could not re-trap anyone). But "complete" swaps the whole app
+ * to the main tabs at once, so from 2026-07-13 nobody ever saw those two steps.
+ */
+export default function OnboardingFinishScreen({}: Props) {
   const { user } = useContext(AuthContext);
   const rootNav = useNavigation();
 
@@ -39,6 +50,7 @@ export default function OnboardingFinishScreen({ navigation }: Props) {
     caloriesOn?: boolean;
     weightOn?: boolean;
   }>({});
+  const [level, setLevel] = useState<Exclude<NotifLevel, 'custom'>>('standard');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -48,7 +60,6 @@ export default function OnboardingFinishScreen({ navigation }: Props) {
   useEffect(() => {
     if (!user?.uid) return;
 
-    // Load summary data - merge goalMode and units with profile data
     const unsubscribe = subscribeMyProfile(user.uid, (profile) => {
       if (profile) {
         setSummary((prev) => ({
@@ -65,18 +76,11 @@ export default function OnboardingFinishScreen({ navigation }: Props) {
       }
     });
 
-    // Also get goalMode and units
     if (db) {
       getDoc(doc(db, 'users', user.uid)).then((snap) => {
         if (snap.exists()) {
-          const data = snap.data();
-          setSummary((prev) => ({
-            ...prev,
-            // @ts-ignore
-            goalMode: data.goalMode,
-            // @ts-ignore
-            units: data.units,
-          }));
+          const data = snap.data() as any;
+          setSummary((prev) => ({ ...prev, goalMode: data.goalMode, units: data.units }));
         }
       });
     }
@@ -86,31 +90,33 @@ export default function OnboardingFinishScreen({ navigation }: Props) {
 
   const handleFinish = async () => {
     if (!user?.uid) return;
-
     setIsSubmitting(true);
 
     try {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-      // Mark onboarding complete BEFORE any native permission prompts: a
-      // native-layer crash in a prompt (seen on Android with Health Connect)
-      // must never re-trap the user in onboarding on the next launch. The
-      // Group step re-calls this; it's idempotent.
+      // Their level first: it is the one thing on this screen they chose.
       try {
-        await completeOnboarding(user.uid);
+        await saveNotifLevelSettings(user.uid, { level, groups: { ...DEFAULT_NOTIF_GROUPS }, reminderTime: '18:00' });
       } catch (e) {
-        console.warn('[Onboarding] early completeOnboarding failed', e);
+        console.warn('[Onboarding] saving the notification level failed', e);
       }
 
-      // Ask for notifications + health sync here (native OS prompts). Both are
-      // non-fatal — a denial/failure never blocks continuing; the user can
-      // enable them later in Settings.
+      // Native OS prompts. Both are non-fatal: a denial or a failure never
+      // blocks finishing, and both can be turned on later.
       try {
-        // Permission only. NotificationProvider arms the daily reminders once
-        // they're in a group; until then it's a daily "start a group" reminder.
         await requestNotificationPermissions();
       } catch (e) {
         console.warn('[Onboarding] notification permission request failed', e);
+      }
+      // Complete BEFORE the health prompt: a native crash inside it (seen on
+      // Android) must never send someone back through onboarding. This is the
+      // last step, so the swap to the main tabs is what we want anyway.
+      try {
+        await completeOnboarding(user.uid);
+        onboardingAnalytics.completed();
+      } catch (e) {
+        console.warn('[Onboarding] completeOnboarding failed', e);
       }
       try {
         const health = await requestHealthPermissions();
@@ -126,110 +132,74 @@ export default function OnboardingFinishScreen({ navigation }: Props) {
       } catch (e) {
         console.warn('[Onboarding] health permission request failed', e);
       }
-
-      // Final step: get them into a group (onboarding completes there, so the
-      // group choice lands them straight on Today).
-      navigation.navigate('Accountability');
-    } catch (error) {
-      console.error('[Onboarding] Error finishing setup:', error);
     } finally {
+      // Whatever the prompts did, nobody gets stuck here (a no-op when the
+      // call above already completed it).
+      try {
+        await completeOnboarding(user.uid);
+      } catch (e) {
+        console.warn('[Onboarding] completeOnboarding failed', e);
+      }
+      // Land on Today. AppNavigator swaps to MainTabs now that onboarding is done.
+      const nav = rootNav.getParent() ?? rootNav;
+      nav.dispatch(
+        CommonActions.reset({
+          index: 0,
+          routes: [{ name: 'MainTabs', params: { screen: 'HomeTab', params: { screen: 'Today' } } }],
+        }),
+      );
       setIsSubmitting(false);
     }
   };
 
-  const handleBack = () => {
-    navigation.goBack();
-  };
-
-  const formatGoalMode = (mode?: string) => {
-    if (!mode) return '-';
-    return mode.charAt(0).toUpperCase() + mode.slice(1);
-  };
-
-  const formatWeight = (weight?: number, units?: 'imperial' | 'metric') => formatWeightForUnits(weight, units);
+  const picked = NOTIF_LEVELS.find((l) => l.value === level)!;
+  const rows: Array<[string, string]> = [];
+  if (summary.goalMode) rows.push(['Mode', summary.goalMode.charAt(0).toUpperCase() + summary.goalMode.slice(1)]);
+  if (summary.caloriesOn !== false && summary.dailyCalorieGoal != null) rows.push(['Calories a day', summary.dailyCalorieGoal.toLocaleString()]);
+  if (summary.workoutsPerWeek) rows.push(['Workouts a week', String(summary.workoutsPerWeek)]);
+  if (summary.weightOn !== false && summary.weightGoal != null) rows.push(['Goal weight', formatWeightForUnits(summary.weightGoal, summary.units)]);
+  if (summary.weightOn !== false && summary.weightTargetDate) rows.push(['Target date', summary.weightTargetDate]);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <OnboardingHeader currentStep={5} totalSteps={6} showBack={true} onBack={handleBack} />
-      <ScrollView
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.textContainer}>
-          <AppText variant="pageTitle" color="primary" style={styles.headline}>
-            {onboardingCopy.finish.headline}
-          </AppText>
-          <AppText variant="body" color="secondary" style={styles.subtext}>
-            {onboardingCopy.finish.subtext}
-          </AppText>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+      <OnboardingHeader currentStep={7} totalSteps={7} showBack={false} onBack={() => {}} />
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <AppText variant="pageTitle" color="primary">{onboardingCopy.finish.headline}</AppText>
+        <AppText variant="body" color="secondary" style={styles.subtext}>{onboardingCopy.finish.subtext}</AppText>
+
+        <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>Notifications</AppText>
+        <SegmentedControl
+          variant="primary"
+          options={NOTIF_LEVELS.map((l) => ({ value: l.value, label: l.label }))}
+          value={level}
+          onChange={setLevel}
+        />
+        <View style={styles.levelNote}>
+          <AppText variant="stat" color="accent">{picked.count}</AppText>
+          <AppText variant="rowSubtitle" color="secondary" style={styles.levelBody}>{picked.body}</AppText>
         </View>
 
-        <Card style={styles.summaryCard}>
-          <AppText variant="rowTitle" color="primary" style={styles.summaryTitle}>
-            Your goals
-          </AppText>
-          <View style={styles.summaryRow}>
-            <AppText variant="body" color="muted">
-              Mode:
-            </AppText>
-            <AppText variant="body" color="primary">
-              {formatGoalMode(summary.goalMode)}
-            </AppText>
-          </View>
-          {summary.caloriesOn !== false && summary.dailyCalorieGoal != null && (
-            <View style={styles.summaryRow}>
-              <AppText variant="body" color="muted">
-                Calories/day:
-              </AppText>
-              <AppText variant="body" color="primary">
-                {summary.dailyCalorieGoal.toLocaleString()}
-              </AppText>
-            </View>
-          )}
-          {!!summary.workoutsPerWeek && (
-            <View style={styles.summaryRow}>
-              <AppText variant="body" color="muted">
-                Workouts/week:
-              </AppText>
-              <AppText variant="body" color="primary">
-                {summary.workoutsPerWeek}
-              </AppText>
-            </View>
-          )}
-          {summary.weightOn !== false && summary.weightGoal != null && (
-            <View style={styles.summaryRow}>
-              <AppText variant="body" color="muted">
-                Weight goal:
-              </AppText>
-              <AppText variant="body" color="primary">
-                {formatWeight(summary.weightGoal, summary.units)}
-              </AppText>
-            </View>
-          )}
-          {summary.weightOn !== false && !!summary.weightTargetDate && (
-            <View style={styles.summaryRow}>
-              <AppText variant="body" color="muted">
-                Target date:
-              </AppText>
-              <AppText variant="body" color="primary">
-                {summary.weightTargetDate}
-              </AppText>
-            </View>
-          )}
-        </Card>
+        {rows.length ? (
+          <>
+            <AppText variant="eyebrow" color="muted" style={styles.sectionLabel}>Your goals</AppText>
+            <Card>
+              {rows.map(([label, value], i) => (
+                <View key={label} style={[styles.summaryRow, i === rows.length - 1 && { marginBottom: 0 }]}>
+                  <AppText variant="body" color="muted">{label}</AppText>
+                  <AppText variant="stat" color="primary">{value}</AppText>
+                </View>
+              ))}
+            </Card>
+          </>
+        ) : null}
       </ScrollView>
 
       <View style={styles.footer}>
         <AppText variant="rowSubtitle" color="muted" style={styles.permsNote}>
-          Next, we'll ask to connect your health app and turn on reminders. You can change these anytime in Settings.
+          {onboardingCopy.finish.permsNote}
         </AppText>
-        <PrimaryButton
-          onPress={handleFinish}
-          style={styles.button}
-          loading={isSubmitting}
-          disabled={isSubmitting}
-        >
-          Continue
+        <PrimaryButton onPress={handleFinish} loading={isSubmitting} disabled={isSubmitting}>
+          {onboardingCopy.finish.cta}
         </PrimaryButton>
       </View>
     </SafeAreaView>
@@ -237,49 +207,13 @@ export default function OnboardingFinishScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: 24,
-    paddingTop: 32,
-  },
-  textContainer: {
-    marginBottom: 32,
-  },
-  headline: {
-    marginBottom: 12,
-    fontWeight: '600',
-  },
-  subtext: {
-    lineHeight: 24,
-  },
-  summaryCard: {
-    marginTop: 16,
-  },
-  summaryTitle: {
-    marginBottom: 16,
-    fontWeight: '600',
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  footer: {
-    paddingHorizontal: 24,
-    paddingBottom: 24,
-    paddingTop: 16,
-    backgroundColor: colors.background,
-  },
-  button: {
-    minHeight: 48,
-  },
-  permsNote: {
-    textAlign: 'center',
-    lineHeight: 18,
-    marginBottom: 12,
-  },
+  container: { flex: 1, backgroundColor: colors.background },
+  content: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.base },
+  subtext: { marginTop: spacing.sm, lineHeight: 21 },
+  sectionLabel: { marginTop: spacing.xl, marginBottom: spacing.sm, marginLeft: spacing.xs },
+  levelNote: { marginTop: spacing.md, gap: 4, marginLeft: spacing.xs },
+  levelBody: { lineHeight: 18 },
+  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: spacing.md },
+  footer: { paddingHorizontal: spacing.lg, paddingBottom: spacing.base, paddingTop: spacing.md },
+  permsNote: { textAlign: 'center', lineHeight: 18, marginBottom: spacing.md },
 });

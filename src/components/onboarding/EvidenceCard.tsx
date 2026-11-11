@@ -1,90 +1,44 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import { useTheme, Card } from 'react-native-paper';
-import Text from '../ui/Text';
-import Animated, { useSharedValue, useAnimatedStyle, withTiming, withDelay } from 'react-native-reanimated';
 
+import AppText from '../ui/AppText';
+import Card from '../ui/Card';
+import { colors, spacing } from '../../theme';
+import { typography } from '../../theme/typography';
+
+type Side = { value: string; label: string };
 type EvidenceCardProps = {
-  primaryStat: string;
-  statHighlight: string;
+  /** The group that shared their progress. Shown big, in the accent. */
+  win: Side;
+  /** The group that kept it private. Shown smaller and muted. */
+  lose: Side;
   citation: string;
-  supportingLine?: string;
 };
 
-export default function EvidenceCard({ primaryStat, statHighlight, citation, supportingLine }: EvidenceCardProps) {
-  const theme = useTheme();
-  const opacity = useSharedValue(0);
-  const translateY = useSharedValue(10);
-
-  useEffect(() => {
-    opacity.value = withDelay(200, withTiming(1, { duration: 600 }));
-    translateY.value = withDelay(200, withTiming(0, { duration: 600 }));
-  }, []);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    opacity: opacity.value,
-    transform: [{ translateY: translateY.value }],
-  }));
-
+/** Two numbers side by side: the study result, with its source under it. */
+export default function EvidenceCard({ win, lose, citation }: EvidenceCardProps) {
   return (
-    <Animated.View style={animatedStyle}>
-      <Card style={[styles.card, { backgroundColor: theme.colors.surface }]}>
-        <Card.Content style={styles.content}>
-          <Text variant="bodyLarge" style={[styles.primaryText, { color: theme.colors.onSurface }]}>
-            {primaryStat.split(statHighlight).map((part, index, array) => {
-              if (index === array.length - 1) {
-                return <React.Fragment key={index}>{part}</React.Fragment>;
-              }
-              return (
-                <React.Fragment key={index}>
-                  {part}
-                  <Text style={[styles.highlight, { color: theme.colors.primary }]}>{statHighlight}</Text>
-                </React.Fragment>
-              );
-            })}
-          </Text>
-          
-          <Text variant="bodySmall" style={[styles.citation, { color: theme.colors.onSurfaceVariant }]}>
-            {citation}
-          </Text>
-          
-          {supportingLine && (
-            <Text variant="bodySmall" style={[styles.supportingText, { color: theme.colors.onSurfaceVariant }]}>
-              {supportingLine}
-            </Text>
-          )}
-        </Card.Content>
-      </Card>
-    </Animated.View>
+    <Card tier="hero">
+      <View style={styles.pair}>
+        <View style={styles.side}>
+          <AppText style={[typography.heroNumeral, { color: colors.primary }]}>{win.value}</AppText>
+          <AppText variant="rowSubtitle" color="secondary" style={styles.label}>{win.label}</AppText>
+        </View>
+        <View style={styles.rule} />
+        <View style={styles.side}>
+          <AppText style={[typography.heroNumeral, { color: colors.textMuted }]}>{lose.value}</AppText>
+          <AppText variant="rowSubtitle" color="muted" style={styles.label}>{lose.label}</AppText>
+        </View>
+      </View>
+      <AppText variant="label" color="muted" style={styles.citation}>{citation}</AppText>
+    </Card>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    borderRadius: 16,
-    elevation: 0,
-  },
-  content: {
-    padding: 20,
-    gap: 12,
-  },
-  primaryText: {
-    lineHeight: 26,
-    fontWeight: '500',
-  },
-  highlight: {
-    fontWeight: '700',
-  },
-  citation: {
-    marginTop: 4,
-    fontSize: 12,
-    opacity: 0.6,
-    fontStyle: 'italic',
-  },
-  supportingText: {
-    marginTop: 4,
-    fontSize: 13,
-    lineHeight: 20,
-    opacity: 0.8,
-  },
+  pair: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.base },
+  side: { flex: 1 },
+  rule: { width: 1, alignSelf: 'stretch', backgroundColor: colors.divider },
+  label: { marginTop: spacing.xs, lineHeight: 18 },
+  citation: { marginTop: spacing.base },
 });

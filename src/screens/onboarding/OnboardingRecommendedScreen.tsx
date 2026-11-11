@@ -222,7 +222,7 @@ export default function OnboardingRecommendedScreen({ navigation }: Props) {
       await updateOnboardingStep(user.uid, 4);
       onboardingAnalytics.goalsSaved();
       onboardingAnalytics.continue(4, 5);
-      navigation.navigate('Finish');
+      navigation.navigate('Accountability');
     } catch (error) {
       console.error('[Onboarding] Error saving targets:', error);
     } finally {
@@ -232,7 +232,7 @@ export default function OnboardingRecommendedScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      <OnboardingHeader currentStep={4} totalSteps={6} showBack onBack={() => navigation.goBack()} />
+      <OnboardingHeader currentStep={4} totalSteps={7} showBack onBack={() => navigation.goBack()} />
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           <AppText variant="pageTitle" color="primary" style={styles.headline}>

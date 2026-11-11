@@ -90,7 +90,7 @@ export default function NotificationPromptCard() {
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Turn on notifications</Text>
           <Text style={styles.sub}>
-            Cheers and nudges from your group, and a heads-up before your streak breaks. Nothing else.
+            About 2 a day: a morning line, one reminder if you have not logged, and anything sent to you.
           </Text>
         </View>
       </View>

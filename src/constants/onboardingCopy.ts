@@ -3,6 +3,8 @@
  * Update these values as needed, especially the research stat text
  */
 
+import { Platform } from 'react-native';
+
 export const onboardingCopy = {
   // Screen 1: Welcome screen ("Midnight Blue" revamp — design 01)
   welcome: {
@@ -12,7 +14,7 @@ export const onboardingCopy = {
     cta: "Get started",
     ctaSubtext: "Two minutes to set up",
     valueRows: [
-      { icon: 'clock-fast', tint: 'primary', title: 'Log it in seconds', subtitle: 'One tap each, or let Apple Health log it for you' },
+      { icon: 'clock-fast', tint: 'primary', title: 'Log it in seconds', subtitle: Platform.OS === 'android' ? 'One tap each, or let Health Connect log it for you' : 'One tap each, or let Apple Health log it for you' },
       { icon: 'account-group', tint: 'success', title: 'No hiding', subtitle: "Everyone sees who showed up and who didn't" },
       { icon: 'diamond-stone', tint: 'gold', title: 'Earn your rank', subtitle: 'Fitness Points from Iron to Challenger' },
     ] as const,
@@ -67,11 +69,11 @@ export const onboardingCopy = {
   accountability: {
     headline: "Motivation fades.\nAccountability doesn't.",
     subtext: "Everyone's dangerous for two weeks in January. The ones still going in March answer to somebody else.",
-    primaryStat: "People who sent weekly progress reports to a friend hit their goals at 76%. People who kept their goals private: 43%.",
-    statHighlight: "76%",
+    win: { value: "76%", label: "hit their goals when they sent a friend a progress report every week" },
+    lose: { value: "43%", label: "hit them when they kept their goals to themselves" },
     citation: "Dr. Gail Matthews, Dominican University of California",
-    supportingLine: "Weekly progress, shared with people who expect it.",
-    productTieIn: "",
+    supportingLine: "That is what a group here does. Your people see your week, every week.",
+    cta: "Find your people",
   },
   
   // Screen 4: Goals
@@ -83,6 +85,8 @@ export const onboardingCopy = {
   // Screen 5: Finish
   finish: {
     headline: "You're set.",
-    subtext: "Goals locked. One thing left: the people who'll hold you to them.",
+    subtext: "Goals locked. Last thing: how much should the app talk to you?",
+    permsNote: "Next, your phone asks about notifications and your health app. Change either anytime in Profile.",
+    cta: "Finish",
   },
 };

@@ -50,7 +50,7 @@ export default function OnboardingMMRScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      <OnboardingHeader currentStep={2} totalSteps={6} showBack onBack={() => navigation.goBack()} />
+      <OnboardingHeader currentStep={2} totalSteps={7} showBack onBack={() => navigation.goBack()} />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <AppText variant="pageTitle" color="primary" style={styles.headline}>
           {mmrIntro.headline}

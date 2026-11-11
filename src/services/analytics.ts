@@ -1,9 +1,14 @@
+import { Platform } from 'react-native';
 import { getAnalytics, logEvent } from 'firebase/analytics';
 import { firebaseApp } from '../firebase/firebase';
 
 let analyticsInstance: ReturnType<typeof getAnalytics> | null = null;
 
 function getAnalyticsInstance() {
+  // Firebase's web analytics needs a browser page. On a phone it throws
+  // inside every logEvent ("getElementsByTagName of undefined"), so these
+  // events have never been sent from the app. Web only.
+  if (Platform.OS !== 'web') return null;
   if (!analyticsInstance && firebaseApp) {
     try {
       analyticsInstance = getAnalytics(firebaseApp);
@@ -17,7 +22,6 @@ function getAnalyticsInstance() {
 export function logAnalyticsEvent(eventName: string, params?: Record<string, any>) {
   const analytics = getAnalyticsInstance();
   if (!analytics) {
-    console.log('[Analytics] Event (not sent):', eventName, params);
     return;
   }
   
