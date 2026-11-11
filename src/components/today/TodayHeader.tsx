@@ -127,9 +127,9 @@ export default function TodayHeader({
           </PressableScale>
         </View>
       </View>
-      <Text style={styles.dateEyebrow}>{dateLabel.toUpperCase()}</Text>
-      <Text style={styles.greeting} numberOfLines={1} adjustsFontSizeToFit>
-        {userName ? `${greeting}, ${userName}.` : `${greeting}.`}
+      {/* One quiet line. The rank strip below it is the headline. */}
+      <Text style={styles.dateEyebrow} numberOfLines={1}>
+        {`${dateLabel} · ${userName ? `${greeting}, ${userName}` : greeting}`.toUpperCase()}
       </Text>
     </View>
   );
@@ -184,5 +184,4 @@ const styles = StyleSheet.create({
   },
   countBadgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '800' },
   dateEyebrow: { ...typography.eyebrow, color: colors.textMuted, marginTop: 18 },
-  greeting: { ...typography.displayTitle, color: colors.textPrimary, marginTop: 2 },
 });

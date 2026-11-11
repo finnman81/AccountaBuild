@@ -59,6 +59,8 @@ import SyncStatus from '../components/today/SyncStatus';
 import type { Tier } from '../mmr/types';
 import PressableScale from '../components/ui/PressableScale';
 import RankEmblem from '../components/ui/RankEmblem';
+import ProgressBar from '../components/ui/ProgressBar';
+import { BANDS, bandForMMR } from '../mmr/ranks';
 
 type Props = {
   onOpenLog?: (type: ChecklistType) => void;
@@ -84,7 +86,7 @@ function greetingFor(hour: number): string {
 }
 
 function dateLabel(d: Date): string {
-  return d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+  return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
 const ROMAN_DIV = ['', 'I', 'II', 'III', 'IV'];
@@ -303,6 +305,20 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
   const greetingLine = userName ? `${greeting}, ${userName}.` : `${greeting}.`;
   const myFpRaw = publicUsers[myUid]?.mmrPublic;
   const myFp = typeof myFpRaw === 'number' ? Math.round(myFpRaw) : null;
+  const standing = useMemo(() => {
+    if (myFp == null) return null;
+    const band = bandForMMR(myFp);
+    const i = BANDS.indexOf(band);
+    const next = i >= 0 && i < BANDS.length - 1 ? BANDS[i + 1] : null;
+    if (!next || !Number.isFinite(band.max)) return { progress: 1, toNext: 0, nextLabel: null as string | null };
+    const size = band.max - band.min + 1;
+    const inBand = Math.max(0, myFp - band.min);
+    return {
+      progress: inBand / size,
+      toNext: Math.max(0, size - inBand),
+      nextLabel: `${next.tier}${next.division ? ` ${ROMAN_DIV[next.division]}` : ''}`,
+    };
+  }, [myFp]);
 
   // No active group: the checklist/log flow can't work (logs live under a
   // group), so show a "find your crew" state instead of dead buttons.
@@ -311,9 +327,8 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
   if (!activeGroupId && (!activeGroupReady || !groupsLoaded)) {
     return (
       <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ padding: spacing.lg, paddingTop: 56, paddingBottom: 32 }}>
-        <Text style={[typography.eyebrow, { color: colors.textMuted }]}>{dateLabel(now).toUpperCase()}</Text>
-        <Text numberOfLines={1} adjustsFontSizeToFit style={[typography.displayTitle, { color: colors.textPrimary, marginTop: 2 }]}>
-          {greetingLine}
+        <Text numberOfLines={1} style={[typography.eyebrow, { color: colors.textMuted }]}>
+          {`${dateLabel(now)} · ${greetingLine.replace(/\.$/, '')}`.toUpperCase()}
         </Text>
       </ScrollView>
     );
@@ -321,9 +336,8 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
   if (!activeGroupId) {
     return (
       <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ padding: spacing.lg, paddingTop: 56, paddingBottom: 32 }}>
-        <Text style={[typography.eyebrow, { color: colors.textMuted }]}>{dateLabel(now).toUpperCase()}</Text>
-        <Text numberOfLines={1} adjustsFontSizeToFit style={[typography.displayTitle, { color: colors.textPrimary, marginTop: 2 }]}>
-          {greetingLine}
+        <Text numberOfLines={1} style={[typography.eyebrow, { color: colors.textMuted }]}>
+          {`${dateLabel(now)} · ${greetingLine.replace(/\.$/, '')}`.toUpperCase()}
         </Text>
         {/* No group yet: notifications are how the daily "start a group"
             reminder reaches them, so ask here too. */}
@@ -370,9 +384,8 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
   if (!group || memberUids.length === 0) {
     return (
       <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ padding: spacing.lg, paddingTop: 56, paddingBottom: 32 }}>
-        <Text style={[typography.eyebrow, { color: colors.textMuted }]}>{dateLabel(now).toUpperCase()}</Text>
-        <Text numberOfLines={1} adjustsFontSizeToFit style={[typography.displayTitle, { color: colors.textPrimary, marginTop: 2 }]}>
-          {greetingLine}
+        <Text numberOfLines={1} style={[typography.eyebrow, { color: colors.textMuted }]}>
+          {`${dateLabel(now)} · ${greetingLine.replace(/\.$/, '')}`.toUpperCase()}
         </Text>
       </ScrollView>
     );
@@ -438,59 +451,63 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
       <FpExplainerSheet visible={fpExplainer} onClose={() => setFpExplainer(false)} />
       <FullDisplay ready={homeFresh} />
       <View style={{ height: 14 }} />
-      {/* Standing strip: rank leads, FP supports it, streak sits opposite.
-          Flat tier, no card. Tap the rank side for the FP explainer. */}
-      <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, paddingBottom: 12, marginBottom: 16, borderBottomWidth: 1, borderBottomColor: colors.divider }}>
-        <PressableScale
-          onPress={() => setFpExplainer(true)}
-          style={{ flex: 1, minWidth: 0 }}
-          accessibilityRole="button"
-          accessibilityLabel="How Fitness Points work"
-        >
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            {rankTier ? <RankEmblem tier={rankTier} inline size={30} /> : null}
-            <Text
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.6}
-              style={[typography.displayTitle, { flexShrink: 1, color: rankTier ? colors.textPrimary : colors.textMuted }]}
-            >
-              {rankTier ? `${rankTier}${rankDivision ? ` ${ROMAN_DIV[rankDivision]}` : ''}` : 'Unranked'}
-            </Text>
+      {/* Standing strip: rank is the headline, the bar shows the gap to the
+          next division, the streak gets its own line. Flat tier, no card.
+          Tap the rank block for the FP explainer. */}
+      <PressableScale onPress={() => setFpExplainer(true)} accessibilityRole="button" accessibilityLabel="How Fitness Points work">
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          {rankTier ? <RankEmblem tier={rankTier} inline size={34} /> : null}
+          <Text
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.6}
+            style={[typography.displayTitle, { fontSize: 58, lineHeight: 60, flexShrink: 1, color: rankTier ? colors.textPrimary : colors.textMuted }]}
+          >
+            {rankTier ? `${rankTier}${rankDivision ? ` ${ROMAN_DIV[rankDivision]}` : ''}` : 'Unranked'}
+          </Text>
+        </View>
+        {standing ? (
+          <View style={{ marginTop: 12 }}>
+            <ProgressBar progress={standing.progress} height={6} />
           </View>
-          <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 5, marginTop: 2 }}>
-            {myFp != null ? (
-              <>
-                <AnimatedNumber value={myFp} style={[typography.stat, { color: colors.textSecondary }]} />
-                <Text style={[typography.stat, { color: colors.textSecondary }]}>FP</Text>
-              </>
-            ) : null}
-            {fpTrend ? (
-              <Text style={[typography.stat, { marginLeft: 6, color: fpTrend.value > 0 ? colors.success : colors.danger }]}>
+        ) : null}
+        <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginTop: 8 }}>
+          {myFp != null ? (
+            <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 5 }}>
+              <AnimatedNumber value={myFp} style={[typography.stat, { color: colors.textSecondary }]} />
+              <Text style={[typography.stat, { color: colors.textSecondary }]}>FP</Text>
+            </View>
+          ) : <View />}
+          {standing?.nextLabel ? (
+            <Text style={[typography.stat, { color: colors.textSecondary }]}>{`${standing.toNext} to ${standing.nextLabel}`}</Text>
+          ) : null}
+        </View>
+      </PressableScale>
+      <View style={{ height: 1, backgroundColor: colors.divider, marginTop: 14, marginBottom: 12 }} />
+      {(() => {
+        const atRisk = (myMember?.atRisk ?? false) && myStreak > 0;
+        const streakColor = myStreak === 0 ? colors.textMuted : atRisk ? colors.danger : colors.success;
+        return (
+          <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 18 }}>
+            <View
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}
+              accessibilityLabel={atRisk ? `${myStreak} day streak, log today to keep it` : `${myStreak} day streak`}
+            >
+              <Icon source="fire" size={22} color={streakColor} />
+              <Text style={[typography.cardTitle, { fontSize: 26, lineHeight: 28, color: streakColor }]}>
+                {myStreak === 0 ? 'No streak yet' : `${myStreak} day streak`}
+              </Text>
+            </View>
+            {atRisk ? (
+              <Text style={[typography.stat, { color: colors.danger }]}>Log to keep it</Text>
+            ) : fpTrend ? (
+              <Text style={[typography.stat, { color: fpTrend.value > 0 ? colors.success : colors.danger }]}>
                 {`${fpTrend.value > 0 ? '+' : ''}${fpTrend.value} ${fpTrend.label}`}
               </Text>
             ) : null}
           </View>
-        </PressableScale>
-        {(() => {
-          const atRisk = (myMember?.atRisk ?? false) && myStreak > 0;
-          const streakColor = myStreak === 0 ? colors.textMuted : atRisk ? colors.danger : colors.success;
-          return (
-            <View
-              style={{ alignItems: 'flex-end' }}
-              accessibilityLabel={atRisk ? `${myStreak} day streak, log today to keep it` : `${myStreak} day streak`}
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
-                <Icon source="fire" size={30} color={streakColor} />
-                <AnimatedNumber value={myStreak} style={[typography.displayTitle, { color: streakColor }]} />
-              </View>
-              <Text style={[typography.stat, { marginTop: 2, color: atRisk ? colors.danger : colors.textSecondary }]}>
-                {atRisk ? 'Log to keep it' : 'Day streak'}
-              </Text>
-            </View>
-          );
-        })()}
-      </View>
+        );
+      })()}
       <TodaysLogCard checklist={checklist} onLog={onOpenLog ?? (() => {})} onOpenEntries={setEntriesItem} aside={<SyncStatus uid={myUid} />} />
       <TeamTodayRail team={team} onMemberPress={onOpenMember ?? (() => {})} onMemberLongPress={onCheer} />
       {/* Prompts and promos sit below the log card and team rail. Each loads
