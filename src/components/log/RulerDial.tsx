@@ -48,6 +48,11 @@ export default function RulerDial({ value, onChange, min, max, step, majorEvery 
 
   const toOffset = useCallback((v: number) => Math.max(0, Math.min(steps, Math.round((v - min) / step))) * PX, [min, step, steps]);
 
+  // The start position only. This object must stay the same across renders:
+  // a new contentOffset on every value change re-positions the list under
+  // the finger and kills the drag.
+  const initialOffset = useRef({ x: toOffset(value), y: 0 }).current;
+
   // Android can ignore the initial contentOffset: place the tape once it has a width.
   useEffect(() => {
     if (!width) return;
@@ -125,7 +130,7 @@ export default function RulerDial({ value, onChange, min, max, step, majorEvery 
           getItemLayout={(_d, index) => ({ length: groupW, offset: pad + index * groupW, index })}
           ListHeaderComponent={<View style={{ width: pad }} />}
           ListFooterComponent={<View style={{ width: pad }} />}
-          contentOffset={{ x: toOffset(value), y: 0 }}
+          contentOffset={initialOffset}
           snapToInterval={PX}
           decelerationRate="normal"
           scrollEventThrottle={16}
