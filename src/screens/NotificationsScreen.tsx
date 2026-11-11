@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Switch, TouchableOpacity, View } from 'react-native';
+import { Platform, ScrollView, StyleSheet, Switch, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 
@@ -16,7 +16,8 @@ import {
   type NotifLevel,
   type NotifLevelSettings,
 } from '../services/appSettings';
-import { getNotificationPermissionsStatus, requestNotificationPermissions } from '../services/notifications';
+import * as Notifications from 'expo-notifications';
+import { requestNotificationPermissions } from '../services/notifications';
 import { getLocalReminderStyle, REMINDER_STYLES, saveReminderStyle, type ReminderStyle } from '../services/reminderStyle';
 import { colors, radius, spacing } from '../theme';
 
@@ -61,7 +62,14 @@ export default function NotificationsScreen() {
     void getNotifLevelSettings(user?.uid).then((s) => live && setSettings(s));
     void getLocalReminderStyle().then((s) => live && setStyle(s));
     void getAppNotificationSettings().then((s) => live && setNudges(s.nudgesAllowed));
-    void getNotificationPermissionsStatus().then((s) => live && setDenied(s === 'denied')).catch(() => {});
+    // Android reports "denied" (and "can't ask again") before it has ever
+    // asked, so on Android the banner waits for a request that fails. iOS
+    // reports the truth up front.
+    if (Platform.OS === 'ios') {
+      void Notifications.getPermissionsAsync()
+        .then((p) => live && setDenied(p.status === 'denied'))
+        .catch(() => {});
+    }
     return () => {
       live = false;
     };
@@ -72,7 +80,9 @@ export default function NotificationsScreen() {
     void Haptics.selectionAsync().catch(() => {});
     void saveNotifLevelSettings(user?.uid, next).catch(() => {});
     // First choice on a phone that was never asked: ask now.
-    void requestNotificationPermissions().then((ok) => setDenied(!ok)).catch(() => {});
+    void requestNotificationPermissions()
+      .then((ok) => setDenied(!ok))
+      .catch(() => {});
   };
 
   const pickStyle = (next: ReminderStyle) => {
