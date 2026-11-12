@@ -154,7 +154,7 @@ export default function TodayScreen({ onOpenLog, onViewLeaderboard, onOpenMember
   const today = todayYYYYMMDD();
   const now = new Date();
   const pastCutoff = now.getHours() >= 18;
-  const streakRule = group?.streakRule ?? 'workout';
+  const streakRule = group?.streakRule ?? 'any';
   const myUid = user?.uid ?? '';
   const dailyCalorieGoal = myProfile?.dailyCalorieGoal ?? publicUsers[myUid]?.dailyCalorieGoal ?? null;
   const units = useMyUnits();

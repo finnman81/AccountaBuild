@@ -102,7 +102,7 @@ export default function LeaderboardScreen({ route }: Props) {
       myUid: user.uid,
       logs,
       today: todayYYYYMMDD(),
-      streakRule: (group?.streakRule ?? 'workout') as 'workout' | 'any',
+      streakRule: (group?.streakRule ?? 'any') as 'workout' | 'any',
       pastCutoff: new Date().getHours() >= 18,
       currentWeekId: isoWeekIdInTz(new Date(), DEFAULT_TZ),
     });

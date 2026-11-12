@@ -167,7 +167,7 @@ export default function GroupSettingsScreen({ route, navigation }: Props) {
                 { value: 'workout', label: 'Workout only' },
                 { value: 'any', label: 'Any log' },
               ]}
-              value={(group?.streakRule ?? 'workout') as 'workout' | 'any'}
+              value={(group?.streakRule ?? 'any') as 'workout' | 'any'}
               onChange={(v) => isAdmin && void onChangeStreakRule(v)}
               style={styles.segmented}
             />

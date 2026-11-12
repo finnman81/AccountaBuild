@@ -259,7 +259,7 @@ export default function ProfileScreen() {
     return subscribeGroupLogsSince(activeGroupId, daysAgoYYYYMMDD(14), (items) => setGroupLogs(items));
   }, [activeGroupId]);
 
-  const streakRule = (group?.streakRule ?? 'workout') as 'workout' | 'any';
+  const streakRule = (group?.streakRule ?? 'any') as 'workout' | 'any';
   const dailyStreak = useMemo(() => {
     if (!user?.uid) return 0;
     // Same blend as the Today rail: the 14-day feed caps a long streak at ~15,
