@@ -39,6 +39,9 @@ async function loadMyStreakInputs(uid: string, groupId: string, lookbackDays = L
   // I'm in. Reading only the active group made a new second group show "Day 1"
   // with Wed-Fri missed for someone on an 88-day streak.
   const myGroups = await getDocs(collection(db, 'users', uid, 'groups')).catch(() => null);
+  // Any failed read means logs may be missing, and missing logs read as a
+  // shorter (or dead) streak. The callers refuse to LOWER the number on that.
+  let partial = !myGroups;
   const groupIds = Array.from(new Set([
     groupId,
     ...(myGroups?.docs ?? []).map((d) => String((d.data() as any)?.groupId ?? d.id)).filter(Boolean),
@@ -51,6 +54,7 @@ async function loadMyStreakInputs(uid: string, groupId: string, lookbackDays = L
     )),
   ]);
   const logsById = new Map<string, GroupLog>();
+  if (logSnaps.some((s) => !s)) partial = true;
   for (const snap of logSnaps) {
     for (const d of snap?.docs ?? []) {
       if (!logsById.has(d.id)) logsById.set(d.id, { id: d.id, ...(d.data() as Omit<GroupLog, 'id'>) } as GroupLog);
@@ -73,6 +77,8 @@ async function loadMyStreakInputs(uid: string, groupId: string, lookbackDays = L
     },
     shieldedWeeks: shieldedWeekIds(p),
     windowStart: minDate,
+    partial,
+    mirrorNow: Number(p?.streakDaysPublic) || 0,
     // Seeded from the current mirror so the first write can't record a best of 0.
     bestSoFar: Math.max(Number(p?.bestStreakDaysPublic) || 0, Number(p?.streakDaysPublic) || 0),
   };
@@ -84,8 +90,10 @@ async function loadMyStreakInputs(uid: string, groupId: string, lookbackDays = L
  * CALENDAR days, so rest and vacation days hid the edge (Jake 11/12: real
  * chain back to 7/5, read began 7/15, streak slid 111 -> 110).
  */
+const lookbackByUid = new Map<string, number>(); // skip the short first read once a long chain is known
+
 async function loadFullStreak(uid: string, groupId: string) {
-  let lookback = LOOKBACK_DAYS;
+  let lookback = lookbackByUid.get(uid) ?? LOOKBACK_DAYS;
   let inputs = await loadMyStreakInputs(uid, groupId, lookback);
   let r = computeGoalStreakDetail(inputs);
   while (r.hitEdge && lookback < MAX_LOOKBACK_DAYS) {
@@ -93,6 +101,9 @@ async function loadFullStreak(uid: string, groupId: string) {
     inputs = await loadMyStreakInputs(uid, groupId, lookback);
     r = computeGoalStreakDetail(inputs);
   }
+  lookbackByUid.set(uid, lookback);
+  // A read failed and the count came out lower than the mirror: do not trust it.
+  if (inputs.partial && r.streak < inputs.mirrorNow) throw new Error('streak: partial read');
   return { inputs, streak: r.streak };
 }
 

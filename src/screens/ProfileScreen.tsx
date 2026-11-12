@@ -18,7 +18,7 @@ import { useActiveGroup } from '../store/ActiveGroupContext';
 import { subscribeGroupLogsSince, daysAgoYYYYMMDD, type GroupLog } from '../services/logs';
 import type { RootStackParamList, ProfileStackParamList } from '../navigation/types';
 import { DEFAULT_TZ, isoWeekIdInTz, yyyyMmDdInTz } from '../mmr/time';
-import { bestStreak, computeGoalStreak } from '../viewmodels/today';
+import { displayStreak } from '../viewmodels/today';
 import { shieldedWeekIds } from '../services/hibernation';
 import { subscribePublicUsers, type PublicUser } from '../services/publicUsers';
 import { formatYYYYMMDDLocal } from '../utils/dates';
@@ -262,7 +262,9 @@ export default function ProfileScreen() {
   const streakRule = (group?.streakRule ?? 'workout') as 'workout' | 'any';
   const dailyStreak = useMemo(() => {
     if (!user?.uid) return 0;
-    const windowStreak = computeGoalStreak({
+    // Same blend as the Today rail: the 14-day feed caps a long streak at ~15,
+    // the self-reported mirror corrects it.
+    return displayStreak({
       logs: groupLogs,
       uid: user.uid,
       today: yyyyMmDdInTz(new Date(), DEFAULT_TZ),
@@ -273,10 +275,9 @@ export default function ProfileScreen() {
         weight: Number(profile?.logWeightDaysPerWeek ?? 0),
       },
       shieldedWeeks: shieldedWeekIds(myPub),
+      mirror: myPub?.streakDaysPublic,
+      mirrorUpdatedAtMs: myPub?.streakDaysUpdatedAtMs,
     });
-    // Same blend as the Today rail: the 14-day feed caps a long streak at ~15,
-    // the fresh self-reported mirror corrects it.
-    return bestStreak(windowStreak, myPub?.streakDaysPublic, myPub?.streakDaysUpdatedAtMs);
   }, [groupLogs, user?.uid, streakRule, profile?.workoutsPerWeek, profile?.logCaloriesDaysPerWeek, profile?.logWeightDaysPerWeek, myPub]);
 
   const weekStreak = useMemo(() => {

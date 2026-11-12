@@ -1,4 +1,4 @@
-import { milestoneToCelebrate, buildTodayChecklist, computeStreakDays, computeGoalStreak, computeGoalStreakDetail, buildTeamToday, buildLeaderboardPreview } from '../../src/viewmodels/today';
+import { milestoneToCelebrate, buildTodayChecklist, computeStreakDays, computeGoalStreak, computeGoalStreakDetail, displayStreak, buildTeamToday, buildLeaderboardPreview } from '../../src/viewmodels/today';
 import type { GroupLog, LogType } from '../../src/services/logs';
 import type { PublicUser } from '../../src/services/publicUsers';
 
@@ -227,5 +227,28 @@ describe('computeGoalStreakDetail (window edge)', () => {
     const r = computeGoalStreakDetail({ ...base, logs, windowStart: '2026-01-01' });
     expect(r.streak).toBe(days.length);
     expect(r.hitEdge).toBe(false);
+  });
+});
+
+describe('displayStreak (short feed + old mirror)', () => {
+  // 4 workouts a week: Mon, Tue, Thu, Fri of the two weeks before Wed 2026-11-11.
+  const TODAY_ = '2026-11-11';
+  const feed = ['2026-10-29', '2026-10-30', '2026-11-02', '2026-11-03', '2026-11-05', '2026-11-06', '2026-11-09', '2026-11-10'].map((x) => log('a', 'workout', x));
+  const base = { uid: 'a', today: TODAY_, streakRule: 'workout' as const, targets: { workout: 4, calories: 0, weight: 0 } };
+  const at = (ymd: string) => new Date(`${ymd}T17:00:00Z`).getTime();
+
+  test('an old mirror counts when the feed proves the chain held since its date', () => {
+    // Mirror said 50 on Thu 11/5 (that day included). Logged since: 11/6, 11/9, 11/10.
+    expect(displayStreak({ ...base, logs: feed, mirror: 50, mirrorUpdatedAtMs: at('2026-11-05') })).toBe(53);
+  });
+
+  test('an old mirror is ignored when the chain broke after its date', () => {
+    // Nothing logged in the week of 11/2: that week closed under target.
+    const broken = feed.filter((l) => l.date < '2026-11-02' || l.date > '2026-11-08');
+    expect(displayStreak({ ...base, logs: broken, mirror: 50, mirrorUpdatedAtMs: at('2026-10-30') })).toBe(2);
+  });
+
+  test('a mirror older than the feed is ignored (no proof)', () => {
+    expect(displayStreak({ ...base, logs: feed, mirror: 50, mirrorUpdatedAtMs: at('2026-09-01') })).toBe(6); // the feed's own count
   });
 });

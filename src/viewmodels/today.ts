@@ -3,7 +3,7 @@ import type { PublicUser } from '../services/publicUsers';
 import type { Tier } from '../mmr/types';
 import { formatMinutesHM, formatWeightForUnits, friendlyNameFromDisplayName, type Units } from '../utils/formatters';
 import { isHibernating, shieldedWeekIds } from '../mmr/shields';
-import { DEFAULT_TZ, isoWeekIdInTz, zonedNoonUtcFromYmd } from '../mmr/time';
+import { DEFAULT_TZ, isoWeekIdInTz, yyyyMmDdInTz, zonedNoonUtcFromYmd } from '../mmr/time';
 
 export type ChecklistType = 'calories' | 'workout' | 'weight';
 export type Division = 1 | 2 | 3 | 4;
@@ -254,6 +254,8 @@ type GoalStreakParams = {
   shieldedWeeks?: Set<string>;
   /** First date the logs cover (YYYY-MM-DD). A chain still alive past it was cut off by the read. */
   windowStart?: string;
+  /** Stop the walk on reaching this date (not counted). Used to count the days after a stale mirror. */
+  floor?: string;
 };
 
 /**
@@ -276,7 +278,8 @@ export function computeGoalStreakDetail(params: GoalStreakParams): { streak: num
   return { streak, hitEdge };
 }
 
-function goalStreakWalk(params: GoalStreakParams): { streak: number; stoppedAt: string | null } {
+function goalStreakWalk(params: GoalStreakParams): { streak: number; stoppedAt: string | null; reachedFloor?: boolean } {
+  const floor = params.floor;
   const { uid, today, streakRule, targets } = params;
   const shielded = params.shieldedWeeks ?? new Set<string>();
   const w = new Set<string>();
@@ -308,6 +311,7 @@ function goalStreakWalk(params: GoalStreakParams): { streak: number; stoppedAt: 
     const cur = new Date(todayDate);
     let guard = 1600;
     while (guard-- > 0) {
+      if (floor && fmtLocal(cur) <= floor) return { streak, stoppedAt: null, reachedFloor: true };
       if (anyLog.has(fmtLocal(cur))) streak += 1;
       else if (guard === 1599) {
         /* today, not logged yet: the day isn't over */
@@ -334,6 +338,7 @@ function goalStreakWalk(params: GoalStreakParams): { streak: number; stoppedAt: 
   let guard = 1600;
   while (guard-- > 0) {
     const dstr = fmtLocal(cur);
+    if (floor && dstr <= floor) return { streak, stoppedAt: null, reachedFloor: true };
 
     if (loggedDates.has(dstr)) {
       // Actually logged that day → counts.
@@ -386,7 +391,7 @@ export function memberStreakDays(params: {
   pub: PublicUser | null | undefined;
 }): number {
   const p = params.pub;
-  const windowStreak = computeGoalStreak({
+  return displayStreak({
     logs: params.logs,
     uid: params.uid,
     today: params.today,
@@ -397,8 +402,37 @@ export function memberStreakDays(params: {
       weight: Number(p?.logWeightDaysPerWeek ?? 0),
     },
     shieldedWeeks: shieldedWeekIds(p as any),
+    mirror: p?.streakDaysPublic,
+    mirrorUpdatedAtMs: p?.streakDaysUpdatedAtMs,
   });
-  return bestStreak(windowStreak, p?.streakDaysPublic, p?.streakDaysUpdatedAtMs);
+}
+
+/**
+ * The streak to show from a SHORT feed (most screens hold 14 days) plus the
+ * owner's mirror. Largest of:
+ *   - the feed's own count (can only undercount);
+ *   - a fresh mirror (bestStreak);
+ *   - an OLD mirror plus the logged days since it, when the feed proves the
+ *     chain has not broken since the mirror's date. Without this, anyone who
+ *     stayed out of the app for two days (a vacation week, or logs arriving by
+ *     health sync) showed teammates the feed count: 14 for a 120-day streak.
+ *     Missing logs can only make the walk stop EARLIER, so "reached the
+ *     mirror's date" is proof, never a guess.
+ */
+export function displayStreak(
+  params: GoalStreakParams & { mirror?: number | null; mirrorUpdatedAtMs?: number | null },
+): number {
+  const { mirror, mirrorUpdatedAtMs, ...walk } = params;
+  const windowStreak = goalStreakWalk(walk).streak;
+  let out = bestStreak(windowStreak, mirror, mirrorUpdatedAtMs);
+  if (typeof mirror === 'number' && mirror > 0 && typeof mirrorUpdatedAtMs === 'number' && mirrorUpdatedAtMs > 0) {
+    const mirrorDay = yyyyMmDdInTz(new Date(mirrorUpdatedAtMs), DEFAULT_TZ);
+    if (mirrorDay <= params.today) {
+      const since = goalStreakWalk({ ...walk, floor: mirrorDay });
+      if (since.reachedFloor) out = Math.max(out, Math.round(mirror) + since.streak);
+    }
+  }
+  return out;
 }
 
 /** Team Today rail: per-visible-member logged status, streak leader, and at-risk. */
