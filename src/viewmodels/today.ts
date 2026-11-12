@@ -256,7 +256,36 @@ type GoalStreakParams = {
   windowStart?: string;
   /** Stop the walk on reaching this date (not counted). Used to count the days after a stale mirror. */
   floor?: string;
+  /** The owner's goal history. Past weeks count against the goals set then. */
+  goalLog?: GoalLogEntry[] | null;
 };
+
+/** Weekly goals in force from ISO week `from` on. The first entry uses from '0' (all earlier weeks). */
+export type GoalLogEntry = { from: string; w: number; c: number; g: number };
+
+/**
+ * The goal history brought up to date with the goals in force now. A change
+ * takes effect from the CURRENT week; earlier weeks keep the goals they had.
+ * (Before this, the walk judged every past week by today's goals: raising a
+ * goal by one cut Ryan's streak 17 -> 8, lowering one took Cait 2 -> 20.)
+ * History starts the day this shipped: the first entry holds the goals of
+ * that day for all earlier weeks.
+ */
+export function nextGoalLog(
+  log: GoalLogEntry[] | null | undefined,
+  targets: { workout: number; calories: number; weight: number },
+  currentWeek: string,
+): GoalLogEntry[] {
+  const n = (v: unknown) => Math.max(0, Math.round(Number(v) || 0));
+  const cur = { w: n(targets.workout), c: n(targets.calories), g: n(targets.weight) };
+  const clean = (Array.isArray(log) ? log : [])
+    .filter((e) => e && typeof e.from === 'string')
+    .map((e) => ({ from: e.from, w: n(e.w), c: n(e.c), g: n(e.g) }));
+  if (!clean.length) return [{ from: '0', ...cur }];
+  const last = clean[clean.length - 1]!;
+  if (last.w === cur.w && last.c === cur.c && last.g === cur.g) return clean;
+  return [...clean.filter((e) => e.from < currentWeek), { from: currentWeek, ...cur }].slice(-80);
+}
 
 /**
  * computeGoalStreak plus `hitEdge`: true when the chain was still alive at
@@ -295,31 +324,28 @@ function goalStreakWalk(params: GoalStreakParams): { streak: number; stoppedAt: 
     if (anyTypes.has(l.type)) anyLog.add(l.date);
   }
 
-  const cats: Array<{ dates: Set<string>; target: number }> = [];
-  if (targets.workout > 0) cats.push({ dates: w, target: Math.round(targets.workout) });
-  if (streakRule === 'any') {
-    if (targets.calories > 0) cats.push({ dates: c, target: Math.round(targets.calories) });
-    if (targets.weight > 0) cats.push({ dates: g, target: Math.round(targets.weight) });
-  }
-
+  type Cat = { dates: Set<string>; target: number };
   const todayDate = new Date(`${today}T00:00:00`);
   if (Number.isNaN(todayDate.valueOf())) return { streak: 0, stoppedAt: null };
 
-  // No usable weekly targets → legacy "logged every day" streak.
-  if (cats.length === 0) {
-    let streak = 0;
-    const cur = new Date(todayDate);
-    let guard = 1600;
-    while (guard-- > 0) {
-      if (floor && fmtLocal(cur) <= floor) return { streak, stoppedAt: null, reachedFloor: true };
-      if (anyLog.has(fmtLocal(cur))) streak += 1;
-      else if (guard === 1599) {
-        /* today, not logged yet: the day isn't over */
-      } else if (!shielded.has(weekIdOfYmd(fmtLocal(cur)))) return { streak, stoppedAt: fmtLocal(cur) };
-      cur.setDate(cur.getDate() - 1);
+  // The tracked categories of a week, from the goals in force THAT week.
+  // No goal history: today's goals for every week (the old behaviour).
+  const goalLog = params.goalLog?.length ? nextGoalLog(params.goalLog, targets, weekIdOfYmd(today)) : null;
+  const catsByWeek = new Map<string, Cat[]>();
+  const catsFor = (weekId: string): Cat[] => {
+    let cats = catsByWeek.get(weekId);
+    if (cats) return cats;
+    let t = { w: targets.workout, c: targets.calories, g: targets.weight };
+    if (goalLog) for (const e of goalLog) if (e.from <= weekId) t = e;
+    cats = [];
+    if (t.w > 0) cats.push({ dates: w, target: Math.round(t.w) });
+    if (streakRule === 'any') {
+      if (t.c > 0) cats.push({ dates: c, target: Math.round(t.c) });
+      if (t.g > 0) cats.push({ dates: g, target: Math.round(t.g) });
     }
-    return { streak, stoppedAt: null };
-  }
+    catsByWeek.set(weekId, cats);
+    return cats;
+  };
 
   const mondayOf = (dt: Date) => {
     const m = new Date(dt);
@@ -329,18 +355,18 @@ function goalStreakWalk(params: GoalStreakParams): { streak: number; stoppedAt: 
     return m;
   };
 
-  // The set of dates that COUNT as active days (logged in a tracked category).
-  const loggedDates = new Set<string>();
-  for (const cat of cats) for (const d of cat.dates) loggedDates.add(d);
-
   let streak = 0;
   const cur = new Date(todayDate);
   let guard = 1600;
   while (guard-- > 0) {
     const dstr = fmtLocal(cur);
     if (floor && dstr <= floor) return { streak, stoppedAt: null, reachedFloor: true };
+    const weekId = weekIdOfYmd(dstr);
+    const cats = catsFor(weekId);
 
-    if (loggedDates.has(dstr)) {
+    // An active day: logged in a category tracked that week. A week with no
+    // goals at all falls back to "any log counts, every day must be logged".
+    if (cats.length ? cats.some((cat) => cat.dates.has(dstr)) : anyLog.has(dstr)) {
       // Actually logged that day → counts.
       streak += 1;
       cur.setDate(cur.getDate() - 1);
@@ -352,10 +378,11 @@ function goalStreakWalk(params: GoalStreakParams): { streak: number; stoppedAt: 
     // Same for TODAY when nothing is logged yet: the day isn't over. Without
     // this a 7-day target read 0 every morning until the first log (prod
     // 2026-09-14: Regmong, 53 -> 0 on his first day back).
-    if (dstr === today || shielded.has(weekIdOfYmd(dstr))) {
+    if (dstr === today || shielded.has(weekId)) {
       cur.setDate(cur.getDate() - 1);
       continue;
     }
+    if (!cats.length) return { streak, stoppedAt: dstr };
 
     // No log that day: the streak survives (without counting) only if the
     // weekly goal was still reachable as of that day.
@@ -364,7 +391,7 @@ function goalStreakWalk(params: GoalStreakParams): { streak: number; stoppedAt: 
     sun.setDate(mon.getDate() + 6);
     const daysLeftAfter = Math.max(0, Math.round((sun.getTime() - cur.getTime()) / 86400000));
     const monStr = fmtLocal(mon);
-    const onPace = (cat: { dates: Set<string>; target: number }) => {
+    const onPace = (cat: Cat) => {
       let done = 0;
       for (const d of cat.dates) if (d >= monStr && d <= dstr) done += 1;
       return done + daysLeftAfter >= cat.target;
@@ -402,6 +429,7 @@ export function memberStreakDays(params: {
       weight: Number(p?.logWeightDaysPerWeek ?? 0),
     },
     shieldedWeeks: shieldedWeekIds(p as any),
+    goalLog: p?.goalLog,
     mirror: p?.streakDaysPublic,
     mirrorUpdatedAtMs: p?.streakDaysUpdatedAtMs,
   });

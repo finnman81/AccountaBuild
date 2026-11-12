@@ -42,6 +42,8 @@ export type PublicUser = {
   bestStreakDaysPublic?: number | null;
   /** Plain ms number, NOT a Timestamp — must survive the hydration cache's JSON. */
   streakDaysUpdatedAtMs?: number | null;
+  /** Weekly-goal history (owner-written, see nextGoalLog in viewmodels/today.ts). */
+  goalLog?: Array<{ from: string; w: number; c: number; g: number }> | null;
   /** ISO week the user has declared as a vacation week (null when none). */
   vacationWeekId?: string | null;
   /** Every booked vacation week (server mirror, 2026-09-14). The streak shield reads this. */
@@ -184,6 +186,7 @@ export function subscribePublicUsers(uids: string[], onChange: (map: Record<stri
           streakDaysPublic: typeof data?.streakDaysPublic === 'number' ? data.streakDaysPublic : null,
           bestStreakDaysPublic: typeof data?.bestStreakDaysPublic === 'number' ? data.bestStreakDaysPublic : null,
           streakDaysUpdatedAtMs: typeof data?.streakDaysUpdatedAtMs === 'number' ? data.streakDaysUpdatedAtMs : null,
+          goalLog: Array.isArray(data?.goalLog) ? data.goalLog : null,
           // NOTE: this mapper is a whitelist — a field absent here never
           // reaches the UI no matter what the doc says. vacationWeekId was
           // declared on the type and read by the leaderboard but never copied,

@@ -3,9 +3,9 @@ import { collection, doc, getDoc, getDocs, query, serverTimestamp, setDoc, where
 import { getFunctions, httpsCallable } from 'firebase/functions';
 
 import { db, firebaseApp } from '../firebase/firebase';
-import { computeGoalStreakDetail, streakWeekStates } from '../viewmodels/today';
+import { computeGoalStreakDetail, nextGoalLog, streakWeekStates } from '../viewmodels/today';
 import type { GroupLog } from './logs';
-import { DEFAULT_TZ, yyyyMmDdInTz } from '../mmr/time';
+import { DEFAULT_TZ, isoWeekIdInTz, yyyyMmDdInTz } from '../mmr/time';
 import { shieldedWeekIds } from '../mmr/shields';
 
 /**
@@ -65,16 +65,20 @@ async function loadMyStreakInputs(uid: string, groupId: string, lookbackDays = L
   const streakRule: 'workout' | 'any' = rules.length && rules.every((r) => r === 'workout') ? 'workout' : 'any';
 
   const p = (pubSnap.data() as any) ?? {};
+  const targets = {
+    workout: Number(p?.workoutsPerWeek ?? 0),
+    calories: Number(p?.logCaloriesDaysPerWeek ?? 0),
+    weight: Number(p?.logWeightDaysPerWeek ?? 0),
+  };
   return {
     logs: [...logsById.values()],
     uid,
     today: yyyyMmDdInTz(new Date(), DEFAULT_TZ),
     streakRule,
-    targets: {
-      workout: Number(p?.workoutsPerWeek ?? 0),
-      calories: Number(p?.logCaloriesDaysPerWeek ?? 0),
-      weight: Number(p?.logWeightDaysPerWeek ?? 0),
-    },
+    targets,
+    // Goal history, brought up to date: a goal change counts from this week
+    // on and leaves earlier weeks alone. Saved back with the mirror.
+    goalLog: nextGoalLog(p?.goalLog, targets, isoWeekIdInTz(new Date(), DEFAULT_TZ)),
     shieldedWeeks: shieldedWeekIds(p),
     windowStart: minDate,
     partial,
@@ -114,7 +118,13 @@ export async function computeAndMirrorMyStreak(uid: string, groupId: string): Pr
     const best = Math.max(streak, inputs.bestSoFar);
     await setDoc(
       doc(db, 'publicUsers', uid),
-      { streakDaysPublic: streak, bestStreakDaysPublic: best, streakDaysUpdatedAtMs: Date.now(), updatedAt: serverTimestamp() },
+      {
+        streakDaysPublic: streak,
+        bestStreakDaysPublic: best,
+        streakDaysUpdatedAtMs: Date.now(),
+        goalLog: inputs.goalLog,
+        updatedAt: serverTimestamp(),
+      },
       { merge: true },
     );
     return streak;

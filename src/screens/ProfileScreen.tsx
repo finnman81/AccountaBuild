@@ -275,6 +275,7 @@ export default function ProfileScreen() {
         weight: Number(profile?.logWeightDaysPerWeek ?? 0),
       },
       shieldedWeeks: shieldedWeekIds(myPub),
+      goalLog: myPub?.goalLog,
       mirror: myPub?.streakDaysPublic,
       mirrorUpdatedAtMs: myPub?.streakDaysUpdatedAtMs,
     });

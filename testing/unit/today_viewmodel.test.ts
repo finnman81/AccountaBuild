@@ -1,4 +1,4 @@
-import { milestoneToCelebrate, buildTodayChecklist, computeStreakDays, computeGoalStreak, computeGoalStreakDetail, displayStreak, buildTeamToday, buildLeaderboardPreview } from '../../src/viewmodels/today';
+import { milestoneToCelebrate, buildTodayChecklist, computeStreakDays, computeGoalStreak, computeGoalStreakDetail, displayStreak, nextGoalLog, buildTeamToday, buildLeaderboardPreview } from '../../src/viewmodels/today';
 import type { GroupLog, LogType } from '../../src/services/logs';
 import type { PublicUser } from '../../src/services/publicUsers';
 
@@ -250,5 +250,33 @@ describe('displayStreak (short feed + old mirror)', () => {
 
   test('a mirror older than the feed is ignored (no proof)', () => {
     expect(displayStreak({ ...base, logs: feed, mirror: 50, mirrorUpdatedAtMs: at('2026-09-01') })).toBe(6); // the feed's own count
+  });
+});
+
+describe('goal history (past weeks keep the goals they had)', () => {
+  // Three workouts in each of the weeks of 10/26 (W44) and 11/2 (W45), two so far in W46. Today is Wed 11/11.
+  const logs = ['2026-10-26', '2026-10-27', '2026-10-29', '2026-11-02', '2026-11-03', '2026-11-05', '2026-11-09', '2026-11-10'].map((x) => log('a', 'workout', x));
+  const base = { uid: 'a', today: '2026-11-11', streakRule: 'workout' as const, logs };
+  const t = (workout: number) => ({ workout, calories: 0, weight: 0 });
+  const e = (from: string, w: number) => ({ from, w, c: 0, g: 0 });
+
+  test('raising a goal does not cut the weeks before it', () => {
+    expect(computeGoalStreak({ ...base, targets: t(5) })).toBe(2); // no history: old weeks fail the new goal
+    expect(computeGoalStreak({ ...base, targets: t(5), goalLog: [e('0', 3), e('2026-W46', 5)] })).toBe(8);
+    // History not saved yet: the change still counts from this week only.
+    expect(computeGoalStreak({ ...base, targets: t(5), goalLog: [e('0', 3)] })).toBe(8);
+  });
+
+  test('lowering a goal does not revive the weeks before it', () => {
+    expect(computeGoalStreak({ ...base, targets: t(2) })).toBe(8);
+    expect(computeGoalStreak({ ...base, targets: t(2), goalLog: [e('0', 5), e('2026-W46', 2)] })).toBe(2);
+  });
+
+  test('nextGoalLog seeds, keeps, appends, and replaces within a week', () => {
+    expect(nextGoalLog(null, t(3), '2026-W46')).toEqual([e('0', 3)]);
+    expect(nextGoalLog([e('0', 3)], t(3), '2026-W46')).toEqual([e('0', 3)]);
+    expect(nextGoalLog([e('0', 3)], t(5), '2026-W46')).toEqual([e('0', 3), e('2026-W46', 5)]);
+    expect(nextGoalLog([e('0', 3), e('2026-W46', 5)], t(4), '2026-W46')).toEqual([e('0', 3), e('2026-W46', 4)]);
+    expect(nextGoalLog([e('0', 3), e('2026-W46', 5)], t(4), '2026-W47')).toEqual([e('0', 3), e('2026-W46', 5), e('2026-W47', 4)]);
   });
 });
