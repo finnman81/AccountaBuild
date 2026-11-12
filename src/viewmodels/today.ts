@@ -240,7 +240,11 @@ export function bestStreak(windowStreak: number, mirror?: number | null, mirrorU
   return windowStreak;
 }
 
-export function computeGoalStreak(params: {
+export function computeGoalStreak(params: GoalStreakParams): number {
+  return computeGoalStreakDetail(params).streak;
+}
+
+type GoalStreakParams = {
   logs: GroupLog[];
   uid: string;
   today: string;
@@ -248,7 +252,31 @@ export function computeGoalStreak(params: {
   targets: { workout: number; calories: number; weight: number };
   /** Weeks where an unlogged day must not break the chain (vacation/hibernation). */
   shieldedWeeks?: Set<string>;
-}): number {
+  /** First date the logs cover (YYYY-MM-DD). A chain still alive past it was cut off by the read. */
+  windowStart?: string;
+};
+
+/**
+ * computeGoalStreak plus `hitEdge`: true when the chain was still alive at
+ * windowStart, so older logs could make it longer. The caller widens the read.
+ * (Prod 2026-11-12: Jake's chain ran back to 7/5, the 120-day read started
+ * 7/15, and the streak slid 111 -> 110 as the window moved.)
+ */
+export function computeGoalStreakDetail(params: GoalStreakParams): { streak: number; hitEdge: boolean } {
+  const { streak, stoppedAt } = goalStreakWalk(params);
+  // Within a week of the edge counts too: that week's pace check is missing
+  // the logs from before the window, so a "break" there may not be real.
+  let edge = params.windowStart;
+  if (edge) {
+    const d = new Date(`${edge}T00:00:00`);
+    d.setDate(d.getDate() + 7);
+    edge = fmtLocal(d);
+  }
+  const hitEdge = !!edge && streak > 0 && (stoppedAt == null || stoppedAt < edge);
+  return { streak, hitEdge };
+}
+
+function goalStreakWalk(params: GoalStreakParams): { streak: number; stoppedAt: string | null } {
   const { uid, today, streakRule, targets } = params;
   const shielded = params.shieldedWeeks ?? new Set<string>();
   const w = new Set<string>();
@@ -272,21 +300,21 @@ export function computeGoalStreak(params: {
   }
 
   const todayDate = new Date(`${today}T00:00:00`);
-  if (Number.isNaN(todayDate.valueOf())) return 0;
+  if (Number.isNaN(todayDate.valueOf())) return { streak: 0, stoppedAt: null };
 
   // No usable weekly targets → legacy "logged every day" streak.
   if (cats.length === 0) {
     let streak = 0;
     const cur = new Date(todayDate);
-    let guard = 366;
+    let guard = 1600;
     while (guard-- > 0) {
       if (anyLog.has(fmtLocal(cur))) streak += 1;
-      else if (guard === 365) {
+      else if (guard === 1599) {
         /* today, not logged yet: the day isn't over */
-      } else if (!shielded.has(weekIdOfYmd(fmtLocal(cur)))) break;
+      } else if (!shielded.has(weekIdOfYmd(fmtLocal(cur)))) return { streak, stoppedAt: fmtLocal(cur) };
       cur.setDate(cur.getDate() - 1);
     }
-    return streak;
+    return { streak, stoppedAt: null };
   }
 
   const mondayOf = (dt: Date) => {
@@ -303,7 +331,7 @@ export function computeGoalStreak(params: {
 
   let streak = 0;
   const cur = new Date(todayDate);
-  let guard = 400;
+  let guard = 1600;
   while (guard-- > 0) {
     const dstr = fmtLocal(cur);
 
@@ -337,10 +365,10 @@ export function computeGoalStreak(params: {
       return done + daysLeftAfter >= cat.target;
     };
     const good = streakRule === 'any' ? cats.some(onPace) : cats.every(onPace);
-    if (!good) break;
+    if (!good) return { streak, stoppedAt: dstr };
     cur.setDate(cur.getDate() - 1);
   }
-  return streak;
+  return { streak, stoppedAt: null };
 }
 
 /**

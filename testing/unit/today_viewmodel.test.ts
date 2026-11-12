@@ -1,4 +1,4 @@
-import { milestoneToCelebrate, buildTodayChecklist, computeStreakDays, computeGoalStreak, buildTeamToday, buildLeaderboardPreview } from '../../src/viewmodels/today';
+import { milestoneToCelebrate, buildTodayChecklist, computeStreakDays, computeGoalStreak, computeGoalStreakDetail, buildTeamToday, buildLeaderboardPreview } from '../../src/viewmodels/today';
 import type { GroupLog, LogType } from '../../src/services/logs';
 import type { PublicUser } from '../../src/services/publicUsers';
 
@@ -202,5 +202,30 @@ describe('milestoneToCelebrate', () => {
   });
   it('does not repeat one already seen', () => {
     expect(milestoneToCelebrate(51, 50)).toBeNull();
+  });
+});
+
+describe('computeGoalStreakDetail (window edge)', () => {
+  // 5 workouts a week (Mon-Fri), weekends off, from 2026-06-01 to 2026-11-11.
+  const days: string[] = [];
+  const d = new Date('2026-06-01T00:00:00');
+  while (d <= new Date('2026-11-11T00:00:00')) {
+    const dow = d.getDay();
+    if (dow !== 0 && dow !== 6) days.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
+    d.setDate(d.getDate() + 1);
+  }
+  const logs = days.map((x) => log('a', 'workout', x));
+  const base = { uid: 'a', today: '2026-11-11', streakRule: 'workout' as const, targets: { workout: 5, calories: 0, weight: 0 } };
+
+  test('a chain alive at the window start reports hitEdge (rest days keep the count under the window length)', () => {
+    const r = computeGoalStreakDetail({ ...base, logs: logs.filter((l) => l.date >= '2026-07-14'), windowStart: '2026-07-14' });
+    expect(r.streak).toBeLessThan(113); // the old widen test (>= 120 - 7) never fired
+    expect(r.hitEdge).toBe(true);
+  });
+
+  test('the full read gives the full chain and no edge', () => {
+    const r = computeGoalStreakDetail({ ...base, logs, windowStart: '2026-01-01' });
+    expect(r.streak).toBe(days.length);
+    expect(r.hitEdge).toBe(false);
   });
 });

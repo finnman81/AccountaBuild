@@ -3,7 +3,7 @@ import { collection, doc, getDoc, getDocs, query, serverTimestamp, setDoc, where
 import { getFunctions, httpsCallable } from 'firebase/functions';
 
 import { db, firebaseApp } from '../firebase/firebase';
-import { computeGoalStreak, streakWeekStates } from '../viewmodels/today';
+import { computeGoalStreakDetail, streakWeekStates } from '../viewmodels/today';
 import type { GroupLog } from './logs';
 import { DEFAULT_TZ, yyyyMmDdInTz } from '../mmr/time';
 import { shieldedWeekIds } from '../mmr/shields';
@@ -72,23 +72,33 @@ async function loadMyStreakInputs(uid: string, groupId: string, lookbackDays = L
       weight: Number(p?.logWeightDaysPerWeek ?? 0),
     },
     shieldedWeeks: shieldedWeekIds(p),
+    windowStart: minDate,
     // Seeded from the current mirror so the first write can't record a best of 0.
     bestSoFar: Math.max(Number(p?.bestStreakDaysPublic) || 0, Number(p?.streakDaysPublic) || 0),
   };
 }
 
+/**
+ * A chain still alive at the window's start may run further back: widen and
+ * recount. The old test (streak >= lookback - 7) compared LOGGED days with
+ * CALENDAR days, so rest and vacation days hid the edge (Jake 11/12: real
+ * chain back to 7/5, read began 7/15, streak slid 111 -> 110).
+ */
+async function loadFullStreak(uid: string, groupId: string) {
+  let lookback = LOOKBACK_DAYS;
+  let inputs = await loadMyStreakInputs(uid, groupId, lookback);
+  let r = computeGoalStreakDetail(inputs);
+  while (r.hitEdge && lookback < MAX_LOOKBACK_DAYS) {
+    lookback = Math.min(lookback * 2, MAX_LOOKBACK_DAYS);
+    inputs = await loadMyStreakInputs(uid, groupId, lookback);
+    r = computeGoalStreakDetail(inputs);
+  }
+  return { inputs, streak: r.streak };
+}
+
 export async function computeAndMirrorMyStreak(uid: string, groupId: string): Promise<number | null> {
   try {
-    // A streak that reaches the edge of the window may run further back:
-    // widen and recount. A fixed 120-day read capped Watto at 120 (11/9).
-    let lookback = LOOKBACK_DAYS;
-    let inputs = await loadMyStreakInputs(uid, groupId, lookback);
-    let streak = computeGoalStreak(inputs);
-    while (streak >= lookback - 7 && lookback < MAX_LOOKBACK_DAYS) {
-      lookback = Math.min(lookback * 2, MAX_LOOKBACK_DAYS);
-      inputs = await loadMyStreakInputs(uid, groupId, lookback);
-      streak = computeGoalStreak(inputs);
-    }
+    const { inputs, streak } = await loadFullStreak(uid, groupId);
     // Best-ever rides along: a broken streak should still leave a record.
     const best = Math.max(streak, inputs.bestSoFar);
     await setDoc(
@@ -113,9 +123,8 @@ export type MyStreakMoment = {
 /** Streak + this week's row for the daily celebration. Null on any failure. */
 export async function loadMyStreakMoment(uid: string, groupId: string): Promise<MyStreakMoment | null> {
   try {
-    const inputs = await loadMyStreakInputs(uid, groupId);
+    const { inputs, streak } = await loadFullStreak(uid, groupId);
     const week = streakWeekStates(inputs);
-    const streak = computeGoalStreak(inputs);
     return {
       streak,
       best: Math.max(streak, inputs.bestSoFar),
